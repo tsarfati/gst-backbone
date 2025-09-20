@@ -120,23 +120,39 @@ export default function TimeTracking() {
   const getCurrentLocation = (): Promise<{lat: number, lng: number}> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported'));
+        console.error('Geolocation is not supported by this browser');
+        reject(new Error('Geolocation is not supported by this browser'));
         return;
       }
 
+      console.log('Requesting geolocation permission...');
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log('Geolocation success:', position.coords);
           resolve({
             lat: position.coords.latitude,
             lng: position.coords.longitude
           });
         },
         (error) => {
-          reject(error);
+          console.error('Geolocation error:', error.code, error.message);
+          let errorMessage = 'Location access denied';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location access denied. Please enable location permissions.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information unavailable.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out.';
+              break;
+          }
+          reject(new Error(errorMessage));
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+          timeout: 15000,
           maximumAge: 60000
         }
       );
@@ -146,6 +162,12 @@ export default function TimeTracking() {
   const startCamera = async () => {
     try {
       setLoadingStatus('Starting camera...');
+      console.log('Requesting camera permission...');
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera is not supported by this browser');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'user',
@@ -154,17 +176,28 @@ export default function TimeTracking() {
         }
       });
       
+      console.log('Camera access granted:', stream);
       setCameraStream(stream);
       setShowCamera(true);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting camera:', error);
+      let errorMessage = 'Could not access camera. Please check permissions.';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera access denied. Please allow camera permissions and try again.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found on this device.';
+      } else if (error.name === 'NotSupportedError') {
+        errorMessage = 'Camera is not supported by this browser.';
+      }
+      
       toast({
         title: 'Camera Error',
-        description: 'Could not access camera. Please check permissions.',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -240,18 +273,21 @@ export default function TimeTracking() {
 
     try {
       // Get location
+      console.log('Starting punch in process...');
       const currentLocation = await getCurrentLocation();
+      console.log('Location obtained:', currentLocation);
       setLocation(currentLocation);
 
       // Start camera for photo
+      setLoadingStatus('Starting camera...');
       await startCamera();
       setPunchType('in');
       setShowPunchDialog(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during punch in preparation:', error);
       toast({
-        title: 'Error',
-        description: 'Could not get location or start camera. Please try again.',
+        title: 'Setup Error',
+        description: error.message || 'Could not get location or start camera. Please check your browser permissions.',
         variant: 'destructive',
       });
     } finally {
@@ -268,18 +304,21 @@ export default function TimeTracking() {
 
     try {
       // Get location
+      console.log('Starting punch out process...');
       const currentLocation = await getCurrentLocation();
+      console.log('Location obtained:', currentLocation);
       setLocation(currentLocation);
 
       // Start camera for photo
+      setLoadingStatus('Starting camera...');
       await startCamera();
       setPunchType('out');
       setShowPunchDialog(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during punch out preparation:', error);
       toast({
-        title: 'Error',
-        description: 'Could not get location or start camera. Please try again.',
+        title: 'Setup Error',
+        description: error.message || 'Could not get location or start camera. Please check your browser permissions.',
         variant: 'destructive',
       });
     } finally {
