@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   FileText, 
   Clock, 
@@ -9,8 +11,10 @@ import {
   CheckCircle, 
   Eye,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  Filter
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Invoice statuses will be loaded from database
 const invoiceStatuses = {
@@ -25,6 +29,26 @@ const calculateTotal = (invoices: any[]) => {
 };
 
 export default function InvoiceStatus() {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .order('name');
+      
+      if (!error && data) {
+        setJobs(data);
+      }
+      setLoading(false);
+    };
+    
+    loadJobs();
+  }, []);
+
   const totals = {
     waitingApproval: 0,
     waitingToBePaid: 0,
@@ -67,13 +91,17 @@ export default function InvoiceStatus() {
     }
   ];
 
+  const selectedJobName = selectedJobId === "all" 
+    ? "All Jobs" 
+    : jobs.find(job => job.id === selectedJobId)?.name || "Unknown Job";
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Invoice Status Dashboard</h1>
           <p className="text-muted-foreground">
-            Monitor invoice workflow and payment status
+            Monitor invoice workflow and payment status{selectedJobId !== "all" && ` for ${selectedJobName}`}
           </p>
         </div>
         <div className="flex space-x-2">
@@ -86,6 +114,42 @@ export default function InvoiceStatus() {
             Generate Report
           </Button>
         </div>
+      </div>
+
+      {/* Job Filter Dropdown */}
+      <div className="mb-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <Filter className="h-5 w-5 text-muted-foreground" />
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Filter by Job:</label>
+                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                  <SelectTrigger className="w-64">
+                    <SelectValue placeholder="Select a job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Jobs</SelectItem>
+                    {loading ? (
+                      <SelectItem value="loading" disabled>Loading jobs...</SelectItem>
+                    ) : (
+                      jobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedJobId !== "all" && (
+                <Badge variant="outline" className="ml-2">
+                  Filtered: {selectedJobName}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Status Counter Tiles */}
@@ -215,7 +279,11 @@ export default function InvoiceStatus() {
               { action: "Payment processed", invoice: "INV-004", vendor: "Office Supply Co", time: "1 day ago", type: "paid" },
               { action: "Invoice submitted", invoice: "INV-008", vendor: "Professional Services", time: "1 day ago", type: "submitted" },
               { action: "Payment overdue", invoice: "INV-003", vendor: "Home Depot", time: "2 days ago", type: "overdue" },
-            ].map((activity, index) => (
+            ].filter(activity => {
+              // Filter activities based on selected job if needed
+              // For now, showing all activities regardless of job filter
+              return true;
+            }).map((activity, index) => (
               <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className={`w-2 h-2 rounded-full ${

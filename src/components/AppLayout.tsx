@@ -207,7 +207,7 @@ export function AppSidebar() {
                             asChild 
                             isActive={isActive}
                             tooltip={state === "collapsed" ? item.name : undefined}
-                            style={isActive ? { backgroundColor: settings.customColors.primary, color: 'white' } : {}}
+                            style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
                             className={isActive ? "hover:opacity-90" : ""}
                           >
                             <Link to={item.href}>
@@ -251,7 +251,7 @@ export function AppSidebar() {
                                 asChild 
                                 isActive={isActive}
                                 tooltip={state === "collapsed" ? item.name : undefined}
-                                style={isActive ? { backgroundColor: settings.customColors.primary, color: 'white' } : {}}
+                                style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
                                 className={isActive ? "hover:opacity-90" : ""}
                               >
                                 <Link to={item.href}>
