@@ -349,13 +349,15 @@ export default function VendorDetails() {
                 <Badge variant="outline" className="text-xs">View Only</Badge>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {paymentMethods.map((method) => {
+                <div className="space-y-6">
+                  {paymentMethods.map((method, index) => {
                     const isUnmasked = unmaskedMethods.has(method.id);
                     const isSensitiveType = method.type === 'ach' || method.type === 'wire';
                     
                     return (
-                      <Card key={method.id} className={`border-dashed ${isSensitiveType ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20' : ''}`}>
+                      <div key={method.id}>
+                        {index > 0 && <hr className="border-muted" />}
+                        <Card className={`border-dashed ${isSensitiveType ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20' : ''}`}>
                         <CardContent className="pt-6">
                           <div className="flex items-center justify-between">
                             <div className="flex-1 space-y-2">
@@ -437,8 +439,9 @@ export default function VendorDetails() {
                               </Button>
                             )}
                           </div>
-                        </CardContent>
-                      </Card>
+                         </CardContent>
+                       </Card>
+                       </div>
                     );
                   })}
                 </div>

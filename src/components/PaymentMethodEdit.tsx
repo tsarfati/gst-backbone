@@ -280,12 +280,17 @@ export default function PaymentMethodEdit({
               {formData.check_delivery === 'office_pickup' && (
                 <div>
                   <Label htmlFor="pickupLocation">Pickup Location</Label>
-                  <Input
-                    id="pickupLocation"
-                    value={formData.pickup_location}
-                    onChange={(e) => handleInputChange('pickup_location', e.target.value)}
-                    placeholder="Enter pickup location"
-                  />
+                  <Select value={formData.pickup_location} onValueChange={(value) => handleInputChange('pickup_location', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select office location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="main_office">Main Office</SelectItem>
+                      <SelectItem value="warehouse">Warehouse</SelectItem>
+                      <SelectItem value="construction_site">Construction Site</SelectItem>
+                      <SelectItem value="regional_office">Regional Office</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </>

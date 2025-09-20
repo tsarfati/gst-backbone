@@ -1,16 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Building, Plus, FileText } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [job, setJob] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // In a real app, you would fetch job data from backend
-  const job = null; // No mock data
+  useEffect(() => {
+    const fetchJob = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error fetching job:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load job details",
+            variant: "destructive",
+          });
+        } else {
+          setJob(data);
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJob();
+  }, [id, toast]);
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="text-center py-12 text-muted-foreground">Loading job details...</div>
+      </div>
+    );
+  }
 
   if (!job) {
     return (
@@ -48,16 +97,15 @@ export default function JobDetails() {
   }
 
   return (
-    <div className="p-6">
-      {/* This would contain the actual job details when data exists */}
+    <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => navigate("/jobs")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Job Details</h1>
-            <p className="text-muted-foreground">View and manage job information</p>
+            <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
+            <p className="text-muted-foreground">Job Details</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -65,6 +113,88 @@ export default function JobDetails() {
             <Edit className="h-4 w-4 mr-2" />
             Edit Job
           </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Job Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {job.client && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Client</label>
+                  <p className="text-foreground">{job.client}</p>
+                </div>
+              )}
+              
+              {job.address && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Address</label>
+                  <p className="text-foreground">{job.address}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Type</label>
+                <Badge variant="outline" className="ml-2">
+                  {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
+                </Badge>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Status</label>
+                <Badge variant="outline" className="ml-2">
+                  {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
+                </Badge>
+              </div>
+
+              {job.budget && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Budget</label>
+                  <p className="text-foreground">${Number(job.budget).toLocaleString()}</p>
+                </div>
+              )}
+
+              {(job.start_date || job.end_date) && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Timeline</label>
+                  <p className="text-foreground">
+                    {job.start_date && `Start: ${job.start_date}`}
+                    {job.start_date && job.end_date && ' • '}
+                    {job.end_date && `End: ${job.end_date}`}
+                  </p>
+                </div>
+              )}
+
+              {job.description && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Description</label>
+                  <p className="text-foreground">{job.description}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start" disabled>
+                <FileText className="h-4 w-4 mr-2" />
+                View Receipts
+              </Button>
+              <Button variant="outline" className="w-full justify-start" disabled>
+                <Building className="h-4 w-4 mr-2" />
+                Time Tracking
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
