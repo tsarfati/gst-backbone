@@ -38,14 +38,21 @@ export default function UncodedReceipts() {
   const [showMessaging, setShowMessaging] = useState(false);
   const { toast } = useToast();
 
-  // Update selected receipt when receipts change
+  // Auto-select first receipt when component mounts or receipts change
   React.useEffect(() => {
-    if (!selectedReceipt && uncodedReceipts.length > 0) {
+    if (uncodedReceipts.length > 0 && !selectedReceipt) {
       setSelectedReceipt(uncodedReceipts[0]);
     } else if (selectedReceipt && !uncodedReceipts.find(r => r.id === selectedReceipt.id)) {
       setSelectedReceipt(uncodedReceipts[0] || null);
     }
-  }, [uncodedReceipts, selectedReceipt]);
+  }, [uncodedReceipts]);
+
+  // Auto-select first receipt on initial load
+  React.useEffect(() => {
+    if (uncodedReceipts.length > 0 && !selectedReceipt) {
+      setSelectedReceipt(uncodedReceipts[0]);
+    }
+  }, []);
 
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
