@@ -1,7 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { FolderOpen, Receipt, DollarSign, Calendar, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import JobViewSelector, { ViewType } from "@/components/JobViewSelector";
+import JobCard from "@/components/JobCard";
+import JobListView from "@/components/JobListView";
+import JobCompactView from "@/components/JobCompactView";
 
 const mockJobs = [
   {
@@ -34,6 +38,32 @@ const mockJobs = [
 ];
 
 export default function Jobs() {
+  const navigate = useNavigate();
+  const [currentView, setCurrentView] = useState<ViewType>("tiles");
+
+  const handleJobClick = (job: any) => {
+    navigate(`/jobs/${job.id}`);
+  };
+
+  const renderJobs = () => {
+    switch (currentView) {
+      case "tiles":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mockJobs.map((job) => (
+              <JobCard key={job.id} job={job} onClick={() => handleJobClick(job)} />
+            ))}
+          </div>
+        );
+      case "list":
+        return <JobListView jobs={mockJobs} onJobClick={handleJobClick} />;
+      case "compact":
+        return <JobCompactView jobs={mockJobs} onJobClick={handleJobClick} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -43,87 +73,16 @@ export default function Jobs() {
             Manage projects and view associated receipts
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Job
-        </Button>
+        <div className="flex items-center gap-4">
+          <JobViewSelector currentView={currentView} onViewChange={setCurrentView} />
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New Job
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockJobs.map((job) => (
-          <Card key={job.id} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center text-lg">
-                  <FolderOpen className="h-5 w-5 mr-2 text-primary" />
-                  {job.name}
-                </CardTitle>
-                <Badge 
-                  variant={job.status === "active" ? "default" : "success"}
-                >
-                  {job.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <DollarSign className="h-3 w-3 mr-1" />
-                    Budget
-                  </div>
-                  <div className="font-semibold">{job.budget}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <DollarSign className="h-3 w-3 mr-1" />
-                    Spent
-                  </div>
-                  <div className="font-semibold">{job.spent}</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Receipt className="h-3 w-3 mr-1" />
-                    Receipts
-                  </div>
-                  <div className="font-semibold">{job.receipts}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    Started
-                  </div>
-                  <div className="font-semibold">{job.startDate}</div>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                  <span>Budget Usage</span>
-                  <span>
-                    {Math.round((parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-accent rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(100, (parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100)}%`
-                    }}
-                  />
-                </div>
-              </div>
-
-              <Button variant="outline" className="w-full">
-                View Details
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {renderJobs()}
     </div>
   );
 }

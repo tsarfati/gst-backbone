@@ -9,6 +9,8 @@ import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
 import UncodedReceipts from "./pages/UncodedReceipts";
 import Jobs from "./pages/Jobs";
+import JobDetails from "./pages/JobDetails";
+import JobEdit from "./pages/JobEdit";
 import Vendors from "./pages/Vendors";
 import Invoices from "./pages/Invoices";
 import InvoiceStatus from "./pages/InvoiceStatus";
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="upload" element={<UploadReceipts />} />
             <Route path="uncoded" element={<UncodedReceipts />} />
             <Route path="jobs" element={<Jobs />} />
+            <Route path="jobs/:id" element={<JobDetails />} />
+            <Route path="jobs/:id/edit" element={<JobEdit />} />
             <Route path="vendors" element={<Vendors />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoice-status" element={<InvoiceStatus />} />
