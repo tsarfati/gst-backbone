@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      company_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          payment_terms_options: string[]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          payment_terms_options?: string[]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          payment_terms_options?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cost_codes: {
         Row: {
           code: string
@@ -187,6 +211,7 @@ export type Database = {
       jobs: {
         Row: {
           address: string | null
+          banner_url: string | null
           budget: number | null
           client: string | null
           created_at: string
@@ -203,6 +228,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          banner_url?: string | null
           budget?: number | null
           client?: string | null
           created_at?: string
@@ -219,6 +245,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          banner_url?: string | null
           budget?: number | null
           client?: string | null
           created_at?: string

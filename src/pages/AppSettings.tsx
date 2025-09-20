@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from 'next-themes';
 import SearchIndexManager from '@/components/SearchIndexManager';
+import PaymentTermsSettings from '@/components/PaymentTermsSettings';
 
 export default function AppSettings() {
   const { settings, updateSettings, resetSettings } = useSettings();
@@ -74,10 +75,11 @@ export default function AppSettings() {
         </div>
 
         <Tabs defaultValue="regional" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="regional">Regional</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
+            <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="search">Search</TabsTrigger>
           </TabsList>
 
@@ -245,6 +247,10 @@ export default function AppSettings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="company" className="space-y-6">
+            <PaymentTermsSettings />
           </TabsContent>
 
           <TabsContent value="search" className="space-y-6">

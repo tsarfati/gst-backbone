@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Jobs are managed with proper state - no mock data
@@ -214,6 +214,41 @@ export default function JobEdit() {
                 onChange={(e) => handleInputChange("contractor", e.target.value)}
                 placeholder="Enter contractor name"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Job Banner */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Job Banner</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="banner">Banner Image</Label>
+              <div className="flex items-center gap-4">
+                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted">
+                  <Building className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id="banner-upload"
+                  />
+                  <Label htmlFor="banner-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" asChild>
+                      <span>
+                        Upload Banner
+                      </span>
+                    </Button>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Recommended: 1200x400px, max 5MB
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

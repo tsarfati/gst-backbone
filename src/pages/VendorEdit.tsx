@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import PaymentMethodEdit from "@/components/PaymentMethodEdit";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
+import PaymentTermsSelect from "@/components/PaymentTermsSelect";
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -588,16 +589,10 @@ export default function VendorEdit() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="payment_terms">Payment Terms</Label>
-                <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment terms" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asap">ASAP</SelectItem>
-                    <SelectItem value="15">Net 15</SelectItem>
-                    <SelectItem value="30">Net 30</SelectItem>
-                  </SelectContent>
-                </Select>
+                <PaymentTermsSelect 
+                  value={formData.payment_terms} 
+                  onValueChange={(value) => handleInputChange("payment_terms", value)} 
+                />
               </div>
             </div>
           </CardContent>

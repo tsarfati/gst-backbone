@@ -388,6 +388,9 @@ export default function VendorDetails() {
                   const isUploaded = doc?.is_uploaded || false;
                   const isRequired = doc?.is_required || false;
                   
+                  // Only show if required
+                  if (!isRequired) return null;
+                  
                   return (
                     <Card key={docType} className="border-dashed">
                       <CardContent className="pt-6">
@@ -397,13 +400,12 @@ export default function VendorDetails() {
                             <div>
                               <h4 className="font-medium">{docType}</h4>
                               <p className="text-sm text-muted-foreground">
-                                {isRequired ? 'Required' : 'Optional'}
-                                {isUploaded && ' • Uploaded'}
+                                Required • {isUploaded ? 'Uploaded' : 'Missing'}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            {isRequired && !isUploaded && (
+                            {!isUploaded && (
                               <Badge variant="destructive" className="text-xs">Missing</Badge>
                             )}
                             <Badge variant={isUploaded ? "default" : "secondary"} className="text-xs">
@@ -414,8 +416,23 @@ export default function VendorDetails() {
                       </CardContent>
                     </Card>
                   );
-                })}
+                }).filter(Boolean)}
               </div>
+              
+              {/* Show message if no required documents */}
+              {complianceDocuments.filter(d => d.is_required).length === 0 && (
+                <div className="text-center py-8">
+                  <FileIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">No Required Documents</h3>
+                  <p className="text-muted-foreground mb-4">No compliance documents are currently marked as required</p>
+                  <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Configure Documents
+                  </Button>
+                </div>
+              )}
+              
+              {/* Show action required for missing documents */}
               {complianceDocuments.filter(d => d.is_required && !d.is_uploaded).length > 0 && (
                 <div className="mt-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <div className="flex items-center gap-2 text-destructive">
