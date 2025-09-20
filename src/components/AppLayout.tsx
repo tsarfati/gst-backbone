@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
@@ -99,6 +99,7 @@ const navigationCategories = [
       { name: "General", href: "/settings", icon: Settings },
       { name: "Theme & Appearance", href: "/settings/theme", icon: Settings },
       { name: "Company Settings", href: "/settings/company", icon: Building },
+      { name: "Notifications & Email", href: "/settings/notifications", icon: Bell },
       { name: "Data & Security", href: "/settings/security", icon: Shield },
       { name: "User Management", href: "/settings/users", icon: UserCog },
     ],

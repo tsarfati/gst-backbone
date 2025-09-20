@@ -38,6 +38,8 @@ import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
 import AllReceipts from "./pages/AllReceipts";
+import NotificationSettings from "./pages/NotificationSettings";
+import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +91,8 @@ function App() {
                       <Route path="settings" element={<AppSettings />} />
                       <Route path="settings/theme" element={<ThemeSettings />} />
                       <Route path="settings/company" element={<CompanySettingsPage />} />
+                      <Route path="settings/notifications" element={<NotificationSettings />} />
+                      <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
                       <Route path="settings/security" element={<SecuritySettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
