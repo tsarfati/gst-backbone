@@ -14,30 +14,17 @@ import PdfPreview from "@/components/PdfPreview";
 import ViewSelector, { ViewType } from "@/components/ViewSelector";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
-const jobs = [
-  "Office Renovation", 
-  "Warehouse Project", 
-  "Retail Buildout", 
-  "Kitchen Remodel",
-  "Parking Lot Repair"
-];
-
-const costCodes = [
-  "Materials", 
-  "Labor", 
-  "Equipment", 
-  "Subcontractors", 
-  "Travel",
-  "Permits & Fees",
-  "Utilities",
-  "Safety Equipment"
-];
+// Remove mock data - will be loaded from database
+const jobs = [];
+const costCodes = [];
+const vendors = [];
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
   const { toast } = useToast();
   
   // View preference management
@@ -59,11 +46,12 @@ export default function UncodedReceipts() {
       return;
     }
 
-    // Code the receipt using context
-    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User");
+    // Code the receipt using context (vendor is optional)
+    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User", selectedVendor || undefined);
     
     setSelectedJob("");
     setSelectedCostCode("");
+    setSelectedVendor("");
     
     toast({
       title: "Receipt coded successfully",
@@ -570,6 +558,22 @@ export default function UncodedReceipts() {
                         {costCodes.map((code) => (
                           <SelectItem key={code} value={code} className="cursor-pointer">
                             {code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="vendor-select" className="text-xs">Vendor (Optional)</Label>
+                    <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                      <SelectTrigger id="vendor-select" className="h-8">
+                        <SelectValue placeholder="Select vendor (optional)" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border border-border shadow-md z-50">
+                        {vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id} className="cursor-pointer">
+                            {vendor.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

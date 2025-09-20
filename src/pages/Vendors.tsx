@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -6,19 +6,62 @@ import VendorViewSelector, { VendorViewType } from "@/components/VendorViewSelec
 import VendorCard from "@/components/VendorCard";
 import VendorListView from "@/components/VendorListView";
 import VendorCompactView from "@/components/VendorCompactView";
-
-// Vendors are now managed with proper state - no mock data
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Vendors() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [currentView, setCurrentView] = useState<VendorViewType>("tiles");
   const [vendors, setVendors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      loadVendors();
+    }
+  }, [user]);
+
+  const loadVendors = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('company_id', user.id)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error('Error loading vendors:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load vendors",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleVendorClick = (vendor: any) => {
     navigate(`/vendors/${vendor.id}`);
   };
 
   const renderVendors = () => {
+    if (loading) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">Loading vendors...</div>
+        </div>
+      );
+    }
+
     if (vendors.length === 0) {
       return (
         <div className="text-center py-12">

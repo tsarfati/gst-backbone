@@ -8,6 +8,7 @@ export interface Receipt {
   amount: string;
   date: string;
   vendor?: string;
+  vendorId?: string;
   type: 'image' | 'pdf';
   previewUrl?: string;
   uploadedBy?: string;
@@ -35,6 +36,7 @@ export interface CodedReceipt extends Receipt {
   costCode: string;
   codedBy: string;
   codedDate: Date;
+  vendorId?: string;
 }
 
 interface ReceiptContextType {
@@ -42,7 +44,7 @@ interface ReceiptContextType {
   codedReceipts: CodedReceipt[];
   messages: ReceiptMessage[];
   addReceipts: (files: FileList) => void;
-  codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string) => void;
+  codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string) => void;
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
   unassignReceipt: (receiptId: string) => void;
   addMessage: (receiptId: string, message: string, userId: string, userName: string, type?: 'message' | 'assignment' | 'coding' | 'status') => void;
@@ -153,7 +155,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string) => {
+  const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string) => {
     const receipt = uncodedReceipts.find(r => r.id === receiptId);
     if (receipt) {
       const codedReceipt: CodedReceipt = {
@@ -162,13 +164,15 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         costCode,
         codedBy,
         codedDate: new Date(),
+        vendorId,
       };
       
       setCodedReceipts(prev => [...prev, codedReceipt]);
       setUncodedReceipts(prev => prev.filter(r => r.id !== receiptId));
       
       // Add coding message
-      addMessage(receiptId, `Receipt coded to ${job} - ${costCode}`, "system", codedBy, 'coding');
+      const vendorText = vendorId ? ` with vendor ${vendorId}` : '';
+      addMessage(receiptId, `Receipt coded to ${job} - ${costCode}${vendorText}`, "system", codedBy, 'coding');
     }
   };
 
