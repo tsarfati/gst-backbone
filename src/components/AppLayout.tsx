@@ -96,7 +96,10 @@ const navigationCategories = [
   {
     title: "Settings",
     items: [
-      { name: "App Settings", href: "/settings", icon: Settings },
+      { name: "General", href: "/settings", icon: Settings },
+      { name: "Theme & Appearance", href: "/settings/theme", icon: Settings },
+      { name: "Company Settings", href: "/settings/company", icon: Building },
+      { name: "Data & Security", href: "/settings/security", icon: Shield },
       { name: "User Management", href: "/settings/users", icon: UserCog },
     ],
   },

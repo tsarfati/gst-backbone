@@ -12,8 +12,6 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from 'next-themes';
-import ColorPicker from '@/components/ColorPicker';
-import CompanySettings from '@/components/CompanySettings';
 
 export default function AppSettings() {
   const { settings, updateSettings, resetSettings } = useSettings();
@@ -39,25 +37,13 @@ export default function AppSettings() {
     });
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        updateSettings({ customLogo: result });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
+          <h1 className="text-3xl font-bold">General Settings</h1>
           <p className="text-muted-foreground">
-            Manage your application preferences and settings.
+            Manage your application preferences and regional settings.
           </p>
         </div>
         
@@ -85,147 +71,14 @@ export default function AppSettings() {
           <Button onClick={handleSaveSettings}>Save Changes</Button>
         </div>
 
-        <Tabs defaultValue="general" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="general">General</TabsTrigger>
+        <Tabs defaultValue="regional" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="regional">Regional</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="company">Company</TabsTrigger>
-            <TabsTrigger value="data">Data & Security</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Theme & Appearance</CardTitle>
-                <CardDescription>
-                  Customize the look and feel of your application
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="theme">Theme</Label>
-                  <Select
-                    value={settings.theme}
-                    onValueChange={(value: 'light' | 'dark' | 'system') => 
-                      updateSettings({ theme: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select theme" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <Label>Logo Upload</Label>
-                  <div className="flex items-center gap-4">
-                    {settings.customLogo && (
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={settings.customLogo} 
-                          alt="Custom Logo" 
-                          className="h-8 w-8 object-contain border rounded"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateSettings({ customLogo: undefined })}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    )}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="w-auto"
-                    />
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Upload a logo to replace the default icon in the sidebar header
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <Label>Color Customization</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ColorPicker
-                      label="Primary Color"
-                      value={settings.customColors.primary}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, primary: value }
-                      })}
-                    />
-                    <ColorPicker
-                      label="Secondary Color"
-                      value={settings.customColors.secondary}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, secondary: value }
-                      })}
-                    />
-                    <ColorPicker
-                      label="Accent Color"
-                      value={settings.customColors.accent}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, accent: value }
-                      })}
-                    />
-                    <ColorPicker
-                      label="Success Color"
-                      value={settings.customColors.success}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, success: value }
-                      })}
-                    />
-                    <ColorPicker
-                      label="Warning Color"
-                      value={settings.customColors.warning}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, warning: value }
-                      })}
-                    />
-                    <ColorPicker
-                      label="Destructive Color"
-                      value={settings.customColors.destructive}
-                      onChange={(value) => updateSettings({ 
-                        customColors: { ...settings.customColors, destructive: value }
-                      })}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="compact-mode">Compact Mode</Label>
-                    <div className="text-sm text-muted-foreground">
-                      Use a more condensed interface layout
-                    </div>
-                  </div>
-                  <Switch
-                    id="compact-mode"
-                    checked={settings.compactMode}
-                    onCheckedChange={(checked) => 
-                      updateSettings({ compactMode: checked })
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
+          <TabsContent value="regional" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Regional Settings</CardTitle>
@@ -386,157 +239,6 @@ export default function AppSettings() {
                       updateSettings({ autoSave: checked })
                     }
                   />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>
-                  Choose which notifications you want to receive
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Email Notifications</Label>
-                      <div className="text-sm text-muted-foreground">
-                        Receive notifications via email
-                      </div>
-                    </div>
-                    <Switch
-                      checked={settings.notifications.email}
-                      onCheckedChange={(checked) => 
-                        updateSettings({ notifications: { ...settings.notifications, email: checked } })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Push Notifications</Label>
-                      <div className="text-sm text-muted-foreground">
-                        Receive browser push notifications
-                      </div>
-                    </div>
-                    <Switch
-                      checked={settings.notifications.push}
-                      onCheckedChange={(checked) => 
-                        updateSettings({ notifications: { ...settings.notifications, push: checked } })
-                      }
-                    />
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-3">
-                    <Label>Specific Notifications</Label>
-                    
-                    <div className="flex items-center justify-between">
-                      <Label>Receipt Uploads</Label>
-                      <Switch
-                        checked={settings.notifications.receiptUploads}
-                        onCheckedChange={(checked) => 
-                          updateSettings({ notifications: { ...settings.notifications, receiptUploads: checked } })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label>Job Updates</Label>
-                      <Switch
-                        checked={settings.notifications.jobUpdates}
-                        onCheckedChange={(checked) => 
-                          updateSettings({ notifications: { ...settings.notifications, jobUpdates: checked } })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label>Invoice Reminders</Label>
-                      <Switch
-                        checked={settings.notifications.invoiceReminders}
-                        onCheckedChange={(checked) => 
-                          updateSettings({ notifications: { ...settings.notifications, invoiceReminders: checked } })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="company" className="space-y-6">
-            <CompanySettings />
-          </TabsContent>
-
-          <TabsContent value="data" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Data Management</CardTitle>
-                <CardDescription>
-                  Export, import, and manage your application data
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label>Export Data</Label>
-                    <div className="text-sm text-muted-foreground mb-3">
-                      Download your data for backup or migration purposes
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm">Export Jobs</Button>
-                      <Button variant="outline" size="sm">Export Vendors</Button>
-                      <Button variant="outline" size="sm">Export Receipts</Button>
-                      <Button variant="outline" size="sm">Export All Data</Button>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <Label>Import Data</Label>
-                    <div className="text-sm text-muted-foreground mb-3">
-                      Upload data from backup files or other systems
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm">Import Jobs</Button>
-                      <Button variant="outline" size="sm">Import Vendors</Button>
-                      <Button variant="outline" size="sm">Import Receipts</Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Security</CardTitle>
-                <CardDescription>
-                  Manage your account security and data privacy
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <Button variant="outline" size="sm">Change Password</Button>
-                  <Button variant="outline" size="sm">Enable Two-Factor Authentication</Button>
-                  <Button variant="outline" size="sm">Download Account Data</Button>
-                  
-                  <Separator />
-                  
-                  <div>
-                    <Label className="text-destructive">Danger Zone</Label>
-                    <div className="text-sm text-muted-foreground mb-3">
-                      These actions cannot be undone
-                    </div>
-                    <Button variant="destructive" size="sm">Delete Account</Button>
-                  </div>
                 </div>
               </CardContent>
             </Card>

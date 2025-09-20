@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import DashboardCustomizer from '@/components/DashboardCustomizer';
 import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -42,6 +43,7 @@ interface DashboardSettings {
 
 export default function Dashboard() {
   const { user, profile } = useAuth();
+  const { settings } = useSettings();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -231,15 +233,37 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
-          </h1>
-          <p className="text-muted-foreground">
-            Here's what's happening with your projects today
-          </p>
+      {settings.dashboardBanner && (
+        <div className="mb-6 relative rounded-lg overflow-hidden">
+          <img 
+            src={settings.dashboardBanner} 
+            alt="Dashboard Banner" 
+            className="w-full h-48 object-cover"
+          />
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+            <div className="text-center text-white">
+              <h1 className="text-4xl font-bold mb-2">
+                Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
+              </h1>
+              <p className="text-lg opacity-90">
+                Here's what's happening with your projects today
+              </p>
+            </div>
+          </div>
         </div>
+      )}
+      
+      <div className="mb-6 flex items-center justify-between">
+        {!settings.dashboardBanner && (
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
+            </h1>
+            <p className="text-muted-foreground">
+              Here's what's happening with your projects today
+            </p>
+          </div>
+        )}
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">

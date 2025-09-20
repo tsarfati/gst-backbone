@@ -17,6 +17,7 @@ export interface AppSettings {
   autoSave: boolean;
   compactMode: boolean;
   customLogo?: string;
+  dashboardBanner?: string;
   customColors: {
     primary: string;
     secondary: string;

@@ -44,46 +44,13 @@ interface ReceiptContextType {
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
   unassignReceipt: (receiptId: string) => void;
   addMessage: (receiptId: string, message: string, userId: string, userName: string, type?: 'message' | 'assignment' | 'coding' | 'status') => void;
+  deleteReceipt: (receiptId: string) => void;
 }
 
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
-  const [uncodedReceipts, setUncodedReceipts] = useState<Receipt[]>([
-    {
-      id: "mock-1",
-      filename: "receipt_001.jpg",
-      amount: "$245.50",
-      date: "2024-01-15",
-      vendor: "Home Depot",
-      type: 'image',
-      previewUrl: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=800&fit=crop",
-      uploadedBy: "Controller",
-      uploadedDate: new Date("2024-01-15T10:30:00Z"),
-    },
-    {
-      id: "mock-2",
-      filename: "receipt_002.pdf",
-      amount: "$89.99",
-      date: "2024-01-14",
-      vendor: "Office Supply Co",
-      type: 'pdf',
-      previewUrl: "https://images.unsplash.com/photo-1554224154-22dec7ec8818?w=600&h=800&fit=crop",
-      uploadedBy: "Controller",
-      uploadedDate: new Date("2024-01-14T14:20:00Z"),
-    },
-    {
-      id: "mock-3",
-      filename: "receipt_003.jpg",
-      amount: "$1,250.00",
-      date: "2024-01-13",
-      vendor: "ABC Materials",
-      type: 'image',
-      previewUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&h=800&fit=crop",
-      uploadedBy: "Controller",
-      uploadedDate: new Date("2024-01-13T09:15:00Z"),
-    },
-  ]);
+  const [uncodedReceipts, setUncodedReceipts] = useState<Receipt[]>([]);
   const [codedReceipts, setCodedReceipts] = useState<CodedReceipt[]>([]);
   const [messages, setMessages] = useState<ReceiptMessage[]>([]);
 
@@ -168,6 +135,12 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  const deleteReceipt = (receiptId: string) => {
+    setUncodedReceipts(prev => prev.filter(r => r.id !== receiptId));
+    setCodedReceipts(prev => prev.filter(r => r.id !== receiptId));
+    setMessages(prev => prev.filter(m => m.receiptId !== receiptId));
+  };
+
   return (
     <ReceiptContext.Provider value={{ 
       uncodedReceipts, 
@@ -177,7 +150,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       codeReceipt,
       assignReceipt,
       unassignReceipt,
-      addMessage
+      addMessage,
+      deleteReceipt
     }}>
       {children}
     </ReceiptContext.Provider>

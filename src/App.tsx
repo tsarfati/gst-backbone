@@ -34,6 +34,9 @@ import PaymentReports from "./pages/PaymentReports";
 import AddInvoice from "./pages/AddInvoice";
 import AddJob from "./pages/AddJob";
 import CostCodes from "./pages/CostCodes";
+import ThemeSettings from "./pages/ThemeSettings";
+import CompanySettingsPage from "./pages/CompanySettingsPage";
+import SecuritySettings from "./pages/SecuritySettings";
 
 const queryClient = new QueryClient();
 
@@ -83,6 +86,9 @@ function App() {
                       <Route path="vendors/:id" element={<VendorDetails />} />
                       <Route path="vendors/:id/edit" element={<VendorEdit />} />
                       <Route path="settings" element={<AppSettings />} />
+                      <Route path="settings/theme" element={<ThemeSettings />} />
+                      <Route path="settings/company" element={<CompanySettingsPage />} />
+                      <Route path="settings/security" element={<SecuritySettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
                       <Route path="employees/add" element={<AddEmployee />} />

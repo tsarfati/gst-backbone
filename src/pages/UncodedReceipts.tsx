@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
-import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare } from "lucide-react";
+import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
 
@@ -30,7 +31,7 @@ const costCodes = [
 ];
 
 export default function UncodedReceipts() {
-  const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages } = useReceipts();
+  const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState(uncodedReceipts[0] || null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
@@ -98,6 +99,15 @@ export default function UncodedReceipts() {
     }
   };
 
+  const handleDeleteReceipt = (receiptId: string) => {
+    deleteReceipt(receiptId);
+    toast({
+      title: "Receipt Deleted",
+      description: "The receipt has been permanently deleted.",
+      variant: "destructive",
+    });
+  };
+
   return (
     <div className="flex h-full">
       {/* Receipt List Sidebar */}
@@ -143,6 +153,35 @@ export default function UncodedReceipts() {
                         </Badge>
                       )}
                       <Badge variant="outline" className="text-xs">Uncoded</Badge>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleDeleteReceipt(receipt.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                   
