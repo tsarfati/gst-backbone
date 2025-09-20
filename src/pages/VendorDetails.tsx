@@ -67,19 +67,9 @@ export default function VendorDetails() {
     };
 
     const fetchVendorJobs = async (companyId: string) => {
-      try {
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('created_by', companyId)
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          setJobs(data);
-        }
-      } catch (error) {
-        console.error('Error fetching vendor jobs:', error);
-      }
+      // Only show jobs where vendor is actually associated (empty for now)
+      // Jobs should only be shown if vendor is linked via invoices or job settings
+      setJobs([]);
     };
 
     fetchVendor();

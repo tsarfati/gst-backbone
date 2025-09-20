@@ -449,6 +449,32 @@ export default function VendorEdit() {
             </div>
           </CardContent>
         </Card>
+
+        {!isAddMode && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Methods</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  Payment methods can be added after creating the vendor
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Compliance Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  Compliance documents can be uploaded after creating the vendor
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

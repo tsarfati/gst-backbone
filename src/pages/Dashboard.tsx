@@ -207,25 +207,25 @@ export default function Dashboard() {
   const stats = [
     {
       title: "Uncoded Receipts",
-      value: "12",
+      value: "0",
       icon: Clock,
       variant: "warning" as const,
     },
     {
       title: "Total Receipts",
-      value: "247",
+      value: "0",
       icon: Receipt,
       variant: "default" as const,
     },
     {
       title: "Completed Jobs",
-      value: "8",
+      value: "0",
       icon: CheckCircle,
       variant: "secondary" as const,
     },
     {
       title: "Pending Invoices",
-      value: "$12,450",
+      value: "$0",
       icon: DollarSign,
       variant: "destructive" as const,
     },
@@ -436,22 +436,8 @@ export default function Dashboard() {
                 <CardTitle>Recent Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { action: "Receipt uploaded", job: "Office Renovation", time: "2 hours ago" },
-                    { action: "Invoice paid", vendor: "ABC Supplies", time: "4 hours ago" },
-                    { action: "Cost code assigned", job: "Warehouse Project", time: "1 day ago" },
-                  ].map((activity, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{activity.action}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {activity.job || activity.vendor}
-                        </p>
-                      </div>
-                      <span className="text-sm text-muted-foreground">{activity.time}</span>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No recent activity</p>
                 </div>
               </CardContent>
             </Card>
@@ -463,22 +449,8 @@ export default function Dashboard() {
                 <CardTitle>Active Jobs</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { name: "Office Renovation", receipts: 8, budget: "$25,000" },
-                    { name: "Warehouse Project", receipts: 15, budget: "$50,000" },
-                    { name: "Retail Buildout", receipts: 4, budget: "$15,000" },
-                  ].map((job, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{job.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {job.receipts} receipts • {job.budget} budget
-                        </p>
-                      </div>
-                      <Badge variant="outline">Active</Badge>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No active jobs</p>
                 </div>
               </CardContent>
             </Card>
