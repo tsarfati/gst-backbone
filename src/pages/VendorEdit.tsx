@@ -35,6 +35,7 @@ export default function VendorEdit() {
     state: "",
     zip_code: "",
     tax_id: "",
+    customer_number: "",
     payment_terms: "30",
     notes: ""
   });
@@ -119,6 +120,7 @@ export default function VendorEdit() {
           state: data.state || "",
           zip_code: data.zip_code || "",
           tax_id: data.tax_id || "",
+          customer_number: data.customer_number || "",
           payment_terms: data.payment_terms || "30",
           notes: data.notes || ""
         });
@@ -577,7 +579,7 @@ export default function VendorEdit() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="tax_id">Tax ID</Label>
                 <Input
@@ -585,6 +587,15 @@ export default function VendorEdit() {
                   value={formData.tax_id}
                   onChange={(e) => handleInputChange("tax_id", e.target.value)}
                   placeholder="Enter tax ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_number">Customer Number</Label>
+                <Input
+                  id="customer_number"
+                  value={formData.customer_number}
+                  onChange={(e) => handleInputChange("customer_number", e.target.value)}
+                  placeholder="Enter customer number"
                 />
               </div>
               <div className="space-y-2">

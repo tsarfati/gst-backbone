@@ -656,6 +656,7 @@ export type Database = {
           company_id: string | null
           contact_person: string | null
           created_at: string
+          customer_number: string | null
           email: string | null
           id: string
           is_active: boolean
@@ -675,6 +676,7 @@ export type Database = {
           company_id?: string | null
           contact_person?: string | null
           created_at?: string
+          customer_number?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -694,6 +696,7 @@ export type Database = {
           company_id?: string | null
           contact_person?: string | null
           created_at?: string
+          customer_number?: string | null
           email?: string | null
           id?: string
           is_active?: boolean

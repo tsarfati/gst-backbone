@@ -242,6 +242,13 @@ export default function VendorDetails() {
                         <p className="text-foreground">{vendor.tax_id}</p>
                       </div>
                     )}
+
+                    {vendor.customer_number && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Customer Number</label>
+                        <p className="text-foreground">{vendor.customer_number}</p>
+                      </div>
+                    )}
                     
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>

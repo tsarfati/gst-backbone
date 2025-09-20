@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -70,10 +71,6 @@ export default function PaymentMethodEdit({
   };
 
   const handleInputChange = (field: string, value: string) => {
-    // Only allow numeric characters for routing and account numbers
-    if ((field === 'routing_number' || field === 'account_number') && !/^\d*$/.test(value)) {
-      return;
-    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -150,12 +147,10 @@ export default function PaymentMethodEdit({
 
               <div>
                 <Label htmlFor="routingNumber">Routing Number</Label>
-                <Input
+                <NumericInput
                   id="routingNumber"
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.routing_number}
-                  onChange={(e) => handleInputChange('routing_number', e.target.value)}
+                  value={formData.routing_number || ''}
+                  onChange={(value) => handleInputChange('routing_number', value)}
                   placeholder="9 digit routing number"
                 />
               </div>
@@ -163,13 +158,13 @@ export default function PaymentMethodEdit({
                 <div>
                   <Label htmlFor="accountNumber">Account Number</Label>
                   <div className="relative">
-                    <Input
+                    <NumericInput
                       id="accountNumber"
-                      type="text"
-                      inputMode="numeric"
-                      value={isEditing && !showAccountNumber ? maskAccountNumber(formData.account_number) : formData.account_number}
-                      onChange={(e) => handleInputChange('account_number', e.target.value)}
+                      value={formData.account_number || ''}
+                      onChange={(value) => handleInputChange('account_number', value)}
                       placeholder="Account number"
+                      masked={true}
+                      showMasked={showAccountNumber}
                       onClick={isEditing ? handleAccountNumberEdit : undefined}
                       readOnly={isEditing && !showAccountNumber}
                     />
@@ -184,16 +179,10 @@ export default function PaymentMethodEdit({
               {!isEditing && (
                 <div>
                   <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
-                  <Input
+                  <NumericInput
                     id="confirmAccountNumber"
-                    type="text"
-                    inputMode="numeric"
                     value={confirmAccountNumber}
-                    onChange={(e) => {
-                      if (/^\d*$/.test(e.target.value)) {
-                        setConfirmAccountNumber(e.target.value);
-                      }
-                    }}
+                    onChange={setConfirmAccountNumber}
                     placeholder="Re-enter account number"
                   />
                 </div>
@@ -259,13 +248,13 @@ export default function PaymentMethodEdit({
           {formData.type === 'Credit Card' && (
             <div>
               <Label htmlFor="accountNumber">Card Number</Label>
-              <Input
+              <NumericInput
                 id="accountNumber"
-                type="text"
-                inputMode="numeric"
-                value={isEditing && !showAccountNumber ? maskAccountNumber(formData.account_number) : formData.account_number}
-                onChange={(e) => handleInputChange('account_number', e.target.value)}
+                value={formData.account_number || ''}
+                onChange={(value) => handleInputChange('account_number', value)}
                 placeholder="Card number"
+                masked={true}
+                showMasked={showAccountNumber}
                 onClick={isEditing ? handleAccountNumberEdit : undefined}
                 readOnly={isEditing && !showAccountNumber}
               />
