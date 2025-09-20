@@ -1,17 +1,17 @@
+import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { UserCheck, Users, MessageCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const users = [
-  { id: "1", name: "John Smith", role: "Project Manager" },
-  { id: "2", name: "Sarah Wilson", role: "Accountant" },
-  { id: "3", name: "Mike Johnson", role: "Site Supervisor" },
-  { id: "4", name: "Emily Davis", role: "Controller" },
-  { id: "5", name: "Current User", role: "Admin" }
-];
+interface User {
+  id: string;
+  name: string;
+  role: string;
+}
 
 interface UserAssignmentPanelProps {
   receiptId: string;
@@ -26,6 +26,37 @@ export default function UserAssignmentPanel({
   onAssignUser, 
   onUnassignUser 
 }: UserAssignmentPanelProps) {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, role')
+          .order('display_name');
+
+        if (error) throw error;
+
+        const userList = (data || []).map(profile => ({
+          id: profile.user_id,
+          name: profile.display_name || 'Unknown User',
+          role: profile.role || 'employee'
+        }));
+
+        setUsers(userList);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   const handleAssignUser = (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (user) {
@@ -80,16 +111,16 @@ export default function UserAssignmentPanel({
             </div>
           ) : (
             <div className="space-y-3">
-              <Select onValueChange={handleAssignUser}>
+              <Select onValueChange={handleAssignUser} disabled={loading}>
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Select user to assign" />
+                  <SelectValue placeholder={loading ? "Loading users..." : users.length === 0 ? "No users available" : "Select user to assign"} />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border border-border shadow-md z-50">
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id} className="cursor-pointer">
                       <div className="flex items-center justify-between w-full">
                         <span>{user.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2">{user.role}</span>
+                        <span className="text-xs text-muted-foreground ml-2 capitalize">{user.role}</span>
                       </div>
                     </SelectItem>
                   ))}
