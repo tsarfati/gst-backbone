@@ -32,6 +32,8 @@ import InvoiceDetails from "./pages/InvoiceDetails";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
 import AddInvoice from "./pages/AddInvoice";
+import AddJob from "./pages/AddJob";
+import CostCodes from "./pages/CostCodes";
 
 const queryClient = new QueryClient();
 
@@ -69,8 +71,11 @@ function App() {
                     }>
                       <Route index element={<Dashboard />} />
                       <Route path="upload" element={<UploadReceipts />} />
+                      <Route path="uncoded" element={<UncodedReceipts />} />
                       <Route path="receipts" element={<UncodedReceipts />} />
                       <Route path="jobs" element={<Jobs />} />
+                      <Route path="jobs/add" element={<AddJob />} />
+                      <Route path="jobs/cost-codes" element={<CostCodes />} />
                       <Route path="jobs/:id" element={<JobDetails />} />
                       <Route path="jobs/:id/edit" element={<JobEdit />} />
                       <Route path="vendors" element={<Vendors />} />
@@ -80,10 +85,14 @@ function App() {
                       <Route path="settings" element={<AppSettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
+                      <Route path="employees/add" element={<AddEmployee />} />
                       <Route path="add-employee" element={<AddEmployee />} />
                       <Route path="time-tracking" element={<TimeTracking />} />
+                      <Route path="punch-clock" element={<TimeTracking />} />
                       <Route path="time-sheets" element={<TimeSheets />} />
+                      <Route path="punch-clock/timesheets" element={<TimeSheets />} />
                       <Route path="messages" element={<AllMessages />} />
+                      <Route path="messaging" element={<AllMessages />} />
                       <Route path="invoices" element={<Invoices />} />
                       <Route path="invoices/add" element={<AddInvoice />} />
                       <Route path="invoices/:id" element={<InvoiceDetails />} />

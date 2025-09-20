@@ -72,15 +72,15 @@ const navigationCategories = [
   {
     title: "Punch Clock",
     items: [
-      { name: "Time Tracking", href: "/punch-clock", icon: Timer },
-      { name: "Timesheets", href: "/punch-clock/timesheets", icon: Calendar },
+      { name: "Time Tracking", href: "/time-tracking", icon: Timer },
+      { name: "Timesheets", href: "/time-sheets", icon: Calendar },
       { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp },
     ],
   },
   {
     title: "Messaging",
     items: [
-      { name: "All Messages", href: "/messaging", icon: MessageSquare },
+      { name: "All Messages", href: "/messages", icon: MessageSquare },
       { name: "Announcements", href: "/messaging/announcements", icon: Megaphone },
       { name: "Team Chat", href: "/messaging/chat", icon: MessageCircle },
     ],
