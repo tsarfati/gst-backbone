@@ -11,6 +11,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
 import RoleDefinitions from '@/components/RoleDefinitions';
+import UserMenuPermissions from '@/components/UserMenuPermissions';
+import UserJobAccess from '@/components/UserJobAccess';
 
 interface UserProfile {
   id: string;
@@ -43,6 +45,7 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<string | null>(null);
   const { profile } = useAuth();
   const { toast } = useToast();
 
@@ -142,6 +145,12 @@ export default function UserSettings() {
             <UserCheck className="h-4 w-4 mr-2" />
             Role Definitions
           </TabsTrigger>
+          <TabsTrigger value="menu-access">
+            Menu Access
+          </TabsTrigger>
+          <TabsTrigger value="job-access">
+            Job Access
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -205,13 +214,22 @@ export default function UserSettings() {
                               {roleLabels[user.role as keyof typeof roleLabels]}
                             </Badge>
                             {isAdmin && user.user_id !== profile?.user_id && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => startEdit(user)}
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEdit(user)}
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setSelectedUserForPermissions(user.user_id)}
+                                >
+                                  Permissions
+                                </Button>
+                              </>
                             )}
                           </>
                         )}
@@ -226,6 +244,50 @@ export default function UserSettings() {
 
         <TabsContent value="roles">
           <RoleDefinitions />
+        </TabsContent>
+
+        <TabsContent value="menu-access">
+          <div className="space-y-6">
+            <div className="text-center">
+              {selectedUserForPermissions ? (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">
+                    Menu Access for {users.find(u => u.user_id === selectedUserForPermissions)?.display_name}
+                  </h3>
+                  <UserMenuPermissions 
+                    userId={selectedUserForPermissions}
+                    userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
+                  />
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  Select a user from the Users tab to manage their menu access permissions.
+                </p>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="job-access">
+          <div className="space-y-6">
+            <div className="text-center">
+              {selectedUserForPermissions ? (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">
+                    Job Access for {users.find(u => u.user_id === selectedUserForPermissions)?.display_name}
+                  </h3>
+                  <UserJobAccess 
+                    userId={selectedUserForPermissions}
+                    userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
+                  />
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  Select a user from the Users tab to manage their job access permissions.
+                </p>
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

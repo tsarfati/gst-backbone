@@ -136,16 +136,18 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       // Insert new job access permissions
       const accessEntries = Object.entries(userJobAccess)
         .filter(([_, hasAccess]) => hasAccess)
-        .map(([jobId, _]) => ({
+        .map(async ([jobId, _]) => ({
           user_id: userId,
           job_id: jobId,
           granted_by: (await supabase.auth.getUser()).data.user?.id
         }));
 
-      if (accessEntries.length > 0) {
+      const resolvedEntries = await Promise.all(accessEntries);
+
+      if (resolvedEntries.length > 0) {
         const { error } = await supabase
           .from('user_job_access')
-          .insert(accessEntries);
+          .insert(resolvedEntries);
 
         if (error) throw error;
       }
