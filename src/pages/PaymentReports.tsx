@@ -14,41 +14,20 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-const monthlyData = [
-  { month: "Jan 2024", totalPaid: 12450, invoiceCount: 8, avgProcessTime: "3.2 days" },
-  { month: "Feb 2024", totalPaid: 18760, invoiceCount: 12, avgProcessTime: "2.8 days" },
-  { month: "Mar 2024", totalPaid: 22100, invoiceCount: 15, avgProcessTime: "2.5 days" },
-  { month: "Apr 2024", totalPaid: 19850, invoiceCount: 11, avgProcessTime: "3.1 days" },
-  { month: "May 2024", totalPaid: 25400, invoiceCount: 18, avgProcessTime: "2.3 days" },
-  { month: "Jun 2024", totalPaid: 21750, invoiceCount: 14, avgProcessTime: "2.7 days" }
-];
-
-const vendorPayments = [
-  { vendor: "ABC Materials", totalPaid: 28450, invoiceCount: 15, percentage: 32 },
-  { vendor: "Elite Electrical", totalPaid: 22100, invoiceCount: 12, percentage: 25 },
-  { vendor: "Home Depot", totalPaid: 15750, invoiceCount: 18, percentage: 18 },
-  { vendor: "Office Supply Co", totalPaid: 8900, invoiceCount: 24, percentage: 10 },
-  { vendor: "Equipment Rental", totalPaid: 7650, invoiceCount: 8, percentage: 9 },
-  { vendor: "Others", totalPaid: 5400, invoiceCount: 12, percentage: 6 }
-];
-
-const paymentMethods = [
-  { method: "ACH Transfer", count: 45, percentage: 52, avgAmount: 3250 },
-  { method: "Check", count: 28, percentage: 32, avgAmount: 1850 },
-  { method: "Wire Transfer", count: 8, percentage: 9, avgAmount: 8900 },
-  { method: "Credit Card", count: 6, percentage: 7, avgAmount: 650 }
-];
+const monthlyData: any[] = [];
+const vendorPayments: any[] = [];
+const paymentMethods: any[] = [];
 
 export default function PaymentReports() {
   const [selectedPeriod, setSelectedPeriod] = useState("6months");
   const [reportType, setReportType] = useState("summary");
 
-  const currentMonthTotal = monthlyData[monthlyData.length - 1].totalPaid;
-  const previousMonthTotal = monthlyData[monthlyData.length - 2].totalPaid;
-  const monthOverMonth = ((currentMonthTotal - previousMonthTotal) / previousMonthTotal * 100).toFixed(1);
-  const isPositiveGrowth = parseFloat(monthOverMonth) > 0;
+  const currentMonthTotal = 0;
+  const previousMonthTotal = 0;
+  const monthOverMonth = "0.0";
+  const isPositiveGrowth = false;
 
-  const totalYearToDate = monthlyData.reduce((sum, month) => sum + month.totalPaid, 0);
+  const totalYearToDate = 0;
 
   return (
     <div className="p-6">
@@ -86,16 +65,10 @@ export default function PaymentReports() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalYearToDate.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <div className="flex items-center text-sm mt-2">
-              {isPositiveGrowth ? (
-                <TrendingUp className="h-3 w-3 text-success mr-1" />
-              ) : (
-                <TrendingDown className="h-3 w-3 text-destructive mr-1" />
-              )}
-              <span className={isPositiveGrowth ? "text-success" : "text-destructive"}>
-                {monthOverMonth}% from last month
-              </span>
+              <TrendingUp className="h-3 w-3 text-muted-foreground mr-1" />
+              <span className="text-muted-foreground">No data available</span>
             </div>
           </CardContent>
         </Card>
@@ -106,9 +79,7 @@ export default function PaymentReports() {
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${Math.round(totalYearToDate / monthlyData.reduce((sum, m) => sum + m.invoiceCount, 0)).toLocaleString()}
-            </div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="default" className="mt-2">
               Per invoice
             </Badge>
@@ -121,9 +92,9 @@ export default function PaymentReports() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2.6 days</div>
-            <Badge variant="success" className="mt-2">
-              Average
+            <div className="text-2xl font-bold">0 days</div>
+            <Badge variant="default" className="mt-2">
+              No data
             </Badge>
           </CardContent>
         </Card>
@@ -134,9 +105,7 @@ export default function PaymentReports() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {monthlyData.reduce((sum, m) => sum + m.invoiceCount, 0)}
-            </div>
+            <div className="text-2xl font-bold">0</div>
             <Badge variant="default" className="mt-2">
               This period
             </Badge>

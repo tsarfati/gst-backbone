@@ -31,6 +31,7 @@ import AllMessages from "./pages/AllMessages";
 import InvoiceDetails from "./pages/InvoiceDetails";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
+import AddInvoice from "./pages/AddInvoice";
 
 const queryClient = new QueryClient();
 
@@ -84,6 +85,7 @@ function App() {
                       <Route path="time-sheets" element={<TimeSheets />} />
                       <Route path="messages" element={<AllMessages />} />
                       <Route path="invoices" element={<Invoices />} />
+                      <Route path="invoices/add" element={<AddInvoice />} />
                       <Route path="invoices/:id" element={<InvoiceDetails />} />
                       <Route path="invoice-status" element={<InvoiceStatus />} />
                       <Route path="invoices/payments" element={<PaymentHistory />} />

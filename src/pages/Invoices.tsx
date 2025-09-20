@@ -7,53 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Plus, DollarSign, Calendar, Building, Filter } from "lucide-react";
 
-const mockInvoices = [
-  {
-    id: "INV-001",
-    vendor: "ABC Materials",
-    amount: "$2,450.00",
-    dueDate: "2024-02-15",
-    issueDate: "2024-01-15",
-    status: "paid",
-    job: "Office Renovation"
-  },
-  {
-    id: "INV-002",
-    vendor: "Elite Electrical",
-    amount: "$5,200.00",
-    dueDate: "2024-02-20",
-    issueDate: "2024-01-20",
-    status: "pending",
-    job: "Warehouse Project"
-  },
-  {
-    id: "INV-003",
-    vendor: "Home Depot",
-    amount: "$890.50",
-    dueDate: "2024-02-10",
-    issueDate: "2024-01-10",
-    status: "overdue",
-    job: "Retail Buildout"
-  },
-  {
-    id: "INV-004",
-    vendor: "Office Supply Co",
-    amount: "$125.99",
-    dueDate: "2024-02-25",
-    issueDate: "2024-01-25",
-    status: "paid",
-    job: "Office Renovation"
-  },
-  {
-    id: "INV-005",
-    vendor: "ABC Materials",
-    amount: "$3,750.00",
-    dueDate: "2024-03-01",
-    issueDate: "2024-02-01",
-    status: "pending",
-    job: "Warehouse Project"
-  }
-];
+const mockInvoices: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -76,15 +30,10 @@ export default function Invoices() {
     ? mockInvoices 
     : mockInvoices.filter(inv => inv.job === jobFilter);
 
-  const uniqueJobs = [...new Set(mockInvoices.map(inv => inv.job))];
+  const uniqueJobs: string[] = [];
 
-  const totalPending = filteredInvoices
-    .filter(inv => inv.status === "pending")
-    .reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[$,]/g, '')), 0);
-
-  const totalOverdue = filteredInvoices
-    .filter(inv => inv.status === "overdue")
-    .reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[$,]/g, '')), 0);
+  const totalPending = 0;
+  const totalOverdue = 0;
 
   return (
     <div className="p-6">
@@ -95,7 +44,7 @@ export default function Invoices() {
             Track invoice payments and manage vendor billing
           </p>
         </div>
-        <Button>
+        <Button onClick={() => navigate("/invoices/add")}>
           <Plus className="h-4 w-4 mr-2" />
           Add Invoice
         </Button>
@@ -110,9 +59,9 @@ export default function Invoices() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalPending.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="warning" className="mt-2">
-              {filteredInvoices.filter(inv => inv.status === "pending").length} invoices
+              0 invoices
             </Badge>
           </CardContent>
         </Card>
@@ -125,9 +74,9 @@ export default function Invoices() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalOverdue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="destructive" className="mt-2">
-              {filteredInvoices.filter(inv => inv.status === "overdue").length} invoices
+              0 invoices
             </Badge>
           </CardContent>
         </Card>
@@ -140,9 +89,9 @@ export default function Invoices() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$2,576</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="success" className="mt-2">
-              2 invoices
+              0 invoices
             </Badge>
           </CardContent>
         </Card>
@@ -150,22 +99,24 @@ export default function Invoices() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>All Invoices</CardTitle>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={jobFilter} onValueChange={setJobFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by job" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Jobs</SelectItem>
-                  {uniqueJobs.map(job => (
-                    <SelectItem key={job} value={job}>{job}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="flex items-center justify-between">
+              <CardTitle>All Invoices</CardTitle>
+              {uniqueJobs.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Select value={jobFilter} onValueChange={setJobFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Jobs</SelectItem>
+                      {uniqueJobs.map(job => (
+                        <SelectItem key={job} value={job}>{job}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
           </div>
         </CardHeader>
         <CardContent>
@@ -183,58 +134,70 @@ export default function Invoices() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredInvoices.map((invoice) => (
-                <TableRow 
-                  key={invoice.id} 
-                  className={`cursor-pointer hover:bg-muted/50 ${
-                    invoice.status === 'overdue' ? 'animate-pulse-red' : ''
-                  }`}
-                  onClick={() => navigate(`/invoices/${invoice.id}`)}
-                >
-                  <TableCell className="font-medium">{invoice.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Building className="h-4 w-4 mr-2 text-muted-foreground" />
-                      {invoice.vendor}
-                    </div>
-                  </TableCell>
-                  <TableCell>{invoice.job}</TableCell>
-                  <TableCell className="font-semibold">{invoice.amount}</TableCell>
-                  <TableCell>{invoice.issueDate}</TableCell>
-                  <TableCell>{invoice.dueDate}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(invoice.status)}>
-                      {invoice.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/invoices/${invoice.id}`);
-                        }}
-                      >
-                        View
-                      </Button>
-                      {invoice.status !== "paid" && (
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Handle mark as paid
-                          }}
-                        >
-                          Mark Paid
-                        </Button>
-                      )}
+              {filteredInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <div className="text-muted-foreground">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">No invoices found</p>
+                      <p className="text-sm">Upload your first invoice to get started</p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredInvoices.map((invoice) => (
+                  <TableRow 
+                    key={invoice.id} 
+                    className={`cursor-pointer hover:bg-muted/50 ${
+                      invoice.status === 'overdue' ? 'animate-pulse-red' : ''
+                    }`}
+                    onClick={() => navigate(`/invoices/${invoice.id}`)}
+                  >
+                    <TableCell className="font-medium">{invoice.id}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+                        {invoice.vendor}
+                      </div>
+                    </TableCell>
+                    <TableCell>{invoice.job}</TableCell>
+                    <TableCell className="font-semibold">{invoice.amount}</TableCell>
+                    <TableCell>{invoice.issueDate}</TableCell>
+                    <TableCell>{invoice.dueDate}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(invoice.status)}>
+                        {invoice.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/invoices/${invoice.id}`);
+                          }}
+                        >
+                          View
+                        </Button>
+                        {invoice.status !== "paid" && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Handle mark as paid
+                            }}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

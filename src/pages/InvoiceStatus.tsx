@@ -14,36 +14,22 @@ import {
 
 // Extended mock data with more detailed statuses
 const invoiceStatuses = {
-  waitingApproval: [
-    { id: "INV-006", vendor: "New Contractor LLC", amount: "$4,200.00", submittedDate: "2024-01-28" },
-    { id: "INV-007", vendor: "Supply Depot", amount: "$1,850.00", submittedDate: "2024-01-29" },
-    { id: "INV-008", vendor: "Professional Services", amount: "$2,900.00", submittedDate: "2024-01-30" },
-  ],
-  waitingToBePaid: [
-    { id: "INV-002", vendor: "Elite Electrical", amount: "$5,200.00", approvedDate: "2024-01-22" },
-    { id: "INV-005", vendor: "ABC Materials", amount: "$3,750.00", approvedDate: "2024-01-25" },
-    { id: "INV-009", vendor: "Equipment Rental", amount: "$1,200.00", approvedDate: "2024-01-26" },
-    { id: "INV-010", vendor: "Safety Supplies", amount: "$650.00", approvedDate: "2024-01-27" },
-  ],
-  overdue: [
-    { id: "INV-003", vendor: "Home Depot", amount: "$890.50", dueDate: "2024-02-10" },
-  ],
-  paid: [
-    { id: "INV-001", vendor: "ABC Materials", amount: "$2,450.00", paidDate: "2024-01-20" },
-    { id: "INV-004", vendor: "Office Supply Co", amount: "$125.99", paidDate: "2024-01-22" },
-  ]
+  waitingApproval: [],
+  waitingToBePaid: [],
+  overdue: [],
+  paid: []
 };
 
 const calculateTotal = (invoices: any[]) => {
-  return invoices.reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[$,]/g, '')), 0);
+  return 0;
 };
 
 export default function InvoiceStatus() {
   const totals = {
-    waitingApproval: calculateTotal(invoiceStatuses.waitingApproval),
-    waitingToBePaid: calculateTotal(invoiceStatuses.waitingToBePaid),
-    overdue: calculateTotal(invoiceStatuses.overdue),
-    paid: calculateTotal(invoiceStatuses.paid)
+    waitingApproval: 0,
+    waitingToBePaid: 0,
+    overdue: 0,
+    paid: 0
   };
 
   const statusCards = [

@@ -7,63 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { CreditCard, Download, Search, Calendar, DollarSign, FileText } from "lucide-react";
 
-const mockPaymentHistory = [
-  {
-    id: "PAY-001",
-    invoiceId: "INV-001",
-    vendor: "ABC Materials",
-    amount: "$2,450.00",
-    paymentDate: "2024-01-20",
-    paymentMethod: "ACH Transfer",
-    reference: "TXN123456789",
-    status: "completed",
-    job: "Office Renovation"
-  },
-  {
-    id: "PAY-002",
-    invoiceId: "INV-004",
-    vendor: "Office Supply Co",
-    amount: "$125.99",
-    paymentDate: "2024-01-22",
-    paymentMethod: "Check",
-    reference: "CHK001234",
-    status: "completed",
-    job: "Office Renovation"
-  },
-  {
-    id: "PAY-003",
-    invoiceId: "INV-011",
-    vendor: "Elite Electrical",
-    amount: "$1,200.00",
-    paymentDate: "2024-01-15",
-    paymentMethod: "Wire Transfer",
-    reference: "WIRE987654",
-    status: "completed",
-    job: "Warehouse Project"
-  },
-  {
-    id: "PAY-004",
-    invoiceId: "INV-012",
-    vendor: "Home Depot",
-    amount: "$567.89",
-    paymentDate: "2024-01-18",
-    paymentMethod: "Credit Card",
-    reference: "CC445566",
-    status: "completed",
-    job: "Retail Buildout"
-  },
-  {
-    id: "PAY-005",
-    invoiceId: "INV-005",
-    vendor: "ABC Materials",
-    amount: "$3,750.00",
-    paymentDate: "2024-01-25",
-    paymentMethod: "ACH Transfer",
-    reference: "TXN987654321",
-    status: "processing",
-    job: "Warehouse Project"
-  }
-];
+const mockPaymentHistory: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -108,13 +52,8 @@ export default function PaymentHistory() {
     return matchesSearch && matchesStatus && matchesMethod;
   });
 
-  const totalPayments = mockPaymentHistory
-    .filter(p => p.status === "completed")
-    .reduce((sum, payment) => sum + parseFloat(payment.amount.replace(/[$,]/g, '')), 0);
-
-  const processingPayments = mockPaymentHistory
-    .filter(p => p.status === "processing")
-    .reduce((sum, payment) => sum + parseFloat(payment.amount.replace(/[$,]/g, '')), 0);
+  const totalPayments = 0;
+  const processingPayments = 0;
 
   return (
     <div className="p-6">
@@ -145,9 +84,9 @@ export default function PaymentHistory() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalPayments.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="success" className="mt-2">
-              {mockPaymentHistory.filter(p => p.status === "completed").length} completed
+              0 completed
             </Badge>
           </CardContent>
         </Card>
@@ -158,9 +97,9 @@ export default function PaymentHistory() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${processingPayments.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="warning" className="mt-2">
-              {mockPaymentHistory.filter(p => p.status === "processing").length} pending
+              0 pending
             </Badge>
           </CardContent>
         </Card>
@@ -171,9 +110,9 @@ export default function PaymentHistory() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalPayments.toLocaleString()}</div>
+            <div className="text-2xl font-bold">$0</div>
             <Badge variant="default" className="mt-2">
-              {mockPaymentHistory.length} transactions
+              0 transactions
             </Badge>
           </CardContent>
         </Card>
@@ -250,32 +189,44 @@ export default function PaymentHistory() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayments.map((payment) => (
-                <TableRow key={payment.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell className="font-medium">{payment.id}</TableCell>
-                  <TableCell>
-                    <Button variant="link" className="h-auto p-0 font-medium">
-                      {payment.invoiceId}
-                    </Button>
-                  </TableCell>
-                  <TableCell>{payment.vendor}</TableCell>
-                  <TableCell>{payment.job}</TableCell>
-                  <TableCell className="font-semibold">{payment.amount}</TableCell>
-                  <TableCell>{payment.paymentDate}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span>{getMethodIcon(payment.paymentMethod)}</span>
-                      {payment.paymentMethod}
+              {filteredPayments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-8">
+                    <div className="text-muted-foreground">
+                      <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">No payment history found</p>
+                      <p className="text-sm">Payments will appear here once invoices are processed</p>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{payment.reference}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(payment.status)}>
-                      {payment.status}
-                    </Badge>
-                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredPayments.map((payment) => (
+                  <TableRow key={payment.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="font-medium">{payment.id}</TableCell>
+                    <TableCell>
+                      <Button variant="link" className="h-auto p-0 font-medium">
+                        {payment.invoiceId}
+                      </Button>
+                    </TableCell>
+                    <TableCell>{payment.vendor}</TableCell>
+                    <TableCell>{payment.job}</TableCell>
+                    <TableCell className="font-semibold">{payment.amount}</TableCell>
+                    <TableCell>{payment.paymentDate}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{getMethodIcon(payment.paymentMethod)}</span>
+                        {payment.paymentMethod}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{payment.reference}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(payment.status)}>
+                        {payment.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
