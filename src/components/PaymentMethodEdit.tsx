@@ -19,6 +19,8 @@ interface PaymentMethod {
   checkDelivery?: string;
   pickupLocation?: string;
   voidedCheckUrl?: string;
+  websiteAddress?: string;
+  loginInformation?: string;
 }
 
 interface PaymentMethodEditProps {
@@ -48,7 +50,9 @@ export default function PaymentMethodEdit({
     isDefault: false,
     checkDelivery: 'mail',
     pickupLocation: '',
-    voidedCheckUrl: ''
+    voidedCheckUrl: '',
+    websiteAddress: '',
+    loginInformation: ''
   });
   
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
@@ -128,6 +132,7 @@ export default function PaymentMethodEdit({
                 <SelectItem value="Wire">Wire Transfer</SelectItem>
                 <SelectItem value="Check">Check</SelectItem>
                 <SelectItem value="Credit Card">Credit Card</SelectItem>
+                <SelectItem value="Vendor Payment Portal">Vendor Payment Portal</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -153,24 +158,25 @@ export default function PaymentMethodEdit({
                 />
               </div>
 
-              <div>
-                <Label htmlFor="accountNumber">Account Number</Label>
-                <div className="relative">
-                  <Input
-                    id="accountNumber"
-                    value={formData.accountNumber}
-                    onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                    placeholder="Account number"
-                    onClick={isEditing ? handleAccountNumberEdit : undefined}
-                    readOnly={isEditing && !showAccountNumber}
-                  />
-                  {isEditing && !showAccountNumber && (
-                    <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleAccountNumberEdit}>
-                      <span className="text-muted-foreground text-sm">Click to edit</span>
-                    </div>
-                  )}
+                <div>
+                  <Label htmlFor="accountNumber">Account Number</Label>
+                  <div className="relative">
+                    <Input
+                      id="accountNumber"
+                      type={isEditing && !showAccountNumber ? "password" : "text"}
+                      value={formData.accountNumber}
+                      onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                      placeholder="Account number"
+                      onClick={isEditing ? handleAccountNumberEdit : undefined}
+                      readOnly={isEditing && !showAccountNumber}
+                    />
+                    {isEditing && !showAccountNumber && (
+                      <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleAccountNumberEdit}>
+                        <span className="text-muted-foreground text-sm">Click to edit</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
               {!isEditing && (
                 <div>
@@ -246,6 +252,7 @@ export default function PaymentMethodEdit({
               <Label htmlFor="accountNumber">Card Number</Label>
               <Input
                 id="accountNumber"
+                type={isEditing && !showAccountNumber ? "password" : "text"}
                 value={formData.accountNumber}
                 onChange={(e) => handleInputChange('accountNumber', e.target.value)}
                 placeholder="Card number"
@@ -253,6 +260,30 @@ export default function PaymentMethodEdit({
                 readOnly={isEditing && !showAccountNumber}
               />
             </div>
+          )}
+
+          {formData.type === 'Vendor Payment Portal' && (
+            <>
+              <div>
+                <Label htmlFor="websiteAddress">Website Address</Label>
+                <Input
+                  id="websiteAddress"
+                  value={formData.websiteAddress}
+                  onChange={(e) => handleInputChange('websiteAddress', e.target.value)}
+                  placeholder="https://vendor-portal.com"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="loginInformation">Login Information</Label>
+                <Input
+                  id="loginInformation"
+                  value={formData.loginInformation}
+                  onChange={(e) => handleInputChange('loginInformation', e.target.value)}
+                  placeholder="Username or login details"
+                />
+              </div>
+            </>
           )}
         </div>
 

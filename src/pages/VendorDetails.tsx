@@ -178,15 +178,7 @@ export default function VendorDetails() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  {vendor.logo_url ? (
-                    <img 
-                      src={vendor.logo_url} 
-                      alt={`${vendor.name} logo`}
-                      className="h-8 w-8 object-contain rounded"
-                    />
-                  ) : (
-                    <Building className="h-5 w-5" />
-                  )}
+                  <Building className="h-5 w-5" />
                   Company Information
                 </CardTitle>
               </CardHeader>
