@@ -39,7 +39,7 @@ import CostCodes from "./pages/CostCodes";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
-import AllReceipts from "./pages/AllReceipts";
+import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 
@@ -80,7 +80,7 @@ function App() {
                       <Route index element={<Dashboard />} />
                       <Route path="upload" element={<UploadReceipts />} />
                       <Route path="uncoded" element={<UncodedReceipts />} />
-                      <Route path="receipts" element={<AllReceipts />} />
+                      <Route path="receipts" element={<CodedReceipts />} />
                       <Route path="jobs" element={<Jobs />} />
                       <Route path="jobs/add" element={<AddJob />} />
                       <Route path="jobs/cost-codes" element={<CostCodes />} />

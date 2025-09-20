@@ -7,12 +7,13 @@ import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBa
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
+import GlobalSearch from '@/components/GlobalSearch';
 
 const navigationCategories = [
   {
     title: "Dashboard",
     items: [
-      { name: "Overview", href: "/", icon: LayoutDashboard },
+      { name: "Dashboard", href: "/", icon: LayoutDashboard },
     ],
   },
   {
@@ -20,7 +21,7 @@ const navigationCategories = [
     items: [
       { name: "Upload Receipts", href: "/upload", icon: Upload },
       { name: "Uncoded Receipts", href: "/uncoded", icon: Clock },
-      { name: "All Receipts", href: "/receipts", icon: Eye },
+      { name: "Coded Receipts", href: "/receipts", icon: Eye },
       { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3 },
     ],
   },
@@ -250,6 +251,9 @@ export default function Layout() {
         <SidebarInset>
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
+            <div className="ml-auto">
+              <GlobalSearch />
+            </div>
           </header>
           <div className="flex-1 overflow-auto">
             <Outlet />
