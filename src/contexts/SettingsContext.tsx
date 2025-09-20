@@ -16,6 +16,15 @@ export interface AppSettings {
   };
   autoSave: boolean;
   compactMode: boolean;
+  customLogo?: string;
+  customColors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    success: string;
+    warning: string;
+    destructive: string;
+  };
 }
 
 const defaultSettings: AppSettings = {
@@ -34,12 +43,21 @@ const defaultSettings: AppSettings = {
   },
   autoSave: true,
   compactMode: false,
+  customColors: {
+    primary: '210 100% 45%',
+    secondary: '210 17% 95%',
+    accent: '210 17% 93%',
+    success: '120 60% 45%',
+    warning: '38 100% 55%',
+    destructive: '0 84% 60%',
+  },
 };
 
 interface SettingsContextType {
   settings: AppSettings;
   updateSettings: (updates: Partial<AppSettings>) => void;
   resetSettings: () => void;
+  applyCustomColors: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -54,6 +72,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('app-settings', JSON.stringify(settings));
   }, [settings]);
 
+  // Apply custom colors on mount
+  useEffect(() => {
+    const root = document.documentElement;
+    Object.entries(settings.customColors).forEach(([key, value]) => {
+      root.style.setProperty(`--${key}`, value);
+    });
+  }, []);
+
   const updateSettings = (updates: Partial<AppSettings>) => {
     setSettings(prev => ({
       ...prev,
@@ -61,17 +87,34 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       // Handle nested notification updates
       notifications: updates.notifications 
         ? { ...prev.notifications, ...updates.notifications }
-        : prev.notifications
+        : prev.notifications,
+      // Handle nested color updates
+      customColors: updates.customColors
+        ? { ...prev.customColors, ...updates.customColors }
+        : prev.customColors
     }));
+  };
+
+  const applyCustomColors = () => {
+    const root = document.documentElement;
+    Object.entries(settings.customColors).forEach(([key, value]) => {
+      root.style.setProperty(`--${key}`, value);
+    });
   };
 
   const resetSettings = () => {
     setSettings(defaultSettings);
     localStorage.removeItem('app-settings');
+    applyCustomColors();
   };
 
+  // Apply custom colors when settings change
+  useEffect(() => {
+    applyCustomColors();
+  }, [settings.customColors]);
+
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, applyCustomColors }}>
       {children}
     </SettingsContext.Provider>
   );

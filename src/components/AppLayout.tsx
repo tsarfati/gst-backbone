@@ -223,7 +223,11 @@ function AppSidebar() {
   return <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <Receipt className="h-6 w-6 text-primary" />
+          {settings.customLogo ? (
+            <img src={settings.customLogo} alt="Custom Logo" className="h-6 w-6 object-contain" />
+          ) : (
+            <Receipt className="h-6 w-6 text-primary" />
+          )}
           <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">Green Star TEAM</span>
         </div>
       </SidebarHeader>
