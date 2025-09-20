@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useReceipts } from "@/contexts/ReceiptContext";
 import { Upload, FileText, X } from "lucide-react";
 
 export default function UploadReceipts() {
@@ -11,6 +12,7 @@ export default function UploadReceipts() {
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { addReceipts } = useReceipts();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -82,10 +84,12 @@ export default function UploadReceipts() {
       return;
     }
 
-    // Simulate upload
+    // Add receipts to global state
+    addReceipts(files);
+    
     toast({
       title: "Upload successful",
-      description: `${files.length} receipt(s) uploaded successfully.`,
+      description: `${files.length} receipt(s) uploaded and ready for coding.`,
     });
     setFiles([]);
   };

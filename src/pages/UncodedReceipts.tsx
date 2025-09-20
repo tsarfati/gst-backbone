@@ -1,69 +1,12 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useReceipts } from "@/contexts/ReceiptContext";
 import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText } from "lucide-react";
-
-interface ReceiptItem {
-  id: string;
-  filename: string;
-  amount: string;
-  date: string;
-  vendor?: string;
-  type: 'image' | 'pdf';
-  previewUrl: string;
-}
-
-const mockReceipts: ReceiptItem[] = [
-  { 
-    id: "1", 
-    filename: "receipt_001.jpg", 
-    amount: "$245.50", 
-    date: "2024-01-15", 
-    vendor: "Home Depot",
-    type: 'image',
-    previewUrl: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=800&fit=crop"
-  },
-  { 
-    id: "2", 
-    filename: "receipt_002.pdf", 
-    amount: "$89.99", 
-    date: "2024-01-14", 
-    vendor: "Office Supply Co",
-    type: 'pdf',
-    previewUrl: "https://images.unsplash.com/photo-1554224154-22dec7ec8818?w=600&h=800&fit=crop"
-  },
-  { 
-    id: "3", 
-    filename: "receipt_003.jpg", 
-    amount: "$1,250.00", 
-    date: "2024-01-13", 
-    vendor: "ABC Materials",
-    type: 'image',
-    previewUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&h=800&fit=crop"
-  },
-  { 
-    id: "4", 
-    filename: "receipt_004.jpg", 
-    amount: "$67.89", 
-    date: "2024-01-12", 
-    vendor: "Hardware Plus",
-    type: 'image',
-    previewUrl: "https://images.unsplash.com/photo-1554224154-26032fced8bd?w=600&h=800&fit=crop"
-  },
-  { 
-    id: "5", 
-    filename: "receipt_005.pdf", 
-    amount: "$432.10", 
-    date: "2024-01-11", 
-    vendor: "Electrical Supply",
-    type: 'pdf',
-    previewUrl: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=800&fit=crop"
-  },
-];
 
 const jobs = [
   "Office Renovation", 
@@ -85,11 +28,20 @@ const costCodes = [
 ];
 
 export default function UncodedReceipts() {
-  const [receipts, setReceipts] = useState<ReceiptItem[]>(mockReceipts);
-  const [selectedReceipt, setSelectedReceipt] = useState<ReceiptItem | null>(mockReceipts[0]);
+  const { uncodedReceipts, codeReceipt } = useReceipts();
+  const [selectedReceipt, setSelectedReceipt] = useState(uncodedReceipts[0] || null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const { toast } = useToast();
+
+  // Update selected receipt when receipts change
+  React.useEffect(() => {
+    if (!selectedReceipt && uncodedReceipts.length > 0) {
+      setSelectedReceipt(uncodedReceipts[0]);
+    } else if (selectedReceipt && !uncodedReceipts.find(r => r.id === selectedReceipt.id)) {
+      setSelectedReceipt(uncodedReceipts[0] || null);
+    }
+  }, [uncodedReceipts, selectedReceipt]);
 
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
@@ -101,22 +53,8 @@ export default function UncodedReceipts() {
       return;
     }
 
-    // Log the coding action
-    const codingEntry = {
-      receiptId: selectedReceipt.id,
-      job: selectedJob,
-      costCode: selectedCostCode,
-      codedBy: "Current User", // In real app, get from auth
-      codedDate: new Date().toISOString(),
-    };
-
-    console.log("Receipt coded:", codingEntry);
-
-    setReceipts(prev => prev.filter(r => r.id !== selectedReceipt.id));
-    
-    // Auto-select next receipt
-    const remainingReceipts = receipts.filter(r => r.id !== selectedReceipt.id);
-    setSelectedReceipt(remainingReceipts.length > 0 ? remainingReceipts[0] : null);
+    // Code the receipt using context
+    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User");
     
     setSelectedJob("");
     setSelectedCostCode("");
@@ -134,18 +72,18 @@ export default function UncodedReceipts() {
         <div className="p-4 border-b border-border">
           <h2 className="text-lg font-semibold flex items-center">
             <Receipt className="h-5 w-5 mr-2" />
-            Uncoded Receipts ({receipts.length})
+            Uncoded Receipts ({uncodedReceipts.length})
           </h2>
         </div>
         
         <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
-          {receipts.length === 0 ? (
+          {uncodedReceipts.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-muted-foreground">All receipts have been coded!</p>
             </div>
           ) : (
             <div className="space-y-1 p-2">
-              {receipts.map((receipt) => (
+              {uncodedReceipts.map((receipt) => (
                 <div
                   key={receipt.id}
                   className={`p-3 rounded-lg cursor-pointer transition-colors border ${
@@ -307,11 +245,11 @@ export default function UncodedReceipts() {
                 <div className="flex items-center space-x-6 text-sm">
                   <div className="flex items-center">
                     <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Uploaded by: Controller</span>
+                    <span>Uploaded by: {selectedReceipt.uploadedBy || "Controller"}</span>
                   </div>
                   <div className="flex items-center">
                     <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Uploaded: {selectedReceipt.date}</span>
+                    <span>Uploaded: {selectedReceipt.uploadedDate ? new Date(selectedReceipt.uploadedDate).toLocaleDateString() : selectedReceipt.date}</span>
                   </div>
                 </div>
                 <Badge variant="warning">
