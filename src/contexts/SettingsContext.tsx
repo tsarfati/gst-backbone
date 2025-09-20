@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
@@ -71,7 +71,7 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
+export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('app-settings');
     return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
