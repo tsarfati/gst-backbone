@@ -25,6 +25,15 @@ export interface AppSettings {
     warning: string;
     destructive: string;
   };
+  companySettings?: {
+    checkPickupLocations?: Array<{
+      id: string;
+      name: string;
+      address: string;
+      contactPerson?: string;
+      phone?: string;
+    }>;
+  };
 }
 
 const defaultSettings: AppSettings = {

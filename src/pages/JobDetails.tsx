@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, DollarSign, Calendar, Receipt, Image, FileText, FolderOpen, Users, Plus } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Calendar, Receipt, Image, FileText, FolderOpen, Users, Plus, Building } from "lucide-react";
 
 const mockJobs = [
   {
@@ -29,6 +29,10 @@ const mockJobs = [
     directory: [
       { name: "John Smith", role: "Project Manager", phone: "(555) 123-4567", email: "john@company.com" },
       { name: "Sarah Wilson", role: "Site Supervisor", phone: "(555) 987-6543", email: "sarah@contractor.com" }
+    ],
+    vendors: [
+      { id: "1", name: "ABC Materials", category: "Materials", spent: "$8,500", status: "active" },
+      { id: "3", name: "Elite Electrical", category: "Subcontractor", spent: "$12,100", status: "active" }
     ]
   },
   {
@@ -50,7 +54,10 @@ const mockJobs = [
     photos: [],
     drawings: [],
     documents: [],
-    directory: []
+    directory: [],
+    vendors: [
+      { id: "3", name: "Elite Electrical", category: "Subcontractor", spent: "$15,100", status: "active" }
+    ]
   },
   {
     id: "3",
@@ -71,7 +78,10 @@ const mockJobs = [
     photos: [],
     drawings: [],
     documents: [],
-    directory: []
+    directory: [],
+    vendors: [
+      { id: "2", name: "Home Depot", category: "Retail", spent: "$8,450", status: "completed" }
+    ]
   }
 ];
 
@@ -183,9 +193,10 @@ export default function JobDetails() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="costcodes">Cost Codes</TabsTrigger>
+          <TabsTrigger value="vendors">Vendors</TabsTrigger>
           <TabsTrigger value="photos">Photos</TabsTrigger>
           <TabsTrigger value="drawings">Drawings</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -247,6 +258,41 @@ export default function JobDetails() {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="vendors" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Job Vendors</h3>
+          </div>
+          {job.vendors && job.vendors.length > 0 ? (
+            <div className="space-y-4">
+              {job.vendors.map((vendor) => (
+                <Card key={vendor.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/vendors/${vendor.id}`)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Building className="h-5 w-5 text-primary" />
+                        <div>
+                          <div className="font-medium">{vendor.name}</div>
+                          <div className="text-sm text-muted-foreground">{vendor.category} • Spent: {vendor.spent}</div>
+                        </div>
+                      </div>
+                      <Badge variant={vendor.status === "active" ? "default" : "success"}>
+                        {vendor.status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Building className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No vendors have invoiced for this job yet</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="photos" className="space-y-4">

@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from 'next-themes';
 import ColorPicker from '@/components/ColorPicker';
+import CompanySettings from '@/components/CompanySettings';
 
 export default function AppSettings() {
   const { settings, updateSettings, resetSettings } = useSettings();
@@ -85,11 +86,12 @@ export default function AppSettings() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-4">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
             <TabsTrigger value="display">Display</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="data">Data & Security</TabsTrigger>
           </TabsList>
 
@@ -467,6 +469,10 @@ export default function AppSettings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="company" className="space-y-6">
+            <CompanySettings />
           </TabsContent>
 
           <TabsContent value="data" className="space-y-6">

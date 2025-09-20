@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Phone, Mail, MapPin, Receipt, CreditCard, FileText, Plus, Briefcase } from "lucide-react";
+import { ArrowLeft, Edit, Building, Phone, Mail, MapPin, Receipt, CreditCard, FileText, Plus, Briefcase, Eye, EyeOff } from "lucide-react";
+import PaymentMethodEdit from "@/components/PaymentMethodEdit";
 
 const mockVendors = [
   {
@@ -20,8 +21,8 @@ const mockVendors = [
     logo: null,
     description: "Trusted supplier of high-quality construction materials with over 20 years of experience.",
     paymentMethods: [
-      { type: "Check", accountNumber: "****-4567", isDefault: true },
-      { type: "ACH", accountNumber: "****-8901", isDefault: false }
+      { id: "1", type: "Check", accountNumber: "1234567890124567", isDefault: true, checkDelivery: "mail" },
+      { id: "2", type: "ACH", accountNumber: "9876543210128901", isDefault: false, routingNumber: "123456789", bankName: "First National Bank" }
     ],
     complianceDocuments: [
       { name: "Insurance Certificate", uploadDate: "2024-01-15", status: "Current" },
@@ -45,7 +46,7 @@ const mockVendors = [
     logo: null,
     description: "Major home improvement retailer providing materials and tools.",
     paymentMethods: [
-      { type: "Credit Card", accountNumber: "****-1234", isDefault: true }
+      { id: "3", type: "Credit Card", accountNumber: "4111111111111234", isDefault: true }
     ],
     complianceDocuments: [],
     jobs: [
@@ -65,8 +66,8 @@ const mockVendors = [
     logo: null,
     description: "Licensed electrical contractor specializing in commercial and industrial projects.",
     paymentMethods: [
-      { type: "ACH", accountNumber: "****-2468", isDefault: true },
-      { type: "Check", accountNumber: "****-1357", isDefault: false }
+      { id: "4", type: "ACH", accountNumber: "5555555555552468", isDefault: true, routingNumber: "987654321", bankName: "Business Bank" },
+      { id: "5", type: "Check", accountNumber: "1111111111111357", isDefault: false, checkDelivery: "office_pickup", pickupLocation: "main" }
     ],
     complianceDocuments: [
       { name: "Electrical License", uploadDate: "2024-01-01", status: "Current" },
@@ -91,8 +92,36 @@ export default function VendorDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState(null);
+  const [isPaymentMethodDialogOpen, setIsPaymentMethodDialogOpen] = useState(false);
+  const [userRole] = useState<'admin' | 'controller' | 'user'>('admin'); // Mock user role
 
   const vendor = mockVendors.find(v => v.id === id);
+
+  const maskAccountNumber = (accountNumber: string) => {
+    if (accountNumber.length <= 4) return accountNumber;
+    return '*'.repeat(accountNumber.length - 4) + accountNumber.slice(-4);
+  };
+
+  const handleEditPaymentMethod = (method: any) => {
+    setEditingPaymentMethod(method);
+    setIsPaymentMethodDialogOpen(true);
+  };
+
+  const handleAddPaymentMethod = () => {
+    setEditingPaymentMethod(null);
+    setIsPaymentMethodDialogOpen(true);
+  };
+
+  const handleSavePaymentMethod = (method: any) => {
+    // In a real app, this would update the backend
+    console.log('Saving payment method:', method);
+  };
+
+  const handleDeletePaymentMethod = (methodId: string) => {
+    // In a real app, this would delete from the backend
+    console.log('Deleting payment method:', methodId);
+  };
 
   if (!vendor) {
     return (
@@ -215,31 +244,62 @@ export default function VendorDetails() {
         <TabsContent value="payment" className="space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Payment Methods</h3>
-            <Button size="sm">
+            <Button size="sm" onClick={handleAddPaymentMethod}>
               <Plus className="h-4 w-4 mr-2" />
               Add Payment Method
             </Button>
           </div>
           <div className="space-y-4">
             {vendor.paymentMethods.map((method, index) => (
-              <Card key={index}>
+              <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleEditPaymentMethod(method)}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <CreditCard className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <div className="font-medium">{method.type}</div>
-                        <div className="text-sm text-muted-foreground">{method.accountNumber}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {maskAccountNumber(method.accountNumber)}
+                        </div>
+                        {method.type === 'ACH' && method.bankName && (
+                          <div className="text-xs text-muted-foreground">{method.bankName}</div>
+                        )}
+                        {method.type === 'Check' && method.checkDelivery && (
+                          <div className="text-xs text-muted-foreground">
+                            Delivery: {method.checkDelivery === 'mail' ? 'Mail' : 'Office Pickup'}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {method.isDefault && (
-                      <Badge variant="secondary">Default</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {method.isDefault && (
+                        <Badge variant="secondary">Default</Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditPaymentMethod(method);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          <PaymentMethodEdit
+            paymentMethod={editingPaymentMethod}
+            isOpen={isPaymentMethodDialogOpen}
+            onClose={() => setIsPaymentMethodDialogOpen(false)}
+            onSave={handleSavePaymentMethod}
+            onDelete={handleDeletePaymentMethod}
+            userRole={userRole}
+          />
         </TabsContent>
 
         <TabsContent value="compliance" className="space-y-4">
