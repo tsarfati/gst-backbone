@@ -88,10 +88,21 @@ export default {
             height: "0",
           },
         },
+        "pulse-red": {
+          "0%, 100%": {
+            backgroundColor: "hsl(var(--destructive) / 0.1)",
+            borderColor: "hsl(var(--destructive) / 0.3)",
+          },
+          "50%": {
+            backgroundColor: "hsl(var(--destructive) / 0.2)",
+            borderColor: "hsl(var(--destructive) / 0.5)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-red": "pulse-red 2s ease-in-out infinite",
       },
     },
   },

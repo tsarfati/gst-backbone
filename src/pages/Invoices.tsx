@@ -1,8 +1,11 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, DollarSign, Calendar, Building } from "lucide-react";
+import { FileText, Plus, DollarSign, Calendar, Building, Filter } from "lucide-react";
 
 const mockInvoices = [
   {
@@ -66,11 +69,20 @@ const getStatusVariant = (status: string) => {
 };
 
 export default function Invoices() {
-  const totalPending = mockInvoices
+  const navigate = useNavigate();
+  const [jobFilter, setJobFilter] = useState("all");
+
+  const filteredInvoices = jobFilter === "all" 
+    ? mockInvoices 
+    : mockInvoices.filter(inv => inv.job === jobFilter);
+
+  const uniqueJobs = [...new Set(mockInvoices.map(inv => inv.job))];
+
+  const totalPending = filteredInvoices
     .filter(inv => inv.status === "pending")
     .reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[$,]/g, '')), 0);
 
-  const totalOverdue = mockInvoices
+  const totalOverdue = filteredInvoices
     .filter(inv => inv.status === "overdue")
     .reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[$,]/g, '')), 0);
 
@@ -100,7 +112,7 @@ export default function Invoices() {
           <CardContent>
             <div className="text-2xl font-bold">${totalPending.toLocaleString()}</div>
             <Badge variant="warning" className="mt-2">
-              {mockInvoices.filter(inv => inv.status === "pending").length} invoices
+              {filteredInvoices.filter(inv => inv.status === "pending").length} invoices
             </Badge>
           </CardContent>
         </Card>
@@ -115,7 +127,7 @@ export default function Invoices() {
           <CardContent>
             <div className="text-2xl font-bold">${totalOverdue.toLocaleString()}</div>
             <Badge variant="destructive" className="mt-2">
-              {mockInvoices.filter(inv => inv.status === "overdue").length} invoices
+              {filteredInvoices.filter(inv => inv.status === "overdue").length} invoices
             </Badge>
           </CardContent>
         </Card>
@@ -138,7 +150,23 @@ export default function Invoices() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Invoices</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>All Invoices</CardTitle>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={jobFilter} onValueChange={setJobFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter by job" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Jobs</SelectItem>
+                  {uniqueJobs.map(job => (
+                    <SelectItem key={job} value={job}>{job}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -155,8 +183,14 @@ export default function Invoices() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockInvoices.map((invoice) => (
-                <TableRow key={invoice.id}>
+              {filteredInvoices.map((invoice) => (
+                <TableRow 
+                  key={invoice.id} 
+                  className={`cursor-pointer hover:bg-muted/50 ${
+                    invoice.status === 'overdue' ? 'animate-pulse-red' : ''
+                  }`}
+                  onClick={() => navigate(`/invoices/${invoice.id}`)}
+                >
                   <TableCell className="font-medium">{invoice.id}</TableCell>
                   <TableCell>
                     <div className="flex items-center">
@@ -175,11 +209,25 @@ export default function Invoices() {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/invoices/${invoice.id}`);
+                        }}
+                      >
                         View
                       </Button>
                       {invoice.status !== "paid" && (
-                        <Button variant="default" size="sm">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Handle mark as paid
+                          }}
+                        >
                           Mark Paid
                         </Button>
                       )}

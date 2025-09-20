@@ -1,0 +1,281 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  BarChart3, 
+  Download, 
+  Calendar, 
+  DollarSign, 
+  TrendingUp, 
+  TrendingDown,
+  FileText,
+  PieChart
+} from "lucide-react";
+import { useState } from "react";
+
+const monthlyData = [
+  { month: "Jan 2024", totalPaid: 12450, invoiceCount: 8, avgProcessTime: "3.2 days" },
+  { month: "Feb 2024", totalPaid: 18760, invoiceCount: 12, avgProcessTime: "2.8 days" },
+  { month: "Mar 2024", totalPaid: 22100, invoiceCount: 15, avgProcessTime: "2.5 days" },
+  { month: "Apr 2024", totalPaid: 19850, invoiceCount: 11, avgProcessTime: "3.1 days" },
+  { month: "May 2024", totalPaid: 25400, invoiceCount: 18, avgProcessTime: "2.3 days" },
+  { month: "Jun 2024", totalPaid: 21750, invoiceCount: 14, avgProcessTime: "2.7 days" }
+];
+
+const vendorPayments = [
+  { vendor: "ABC Materials", totalPaid: 28450, invoiceCount: 15, percentage: 32 },
+  { vendor: "Elite Electrical", totalPaid: 22100, invoiceCount: 12, percentage: 25 },
+  { vendor: "Home Depot", totalPaid: 15750, invoiceCount: 18, percentage: 18 },
+  { vendor: "Office Supply Co", totalPaid: 8900, invoiceCount: 24, percentage: 10 },
+  { vendor: "Equipment Rental", totalPaid: 7650, invoiceCount: 8, percentage: 9 },
+  { vendor: "Others", totalPaid: 5400, invoiceCount: 12, percentage: 6 }
+];
+
+const paymentMethods = [
+  { method: "ACH Transfer", count: 45, percentage: 52, avgAmount: 3250 },
+  { method: "Check", count: 28, percentage: 32, avgAmount: 1850 },
+  { method: "Wire Transfer", count: 8, percentage: 9, avgAmount: 8900 },
+  { method: "Credit Card", count: 6, percentage: 7, avgAmount: 650 }
+];
+
+export default function PaymentReports() {
+  const [selectedPeriod, setSelectedPeriod] = useState("6months");
+  const [reportType, setReportType] = useState("summary");
+
+  const currentMonthTotal = monthlyData[monthlyData.length - 1].totalPaid;
+  const previousMonthTotal = monthlyData[monthlyData.length - 2].totalPaid;
+  const monthOverMonth = ((currentMonthTotal - previousMonthTotal) / previousMonthTotal * 100).toFixed(1);
+  const isPositiveGrowth = parseFloat(monthOverMonth) > 0;
+
+  const totalYearToDate = monthlyData.reduce((sum, month) => sum + month.totalPaid, 0);
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Payment Reports</h1>
+          <p className="text-muted-foreground">
+            Analyze payment trends, vendor spending, and financial insights
+          </p>
+        </div>
+        <div className="flex space-x-2">
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1month">Last Month</SelectItem>
+              <SelectItem value="3months">Last 3 Months</SelectItem>
+              <SelectItem value="6months">Last 6 Months</SelectItem>
+              <SelectItem value="1year">Last Year</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
+          </Button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Payments YTD</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalYearToDate.toLocaleString()}</div>
+            <div className="flex items-center text-sm mt-2">
+              {isPositiveGrowth ? (
+                <TrendingUp className="h-3 w-3 text-success mr-1" />
+              ) : (
+                <TrendingDown className="h-3 w-3 text-destructive mr-1" />
+              )}
+              <span className={isPositiveGrowth ? "text-success" : "text-destructive"}>
+                {monthOverMonth}% from last month
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg Payment Value</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              ${Math.round(totalYearToDate / monthlyData.reduce((sum, m) => sum + m.invoiceCount, 0)).toLocaleString()}
+            </div>
+            <Badge variant="default" className="mt-2">
+              Per invoice
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Processing Time</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">2.6 days</div>
+            <Badge variant="success" className="mt-2">
+              Average
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {monthlyData.reduce((sum, m) => sum + m.invoiceCount, 0)}
+            </div>
+            <Badge variant="default" className="mt-2">
+              This period
+            </Badge>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Monthly Trends */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Monthly Payment Trends
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {monthlyData.map((month, index) => (
+                <div key={month.month} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{month.month}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {month.invoiceCount} invoices • {month.avgProcessTime} avg
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">${month.totalPaid.toLocaleString()}</p>
+                    <div className="w-24 bg-accent rounded-full h-2 mt-1">
+                      <div 
+                        className="bg-primary h-2 rounded-full"
+                        style={{
+                          width: `${(month.totalPaid / Math.max(...monthlyData.map(m => m.totalPaid))) * 100}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Vendors */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <PieChart className="h-5 w-5 mr-2" />
+              Top Vendors by Payment Volume
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {vendorPayments.map((vendor, index) => (
+                <div key={vendor.vendor} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium">{vendor.vendor}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {vendor.invoiceCount} invoices
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">${vendor.totalPaid.toLocaleString()}</p>
+                    <Badge variant="default" className="text-xs">
+                      {vendor.percentage}%
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment Methods Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Methods Analysis</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {paymentMethods.map((method) => (
+              <div key={method.method} className="p-4 border rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium">{method.method}</p>
+                  <Badge variant="outline">{method.percentage}%</Badge>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Count:</span>
+                    <span className="font-medium">{method.count}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Avg Amount:</span>
+                    <span className="font-medium">${method.avgAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-accent rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full"
+                      style={{ width: `${method.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Report Actions */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Generate Custom Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Button variant="outline" className="h-auto flex-col p-4">
+              <FileText className="h-6 w-6 mb-2" />
+              <span className="font-medium">Vendor Summary</span>
+              <span className="text-xs text-muted-foreground">Payment totals by vendor</span>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col p-4">
+              <BarChart3 className="h-6 w-6 mb-2" />
+              <span className="font-medium">Monthly Analysis</span>
+              <span className="text-xs text-muted-foreground">Monthly payment trends</span>
+            </Button>
+            <Button variant="outline" className="h-auto flex-col p-4">
+              <Calendar className="h-6 w-6 mb-2" />
+              <span className="font-medium">Custom Period</span>
+              <span className="text-xs text-muted-foreground">Select date range</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
