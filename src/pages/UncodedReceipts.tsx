@@ -10,6 +10,7 @@ import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
+import PdfPreview from "@/components/PdfPreview";
 
 const jobs = [
   "Office Renovation", 
@@ -381,22 +382,7 @@ export default function UncodedReceipts() {
                 {selectedReceipt.type === 'pdf' ? (
                   <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                     {selectedReceipt.previewUrl ? (
-                      pdfObjectUrl ? (
-                        <iframe
-                          src={pdfObjectUrl}
-                          title={`PDF ${selectedReceipt.filename}`}
-                          className="w-full h-[70vh]"
-                        />
-                      ) : (
-                        <div className="p-8 aspect-[8.5/11]">
-                          <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
-                            <div className="text-center">
-                              <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                              <p className="text-sm text-muted-foreground">Loading preview...</p>
-                            </div>
-                          </div>
-                        </div>
-                      )
+                      <PdfPreview url={selectedReceipt.previewUrl} height={560} />
                     ) : (
                       <div className="p-8 aspect-[8.5/11]">
                         <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
