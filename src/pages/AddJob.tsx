@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,10 +8,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Building, ArrowLeft, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AddJob() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [managers, setManagers] = useState<{ user_id: string; display_name: string | null; first_name: string | null; last_name: string | null; role: string }[]>([]);
+  const [loadingManagers, setLoadingManagers] = useState(false);
   
   const [formData, setFormData] = useState({
     jobName: "",
@@ -22,7 +27,7 @@ export default function AddJob() {
     endDate: "",
     budget: "",
     description: "",
-    projectManager: "",
+    projectManagerId: "",
     status: "planning"
   });
 
@@ -30,15 +35,48 @@ export default function AddJob() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const fetchManagers = async () => {
+      setLoadingManagers(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name, role')
+        .in('role', ['admin', 'controller']);
+      if (!error && data) setManagers(data as any);
+      setLoadingManagers(false);
+    };
+    fetchManagers();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // In a real app, this would save to backend
-    toast({
-      title: "Job created",
-      description: "New job has been successfully created",
+    if (!user) {
+      toast({ title: "Not signed in", description: "Please sign in to create a job.", variant: "destructive" });
+      return;
+    }
+
+    const budgetNumber = formData.budget ? Number(String(formData.budget).replace(/[^0-9.]/g, '')) : null;
+
+    const { error } = await supabase.from('jobs').insert({
+      name: formData.jobName,
+      client: formData.client,
+      address: formData.address,
+      job_type: formData.jobType,
+      status: formData.status,
+      start_date: formData.startDate || null,
+      end_date: formData.endDate || null,
+      budget: budgetNumber,
+      description: formData.description,
+      project_manager_user_id: formData.projectManagerId || null,
+      created_by: user.id,
     });
-    
+
+    if (error) {
+      toast({ title: "Error creating job", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Job created", description: "New job has been successfully created" });
     navigate("/jobs");
   };
 
@@ -162,6 +200,27 @@ export default function AddJob() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleInputChange("startDate", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => handleInputChange("endDate", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label htmlFor="budget">Budget</Label>
                 <Input
                   id="budget"
@@ -172,12 +231,18 @@ export default function AddJob() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="projectManager">Project Manager</Label>
-                <Input
-                  id="projectManager"
-                  value={formData.projectManager}
-                  onChange={(e) => handleInputChange("projectManager", e.target.value)}
-                  placeholder="Enter project manager name"
-                />
+                <Select value={formData.projectManagerId} onValueChange={(v) => handleInputChange("projectManagerId", v)}>
+                  <SelectTrigger id="projectManager">
+                    <SelectValue placeholder={loadingManagers ? "Loading..." : "Select a project manager"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managers.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {m.display_name || `${m.first_name || ''} ${m.last_name || ''}`.trim()} ({m.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

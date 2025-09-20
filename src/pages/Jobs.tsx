@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -6,6 +6,7 @@ import JobViewSelector, { ViewType } from "@/components/JobViewSelector";
 import JobCard from "@/components/JobCard";
 import JobListView from "@/components/JobListView";
 import JobCompactView from "@/components/JobCompactView";
+import { supabase } from "@/integrations/supabase/client";
 
 // Jobs are now managed with proper state - no mock data
 
@@ -13,10 +14,27 @@ export default function Jobs() {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<ViewType>("tiles");
   const [jobs, setJobs] = useState<any[]>([]);
-
-  const handleJobClick = (job: any) => {
-    navigate(`/jobs/${job.id}`);
-  };
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    const loadJobs = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        const mapped = data.map((j: any) => ({
+          id: j.id,
+          name: j.name,
+          budget: j.budget ? `$${Number(j.budget).toLocaleString()}` : "$0",
+          spent: "$0",
+          receipts: 0,
+          startDate: j.start_date || "-",
+          status: j.status || "planning",
+        }));
+        setJobs(mapped);
+      }
+      setLoading(false);
+    };
+    loadJobs();
+  }, []);
 
   const renderJobs = () => {
     if (jobs.length === 0) {
@@ -67,7 +85,11 @@ export default function Jobs() {
         </div>
       </div>
 
-      {renderJobs()}
+      {loading ? (
+        <div className="text-center py-12 text-muted-foreground">Loading jobs...</div>
+      ) : (
+        renderJobs()
+      )}
     </div>
   );
 }

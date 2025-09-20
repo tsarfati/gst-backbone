@@ -316,6 +316,20 @@ export default function UncodedReceipts() {
                       </Badge>
                     )}
                   </Button>
+                  {selectedReceipt.previewUrl && (
+                    <div className="flex items-center gap-2">
+                      <Button asChild variant="secondary" size="sm">
+                        <a href={selectedReceipt.previewUrl} target="_blank" rel="noopener noreferrer">
+                          View
+                        </a>
+                      </Button>
+                      <Button asChild variant="default" size="sm">
+                        <a href={selectedReceipt.previewUrl} download={selectedReceipt.filename}>
+                          Download
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center space-x-4 text-sm text-muted-foreground">
