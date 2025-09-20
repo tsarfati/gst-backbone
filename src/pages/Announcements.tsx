@@ -80,8 +80,8 @@ export default function Announcements() {
     pinned: false
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterPriority, setFilterPriority] = useState('all');
 
   const categories = ['System Updates', 'HR Updates', 'Safety', 'Project Updates', 'General'];
   const priorities = ['low', 'normal', 'high', 'urgent'];
@@ -150,8 +150,8 @@ export default function Announcements() {
   const filteredAnnouncements = announcements.filter(announcement => {
     const matchesSearch = announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          announcement.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !filterCategory || announcement.category === filterCategory;
-    const matchesPriority = !filterPriority || announcement.priority === filterPriority;
+    const matchesCategory = filterCategory === 'all' || announcement.category === filterCategory;
+    const matchesPriority = filterPriority === 'all' || announcement.priority === filterPriority;
     
     return matchesSearch && matchesCategory && matchesPriority;
   });
@@ -269,7 +269,7 @@ export default function Announcements() {
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All categories</SelectItem>
+              <SelectItem value="all">All categories</SelectItem>
               {categories.map(category => (
                 <SelectItem key={category} value={category}>{category}</SelectItem>
               ))}
@@ -280,7 +280,7 @@ export default function Announcements() {
               <SelectValue placeholder="All priorities" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All priorities</SelectItem>
+              <SelectItem value="all">All priorities</SelectItem>
               {priorities.map(priority => (
                 <SelectItem key={priority} value={priority}>
                   {priority.charAt(0).toUpperCase() + priority.slice(1)}
@@ -354,7 +354,7 @@ export default function Announcements() {
               <Megaphone className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">No announcements found</h3>
               <p className="text-muted-foreground">
-                {searchTerm || filterCategory || filterPriority 
+                {searchTerm || (filterCategory !== 'all') || (filterPriority !== 'all') 
                   ? 'Try adjusting your filters to see more announcements.'
                   : 'Create your first announcement to get started.'}
               </p>

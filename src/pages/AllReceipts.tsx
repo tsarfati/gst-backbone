@@ -39,9 +39,9 @@ export default function AllReceipts() {
   const { uncodedReceipts, codedReceipts } = useReceipts();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterJob, setFilterJob] = useState("");
-  const [filterCostCode, setFilterCostCode] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterJob, setFilterJob] = useState("all");
+  const [filterCostCode, setFilterCostCode] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [selectedReceipt, setSelectedReceipt] = useState<CombinedReceipt | null>(null);
   const { toast } = useToast();
 
@@ -62,13 +62,13 @@ export default function AllReceipts() {
         receipt.vendor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         receipt.amount.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesJob = filterJob === "" || 
+      const matchesJob = filterJob === "all" || 
         (receipt.status === 'coded' && 'job' in receipt && receipt.job === filterJob);
 
-      const matchesCostCode = filterCostCode === "" || 
+      const matchesCostCode = filterCostCode === "all" || 
         (receipt.status === 'coded' && 'costCode' in receipt && receipt.costCode === filterCostCode);
 
-      const matchesStatus = filterStatus === "" || receipt.status === filterStatus;
+      const matchesStatus = filterStatus === "all" || receipt.status === filterStatus;
 
       return matchesSearch && matchesJob && matchesCostCode && matchesStatus;
     });
@@ -138,9 +138,9 @@ export default function AllReceipts() {
 
   const clearFilters = () => {
     setSearchTerm("");
-    setFilterJob("");
-    setFilterCostCode("");
-    setFilterStatus("");
+    setFilterJob("all");
+    setFilterCostCode("all");
+    setFilterStatus("all");
   };
 
   return (
@@ -183,7 +183,7 @@ export default function AllReceipts() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="uncoded">Uncoded</SelectItem>
                   <SelectItem value="coded">Coded</SelectItem>
                 </SelectContent>
@@ -197,7 +197,7 @@ export default function AllReceipts() {
                   <SelectValue placeholder="All jobs" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All jobs</SelectItem>
+                  <SelectItem value="all">All jobs</SelectItem>
                   {jobs.map(job => (
                     <SelectItem key={job} value={job}>{job}</SelectItem>
                   ))}
@@ -212,7 +212,7 @@ export default function AllReceipts() {
                   <SelectValue placeholder="All cost codes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All cost codes</SelectItem>
+                  <SelectItem value="all">All cost codes</SelectItem>
                   {costCodes.map(code => (
                     <SelectItem key={code} value={code}>{code}</SelectItem>
                   ))}
