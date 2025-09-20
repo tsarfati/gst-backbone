@@ -101,16 +101,21 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   }, [uncodedReceipts]);
 
   const addReceipts = useCallback((files: FileList) => {
-    const newReceipts: Receipt[] = Array.from(files).map(file => ({
-      id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      filename: file.name,
-      amount: "$0.00",
-      date: new Date().toISOString().split('T')[0],
-      type: file.type.startsWith('image/') ? 'image' : 'pdf',
-      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      uploadedBy: "Current User",
-      uploadedDate: new Date(),
-    }));
+    const newReceipts: Receipt[] = Array.from(files).map(file => {
+      // Create a more persistent preview URL using FileReader for images
+      const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+      
+      return {
+        id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        filename: file.name,
+        amount: "$0.00",
+        date: new Date().toISOString().split('T')[0],
+        type: file.type.startsWith('image/') ? 'image' : 'pdf',
+        previewUrl,
+        uploadedBy: "Current User",
+        uploadedDate: new Date(),
+      };
+    });
 
     setUncodedReceipts(prev => [...prev, ...newReceipts]);
   }, []);

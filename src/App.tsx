@@ -37,6 +37,7 @@ import CostCodes from "./pages/CostCodes";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
+import AllReceipts from "./pages/AllReceipts";
 
 const queryClient = new QueryClient();
 
@@ -75,7 +76,7 @@ function App() {
                       <Route index element={<Dashboard />} />
                       <Route path="upload" element={<UploadReceipts />} />
                       <Route path="uncoded" element={<UncodedReceipts />} />
-                      <Route path="receipts" element={<UncodedReceipts />} />
+                      <Route path="receipts" element={<AllReceipts />} />
                       <Route path="jobs" element={<Jobs />} />
                       <Route path="jobs/add" element={<AddJob />} />
                       <Route path="jobs/cost-codes" element={<CostCodes />} />

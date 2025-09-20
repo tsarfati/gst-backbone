@@ -20,7 +20,7 @@ const navigationCategories = [
     items: [
       { name: "Upload Receipts", href: "/upload", icon: Upload },
       { name: "Uncoded Receipts", href: "/uncoded", icon: Clock },
-      { name: "View All Receipts", href: "/receipts", icon: Eye },
+      { name: "All Receipts", href: "/receipts", icon: Eye },
       { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3 },
     ],
   },
