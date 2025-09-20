@@ -15,6 +15,7 @@ const navigationCategories = [
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
     ],
+    collapsible: false, // Dashboard shouldn't expand
   },
   {
     title: "Receipts",
@@ -24,6 +25,7 @@ const navigationCategories = [
       { name: "Coded Receipts", href: "/receipts", icon: Eye },
       { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3 },
     ],
+    collapsible: true,
   },
   {
     title: "Vendors",
@@ -32,6 +34,7 @@ const navigationCategories = [
       { name: "Add Vendor", href: "/vendors/add", icon: Plus },
       { name: "Vendor Reports", href: "/vendors/reports", icon: FileBarChart },
     ],
+    collapsible: true,
   },
   {
     title: "Jobs",
@@ -41,16 +44,18 @@ const navigationCategories = [
       { name: "Cost Codes", href: "/jobs/cost-codes", icon: FileText },
       { name: "Job Reports", href: "/jobs/reports", icon: BarChart3 },
     ],
+    collapsible: true,
   },
   {
     title: "Invoices",
     items: [
+      { name: "Invoice Dashboard", href: "/invoice-status", icon: BarChart3 },
       { name: "All Invoices", href: "/invoices", icon: FileText },
       { name: "Add Invoice", href: "/invoices/add", icon: FileCheck },
-      { name: "Invoice Status", href: "/invoice-status", icon: BarChart3 },
       { name: "Payment History", href: "/invoices/payments", icon: CreditCard },
-      { name: "Payment Reports", href: "/invoices/payment-reports", icon: DollarSign },
+      { name: "Invoice Reports", href: "/invoices/payment-reports", icon: DollarSign },
     ],
+    collapsible: true,
   },
   {
     title: "Company Files",
@@ -60,6 +65,7 @@ const navigationCategories = [
       { name: "Permits", href: "/company-files/permits", icon: FileCheck },
       { name: "Insurance", href: "/company-files/insurance", icon: Shield },
     ],
+    collapsible: true,
   },
   {
     title: "Employees",
@@ -69,6 +75,7 @@ const navigationCategories = [
       { name: "Payroll", href: "/employees/payroll", icon: DollarSign },
       { name: "Performance", href: "/employees/performance", icon: Award },
     ],
+    collapsible: true,
   },
   {
     title: "Punch Clock",
@@ -77,6 +84,7 @@ const navigationCategories = [
       { name: "Timesheets", href: "/time-sheets", icon: Calendar },
       { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp },
     ],
+    collapsible: true,
   },
   {
     title: "Messaging",
@@ -85,6 +93,7 @@ const navigationCategories = [
       { name: "Team Chat", href: "/team-chat", icon: MessageCircle },
       { name: "Announcements", href: "/announcements", icon: Megaphone },
     ],
+    collapsible: true,
   },
   {
     title: "Tasks",
@@ -93,6 +102,7 @@ const navigationCategories = [
       { name: "Project Tasks", href: "/tasks/projects", icon: Target },
       { name: "Deadlines", href: "/tasks/deadlines", icon: AlarmClock },
     ],
+    collapsible: true,
   },
   {
     title: "Settings",
@@ -104,6 +114,7 @@ const navigationCategories = [
       { name: "Data & Security", href: "/settings/security", icon: Shield },
       { name: "User Management", href: "/settings/users", icon: UserCog },
     ],
+    collapsible: true,
   },
 ];
 
@@ -115,6 +126,12 @@ export function AppSidebar() {
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
 
   const toggleGroup = (groupTitle: string) => {
+    // Dashboard doesn't expand - just navigate
+    const dashboardCategory = navigationCategories.find(cat => cat.title === "Dashboard");
+    if (dashboardCategory && groupTitle === "Dashboard") {
+      return; // Don't toggle dashboard
+    }
+
     if (settings.navigationMode === 'single') {
       const activeGroups = navigationCategories
         .filter(category => 
@@ -173,27 +190,13 @@ export function AppSidebar() {
       </SidebarHeader>
       
       <SidebarContent className="gap-0">
-        {navigationCategories.map((category) => (
-          <SidebarGroup key={category.title}>
-            <Collapsible 
-              open={allOpenGroups.includes(category.title)} 
-              onOpenChange={() => toggleGroup(category.title)}
-            >
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center"
-                  >
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      {category.title}
-                    </span>
-                    <ChevronDown className="h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden data-[state=open]:rotate-180" />
-                  </Button>
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              
-              <CollapsibleContent>
+        {navigationCategories.map((category) => {
+          const isDashboard = category.title === "Dashboard";
+          
+          return (
+            <SidebarGroup key={category.title}>
+              {isDashboard ? (
+                // Dashboard renders as a direct link without collapsible
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {category.items.map((item) => {
@@ -216,10 +219,55 @@ export function AppSidebar() {
                     })}
                   </SidebarMenu>
                 </SidebarGroupContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </SidebarGroup>
-        ))}
+              ) : (
+                // Other categories use collapsible behavior
+                <Collapsible 
+                  open={allOpenGroups.includes(category.title)} 
+                  onOpenChange={() => toggleGroup(category.title)}
+                >
+                  <SidebarGroupLabel asChild>
+                    <CollapsibleTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center"
+                      >
+                        <span className="group-data-[collapsible=icon]:hidden">
+                          {category.title}
+                        </span>
+                        <ChevronDown className="h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden data-[state=open]:rotate-180" />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </SidebarGroupLabel>
+                  
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {category.items.map((item) => {
+                          const isActive = location.pathname === item.href;
+                          return (
+                            <SidebarMenuItem key={item.name}>
+                              <SidebarMenuButton 
+                                asChild 
+                                isActive={isActive}
+                                tooltip={state === "collapsed" ? item.name : undefined}
+                                className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
+                              >
+                                <Link to={item.href}>
+                                  <item.icon className="h-4 w-4" />
+                                  <span>{item.name}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
       <SidebarFooter>
         <div className="p-4 border-t">
