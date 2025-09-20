@@ -1,7 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building, Phone, Mail, MapPin, Plus, Receipt } from "lucide-react";
+import { Plus } from "lucide-react";
+import VendorViewSelector, { VendorViewType } from "@/components/VendorViewSelector";
+import VendorCard from "@/components/VendorCard";
+import VendorListView from "@/components/VendorListView";
+import VendorCompactView from "@/components/VendorCompactView";
 
 const mockVendors = [
   {
@@ -50,14 +54,33 @@ const mockVendors = [
   }
 ];
 
-const categoryColors = {
-  "Materials": "default",
-  "Retail": "secondary",
-  "Subcontractor": "success",
-  "Office": "warning"
-} as const;
-
 export default function Vendors() {
+  const navigate = useNavigate();
+  const [currentView, setCurrentView] = useState<VendorViewType>("tiles");
+
+  const handleVendorClick = (vendor: any) => {
+    navigate(`/vendors/${vendor.id}`);
+  };
+
+  const renderVendors = () => {
+    switch (currentView) {
+      case "tiles":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {mockVendors.map((vendor) => (
+              <VendorCard key={vendor.id} vendor={vendor} onClick={() => handleVendorClick(vendor)} />
+            ))}
+          </div>
+        );
+      case "list":
+        return <VendorListView vendors={mockVendors} onVendorClick={handleVendorClick} />;
+      case "compact":
+        return <VendorCompactView vendors={mockVendors} onVendorClick={handleVendorClick} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -67,72 +90,16 @@ export default function Vendors() {
             Manage vendor relationships and track spending
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Vendor
-        </Button>
+        <div className="flex items-center gap-4">
+          <VendorViewSelector currentView={currentView} onViewChange={setCurrentView} />
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Vendor
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {mockVendors.map((vendor) => (
-          <Card key={vendor.id} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center text-lg">
-                  <Building className="h-5 w-5 mr-2 text-primary" />
-                  {vendor.name}
-                </CardTitle>
-                <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
-                  {vendor.category}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {vendor.contact !== "N/A" && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Contact</p>
-                  <p className="font-medium">{vendor.contact}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <div className="flex items-center text-sm">
-                  <Phone className="h-3 w-3 mr-2 text-muted-foreground" />
-                  {vendor.phone}
-                </div>
-                <div className="flex items-center text-sm">
-                  <Mail className="h-3 w-3 mr-2 text-muted-foreground" />
-                  {vendor.email}
-                </div>
-                <div className="flex items-start text-sm">
-                  <MapPin className="h-3 w-3 mr-2 text-muted-foreground mt-0.5" />
-                  <span className="leading-tight">{vendor.address}</span>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Spent</p>
-                    <p className="font-semibold text-lg">{vendor.totalSpent}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Invoices</p>
-                    <p className="font-semibold text-lg flex items-center">
-                      <Receipt className="h-4 w-4 mr-1" />
-                      {vendor.invoices}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <Button variant="outline" className="w-full">
-                View Details
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {renderVendors()}
     </div>
   );
 }

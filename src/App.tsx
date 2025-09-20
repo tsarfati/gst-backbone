@@ -12,6 +12,8 @@ import Jobs from "./pages/Jobs";
 import JobDetails from "./pages/JobDetails";
 import JobEdit from "./pages/JobEdit";
 import Vendors from "./pages/Vendors";
+import VendorDetails from "./pages/VendorDetails";
+import VendorEdit from "./pages/VendorEdit";
 import Invoices from "./pages/Invoices";
 import InvoiceStatus from "./pages/InvoiceStatus";
 import NotFound from "./pages/NotFound";
@@ -34,6 +36,8 @@ const App = () => (
             <Route path="jobs/:id" element={<JobDetails />} />
             <Route path="jobs/:id/edit" element={<JobEdit />} />
             <Route path="vendors" element={<Vendors />} />
+            <Route path="vendors/:id" element={<VendorDetails />} />
+            <Route path="vendors/:id/edit" element={<VendorEdit />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoice-status" element={<InvoiceStatus />} />
           </Route>
