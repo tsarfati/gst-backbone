@@ -26,6 +26,10 @@ export default function CodedReceipts() {
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
   const { toast } = useToast();
 
+  // Create dynamic lists from coded receipts data
+  const jobs = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.job).filter(Boolean))) as string[], [codedReceipts]);
+  const costCodes = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.costCode).filter(Boolean))) as string[], [codedReceipts]);
+
   // Sort coded receipts
   const allReceipts = useMemo((): CodedReceipt[] => {
     return codedReceipts.sort((a, b) => {
