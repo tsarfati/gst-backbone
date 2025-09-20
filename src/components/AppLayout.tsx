@@ -203,6 +203,7 @@ export function AppSidebar() {
                             asChild 
                             isActive={isActive}
                             tooltip={state === "collapsed" ? item.name : undefined}
+                            className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
                           >
                             <Link to={item.href}>
                               <item.icon className="h-4 w-4" />

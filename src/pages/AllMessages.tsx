@@ -30,7 +30,6 @@ export default function AllMessages() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'sent'>('all');
   const { user, profile } = useAuth();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {

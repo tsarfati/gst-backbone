@@ -12,7 +12,7 @@ import {
   DollarSign
 } from "lucide-react";
 
-// Extended mock data with more detailed statuses
+// Invoice statuses will be loaded from database
 const invoiceStatuses = {
   waitingApproval: [],
   waitingToBePaid: [],

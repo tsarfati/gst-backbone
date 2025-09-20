@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import CostCodeManager from "@/components/CostCodeManager";
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -30,6 +31,8 @@ export default function AddJob() {
     projectManagerId: "",
     status: "planning"
   });
+  
+  const [costCodes, setCostCodes] = useState<Array<{ id: string; code: string; description: string }>>([]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -237,6 +240,12 @@ export default function AddJob() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Cost Codes */}
+        <CostCodeManager 
+          costCodes={costCodes} 
+          onCostCodesChange={setCostCodes} 
+        />
 
         {/* Form Actions */}
         <div className="flex gap-3">
