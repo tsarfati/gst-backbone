@@ -3,9 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, Plus, FileText, Mail, Phone, MapPin, CreditCard, FileIcon } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Mail, Phone, MapPin, CreditCard, FileIcon, Upload, Download, ExternalLink, Briefcase } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -13,6 +18,24 @@ export default function VendorDetails() {
   const { toast } = useToast();
   const [vendor, setVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
+  const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
+  const [showAddDocumentDialog, setShowAddDocumentDialog] = useState(false);
+  const [newPaymentMethod, setNewPaymentMethod] = useState({
+    type: 'bank_transfer',
+    account_number: '',
+    routing_number: '',
+    bank_name: '',
+    account_holder: ''
+  });
+  const [newDocument, setNewDocument] = useState({
+    name: '',
+    type: 'insurance',
+    expiry_date: '',
+    notes: ''
+  });
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -37,6 +60,10 @@ export default function VendorDetails() {
           });
         } else {
           setVendor(data);
+          if (data) {
+            // Fetch related jobs
+            fetchVendorJobs(data.company_id);
+          }
         }
       } catch (err) {
         console.error('Error:', err);
@@ -47,6 +74,22 @@ export default function VendorDetails() {
         });
       } finally {
         setLoading(false);
+      }
+    };
+
+    const fetchVendorJobs = async (companyId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('created_by', companyId)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          setJobs(data);
+        }
+      } catch (error) {
+        console.error('Error fetching vendor jobs:', error);
       }
     };
 
@@ -96,8 +139,50 @@ export default function VendorDetails() {
     );
   }
 
+  const handleAddPaymentMethod = () => {
+    // Mock adding payment method - would save to database
+    const mockPaymentMethod = {
+      id: Date.now().toString(),
+      ...newPaymentMethod
+    };
+    setPaymentMethods(prev => [...prev, mockPaymentMethod]);
+    setNewPaymentMethod({
+      type: 'bank_transfer',
+      account_number: '',
+      routing_number: '',
+      bank_name: '',
+      account_holder: ''
+    });
+    setShowAddPaymentDialog(false);
+    toast({
+      title: "Payment Method Added",
+      description: "Payment method has been successfully added."
+    });
+  };
+
+  const handleAddDocument = () => {
+    // Mock adding document - would save to database/storage
+    const mockDocument = {
+      id: Date.now().toString(),
+      ...newDocument,
+      uploaded_date: new Date().toISOString()
+    };
+    setComplianceDocuments(prev => [...prev, mockDocument]);
+    setNewDocument({
+      name: '',
+      type: 'insurance',
+      expiry_date: '',
+      notes: ''
+    });
+    setShowAddDocumentDialog(false);
+    toast({
+      title: "Document Added",
+      description: "Compliance document has been successfully added."
+    });
+  };
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -117,136 +202,416 @@ export default function VendorDetails() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Company Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Company Name</label>
-                <p className="text-lg font-semibold">{vendor.name}</p>
-              </div>
-              
-              {vendor.contact_person && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Contact Person</label>
-                  <p className="text-foreground">{vendor.contact_person}</p>
-                </div>
-              )}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="payments">Payment Methods</TabsTrigger>
+          <TabsTrigger value="compliance">Compliance Documents</TabsTrigger>
+          <TabsTrigger value="jobs">Jobs</TabsTrigger>
+        </TabsList>
 
-              {(vendor.address || vendor.city || vendor.state || vendor.zip_code) && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Address</label>
-                  <div className="space-y-1">
-                    {vendor.address && <p className="text-foreground">{vendor.address}</p>}
-                    {(vendor.city || vendor.state || vendor.zip_code) && (
-                      <p className="text-foreground">
-                        {[vendor.city, vendor.state, vendor.zip_code].filter(Boolean).join(', ')}
-                      </p>
-                    )}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Info */}
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Company Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Company Name</label>
+                    <p className="text-lg font-semibold">{vendor.name}</p>
                   </div>
-                </div>
-              )}
+                  
+                  {vendor.contact_person && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Contact Person</label>
+                      <p className="text-foreground">{vendor.contact_person}</p>
+                    </div>
+                  )}
 
-              {vendor.notes && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Notes</label>
-                  <p className="text-foreground">{vendor.notes}</p>
+                  {(vendor.address || vendor.city || vendor.state || vendor.zip_code) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Address</label>
+                      <div className="space-y-1">
+                        {vendor.address && <p className="text-foreground">{vendor.address}</p>}
+                        {(vendor.city || vendor.state || vendor.zip_code) && (
+                          <p className="text-foreground">
+                            {[vendor.city, vendor.state, vendor.zip_code].filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {vendor.notes && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Notes</label>
+                      <p className="text-foreground">{vendor.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Contact Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Contact Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {vendor.email && (
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <a href={`mailto:${vendor.email}`} className="text-primary hover:underline">
+                        {vendor.email}
+                      </a>
+                    </div>
+                  )}
+                  
+                  {vendor.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <a href={`tel:${vendor.phone}`} className="text-primary hover:underline">
+                        {vendor.phone}
+                      </a>
+                    </div>
+                  )}
+
+                  {!vendor.email && !vendor.phone && (
+                    <p className="text-muted-foreground text-sm">No contact information available</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Business Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Business Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {vendor.tax_id && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Tax ID</label>
+                      <p className="text-foreground">{vendor.tax_id}</p>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>
+                    <p className="text-foreground">{vendor.payment_terms} days</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                    <div>
+                      <Badge variant={vendor.is_active ? "default" : "secondary"}>
+                        {vendor.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Invoices
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Payment History
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start" disabled>
+                    <FileIcon className="h-4 w-4 mr-2" />
+                    View Documents
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Payment Methods</CardTitle>
+              <Dialog open={showAddPaymentDialog} onOpenChange={setShowAddPaymentDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Payment Method
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Payment Method</DialogTitle>
+                    <DialogDescription>
+                      Add a new payment method for this vendor
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Payment Type</Label>
+                      <Select value={newPaymentMethod.type} onValueChange={(value) => setNewPaymentMethod(prev => ({ ...prev, type: value }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="check">Check</SelectItem>
+                          <SelectItem value="ach">ACH</SelectItem>
+                          <SelectItem value="wire">Wire Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Account Holder</Label>
+                      <Input
+                        value={newPaymentMethod.account_holder}
+                        onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, account_holder: e.target.value }))}
+                        placeholder="Account holder name"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Account Number</Label>
+                        <Input
+                          value={newPaymentMethod.account_number}
+                          onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, account_number: e.target.value }))}
+                          placeholder="Account number"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Routing Number</Label>
+                        <Input
+                          value={newPaymentMethod.routing_number}
+                          onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, routing_number: e.target.value }))}
+                          placeholder="Routing number"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bank Name</Label>
+                      <Input
+                        value={newPaymentMethod.bank_name}
+                        onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, bank_name: e.target.value }))}
+                        placeholder="Bank name"
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setShowAddPaymentDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleAddPaymentMethod}>
+                        Add Payment Method
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {paymentMethods.length === 0 ? (
+                <div className="text-center py-8">
+                  <CreditCard className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">No Payment Methods</h3>
+                  <p className="text-muted-foreground mb-4">Add payment methods to streamline vendor payments</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {paymentMethods.map((method) => (
+                    <Card key={method.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">{method.bank_name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {method.type.replace('_', ' ').toUpperCase()} - ****{method.account_number.slice(-4)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{method.account_holder}</p>
+                          </div>
+                          <Badge variant="outline">{method.type.replace('_', ' ')}</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Contact Information */}
+        <TabsContent value="compliance" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Compliance Documents</CardTitle>
+              <Dialog open={showAddDocumentDialog} onOpenChange={setShowAddDocumentDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Document
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Compliance Document</DialogTitle>
+                    <DialogDescription>
+                      Upload a compliance document for this vendor
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Document Name</Label>
+                      <Input
+                        value={newDocument.name}
+                        onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Document name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Document Type</Label>
+                      <Select value={newDocument.type} onValueChange={(value) => setNewDocument(prev => ({ ...prev, type: value }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="insurance">Insurance Certificate</SelectItem>
+                          <SelectItem value="license">Business License</SelectItem>
+                          <SelectItem value="certification">Certification</SelectItem>
+                          <SelectItem value="w9">W-9 Form</SelectItem>
+                          <SelectItem value="contract">Contract</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Expiry Date (Optional)</Label>
+                      <Input
+                        type="date"
+                        value={newDocument.expiry_date}
+                        onChange={(e) => setNewDocument(prev => ({ ...prev, expiry_date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <Input
+                        value={newDocument.notes}
+                        onChange={(e) => setNewDocument(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Additional notes"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Upload Document</Label>
+                      <Input type="file" accept=".pdf,.doc,.docx,.jpg,.png" />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setShowAddDocumentDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleAddDocument}>
+                        Add Document
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {complianceDocuments.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">No Compliance Documents</h3>
+                  <p className="text-muted-foreground mb-4">Upload compliance documents to track vendor requirements</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {complianceDocuments.map((doc) => (
+                    <Card key={doc.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileIcon className="h-8 w-8 text-primary" />
+                            <div>
+                              <h4 className="font-medium">{doc.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {doc.type.replace('_', ' ').toUpperCase()}
+                                {doc.expiry_date && ` • Expires: ${new Date(doc.expiry_date).toLocaleDateString()}`}
+                              </p>
+                              {doc.notes && <p className="text-sm text-muted-foreground">{doc.notes}</p>}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="jobs" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Contact Information</CardTitle>
+              <CardTitle>Associated Jobs</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {vendor.email && (
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a href={`mailto:${vendor.email}`} className="text-primary hover:underline">
-                    {vendor.email}
-                  </a>
+            <CardContent>
+              {jobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <Briefcase className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">No Jobs Found</h3>
+                  <p className="text-muted-foreground mb-4">No jobs are currently associated with this vendor</p>
                 </div>
-              )}
-              
-              {vendor.phone && (
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <a href={`tel:${vendor.phone}`} className="text-primary hover:underline">
-                    {vendor.phone}
-                  </a>
+              ) : (
+                <div className="space-y-4">
+                  {jobs.map((job) => (
+                    <Card key={job.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/job-details/${job.id}`)}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium">{job.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Status: <span className="capitalize">{job.status}</span>
+                              {job.budget && ` • Budget: $${Number(job.budget).toLocaleString()}`}
+                            </p>
+                            {job.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{job.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{job.status}</Badge>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              )}
-
-              {!vendor.email && !vendor.phone && (
-                <p className="text-muted-foreground text-sm">No contact information available</p>
               )}
             </CardContent>
           </Card>
-
-          {/* Business Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Business Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {vendor.tax_id && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Tax ID</label>
-                  <p className="text-foreground">{vendor.tax_id}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>
-                <p className="text-foreground">{vendor.payment_terms} days</p>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Status</label>
-                <div>
-                  <Badge variant={vendor.is_active ? "default" : "secondary"}>
-                    {vendor.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <FileText className="h-4 w-4 mr-2" />
-                View Invoices
-              </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <CreditCard className="h-4 w-4 mr-2" />
-                Payment History
-              </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <FileIcon className="h-4 w-4 mr-2" />
-                View Documents
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
