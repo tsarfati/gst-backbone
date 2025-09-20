@@ -7,7 +7,8 @@ import {
   Building2, 
   FileText, 
   LayoutDashboard,
-  Clock
+  Clock,
+  BarChart3
 } from "lucide-react";
 
 const navigation = [
@@ -17,6 +18,7 @@ const navigation = [
   { name: "Jobs", href: "/jobs", icon: FolderOpen },
   { name: "Vendors", href: "/vendors", icon: Building2 },
   { name: "Invoices", href: "/invoices", icon: FileText },
+  { name: "Invoice Status", href: "/invoice-status", icon: BarChart3 },
 ];
 
 export default function Layout() {

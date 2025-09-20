@@ -10,6 +10,7 @@ import UncodedReceipts from "./pages/UncodedReceipts";
 import Jobs from "./pages/Jobs";
 import Vendors from "./pages/Vendors";
 import Invoices from "./pages/Invoices";
+import InvoiceStatus from "./pages/InvoiceStatus";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="jobs" element={<Jobs />} />
             <Route path="vendors" element={<Vendors />} />
             <Route path="invoices" element={<Invoices />} />
+            <Route path="invoice-status" element={<InvoiceStatus />} />
           </Route>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
