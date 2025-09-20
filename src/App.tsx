@@ -45,7 +45,7 @@ import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 
 const queryClient = new QueryClient();
 
-// Protected Route Component
+// Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
@@ -60,23 +60,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function App() {
+function AppRoutes() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <AuthProvider>
-          <SettingsProvider>
-            <ReceiptProvider>
-              <TooltipProvider>
-                <Toaster />
-                <BrowserRouter>
-                  <Routes>
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/" element={
-                      <ProtectedRoute>
-                        <AppLayout />
-                      </ProtectedRoute>
-                    }>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/" element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }>
                       <Route index element={<Dashboard />} />
                       <Route path="upload" element={<UploadReceipts />} />
                       <Route path="uncoded" element={<UncodedReceipts />} />
@@ -119,6 +112,19 @@ function App() {
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <AuthProvider>
+          <SettingsProvider>
+            <ReceiptProvider>
+              <TooltipProvider>
+                <Toaster />
+                <AppRoutes />
               </TooltipProvider>
             </ReceiptProvider>
           </SettingsProvider>
