@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, AlertTriangle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface PageLock {
@@ -105,15 +105,31 @@ export default function DevelopmentFreeze() {
     });
   };
 
+  const handleSaveSettings = () => {
+    // In a real app, this would save to backend/localStorage
+    localStorage.setItem('developmentFreeze', JSON.stringify(pageLocks));
+    
+    toast({
+      title: "Settings saved",
+      description: "Development freeze settings have been saved successfully.",
+    });
+  };
+
   const lockedCount = pageLocks.filter(page => page.isLocked).length;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Development Freeze</h2>
-        <p className="text-muted-foreground">
-          Lock specific pages to prevent code changes during stable periods.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Development Freeze</h2>
+          <p className="text-muted-foreground">
+            Lock specific pages to prevent code changes during stable periods.
+          </p>
+        </div>
+        <Button onClick={handleSaveSettings} className="flex items-center gap-2">
+          <Save className="h-4 w-4" />
+          Save Settings
+        </Button>
       </div>
 
       {lockedCount > 0 && (

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import DashboardCustomizer from '@/components/DashboardCustomizer';
-import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X } from "lucide-react";
+import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X, FileText, AlertTriangle } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +39,7 @@ interface DashboardSettings {
   show_active_jobs: boolean;
   show_notifications: boolean;
   show_messages: boolean;
+  show_invoices: boolean;
 }
 
 export default function Dashboard() {
@@ -53,6 +54,7 @@ export default function Dashboard() {
     show_active_jobs: true,
     show_notifications: true,
     show_messages: true,
+    show_invoices: true,
   });
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export default function Dashboard() {
           show_active_jobs: data.show_active_jobs,
           show_notifications: data.show_notifications,
           show_messages: data.show_messages,
+          show_invoices: data.show_invoices ?? true,
         });
       }
     } catch (error) {
@@ -425,6 +428,117 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Invoice Management Section */}
+      {dashboardSettings.show_invoices && (
+        <div className="mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Invoice Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Important Invoices */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Overdue Invoices</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-001</p>
+                        <p className="text-xs text-muted-foreground">ABC Construction</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="destructive" className="mb-1">30 days</Badge>
+                        <p className="text-sm font-semibold">$12,500</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-003</p>
+                        <p className="text-xs text-muted-foreground">XYZ Materials</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="destructive" className="mb-1">15 days</Badge>
+                        <p className="text-sm font-semibold">$8,750</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Due Soon */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Due This Week</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-005</p>
+                        <p className="text-xs text-muted-foreground">DEF Supplies</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline" className="mb-1">3 days</Badge>
+                        <p className="text-sm font-semibold">$5,200</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-007</p>
+                        <p className="text-xs text-muted-foreground">GHI Equipment</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline" className="mb-1">5 days</Badge>
+                        <p className="text-sm font-semibold">$15,800</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Paid */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Recently Paid</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-002</p>
+                        <p className="text-xs text-muted-foreground">JKL Contractors</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className="mb-1">Paid</Badge>
+                        <p className="text-sm font-semibold">$9,400</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+                      <div>
+                        <p className="font-medium text-sm">INV-2024-004</p>
+                        <p className="text-xs text-muted-foreground">MNO Services</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className="mb-1">Paid</Badge>
+                        <p className="text-sm font-semibold">$3,200</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4 pt-4 border-t">
+                <Button variant="outline" size="sm">
+                  View All Invoices
+                </Button>
+                <Button variant="outline" size="sm">
+                  Create Invoice
+                </Button>
+                <Button variant="outline" size="sm">
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Follow Up Overdue
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
