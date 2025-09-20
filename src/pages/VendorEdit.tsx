@@ -330,7 +330,7 @@ export default function VendorEdit() {
         
         toast({
           title: "Payment Method Updated",
-          description: "Payment method has been successfully updated.",
+          description: "Payment method has been successfully updated. Editing account or routing number later will require confirmation.",
         });
       } else {
         const { error } = await supabase
@@ -344,7 +344,7 @@ export default function VendorEdit() {
         
         toast({
           title: "Payment Method Added",
-          description: "Payment method has been successfully added.",
+          description: "Payment method has been successfully added. Editing account or routing number later will require confirmation.",
         });
       }
       

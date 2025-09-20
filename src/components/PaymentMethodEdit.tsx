@@ -45,7 +45,7 @@ export default function PaymentMethodEdit({
   const { settings } = useSettings();
   const { profile } = useAuth();
   const [formData, setFormData] = useState<PaymentMethod>(() => paymentMethod || {
-    type: 'ACH',
+    type: 'ach',
     account_number: '',
     routing_number: '',
     bank_name: '',
@@ -142,57 +142,57 @@ export default function PaymentMethodEdit({
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACH">ACH</SelectItem>
-                  <SelectItem value="Wire">Wire Transfer</SelectItem>
-                  <SelectItem value="Check">Check</SelectItem>
-                  <SelectItem value="Credit Card">Credit Card</SelectItem>
-                  <SelectItem value="Vendor Payment Portal">Vendor Payment Portal</SelectItem>
-                </SelectContent>
+              <SelectContent>
+                <SelectItem value="ach">ACH</SelectItem>
+                <SelectItem value="wire">Wire Transfer</SelectItem>
+                <SelectItem value="check">Check</SelectItem>
+                <SelectItem value="credit_card">Credit Card</SelectItem>
+              </SelectContent>
               </Select>
             </div>
 
-          {(formData.type === 'ACH' || formData.type === 'Wire') && (
+          {(formData.type === 'ach' || formData.type === 'wire') && (
             <>
-              <Alert>
-                <Lock className="h-4 w-4" />
-                <AlertTitle>Sensitive information</AlertTitle>
-                <AlertDescription>
-                  Bank details are encrypted at rest. Only admins and controllers can unmask on screen.
-                </AlertDescription>
-              </Alert>
+              <div className="rounded-lg border border-accent bg-accent/10 p-4 space-y-4">
+                <Alert>
+                  <Lock className="h-4 w-4" />
+                  <AlertTitle>Sensitive information</AlertTitle>
+                  <AlertDescription>
+                    Bank details are encrypted at rest. Only admins and controllers can unmask on screen.
+                  </AlertDescription>
+                </Alert>
 
-              <div>
-                <Label htmlFor="bankName">Bank Name</Label>
-                <Input
-                  id="bankName"
-                  value={formData.bank_name}
-                  onChange={(e) => handleInputChange('bank_name', e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="routingNumber">Routing Number</Label>
-                <div className="relative">
-                  <NumericInput
-                    id="routingNumber"
-                    value={formData.routing_number || ''}
-                    onChange={(value) => handleInputChange('routing_number', value)}
-                    placeholder="9 digit routing number"
-                    masked={true}
-                    showMasked={showRoutingNumber}
-                    canToggleMask={canViewSensitiveData}
-                    onToggleMask={setShowRoutingNumber}
-                    onClick={isEditing ? handleRoutingNumberEdit : undefined}
-                    readOnly={isEditing && !allowRoutingEdit}
+                <div>
+                  <Label htmlFor="bankName">Bank Name</Label>
+                  <Input
+                    id="bankName"
+                    value={formData.bank_name}
+                    onChange={(e) => handleInputChange('bank_name', e.target.value)}
                   />
-                  {isEditing && !allowRoutingEdit && (
-                    <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleRoutingNumberEdit}>
-                      <span className="text-muted-foreground text-sm">Click to edit</span>
-                    </div>
-                  )}
                 </div>
-              </div>
+
+                <div>
+                  <Label htmlFor="routingNumber">Routing Number</Label>
+                  <div className="relative">
+                    <NumericInput
+                      id="routingNumber"
+                      value={formData.routing_number || ''}
+                      onChange={(value) => handleInputChange('routing_number', value)}
+                      placeholder="9 digit routing number"
+                      masked={true}
+                      showMasked={showRoutingNumber}
+                      canToggleMask={canViewSensitiveData}
+                      onToggleMask={setShowRoutingNumber}
+                      onClick={isEditing ? handleRoutingNumberEdit : undefined}
+                      readOnly={isEditing && !allowRoutingEdit}
+                    />
+                    {isEditing && !allowRoutingEdit && (
+                      <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleRoutingNumberEdit}>
+                        <span className="text-muted-foreground text-sm">Click to edit</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div>
                   <Label htmlFor="accountNumber">Account Number</Label>
@@ -217,51 +217,52 @@ export default function PaymentMethodEdit({
                   </div>
                 </div>
 
-              {!isEditing && (
-                <div>
-                  <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
-                  <NumericInput
-                    id="confirmAccountNumber"
-                    value={confirmAccountNumber}
-                    onChange={setConfirmAccountNumber}
-                    placeholder="Re-enter account number"
-                    masked={true}
-                    showMasked={showConfirmAccountNumber}
-                    canToggleMask={canViewSensitiveData}
-                    onToggleMask={setShowConfirmAccountNumber}
-                  />
-                </div>
-              )}
-
-              <div>
-                <Label htmlFor="voidedCheck">Voided Check Upload</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="voidedCheck"
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={handleVoidedCheckUpload}
-                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                {!isEditing && (
+                  <div>
+                    <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
+                    <NumericInput
+                      id="confirmAccountNumber"
+                      value={confirmAccountNumber}
+                      onChange={setConfirmAccountNumber}
+                      placeholder="Re-enter account number"
+                      masked={true}
+                      showMasked={showConfirmAccountNumber}
+                      canToggleMask={canViewSensitiveData}
+                      onToggleMask={setShowConfirmAccountNumber}
                     />
                   </div>
-                   {formData.voided_check_url && (
-                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                       <FileText className="h-4 w-4" />
-                       <span>Voided check uploaded</span>
-                       {canViewSensitiveData && (
-                         <Button variant="ghost" size="sm" className="h-6 px-2">
-                           View
-                         </Button>
-                       )}
-                     </div>
-                   )}
+                )}
+
+                <div>
+                  <Label htmlFor="voidedCheck">Voided Check Upload</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="voidedCheck"
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleVoidedCheckUpload}
+                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      />
+                    </div>
+                    {formData.voided_check_url && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                        <span>Voided check uploaded</span>
+                        {canViewSensitiveData && (
+                          <Button variant="ghost" size="sm" className="h-6 px-2">
+                            View
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
           )}
 
-          {formData.type === 'Check' && (
+          {formData.type === 'check' && (
             <>
               <div>
                 <Label htmlFor="checkDelivery">Check Delivery</Label>
@@ -290,7 +291,7 @@ export default function PaymentMethodEdit({
             </>
           )}
 
-          {formData.type === 'Credit Card' && (
+          {formData.type === 'credit_card' && (
             <div>
               <Label htmlFor="accountNumber">Card Number</Label>
               <NumericInput
