@@ -19,7 +19,7 @@ const mockVendors = [
     address: "123 Industrial Way, City, ST 12345",
     category: "Materials",
     description: "Trusted supplier of high-quality construction materials with over 20 years of experience.",
-    logo: null
+    logo: "https://images.unsplash.com/photo-1518458028785-8fbcd101ebb9?w=100&h=100&fit=crop&crop=center"
   },
   {
     id: "2", 
@@ -30,7 +30,7 @@ const mockVendors = [
     address: "456 Retail Blvd, City, ST 12345",
     category: "Retail",
     description: "Major home improvement retailer providing materials and tools.",
-    logo: null
+    logo: "https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=100&h=100&fit=crop&crop=center"
   },
   {
     id: "3",
@@ -50,7 +50,8 @@ export default function VendorEdit() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const vendor = mockVendors.find(v => v.id === id);
+  const isAddMode = id === "add";
+  const vendor = isAddMode ? null : mockVendors.find(v => v.id === id);
 
   const [formData, setFormData] = useState({
     name: vendor?.name || "",
@@ -66,7 +67,7 @@ export default function VendorEdit() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(formData.logo);
 
-  if (!vendor) {
+  if (!isAddMode && !vendor) {
     return (
       <div className="p-6">
         <div className="text-center">
@@ -101,11 +102,19 @@ export default function VendorEdit() {
 
   const handleSave = () => {
     // In a real app, this would save to backend
-    toast({
-      title: "Vendor Updated",
-      description: "Vendor details have been successfully updated.",
-    });
-    navigate(`/vendors/${id}`);
+    if (isAddMode) {
+      toast({
+        title: "Vendor Created",
+        description: "New vendor has been successfully created.",
+      });
+      navigate("/vendors");
+    } else {
+      toast({
+        title: "Vendor Updated",
+        description: "Vendor details have been successfully updated.",
+      });
+      navigate(`/vendors/${id}`);
+    }
   };
 
   const handleDelete = () => {
@@ -123,41 +132,47 @@ export default function VendorEdit() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate(`/vendors/${id}`)}>
+          <Button variant="ghost" onClick={() => navigate(isAddMode ? "/vendors" : `/vendors/${id}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Edit Vendor</h1>
-            <p className="text-muted-foreground">Update vendor details and settings</p>
+            <h1 className="text-2xl font-bold text-foreground">
+              {isAddMode ? "Add New Vendor" : "Edit Vendor"}
+            </h1>
+            <p className="text-muted-foreground">
+              {isAddMode ? "Create a new vendor profile" : "Update vendor details and settings"}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Vendor
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to delete this vendor?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the vendor
-                  and all associated data including payment methods, compliance documents, and transaction history.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          {!isAddMode && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete Vendor
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to delete this vendor?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the vendor
+                    and all associated data including payment methods, compliance documents, and transaction history.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete Vendor
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Button onClick={handleSave}>
             <Save className="h-4 w-4 mr-2" />
-            Save Changes
+            {isAddMode ? "Create Vendor" : "Save Changes"}
           </Button>
         </div>
       </div>

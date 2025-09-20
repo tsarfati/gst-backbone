@@ -70,6 +70,7 @@ function App() {
                       <Route path="jobs/:id" element={<JobDetails />} />
                       <Route path="jobs/:id/edit" element={<JobEdit />} />
                       <Route path="vendors" element={<Vendors />} />
+                      <Route path="vendors/add" element={<VendorEdit />} />
                       <Route path="vendors/:id" element={<VendorDetails />} />
                       <Route path="vendors/:id/edit" element={<VendorEdit />} />
                       <Route path="settings" element={<AppSettings />} />

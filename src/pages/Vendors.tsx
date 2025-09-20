@@ -17,7 +17,8 @@ const mockVendors = [
     address: "123 Industrial Way, City, ST 12345",
     totalSpent: "$15,250",
     invoices: 12,
-    category: "Materials"
+    category: "Materials",
+    logo: "https://images.unsplash.com/photo-1518458028785-8fbcd101ebb9?w=100&h=100&fit=crop&crop=center"
   },
   {
     id: "2",
@@ -28,7 +29,8 @@ const mockVendors = [
     address: "456 Retail Blvd, City, ST 12345",
     totalSpent: "$8,450",
     invoices: 8,
-    category: "Retail"
+    category: "Retail",
+    logo: "https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=100&h=100&fit=crop&crop=center"
   },
   {
     id: "3",
@@ -50,7 +52,8 @@ const mockVendors = [
     address: "321 Business Park, City, ST 12345",
     totalSpent: "$1,250",
     invoices: 5,
-    category: "Office"
+    category: "Office",
+    logo: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=100&h=100&fit=crop&crop=center"
   }
 ];
 
@@ -92,7 +95,7 @@ export default function Vendors() {
         </div>
         <div className="flex items-center gap-4">
           <VendorViewSelector currentView={currentView} onViewChange={setCurrentView} />
-          <Button>
+          <Button onClick={() => navigate("/vendors/add")}>
             <Plus className="h-4 w-4 mr-2" />
             Add Vendor
           </Button>
