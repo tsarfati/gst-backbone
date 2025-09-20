@@ -8,111 +8,112 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
 import GlobalSearch from '@/components/GlobalSearch';
+import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 const navigationCategories = [
   {
     title: "Dashboard",
     items: [
-      { name: "Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "Dashboard", href: "/", icon: LayoutDashboard, menuKey: "dashboard" },
     ],
-    collapsible: false, // Dashboard shouldn't expand
+    collapsible: false,
   },
   {
     title: "Receipts",
     items: [
-      { name: "Upload Receipts", href: "/upload", icon: Upload },
-      { name: "Uncoded Receipts", href: "/uncoded", icon: Clock },
-      { name: "Coded Receipts", href: "/receipts", icon: Eye },
-      { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3 },
+      { name: "Upload Receipts", href: "/upload", icon: Upload, menuKey: "receipts" },
+      { name: "Uncoded Receipts", href: "/uncoded", icon: Clock, menuKey: "receipts" },
+      { name: "Coded Receipts", href: "/receipts", icon: Eye, menuKey: "receipts" },
+      { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3, menuKey: "reports" },
     ],
     collapsible: true,
   },
   {
     title: "Vendors",
     items: [
-      { name: "All Vendors", href: "/vendors", icon: Building2 },
-      { name: "Add Vendor", href: "/vendors/add", icon: Plus },
-      { name: "Vendor Reports", href: "/vendors/reports", icon: FileBarChart },
+      { name: "All Vendors", href: "/vendors", icon: Building2, menuKey: "vendors" },
+      { name: "Add Vendor", href: "/vendors/add", icon: Plus, menuKey: "vendors" },
+      { name: "Vendor Reports", href: "/vendors/reports", icon: FileBarChart, menuKey: "reports" },
     ],
     collapsible: true,
   },
   {
     title: "Jobs",
     items: [
-      { name: "All Jobs", href: "/jobs", icon: FolderOpen },
-      { name: "Add Job", href: "/jobs/add", icon: Building },
-      { name: "Cost Codes", href: "/jobs/cost-codes", icon: FileText },
-      { name: "Job Reports", href: "/jobs/reports", icon: BarChart3 },
+      { name: "All Jobs", href: "/jobs", icon: FolderOpen, menuKey: "jobs" },
+      { name: "Add Job", href: "/jobs/add", icon: Building, menuKey: "jobs" },
+      { name: "Cost Codes", href: "/jobs/cost-codes", icon: FileText, menuKey: "jobs" },
+      { name: "Job Reports", href: "/jobs/reports", icon: BarChart3, menuKey: "reports" },
     ],
     collapsible: true,
   },
   {
     title: "Invoices",
     items: [
-      { name: "Invoice Dashboard", href: "/invoice-status", icon: BarChart3 },
-      { name: "All Invoices", href: "/invoices", icon: FileText },
-      { name: "Add Invoice", href: "/invoices/add", icon: FileCheck },
-      { name: "Payment History", href: "/invoices/payments", icon: CreditCard },
-      { name: "Invoice Reports", href: "/invoices/payment-reports", icon: DollarSign },
+      { name: "Invoice Dashboard", href: "/invoice-status", icon: BarChart3, menuKey: "reports" },
+      { name: "All Invoices", href: "/invoices", icon: FileText, menuKey: "vendors" },
+      { name: "Add Invoice", href: "/invoices/add", icon: FileCheck, menuKey: "vendors" },
+      { name: "Payment History", href: "/invoices/payments", icon: CreditCard, menuKey: "reports" },
+      { name: "Invoice Reports", href: "/invoices/payment-reports", icon: DollarSign, menuKey: "reports" },
     ],
     collapsible: true,
   },
   {
     title: "Company Files",
     items: [
-      { name: "All Documents", href: "/company-files", icon: FolderArchive },
-      { name: "Contracts", href: "/company-files/contracts", icon: FileKey },
-      { name: "Permits", href: "/company-files/permits", icon: FileCheck },
-      { name: "Insurance", href: "/company-files/insurance", icon: Shield },
+      { name: "All Documents", href: "/company-files", icon: FolderArchive, menuKey: "settings" },
+      { name: "Contracts", href: "/company-files/contracts", icon: FileKey, menuKey: "settings" },
+      { name: "Permits", href: "/company-files/permits", icon: FileCheck, menuKey: "settings" },
+      { name: "Insurance", href: "/company-files/insurance", icon: Shield, menuKey: "settings" },
     ],
     collapsible: true,
   },
   {
     title: "Employees",
     items: [
-      { name: "All Employees", href: "/employees", icon: Users },
-      { name: "Add Employee", href: "/employees/add", icon: UserPlus },
-      { name: "Payroll", href: "/employees/payroll", icon: DollarSign },
-      { name: "Performance", href: "/employees/performance", icon: Award },
+      { name: "All Employees", href: "/employees", icon: Users, menuKey: "employees" },
+      { name: "Add Employee", href: "/employees/add", icon: UserPlus, menuKey: "employees" },
+      { name: "Payroll", href: "/employees/payroll", icon: DollarSign, menuKey: "employees" },
+      { name: "Performance", href: "/employees/performance", icon: Award, menuKey: "employees" },
     ],
     collapsible: true,
   },
   {
     title: "Punch Clock",
     items: [
-      { name: "Time Tracking", href: "/time-tracking", icon: Timer },
-      { name: "Timesheets", href: "/time-sheets", icon: Calendar },
-      { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp },
+      { name: "Time Tracking", href: "/time-tracking", icon: Timer, menuKey: "employees" },
+      { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "employees" },
+      { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp, menuKey: "reports" },
     ],
     collapsible: true,
   },
   {
     title: "Messaging",
     items: [
-      { name: "All Messages", href: "/messages", icon: MessageSquare },
-      { name: "Team Chat", href: "/team-chat", icon: MessageCircle },
-      { name: "Announcements", href: "/announcements", icon: Megaphone },
+      { name: "All Messages", href: "/messages", icon: MessageSquare, menuKey: "messages" },
+      { name: "Team Chat", href: "/team-chat", icon: MessageCircle, menuKey: "messages" },
+      { name: "Announcements", href: "/announcements", icon: Megaphone, menuKey: "announcements" },
     ],
     collapsible: true,
   },
   {
     title: "Tasks",
     items: [
-      { name: "All Tasks", href: "/tasks", icon: CheckSquare },
-      { name: "Project Tasks", href: "/tasks/projects", icon: Target },
-      { name: "Deadlines", href: "/tasks/deadlines", icon: AlarmClock },
+      { name: "All Tasks", href: "/tasks", icon: CheckSquare, menuKey: "jobs" },
+      { name: "Project Tasks", href: "/tasks/projects", icon: Target, menuKey: "jobs" },
+      { name: "Deadlines", href: "/tasks/deadlines", icon: AlarmClock, menuKey: "jobs" },
     ],
     collapsible: true,
   },
   {
     title: "Settings",
     items: [
-      { name: "General", href: "/settings", icon: Settings },
-      { name: "Theme & Appearance", href: "/settings/theme", icon: Settings },
-      { name: "Company Settings", href: "/settings/company", icon: Building },
-      { name: "Notifications & Email", href: "/settings/notifications", icon: Bell },
-      { name: "Data & Security", href: "/settings/security", icon: Shield },
-      { name: "User Management", href: "/settings/users", icon: UserCog },
+      { name: "General", href: "/settings", icon: Settings, menuKey: "settings" },
+      { name: "Theme & Appearance", href: "/settings/theme", icon: Settings, menuKey: "settings" },
+      { name: "Company Settings", href: "/settings/company", icon: Building, menuKey: "settings" },
+      { name: "Notifications & Email", href: "/settings/notifications", icon: Bell, menuKey: "settings" },
+      { name: "Data & Security", href: "/settings/security", icon: Shield, menuKey: "settings" },
+      { name: "User Management", href: "/settings/users", icon: UserCog, menuKey: "settings" },
     ],
     collapsible: true,
   },
@@ -123,6 +124,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { signOut, profile } = useAuth();
+  const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
 
   const toggleGroup = (groupTitle: string) => {
@@ -190,8 +192,16 @@ export function AppSidebar() {
       </SidebarHeader>
       
       <SidebarContent className="gap-0">
-        {navigationCategories.map((category) => {
+        {!loading && navigationCategories.map((category) => {
           const isDashboard = category.title === "Dashboard";
+          
+          // Filter items based on permissions
+          const allowedItems = category.items.filter(item => 
+            !item.menuKey || hasAccess(item.menuKey)
+          );
+          
+          // Don't show category if no items are allowed
+          if (allowedItems.length === 0) return null;
           
           return (
             <SidebarGroup key={category.title}>
@@ -199,7 +209,7 @@ export function AppSidebar() {
                 // Dashboard renders as a direct link without collapsible
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {category.items.map((item) => {
+                    {allowedItems.map((item) => {
                       const isActive = location.pathname === item.href;
                       return (
                         <SidebarMenuItem key={item.name}>
@@ -243,7 +253,7 @@ export function AppSidebar() {
                   <CollapsibleContent>
                     <SidebarGroupContent>
                       <SidebarMenu>
-                        {category.items.map((item) => {
+                        {allowedItems.map((item) => {
                           const isActive = location.pathname === item.href;
                           return (
                             <SidebarMenuItem key={item.name}>
@@ -269,7 +279,7 @@ export function AppSidebar() {
               )}
             </SidebarGroup>
           );
-        })}
+        }).filter(Boolean)}
       </SidebarContent>
       <SidebarFooter>
         <div className="p-4 border-t">

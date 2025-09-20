@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle, XCircle, User, Settings, Briefcase } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CheckCircle, XCircle, User, Settings, Briefcase, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,6 +23,7 @@ interface UserProfile {
   approved_by?: string;
   approved_at?: string;
   created_at: string;
+  avatar_url?: string;
 }
 
 interface Job {
@@ -37,7 +40,14 @@ export default function UserManagement() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
+
+  const roleColors = {
+    admin: 'bg-red-500',
+    controller: 'bg-blue-500', 
+    employee: 'bg-gray-500'
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -233,14 +243,35 @@ export default function UserManagement() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge variant="default" className="bg-green-500">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-      default:
-        return <Badge variant="secondary">Pending</Badge>;
+  const updateUser = async (userProfile: UserProfile) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: userProfile.first_name,
+          last_name: userProfile.last_name,
+          display_name: userProfile.display_name,
+          role: userProfile.role as any,
+          status: userProfile.status,
+          has_global_job_access: userProfile.has_global_job_access
+        })
+        .eq('user_id', userProfile.user_id);
+
+      if (error) throw error;
+
+      toast({
+        title: "User Updated",
+        description: "User details have been updated successfully",
+      });
+      fetchUsers();
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user",
+        variant: "destructive",
+      });
     }
   };
 
@@ -278,10 +309,26 @@ export default function UserManagement() {
           <CardContent>
             <div className="space-y-4">
               {users.filter(u => u.status === 'pending').map((user) => (
-                <div key={user.user_id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`}</h3>
-                    <p className="text-sm text-muted-foreground">Role: {user.role}</p>
+                <div key={user.user_id} className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                      ) : (
+                        <span className="text-lg font-semibold text-primary">
+                          {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
+                          {user.role}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => approveUser(user.user_id)}>
@@ -306,108 +353,233 @@ export default function UserManagement() {
           <CardTitle>All Users</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Global Job Access</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((userProfile) => (
-                <TableRow key={userProfile.user_id}>
-                  <TableCell>
-                    {userProfile.display_name || `${userProfile.first_name} ${userProfile.last_name}`}
-                  </TableCell>
-                  <TableCell>
-                    <Select 
-                      value={userProfile.role} 
-                      onValueChange={(value) => updateUserRole(userProfile.user_id, value)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="employee">Employee</SelectItem>
-                        <SelectItem value="controller">Controller</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(userProfile.status)}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={userProfile.has_global_job_access}
-                      onCheckedChange={(checked) => toggleGlobalJobAccess(userProfile.user_id, checked)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedUser(userProfile);
-                        fetchUserJobAccess(userProfile.user_id);
-                      }}
-                    >
-                      <Briefcase className="h-4 w-4 mr-2" />
-                      Job Access
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="grid gap-4">
+            {users.map((user) => (
+              <div key={user.user_id} className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                    ) : (
+                      <span className="text-lg font-semibold text-primary">
+                        {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+                      <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
+                        {user.status || 'pending'}
+                      </Badge>
+                      <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
+                        {user.role}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        {user.user_id}
+                      </span>
+                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                      {user.approved_at && (
+                        <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                      <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
+                      {user.status === 'approved' && (
+                        <span className="text-green-600">✓ Active</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingUser(user)}
+                    className="flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Manage
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Job Access Modal */}
-      {selectedUser && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Job Access for {selectedUser.display_name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-              <Switch
-                checked={selectedUser.has_global_job_access}
-                onCheckedChange={(checked) => {
-                  toggleGlobalJobAccess(selectedUser.user_id, checked);
-                  setSelectedUser({ ...selectedUser, has_global_job_access: checked });
-                }}
-              />
-              <span className="font-medium">Global Job Access</span>
-              <span className="text-sm text-muted-foreground">
-                (Access to all jobs automatically)
-              </span>
-            </div>
-
-            {!selectedUser.has_global_job_access && (
-              <div className="space-y-2">
-                <h4 className="font-medium">Specific Job Access</h4>
-                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                  {jobs.map((job) => (
-                    <div key={job.id} className="flex items-center justify-between p-2 border rounded">
-                      <div>
-                        <span className="font-medium">{job.name}</span>
-                        <span className="text-sm text-muted-foreground ml-2">({job.client})</span>
-                      </div>
-                      <Switch
-                        checked={userJobAccess.includes(job.id)}
-                        onCheckedChange={(checked) => toggleJobAccess(selectedUser.user_id, job.id, checked)}
-                      />
-                    </div>
-                  ))}
+      {/* User Edit Dialog */}
+      {editingUser && (
+        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Manage User</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="first_name">First Name</Label>
+                  <Input
+                    id="first_name"
+                    value={editingUser?.first_name || ''}
+                    onChange={(e) => setEditingUser(prev => prev ? { ...prev, first_name: e.target.value } : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="last_name">Last Name</Label>
+                  <Input
+                    id="last_name"
+                    value={editingUser?.last_name || ''}
+                    onChange={(e) => setEditingUser(prev => prev ? { ...prev, last_name: e.target.value } : null)}
+                  />
                 </div>
               </div>
-            )}
 
-            <Button onClick={() => setSelectedUser(null)}>Close</Button>
-          </CardContent>
-        </Card>
+              <div>
+                <Label htmlFor="display_name">Display Name</Label>
+                <Input
+                  id="display_name"
+                  value={editingUser?.display_name || ''}
+                  onChange={(e) => setEditingUser(prev => prev ? { ...prev, display_name: e.target.value } : null)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="role">Role</Label>
+                  <Select
+                    value={editingUser?.role || 'employee'}
+                    onValueChange={(value) => setEditingUser(prev => prev ? { ...prev, role: value as any } : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="controller">Controller</SelectItem>
+                      <SelectItem value="employee">Employee</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={editingUser?.status || 'pending'}
+                    onValueChange={(value) => setEditingUser(prev => prev ? { ...prev, status: value } : null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="global_access"
+                  checked={editingUser?.has_global_job_access || false}
+                  onCheckedChange={(checked) => setEditingUser(prev => prev ? { ...prev, has_global_job_access: checked } : null)}
+                />
+                <Label htmlFor="global_access" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Global Job Access
+                </Label>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">User Information</Label>
+                <div className="text-sm text-muted-foreground space-y-1 mt-2">
+                  <p>User ID: {editingUser?.user_id}</p>
+                  <p>Created: {editingUser?.created_at && new Date(editingUser.created_at).toLocaleString()}</p>
+                  {editingUser?.approved_at && (
+                    <p>Approved: {new Date(editingUser.approved_at).toLocaleString()}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-between">
+              <div>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedUser(editingUser);
+                    fetchUserJobAccess(editingUser.user_id);
+                  }}
+                >
+                  <Briefcase className="h-4 w-4 mr-2" />
+                  Job Access
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingUser(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => updateUser(editingUser)}>
+                  Save Changes
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {/* Job Access Modal */}
+      {selectedUser && (
+        <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Job Access for {selectedUser.display_name}</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
+                <Switch
+                  checked={selectedUser.has_global_job_access}
+                  onCheckedChange={(checked) => {
+                    toggleGlobalJobAccess(selectedUser.user_id, checked);
+                    setSelectedUser({ ...selectedUser, has_global_job_access: checked });
+                  }}
+                />
+                <span className="font-medium">Global Job Access</span>
+                <span className="text-sm text-muted-foreground">
+                  (Access to all jobs automatically)
+                </span>
+              </div>
+
+              {!selectedUser.has_global_job_access && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Specific Job Access</h4>
+                  <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                    {jobs.map((job) => (
+                      <div key={job.id} className="flex items-center justify-between p-2 border rounded">
+                        <div>
+                          <span className="font-medium">{job.name}</span>
+                          <span className="text-sm text-muted-foreground ml-2">({job.client})</span>
+                        </div>
+                        <Switch
+                          checked={userJobAccess.includes(job.id)}
+                          onCheckedChange={(checked) => toggleJobAccess(selectedUser.user_id, job.id, checked)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setSelectedUser(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
