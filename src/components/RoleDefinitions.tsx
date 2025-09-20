@@ -76,6 +76,7 @@ export default function RoleDefinitions() {
   const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>(defaultRoleDefinitions);
   const [editingRole, setEditingRole] = useState<string | null>(null);
   const [editingPermission, setEditingPermission] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const { profile } = useAuth();
   const { toast } = useToast();
 
@@ -94,6 +95,7 @@ export default function RoleDefinitions() {
     setRoleDefinitions(prev => 
       prev.map(r => r.role === role ? { ...r, label: newLabel } : r)
     );
+    setHasUnsavedChanges(true);
   };
 
   const addPermission = (role: string) => {
@@ -107,6 +109,7 @@ export default function RoleDefinitions() {
       )
     );
     setEditingPermission('');
+    setHasUnsavedChanges(true);
     toast({
       title: 'Permission Added',
       description: 'New permission has been added to the role',
@@ -121,6 +124,7 @@ export default function RoleDefinitions() {
           : r
       )
     );
+    setHasUnsavedChanges(true);
     toast({
       title: 'Permission Removed',
       description: 'Permission has been removed from the role',
@@ -138,10 +142,31 @@ export default function RoleDefinitions() {
           : r
       )
     );
+    setHasUnsavedChanges(true);
+  };
+
+  const saveChanges = () => {
+    // In a real application, this would save to the database
+    setHasUnsavedChanges(false);
+    toast({
+      title: 'Changes Saved',
+      description: 'Role definitions have been updated successfully',
+    });
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-6">
+      {hasUnsavedChanges && isAdmin && (
+        <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
+          <p className="text-sm text-muted-foreground">You have unsaved changes to role definitions</p>
+          <Button onClick={saveChanges} size="sm">
+            <Save className="h-4 w-4 mr-2" />
+            Save Changes
+          </Button>
+        </div>
+      )}
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {roleDefinitions.map((roleDef) => (
         <Card key={roleDef.role} className="relative">
           <CardHeader>
@@ -210,6 +235,7 @@ export default function RoleDefinitions() {
           </CardContent>
         </Card>
       ))}
+      </div>
     </div>
   );
 }

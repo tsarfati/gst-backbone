@@ -14,6 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      cost_codes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          is_active: boolean
+          job_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description: string
+          id?: string
+          is_active?: boolean
+          job_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          job_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      current_punch_status: {
+        Row: {
+          cost_code_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          job_id: string | null
+          punch_in_location_lat: number | null
+          punch_in_location_lng: number | null
+          punch_in_photo_url: string | null
+          punch_in_time: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          job_id?: string | null
+          punch_in_location_lat?: number | null
+          punch_in_location_lng?: number | null
+          punch_in_photo_url?: string | null
+          punch_in_time: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          job_id?: string | null
+          punch_in_location_lat?: number | null
+          punch_in_location_lng?: number | null
+          punch_in_photo_url?: string | null
+          punch_in_time?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "current_punch_status_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "current_punch_status_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_settings: {
         Row: {
           created_at: string
@@ -293,6 +388,63 @@ export type Database = {
         }
         Relationships: []
       }
+      punch_records: {
+        Row: {
+          cost_code_id: string | null
+          created_at: string
+          id: string
+          job_id: string | null
+          latitude: number | null
+          longitude: number | null
+          notes: string | null
+          photo_url: string | null
+          punch_time: string
+          punch_type: Database["public"]["Enums"]["punch_status"]
+          user_id: string
+        }
+        Insert: {
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          photo_url?: string | null
+          punch_time?: string
+          punch_type: Database["public"]["Enums"]["punch_status"]
+          user_id: string
+        }
+        Update: {
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          photo_url?: string | null
+          punch_time?: string
+          punch_type?: Database["public"]["Enums"]["punch_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "punch_records_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "punch_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -318,6 +470,7 @@ export type Database = {
         | "industrial"
         | "renovation"
         | "maintenance"
+      punch_status: "punched_in" | "punched_out"
       template_editor: "richtext" | "html"
       user_role:
         | "admin"
@@ -460,6 +613,7 @@ export const Constants = {
         "renovation",
         "maintenance",
       ],
+      punch_status: ["punched_in", "punched_out"],
       template_editor: ["richtext", "html"],
       user_role: [
         "admin",
