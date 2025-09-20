@@ -54,47 +54,13 @@ const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   
-  // Load receipts from localStorage or use demo data
+  // Load receipts from localStorage - no demo data
   const [uncodedReceipts, setUncodedReceipts] = useState<Receipt[]>(() => {
     const saved = localStorage.getItem('uncoded-receipts');
     if (saved) {
       return JSON.parse(saved);
     }
-    // Demo receipts only if no saved receipts exist
-    return [
-      {
-        id: "demo-1",
-        filename: "construction_materials_receipt.jpg",
-        amount: "$1,245.89",
-        date: "2024-01-18",
-        vendor: "BuildMax Supply Co",
-        type: 'image',
-        previewUrl: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&h=800&fit=crop",
-        uploadedBy: "Controller",
-        uploadedDate: new Date("2024-01-18T08:30:00Z"),
-      },
-      {
-        id: "demo-2", 
-        filename: "office_supplies_invoice.pdf",
-        amount: "$156.42",
-        date: "2024-01-17",
-        vendor: "Office Depot",
-        type: 'pdf',
-        uploadedBy: "Admin",
-        uploadedDate: new Date("2024-01-17T14:15:00Z"),
-      },
-      {
-        id: "demo-3",
-        filename: "fuel_receipt.jpg", 
-        amount: "$89.76",
-        date: "2024-01-16",
-        vendor: "Shell Gas Station",
-        type: 'image',
-        previewUrl: "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=800&fit=crop",
-        uploadedBy: "Field Manager",
-        uploadedDate: new Date("2024-01-16T16:45:00Z"),
-      },
-    ];
+    return [];
   });
   const [codedReceipts, setCodedReceipts] = useState<CodedReceipt[]>([]);
   const [messages, setMessages] = useState<ReceiptMessage[]>([]);
