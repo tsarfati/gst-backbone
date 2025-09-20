@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface SearchResult {
   id: string;
@@ -88,7 +89,7 @@ export default function GlobalSearch() {
           </kbd>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="start">
+      <PopoverContent className="w-96 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
             ref={inputRef}
@@ -106,25 +107,32 @@ export default function GlobalSearch() {
               <CommandEmpty>No results found for "{searchQuery}"</CommandEmpty>
             ) : (
               <CommandGroup heading="Results">
-                {filteredResults.slice(0, 8).map((result) => {
+                {filteredResults.slice(0, 5).map((result) => {
                   const IconComponent = result.icon;
                   return (
                     <CommandItem
                       key={result.id}
                       onSelect={() => handleSelect(result)}
-                      className="cursor-pointer"
+                      className="cursor-pointer p-3"
                     >
-                      <IconComponent className={`h-4 w-4 mr-3 ${getTypeColor(result.type)}`} />
-                      <div className="flex-1">
-                        <div className="font-medium">{result.title}</div>
-                        <div className="text-xs text-muted-foreground">{result.description}</div>
-                      </div>
-                      <div className={`text-xs px-2 py-1 rounded capitalize ${getTypeColor(result.type)}`}>
-                        {result.type}
+                      <div className="flex items-start space-x-3 w-full">
+                        <IconComponent className={`h-5 w-5 mt-0.5 ${getTypeColor(result.type)}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{result.title}</div>
+                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{result.description}</div>
+                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-2 ${getTypeColor(result.type)} bg-opacity-10`}>
+                            {result.type}
+                          </div>
+                        </div>
                       </div>
                     </CommandItem>
                   );
                 })}
+                {filteredResults.length > 5 && (
+                  <div className="p-2 text-center text-xs text-muted-foreground border-t">
+                    {filteredResults.length - 5} more results...
+                  </div>
+                )}
               </CommandGroup>
             )}
           </CommandList>

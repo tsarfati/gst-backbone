@@ -34,19 +34,9 @@ export default function TeamChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
-  const [channels, setChannels] = useState<Channel[]>([
-    { id: 'general', name: 'General', description: 'General team discussion', member_count: 12, is_general: true },
-    { id: 'project-updates', name: 'Project Updates', description: 'Latest project news', member_count: 8 },
-    { id: 'random', name: 'Random', description: 'Off-topic conversations', member_count: 15 },
-    { id: 'help', name: 'Help & Support', description: 'Get help from the team', member_count: 6 }
-  ]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlineUsers] = useState([
-    { id: '1', name: 'John Smith', status: 'online' },
-    { id: '2', name: 'Sarah Johnson', status: 'away' },
-    { id: '3', name: 'Mike Brown', status: 'online' },
-    { id: '4', name: 'Lisa Wilson', status: 'offline' }
-  ]);
+  const [onlineUsers] = useState<any[]>([]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,35 +47,8 @@ export default function TeamChat() {
   }, [channels, selectedChannel]);
 
   useEffect(() => {
-    // Load sample messages for the selected channel
     if (selectedChannel) {
-      const sampleMessages: ChatMessage[] = [
-        {
-          id: '1',
-          content: 'Good morning team! Hope everyone has a great day.',
-          from_user_id: '1',
-          from_user_name: 'John Smith',
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          channel: selectedChannel.id
-        },
-        {
-          id: '2',
-          content: 'The new project timeline looks good. Any questions about the deliverables?',
-          from_user_id: '2',
-          from_user_name: 'Sarah Johnson',
-          created_at: new Date(Date.now() - 1800000).toISOString(),
-          channel: selectedChannel.id
-        },
-        {
-          id: '3',
-          content: 'I uploaded the latest receipts for coding. Please check the uncoded receipts page.',
-          from_user_id: '3',
-          from_user_name: 'Mike Brown',
-          created_at: new Date(Date.now() - 900000).toISOString(),
-          channel: selectedChannel.id
-        }
-      ];
-      setMessages(sampleMessages);
+      setMessages([]);
     }
   }, [selectedChannel]);
 

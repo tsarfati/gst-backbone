@@ -207,7 +207,8 @@ export function AppSidebar() {
                             asChild 
                             isActive={isActive}
                             tooltip={state === "collapsed" ? item.name : undefined}
-                            className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
+                            style={isActive ? { backgroundColor: settings.customColors.primary, color: 'white' } : {}}
+                            className={isActive ? "hover:opacity-90" : ""}
                           >
                             <Link to={item.href}>
                               <item.icon className="h-4 w-4" />
@@ -246,11 +247,12 @@ export function AppSidebar() {
                           const isActive = location.pathname === item.href;
                           return (
                             <SidebarMenuItem key={item.name}>
-                              <SidebarMenuButton 
+                               <SidebarMenuButton 
                                 asChild 
                                 isActive={isActive}
                                 tooltip={state === "collapsed" ? item.name : undefined}
-                                className={isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
+                                style={isActive ? { backgroundColor: settings.customColors.primary, color: 'white' } : {}}
+                                className={isActive ? "hover:opacity-90" : ""}
                               >
                                 <Link to={item.href}>
                                   <item.icon className="h-4 w-4" />
@@ -299,9 +301,7 @@ export default function Layout() {
         <SidebarInset>
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
-            <div className="ml-auto">
-              <GlobalSearch />
-            </div>
+            <GlobalSearch />
           </header>
           <div className="flex-1 overflow-auto">
             <Outlet />
