@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Building, Plus, FileText, Mail, Phone, MapPin, CreditCard, FileIcon, Upload, Download, ExternalLink, Briefcase } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -202,15 +202,15 @@ export default function VendorDetails() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="payments">Payment Methods</TabsTrigger>
-          <TabsTrigger value="compliance">Compliance Documents</TabsTrigger>
-          <TabsTrigger value="jobs">Jobs</TabsTrigger>
-        </TabsList>
+      <TabsPrimitive.Root defaultValue="overview" className="space-y-6">
+        <TabsPrimitive.List className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground">
+          <TabsPrimitive.Trigger value="overview" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Overview</TabsPrimitive.Trigger>
+          <TabsPrimitive.Trigger value="payments" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Payment Methods</TabsPrimitive.Trigger>
+          <TabsPrimitive.Trigger value="compliance" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Compliance Documents</TabsPrimitive.Trigger>
+          <TabsPrimitive.Trigger value="jobs" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Jobs</TabsPrimitive.Trigger>
+        </TabsPrimitive.List>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsPrimitive.Content value="overview" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Info */}
             <div className="lg:col-span-2 space-y-6">
@@ -341,9 +341,9 @@ export default function VendorDetails() {
               </Card>
             </div>
           </div>
-        </TabsContent>
+        </TabsPrimitive.Content>
 
-        <TabsContent value="payments" className="space-y-6">
+        <TabsPrimitive.Content value="payments" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Payment Methods</CardTitle>
@@ -451,9 +451,9 @@ export default function VendorDetails() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsPrimitive.Content>
 
-        <TabsContent value="compliance" className="space-y-6">
+        <TabsPrimitive.Content value="compliance" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Compliance Documents</CardTitle>
@@ -568,9 +568,9 @@ export default function VendorDetails() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsPrimitive.Content>
 
-        <TabsContent value="jobs" className="space-y-6">
+        <TabsPrimitive.Content value="jobs" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Associated Jobs</CardTitle>
@@ -610,8 +610,8 @@ export default function VendorDetails() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </TabsPrimitive.Content>
+      </TabsPrimitive.Root>
     </div>
   );
 }
