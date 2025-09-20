@@ -6,7 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
-import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText } from "lucide-react";
+import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare } from "lucide-react";
+import UserAssignmentPanel from "@/components/UserAssignmentPanel";
+import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
 
 const jobs = [
   "Office Renovation", 
@@ -28,10 +30,11 @@ const costCodes = [
 ];
 
 export default function UncodedReceipts() {
-  const { uncodedReceipts, codeReceipt } = useReceipts();
+  const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState(uncodedReceipts[0] || null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
+  const [showMessaging, setShowMessaging] = useState(false);
   const { toast } = useToast();
 
   // Update selected receipt when receipts change
@@ -65,10 +68,40 @@ export default function UncodedReceipts() {
     });
   };
 
+  const handleAssignUser = (userId: string, userName: string, userRole: string) => {
+    if (selectedReceipt) {
+      assignReceipt(selectedReceipt.id, userId, userName, userRole);
+      toast({
+        title: "Receipt Assigned",
+        description: `Receipt assigned to ${userName} for review.`,
+      });
+    }
+  };
+
+  const handleUnassignUser = () => {
+    if (selectedReceipt) {
+      unassignReceipt(selectedReceipt.id);
+      toast({
+        title: "Receipt Unassigned",
+        description: "Receipt has been unassigned.",
+      });
+    }
+  };
+
+  const handleSendMessage = (message: string) => {
+    if (selectedReceipt) {
+      addMessage(selectedReceipt.id, message, "current-user", "Current User");
+      toast({
+        title: "Message Sent",
+        description: "Your message has been added to the discussion.",
+      });
+    }
+  };
+
   return (
     <div className="flex h-full">
       {/* Receipt List Sidebar */}
-      <div className="w-80 border-r border-border bg-card">
+      <div className={`border-r border-border bg-card transition-all duration-300 ${showMessaging ? 'w-72' : 'w-80'}`}>
         <div className="p-4 border-b border-border">
           <h2 className="text-lg font-semibold flex items-center">
             <Receipt className="h-5 w-5 mr-2" />
@@ -102,7 +135,15 @@ export default function UncodedReceipts() {
                       )}
                       <span className="font-medium text-sm truncate">{receipt.filename}</span>
                     </div>
-                    <Badge variant="outline" className="text-xs">Uncoded</Badge>
+                    <div className="flex items-center gap-1">
+                      {receipt.assignedUser && (
+                        <Badge variant="secondary" className="text-xs">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Assigned
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs">Uncoded</Badge>
+                    </div>
                   </div>
                   
                   <div className="space-y-1">
@@ -122,6 +163,12 @@ export default function UncodedReceipts() {
                         {receipt.vendor}
                       </div>
                     )}
+                    {receipt.assignedUser && (
+                      <div className="flex items-center text-xs text-muted-foreground">
+                        <User className="h-3 w-3 mr-1" />
+                        Assigned to {receipt.assignedUser.name}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -129,61 +176,74 @@ export default function UncodedReceipts() {
           )}
         </div>
 
-        {/* Coding Controls */}
+        {/* Assignment and Coding Controls */}
         {selectedReceipt && (
-          <div className="p-4 border-t border-border bg-background">
-            <h3 className="font-medium mb-3 flex items-center">
-              <Code className="h-4 w-4 mr-2" />
-              Code Receipt
-            </h3>
-            
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="job-select" className="text-xs">Assign to Job</Label>
-                <Select value={selectedJob} onValueChange={setSelectedJob}>
-                  <SelectTrigger id="job-select" className="h-8">
-                    <SelectValue placeholder="Select a job" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border border-border shadow-md z-50">
-                    {jobs.map((job) => (
-                      <SelectItem key={job} value={job} className="cursor-pointer">
-                        {job}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="border-t border-border bg-background">
+            {/* User Assignment Section */}
+            <div className="p-4 border-b border-border">
+              <UserAssignmentPanel
+                receiptId={selectedReceipt.id}
+                assignedUser={selectedReceipt.assignedUser}
+                onAssignUser={handleAssignUser}
+                onUnassignUser={handleUnassignUser}
+              />
+            </div>
 
-              <div>
-                <Label htmlFor="cost-code-select" className="text-xs">Cost Code</Label>
-                <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                  <SelectTrigger id="cost-code-select" className="h-8">
-                    <SelectValue placeholder="Select cost code" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border border-border shadow-md z-50">
-                    {costCodes.map((code) => (
-                      <SelectItem key={code} value={code} className="cursor-pointer">
-                        {code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button 
-                onClick={handleCodeReceipt} 
-                className="w-full h-8"
-                disabled={!selectedJob || !selectedCostCode}
-              >
+            {/* Coding Section */}
+            <div className="p-4">
+              <h3 className="font-medium mb-3 flex items-center">
+                <Code className="h-4 w-4 mr-2" />
                 Code Receipt
-              </Button>
+              </h3>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="job-select" className="text-xs">Assign to Job</Label>
+                  <Select value={selectedJob} onValueChange={setSelectedJob}>
+                    <SelectTrigger id="job-select" className="h-8">
+                      <SelectValue placeholder="Select a job" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border border-border shadow-md z-50">
+                      {jobs.map((job) => (
+                        <SelectItem key={job} value={job} className="cursor-pointer">
+                          {job}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="cost-code-select" className="text-xs">Cost Code</Label>
+                  <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                    <SelectTrigger id="cost-code-select" className="h-8">
+                      <SelectValue placeholder="Select cost code" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border border-border shadow-md z-50">
+                      {costCodes.map((code) => (
+                        <SelectItem key={code} value={code} className="cursor-pointer">
+                          {code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button 
+                  onClick={handleCodeReceipt} 
+                  className="w-full h-8"
+                  disabled={!selectedJob || !selectedCostCode}
+                >
+                  Code Receipt
+                </Button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Receipt Preview Area */}
-      <div className="flex-1 bg-background">
+      <div className={`flex-1 bg-background transition-all duration-300 ${showMessaging ? 'mr-80' : ''}`}>
         {selectedReceipt ? (
           <div className="h-full flex flex-col">
             {/* Preview Header */}
@@ -195,18 +255,34 @@ export default function UncodedReceipts() {
                     {selectedReceipt.filename} • {selectedReceipt.amount}
                   </p>
                 </div>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    {selectedReceipt.date}
-                  </div>
-                  {selectedReceipt.vendor && (
-                    <div className="flex items-center">
-                      <Building className="h-4 w-4 mr-2" />
-                      {selectedReceipt.vendor}
-                    </div>
-                  )}
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMessaging(!showMessaging)}
+                    className="flex items-center gap-2"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Discussion
+                    {messages.filter(m => m.receiptId === selectedReceipt.id).length > 0 && (
+                      <Badge variant="secondary" className="ml-1">
+                        {messages.filter(m => m.receiptId === selectedReceipt.id).length}
+                      </Badge>
+                    )}
+                  </Button>
                 </div>
+              </div>
+              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {selectedReceipt.date}
+                </div>
+                {selectedReceipt.vendor && (
+                  <div className="flex items-center">
+                    <Building className="h-4 w-4 mr-2" />
+                    {selectedReceipt.vendor}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -252,8 +328,11 @@ export default function UncodedReceipts() {
                     <span>Uploaded: {selectedReceipt.uploadedDate ? new Date(selectedReceipt.uploadedDate).toLocaleDateString() : selectedReceipt.date}</span>
                   </div>
                 </div>
-                <Badge variant="warning">
-                  Awaiting Code Assignment
+                <Badge variant={selectedReceipt.assignedUser ? "secondary" : "warning"}>
+                  {selectedReceipt.assignedUser 
+                    ? `Assigned to ${selectedReceipt.assignedUser.name}` 
+                    : "Awaiting Assignment"
+                  }
                 </Badge>
               </div>
             </div>
@@ -270,6 +349,19 @@ export default function UncodedReceipts() {
           </div>
         )}
       </div>
+
+      {/* Messaging Panel (Slide-out) */}
+      {showMessaging && selectedReceipt && (
+        <div className="w-80 border-l border-border bg-card flex-shrink-0">
+          <ReceiptMessagingPanel
+            receiptId={selectedReceipt.id}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            currentUserId="current-user"
+            currentUserName="Current User"
+          />
+        </div>
+      )}
     </div>
   );
 }

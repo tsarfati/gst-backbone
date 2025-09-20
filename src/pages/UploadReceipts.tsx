@@ -84,8 +84,12 @@ export default function UploadReceipts() {
       return;
     }
 
+    // Convert File[] to FileList
+    const fileList = new DataTransfer();
+    files.forEach(file => fileList.items.add(file));
+    
     // Add receipts to global state
-    addReceipts(files);
+    addReceipts(fileList.files);
     
     toast({
       title: "Upload successful",
