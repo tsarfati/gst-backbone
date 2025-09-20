@@ -1,33 +1,92 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-// Jobs are managed with proper state - no mock data
+import { supabase } from "@/integrations/supabase/client";
 
 export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  // In a real app, you would fetch job data from backend
-  const job = null; // No mock data
+  const [job, setJob] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    name: job?.name || "",
-    budget: job?.budget || "",
-    startDate: job?.startDate || "",
-    status: job?.status || "active",
-    description: job?.description || "",
-    location: job?.location || "",
-    contractor: job?.contractor || ""
+    name: "",
+    budget: "",
+    start_date: "",
+    end_date: "",
+    status: "planning" as any,
+    description: "",
+    address: "",
+    client: "",
+    job_type: "residential" as any
   });
+
+  useEffect(() => {
+    const fetchJob = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error fetching job:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load job details",
+            variant: "destructive",
+          });
+        } else if (data) {
+          setJob(data);
+          setFormData({
+            name: data.name || "",
+            budget: data.budget ? data.budget.toString() : "",
+            start_date: data.start_date || "",
+            end_date: data.end_date || "",
+            status: data.status || "planning" as any,
+            description: data.description || "",
+            address: data.address || "",
+            client: data.client || "",
+            job_type: data.job_type || "residential" as any
+          });
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJob();
+  }, [id, toast]);
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="text-center py-12 text-muted-foreground">Loading job details...</div>
+      </div>
+    );
+  }
 
   if (!job) {
     return (
@@ -60,23 +119,81 @@ export default function JobEdit() {
     }));
   };
 
-  const handleSave = () => {
-    // In a real app, this would save to backend
-    toast({
-      title: "Job Updated",
-      description: "Job details have been successfully updated.",
-    });
-    navigate(`/jobs/${id}`);
+  const handleSave = async () => {
+    if (!id || !job) return;
+
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .update({
+          name: formData.name,
+          budget: formData.budget ? parseFloat(formData.budget) : null,
+          start_date: formData.start_date || null,
+          end_date: formData.end_date || null,
+          status: formData.status,
+          description: formData.description,
+          address: formData.address,
+          client: formData.client,
+          job_type: formData.job_type
+        })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating job:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update job details",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Job Updated",
+          description: "Job details have been successfully updated.",
+        });
+        navigate(`/jobs/${id}`);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDelete = () => {
-    // In a real app, this would delete from backend
-    toast({
-      title: "Job Deleted",
-      description: "Job has been successfully deleted.",
-      variant: "destructive",
-    });
-    navigate("/jobs");
+  const handleDelete = async () => {
+    if (!id) return;
+
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting job:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete job",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Job Deleted",
+          description: "Job has been successfully deleted.",
+          variant: "destructive",
+        });
+        navigate("/jobs");
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -158,23 +275,49 @@ export default function JobEdit() {
                 <Input
                   id="startDate"
                   type="date"
-                  value={formData.startDate}
-                  onChange={(e) => handleInputChange("startDate", e.target.value)}
+                  value={formData.start_date}
+                  onChange={(e) => handleInputChange("start_date", e.target.value)}
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => handleInputChange("end_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
-                <select
-                  id="status"
-                  value={formData.status}
-                  onChange={(e) => handleInputChange("status", e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="on-hold">On Hold</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planning">Planning</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="on_hold">On Hold</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jobType">Job Type</Label>
+                <Select value={formData.job_type} onValueChange={(value) => handleInputChange("job_type", value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="industrial">Industrial</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -193,26 +336,26 @@ export default function JobEdit() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Location & Contractor</CardTitle>
+            <CardTitle>Location & Client</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="client">Client</Label>
               <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => handleInputChange("location", e.target.value)}
-                placeholder="Enter job location"
+                id="client"
+                value={formData.client}
+                onChange={(e) => handleInputChange("client", e.target.value)}
+                placeholder="Enter client name"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="contractor">Contractor</Label>
+              <Label htmlFor="address">Address</Label>
               <Input
-                id="contractor"
-                value={formData.contractor}
-                onChange={(e) => handleInputChange("contractor", e.target.value)}
-                placeholder="Enter contractor name"
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+                placeholder="Enter job address"
               />
             </div>
           </CardContent>
