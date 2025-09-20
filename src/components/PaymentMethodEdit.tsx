@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Trash2, Upload, FileText } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PaymentMethod {
   id?: string;
@@ -17,6 +18,7 @@ interface PaymentMethod {
   isDefault: boolean;
   checkDelivery?: string;
   pickupLocation?: string;
+  voidedCheckUrl?: string;
 }
 
 interface PaymentMethodEditProps {
@@ -37,6 +39,7 @@ export default function PaymentMethodEdit({
   userRole = 'user'
 }) {
   const { settings } = useSettings();
+  const { profile } = useAuth();
   const [formData, setFormData] = useState<PaymentMethod>(() => paymentMethod || {
     type: 'ACH',
     accountNumber: '',
@@ -44,14 +47,16 @@ export default function PaymentMethodEdit({
     bankName: '',
     isDefault: false,
     checkDelivery: 'mail',
-    pickupLocation: ''
+    pickupLocation: '',
+    voidedCheckUrl: ''
   });
   
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showConfirmAccountNumber, setShowConfirmAccountNumber] = useState(false);
+  const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
 
-  const canViewSensitiveData = userRole === 'admin' || userRole === 'controller';
+  const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
 
   const maskAccountNumber = (accountNumber: string) => {
@@ -63,8 +68,18 @@ export default function PaymentMethodEdit({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleVoidedCheckUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setVoidedCheckFile(file);
+      // In a real app, you'd upload this to Supabase storage
+      // For now, we'll just store the file name
+      handleInputChange('voidedCheckUrl', `uploads/voided-checks/${file.name}`);
+    }
+  };
+
   const handleSave = () => {
-    if (!isEditing && formData.accountNumber !== confirmAccountNumber) {
+    if ((formData.type === 'ACH' || formData.type === 'Wire') && !isEditing && formData.accountNumber !== confirmAccountNumber) {
       alert('Account numbers do not match');
       return;
     }
@@ -170,6 +185,32 @@ export default function PaymentMethodEdit({
                   </div>
                 </div>
               )}
+
+              <div>
+                <Label htmlFor="voidedCheck">Voided Check Upload</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="voidedCheck"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleVoidedCheckUpload}
+                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                    />
+                  </div>
+                  {formData.voidedCheckUrl && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileText className="h-4 w-4" />
+                      <span>Voided check uploaded</span>
+                      {canViewSensitiveData && (
+                        <Button variant="ghost" size="sm" className="h-6 px-2">
+                          View
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
 

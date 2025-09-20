@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import PaymentMethodEdit from "@/components/PaymentMethodEdit";
+import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -21,21 +23,8 @@ export default function VendorDetails() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
-  const [showAddPaymentDialog, setShowAddPaymentDialog] = useState(false);
-  const [showAddDocumentDialog, setShowAddDocumentDialog] = useState(false);
-  const [newPaymentMethod, setNewPaymentMethod] = useState({
-    type: 'bank_transfer',
-    account_number: '',
-    routing_number: '',
-    bank_name: '',
-    account_holder: ''
-  });
-  const [newDocument, setNewDocument] = useState({
-    name: '',
-    type: 'insurance',
-    expiry_date: '',
-    notes: ''
-  });
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<any>(null);
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -139,47 +128,6 @@ export default function VendorDetails() {
     );
   }
 
-  const handleAddPaymentMethod = () => {
-    // Mock adding payment method - would save to database
-    const mockPaymentMethod = {
-      id: Date.now().toString(),
-      ...newPaymentMethod
-    };
-    setPaymentMethods(prev => [...prev, mockPaymentMethod]);
-    setNewPaymentMethod({
-      type: 'bank_transfer',
-      account_number: '',
-      routing_number: '',
-      bank_name: '',
-      account_holder: ''
-    });
-    setShowAddPaymentDialog(false);
-    toast({
-      title: "Payment Method Added",
-      description: "Payment method has been successfully added."
-    });
-  };
-
-  const handleAddDocument = () => {
-    // Mock adding document - would save to database/storage
-    const mockDocument = {
-      id: Date.now().toString(),
-      ...newDocument,
-      uploaded_date: new Date().toISOString()
-    };
-    setComplianceDocuments(prev => [...prev, mockDocument]);
-    setNewDocument({
-      name: '',
-      type: 'insurance',
-      expiry_date: '',
-      notes: ''
-    });
-    setShowAddDocumentDialog(false);
-    toast({
-      title: "Document Added",
-      description: "Compliance document has been successfully added."
-    });
-  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -347,80 +295,13 @@ export default function VendorDetails() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Payment Methods</CardTitle>
-              <Dialog open={showAddPaymentDialog} onOpenChange={setShowAddPaymentDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Payment Method
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Payment Method</DialogTitle>
-                    <DialogDescription>
-                      Add a new payment method for this vendor
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Payment Type</Label>
-                      <Select value={newPaymentMethod.type} onValueChange={(value) => setNewPaymentMethod(prev => ({ ...prev, type: value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                          <SelectItem value="check">Check</SelectItem>
-                          <SelectItem value="ach">ACH</SelectItem>
-                          <SelectItem value="wire">Wire Transfer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Holder</Label>
-                      <Input
-                        value={newPaymentMethod.account_holder}
-                        onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, account_holder: e.target.value }))}
-                        placeholder="Account holder name"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Account Number</Label>
-                        <Input
-                          value={newPaymentMethod.account_number}
-                          onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, account_number: e.target.value }))}
-                          placeholder="Account number"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Routing Number</Label>
-                        <Input
-                          value={newPaymentMethod.routing_number}
-                          onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, routing_number: e.target.value }))}
-                          placeholder="Routing number"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Bank Name</Label>
-                      <Input
-                        value={newPaymentMethod.bank_name}
-                        onChange={(e) => setNewPaymentMethod(prev => ({ ...prev, bank_name: e.target.value }))}
-                        placeholder="Bank name"
-                      />
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setShowAddPaymentDialog(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleAddPaymentMethod}>
-                        Add Payment Method
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button onClick={() => {
+                setSelectedPaymentMethod(null);
+                setIsPaymentDialogOpen(true);
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Payment Method
+              </Button>
             </CardHeader>
             <CardContent>
               {paymentMethods.length === 0 ? (
@@ -432,17 +313,24 @@ export default function VendorDetails() {
               ) : (
                 <div className="space-y-4">
                   {paymentMethods.map((method) => (
-                    <Card key={method.id}>
+                    <Card key={method.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+                      setSelectedPaymentMethod(method);
+                      setIsPaymentDialogOpen(true);
+                    }}>
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-medium">{method.bank_name}</h4>
+                            <h4 className="font-medium">{method.bankName || 'Payment Method'}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {method.type.replace('_', ' ').toUpperCase()} - ****{method.account_number.slice(-4)}
+                              {method.type} - ****{method.accountNumber?.slice(-4) || '****'}
                             </p>
-                            <p className="text-sm text-muted-foreground">{method.account_holder}</p>
+                            {method.checkDelivery && (
+                              <p className="text-sm text-muted-foreground">
+                                Delivery: {method.checkDelivery === 'office_pickup' ? 'Office Pickup' : 'Mail'}
+                              </p>
+                            )}
                           </div>
-                          <Badge variant="outline">{method.type.replace('_', ' ')}</Badge>
+                          <Badge variant="outline">{method.type}</Badge>
                         </div>
                       </CardContent>
                     </Card>
@@ -451,123 +339,33 @@ export default function VendorDetails() {
               )}
             </CardContent>
           </Card>
+
+          <PaymentMethodEdit
+            paymentMethod={selectedPaymentMethod}
+            isOpen={isPaymentDialogOpen}
+            onClose={() => {
+              setIsPaymentDialogOpen(false);
+              setSelectedPaymentMethod(null);
+            }}
+            onSave={(method) => {
+              if (selectedPaymentMethod) {
+                setPaymentMethods(prev => prev.map(pm => pm.id === selectedPaymentMethod.id ? { ...method, id: selectedPaymentMethod.id } : pm));
+              } else {
+                setPaymentMethods(prev => [...prev, { ...method, id: Date.now().toString() }]);
+              }
+            }}
+            onDelete={(methodId) => {
+              setPaymentMethods(prev => prev.filter(pm => pm.id !== methodId));
+            }}
+          />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="compliance" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Compliance Documents</CardTitle>
-              <Dialog open={showAddDocumentDialog} onOpenChange={setShowAddDocumentDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Document
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Compliance Document</DialogTitle>
-                    <DialogDescription>
-                      Upload a compliance document for this vendor
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Document Name</Label>
-                      <Input
-                        value={newDocument.name}
-                        onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Document name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Document Type</Label>
-                      <Select value={newDocument.type} onValueChange={(value) => setNewDocument(prev => ({ ...prev, type: value }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="insurance">Insurance Certificate</SelectItem>
-                          <SelectItem value="license">Business License</SelectItem>
-                          <SelectItem value="certification">Certification</SelectItem>
-                          <SelectItem value="w9">W-9 Form</SelectItem>
-                          <SelectItem value="contract">Contract</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Expiry Date (Optional)</Label>
-                      <Input
-                        type="date"
-                        value={newDocument.expiry_date}
-                        onChange={(e) => setNewDocument(prev => ({ ...prev, expiry_date: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <Input
-                        value={newDocument.notes}
-                        onChange={(e) => setNewDocument(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Additional notes"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Upload Document</Label>
-                      <Input type="file" accept=".pdf,.doc,.docx,.jpg,.png" />
-                    </div>
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setShowAddDocumentDialog(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleAddDocument}>
-                        Add Document
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              {complianceDocuments.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No Compliance Documents</h3>
-                  <p className="text-muted-foreground mb-4">Upload compliance documents to track vendor requirements</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {complianceDocuments.map((doc) => (
-                    <Card key={doc.id}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <FileIcon className="h-8 w-8 text-primary" />
-                            <div>
-                              <h4 className="font-medium">{doc.name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {doc.type.replace('_', ' ').toUpperCase()}
-                                {doc.expiry_date && ` • Expires: ${new Date(doc.expiry_date).toLocaleDateString()}`}
-                              </p>
-                              {doc.notes && <p className="text-sm text-muted-foreground">{doc.notes}</p>}
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ComplianceDocumentManager
+            vendorId={id}
+            documents={complianceDocuments}
+            onDocumentsChange={setComplianceDocuments}
+          />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="jobs" className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 space-y-6">
