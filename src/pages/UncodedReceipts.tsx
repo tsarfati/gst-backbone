@@ -33,57 +33,11 @@ const costCodes = [
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
-  const [selectedReceipt, setSelectedReceipt] = useState(uncodedReceipts[0] || null);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
-  const [showMessaging, setShowMessaging] = useState(false);
-  const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Auto-select first receipt when component mounts or receipts change
-  React.useEffect(() => {
-    if (uncodedReceipts.length > 0 && !selectedReceipt) {
-      setSelectedReceipt(uncodedReceipts[0]);
-    } else if (selectedReceipt && !uncodedReceipts.find(r => r.id === selectedReceipt.id)) {
-      setSelectedReceipt(uncodedReceipts[0] || null);
-    }
-  }, [uncodedReceipts]);
-
-  // Auto-select first receipt on initial load
-  React.useEffect(() => {
-    if (uncodedReceipts.length > 0 && !selectedReceipt) {
-      setSelectedReceipt(uncodedReceipts[0]);
-    }
-  }, []);
-
-  // For PDFs, fetch as Blob and use a local object URL to bypass X-Frame-Options on the storage domain
-  React.useEffect(() => {
-    let toRevoke: string | null = null;
-
-    async function loadPdf() {
-      if (selectedReceipt?.type === 'pdf' && selectedReceipt.previewUrl) {
-        try {
-          const res = await fetch(selectedReceipt.previewUrl);
-          if (!res.ok) throw new Error('Failed to fetch PDF');
-          const blob = await res.blob();
-          const objUrl = URL.createObjectURL(blob);
-          toRevoke = objUrl;
-          setPdfObjectUrl(objUrl);
-        } catch (err) {
-          console.error('PDF preview load error:', err);
-          setPdfObjectUrl(null);
-        }
-      } else {
-        setPdfObjectUrl(null);
-      }
-    }
-
-    loadPdf();
-
-    return () => {
-      if (toRevoke) URL.revokeObjectURL(toRevoke);
-    };
-  }, [selectedReceipt?.id, selectedReceipt?.previewUrl, selectedReceipt?.type]);
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
       toast({
@@ -146,318 +100,321 @@ export default function UncodedReceipts() {
   };
 
   return (
-    <div className="flex h-full">
-      {/* Receipt List Sidebar */}
-      <div className={`border-r border-border bg-card transition-all duration-300 ${showMessaging ? 'w-72' : 'w-80'}`}>
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold flex items-center">
-            <Receipt className="h-5 w-5 mr-2" />
-            Uncoded Receipts ({uncodedReceipts.length})
-          </h2>
-        </div>
-        
-        <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
+    <div className="h-full">
+      {!selectedReceipt ? (
+        /* Receipt List View */
+        <div className="p-6">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-foreground mb-2">Uncoded Receipts</h1>
+            <p className="text-muted-foreground">
+              Select a receipt to code it to a job and cost code
+            </p>
+          </div>
+
           {uncodedReceipts.length === 0 ? (
-            <div className="p-6 text-center">
-              <p className="text-muted-foreground">All receipts have been coded!</p>
+            <div className="text-center py-12">
+              <Receipt className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">All receipts have been coded!</h3>
+              <p className="text-muted-foreground">Upload new receipts to get started.</p>
             </div>
           ) : (
-            <div className="space-y-1 p-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {uncodedReceipts.map((receipt) => (
-                <div
+                <Card
                   key={receipt.id}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors border ${
-                    selectedReceipt?.id === receipt.id
-                      ? "border-primary bg-primary/5"
-                      : "border-transparent hover:bg-accent"
-                  }`}
+                  className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]"
                   onClick={() => setSelectedReceipt(receipt)}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      {receipt.type === 'pdf' ? (
-                        <FileText className="h-4 w-4 text-red-500" />
-                      ) : (
-                        <FileImage className="h-4 w-4 text-blue-500" />
-                      )}
-                      <span className="font-medium text-sm truncate">{receipt.filename}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {receipt.assignedUser && (
-                        <Badge variant="secondary" className="text-xs">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Assigned
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="text-xs">Uncoded</Badge>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={() => handleDeleteReceipt(receipt.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        {receipt.type === 'pdf' ? (
+                          <FileText className="h-5 w-5 text-red-500" />
+                        ) : (
+                          <FileImage className="h-5 w-5 text-blue-500" />
+                        )}
+                        <span className="font-medium text-sm truncate max-w-[150px]" title={receipt.filename}>
+                          {receipt.filename}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {receipt.assignedUser && (
+                          <Badge variant="secondary" className="text-xs">
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Assigned
+                          </Badge>
+                        )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleDeleteReceipt(receipt.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center text-muted-foreground">
-                        <DollarSign className="h-3 w-3 mr-1" />
-                        {receipt.amount}
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center text-muted-foreground">
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          {receipt.amount}
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {receipt.date}
+                        </div>
                       </div>
-                      <div className="flex items-center text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {receipt.date}
-                      </div>
+                      
+                      {receipt.vendor && (
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <Building className="h-3 w-3 mr-1" />
+                          <span className="truncate">{receipt.vendor}</span>
+                        </div>
+                      )}
+                      
+                      {receipt.assignedUser && (
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <User className="h-3 w-3 mr-1" />
+                          <span className="truncate">Assigned to {receipt.assignedUser.name}</span>
+                        </div>
+                      )}
                     </div>
-                    {receipt.vendor && (
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Building className="h-3 w-3 mr-1" />
-                        {receipt.vendor}
-                      </div>
-                    )}
-                    {receipt.assignedUser && (
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <User className="h-3 w-3 mr-1" />
-                        Assigned to {receipt.assignedUser.name}
-                      </div>
-                    )}
-                  </div>
-                </div>
+
+                    {/* Preview thumbnail */}
+                    <div className="mt-3 bg-accent rounded-lg overflow-hidden">
+                      {receipt.type === 'pdf' ? (
+                        <div className="h-32 flex items-center justify-center">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      ) : receipt.previewUrl ? (
+                        <img
+                          src={receipt.previewUrl}
+                          alt={`Receipt ${receipt.filename}`}
+                          className="w-full h-32 object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="h-32 flex items-center justify-center">
+                          <FileImage className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
         </div>
-
-        {/* Assignment and Coding Controls */}
-        {selectedReceipt && (
-          <div className="border-t border-border bg-background">
-            {/* User Assignment Section */}
-            <div className="p-4 border-b border-border">
-              <UserAssignmentPanel
-                receiptId={selectedReceipt.id}
-                assignedUser={selectedReceipt.assignedUser}
-                onAssignUser={handleAssignUser}
-                onUnassignUser={handleUnassignUser}
-              />
-            </div>
-
-            {/* Coding Section */}
-            <div className="p-4">
-              <h3 className="font-medium mb-3 flex items-center">
-                <Code className="h-4 w-4 mr-2" />
-                Code Receipt
-              </h3>
-              
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="job-select" className="text-xs">Assign to Job</Label>
-                  <Select value={selectedJob} onValueChange={setSelectedJob}>
-                    <SelectTrigger id="job-select" className="h-8">
-                      <SelectValue placeholder="Select a job" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border border-border shadow-md z-50">
-                      {jobs.map((job) => (
-                        <SelectItem key={job} value={job} className="cursor-pointer">
-                          {job}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="cost-code-select" className="text-xs">Cost Code</Label>
-                  <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                    <SelectTrigger id="cost-code-select" className="h-8">
-                      <SelectValue placeholder="Select cost code" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover border border-border shadow-md z-50">
-                      {costCodes.map((code) => (
-                        <SelectItem key={code} value={code} className="cursor-pointer">
-                          {code}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button 
-                  onClick={handleCodeReceipt} 
-                  className="w-full h-8"
-                  disabled={!selectedJob || !selectedCostCode}
-                >
-                  Code Receipt
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Receipt Preview Area */}
-      <div className={`flex-1 bg-background transition-all duration-300 ${showMessaging ? 'mr-80' : ''}`}>
-        {selectedReceipt ? (
-          <div className="h-full flex flex-col">
-            {/* Preview Header */}
-            <div className="p-4 border-b border-border bg-card">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-xl font-bold">Receipt Preview</h1>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedReceipt.filename} • {selectedReceipt.amount}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowMessaging(!showMessaging)}
-                    className="flex items-center gap-2"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    Discussion
-                    {messages.filter(m => m.receiptId === selectedReceipt.id).length > 0 && (
-                      <Badge variant="secondary" className="ml-1">
-                        {messages.filter(m => m.receiptId === selectedReceipt.id).length}
-                      </Badge>
+      ) : (
+        /* Split Screen View - 75% Preview, 25% Controls */
+        <div className="flex h-full">
+          {/* Preview Area - 75% */}
+          <div className="flex-1 bg-background" style={{ width: '75%' }}>
+            <div className="h-full flex flex-col">
+              {/* Preview Header */}
+              <div className="p-4 border-b border-border bg-card">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedReceipt(null)}
+                      className="mb-2"
+                    >
+                      ← Back to List
+                    </Button>
+                    <h1 className="text-xl font-bold">Receipt Preview</h1>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedReceipt.filename} • {selectedReceipt.amount}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedReceipt.previewUrl && (
+                      <>
+                        <Button asChild variant="secondary" size="sm">
+                          <a href={selectedReceipt.previewUrl} target="_blank" rel="noopener noreferrer">
+                            View
+                          </a>
+                        </Button>
+                        <Button asChild variant="default" size="sm">
+                          <a href={selectedReceipt.previewUrl} download={selectedReceipt.filename}>
+                            Download
+                          </a>
+                        </Button>
+                      </>
                     )}
-                  </Button>
-                  {selectedReceipt.previewUrl && (
-                    <div className="flex items-center gap-2">
-                      <Button asChild variant="secondary" size="sm">
-                        <a href={selectedReceipt.previewUrl} target="_blank" rel="noopener noreferrer">
-                          View
-                        </a>
-                      </Button>
-                      <Button asChild variant="default" size="sm">
-                        <a href={selectedReceipt.previewUrl} download={selectedReceipt.filename}>
-                          Download
-                        </a>
-                      </Button>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <div className="flex items-center">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    {selectedReceipt.date}
+                  </div>
+                  {selectedReceipt.vendor && (
+                    <div className="flex items-center">
+                      <Building className="h-4 w-4 mr-2" />
+                      {selectedReceipt.vendor}
                     </div>
                   )}
                 </div>
               </div>
-              <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                <div className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  {selectedReceipt.date}
-                </div>
-                {selectedReceipt.vendor && (
-                  <div className="flex items-center">
-                    <Building className="h-4 w-4 mr-2" />
-                    {selectedReceipt.vendor}
-                  </div>
-                )}
-              </div>
-            </div>
 
-            {/* Preview Content */}
-            <div className="flex-1 p-6 flex items-center justify-center bg-accent/20">
-              <div className="max-w-2xl w-full">
-                {selectedReceipt.type === 'pdf' ? (
-                  <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                    {selectedReceipt.previewUrl ? (
-                      <PdfPreview url={selectedReceipt.previewUrl} height={560} />
-                    ) : (
-                      <div className="p-8 aspect-[8.5/11]">
-                        <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
+              {/* Preview Content */}
+              <div className="flex-1 p-6 flex items-center justify-center bg-accent/20">
+                <div className="max-w-full w-full h-full">
+                  {selectedReceipt.type === 'pdf' ? (
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full">
+                      {selectedReceipt.previewUrl ? (
+                        <PdfPreview url={selectedReceipt.previewUrl} height={600} />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
                           <div className="text-center">
                             <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                             <p className="text-lg font-medium">PDF Receipt</p>
                             <p className="text-sm text-muted-foreground">{selectedReceipt.filename}</p>
-                            <Button asChild variant="outline" className="mt-4">
-                              <a href="#" onClick={(e) => e.preventDefault()}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Open PDF
-                              </a>
-                            </Button>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                    <img
-                      src={selectedReceipt.previewUrl}
-                      alt={`Receipt ${selectedReceipt.filename}`}
-                      className="w-full h-auto max-h-[70vh] object-contain"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Receipt Info Footer */}
-            <div className="p-4 border-t border-border bg-card">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-6 text-sm">
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Uploaded by: {selectedReceipt.uploadedBy || "Controller"}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span>Uploaded: {selectedReceipt.uploadedDate ? new Date(selectedReceipt.uploadedDate).toLocaleDateString() : selectedReceipt.date}</span>
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full flex items-center justify-center">
+                      {selectedReceipt.previewUrl ? (
+                        <img
+                          src={selectedReceipt.previewUrl}
+                          alt={`Receipt ${selectedReceipt.filename}`}
+                          className="max-w-full max-h-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%236b7280'%3EImage not available%3C/text%3E%3C/svg%3E";
+                          }}
+                        />
+                      ) : (
+                        <div className="text-center">
+                          <FileImage className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-lg font-medium">Image Receipt</p>
+                          <p className="text-sm text-muted-foreground">Preview not available</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <Badge variant={selectedReceipt.assignedUser ? "secondary" : "warning"}>
-                  {selectedReceipt.assignedUser 
-                    ? `Assigned to ${selectedReceipt.assignedUser.name}` 
-                    : "Awaiting Assignment"
-                  }
-                </Badge>
               </div>
             </div>
           </div>
-        ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <Receipt className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">No Receipts to Code</h2>
-              <p className="text-muted-foreground">
-                All receipts have been successfully coded!
-              </p>
+
+          {/* Controls Sidebar - 25% */}
+          <div className="border-l border-border bg-card" style={{ width: '25%' }}>
+            <div className="h-full flex flex-col">
+              {/* User Assignment Section */}
+              <div className="p-4 border-b border-border">
+                <UserAssignmentPanel
+                  receiptId={selectedReceipt.id}
+                  assignedUser={selectedReceipt.assignedUser}
+                  onAssignUser={handleAssignUser}
+                  onUnassignUser={handleUnassignUser}
+                />
+              </div>
+
+              {/* Coding Section */}
+              <div className="p-4 border-b border-border">
+                <h3 className="font-medium mb-3 flex items-center">
+                  <Code className="h-4 w-4 mr-2" />
+                  Code Receipt
+                </h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="job-select" className="text-xs">Assign to Job</Label>
+                    <Select value={selectedJob} onValueChange={setSelectedJob}>
+                      <SelectTrigger id="job-select" className="h-8">
+                        <SelectValue placeholder="Select a job" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border border-border shadow-md z-50">
+                        {jobs.map((job) => (
+                          <SelectItem key={job} value={job} className="cursor-pointer">
+                            {job}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="cost-code-select" className="text-xs">Cost Code</Label>
+                    <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                      <SelectTrigger id="cost-code-select" className="h-8">
+                        <SelectValue placeholder="Select cost code" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border border-border shadow-md z-50">
+                        {costCodes.map((code) => (
+                          <SelectItem key={code} value={code} className="cursor-pointer">
+                            {code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button 
+                    onClick={() => {
+                      handleCodeReceipt();
+                      setSelectedReceipt(null); // Return to list view
+                    }} 
+                    className="w-full h-8"
+                    disabled={!selectedJob || !selectedCostCode}
+                  >
+                    Code Receipt
+                  </Button>
+                </div>
+              </div>
+
+              {/* Messaging Section */}
+              <div className="flex-1 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium flex items-center">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Discussion
+                  </h3>
+                  {messages.filter(m => m.receiptId === selectedReceipt.id).length > 0 && (
+                    <Badge variant="secondary">
+                      {messages.filter(m => m.receiptId === selectedReceipt.id).length}
+                    </Badge>
+                  )}
+                </div>
+                <ReceiptMessagingPanel
+                  receiptId={selectedReceipt.id}
+                  messages={messages.filter(m => m.receiptId === selectedReceipt.id)}
+                  onSendMessage={handleSendMessage}
+                  currentUserId="current-user"
+                  currentUserName="Current User"
+                />
+              </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Messaging Panel (Slide-out) */}
-      {showMessaging && selectedReceipt && (
-        <div className="w-80 border-l border-border bg-card flex-shrink-0">
-          <ReceiptMessagingPanel
-            receiptId={selectedReceipt.id}
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            currentUserId="current-user"
-            currentUserName="Current User"
-          />
         </div>
       )}
     </div>
