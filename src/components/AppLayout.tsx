@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
+import { useSettings } from "@/contexts/SettingsContext";
 import {
   Sidebar,
   SidebarContent,
@@ -47,6 +48,7 @@ import {
   CheckSquare,
   Target,
   AlarmClock,
+  Settings,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -135,26 +137,61 @@ const navigationCategories = [
       { name: "Project Tasks", href: "/tasks/projects", icon: Target },
       { name: "Deadlines", href: "/tasks/deadlines", icon: AlarmClock },
     ]
+  },
+  {
+    title: "Settings",
+    items: [
+      { name: "App Settings", href: "/settings", icon: Settings },
+    ]
   }
 ];
 
 function AppSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
+  const { settings } = useSettings();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
 
   const toggleGroup = (groupTitle: string) => {
-    setOpenGroups(prev => 
-      prev.includes(groupTitle) 
-        ? prev.filter(g => g !== groupTitle)
-        : [...prev, groupTitle]
-    );
+    if (settings.navigationMode === 'single') {
+      // In single mode, only allow one group open at a time (except active group)
+      const activeGroups = navigationCategories.filter(category =>
+        category.items.some(item => item.href === location.pathname)
+      ).map(category => category.title);
+      
+      setOpenGroups(prev => {
+        const isCurrentlyOpen = prev.includes(groupTitle);
+        if (isCurrentlyOpen) {
+          // Close the group if it's not the active group
+          return activeGroups.includes(groupTitle) ? [groupTitle] : [];
+        } else {
+          // Open only this group (plus any active groups)
+          return [...new Set([groupTitle, ...activeGroups])];
+        }
+      });
+    } else {
+      // Multiple mode - original behavior
+      setOpenGroups(prev => 
+        prev.includes(groupTitle) 
+          ? prev.filter(g => g !== groupTitle)
+          : [...prev, groupTitle]
+      );
+    }
   };
 
+  
   // Keep groups open that contain the active route
   const activeGroups = navigationCategories.filter(category =>
     category.items.some(item => item.href === location.pathname)
   ).map(category => category.title);
+
+  // Update openGroups when settings change or route changes
+  useEffect(() => {
+    if (settings.navigationMode === 'single') {
+      // In single mode, only keep active groups open
+      setOpenGroups(activeGroups.length > 0 ? activeGroups : ["Dashboard"]);
+    }
+  }, [settings.navigationMode, location.pathname]);
 
   const allOpenGroups = [...new Set([...openGroups, ...activeGroups])];
 

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ReceiptProvider } from "./contexts/ReceiptContext";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -14,6 +15,7 @@ import JobEdit from "./pages/JobEdit";
 import Vendors from "./pages/Vendors";
 import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
+import AppSettings from "./pages/AppSettings";
 import Invoices from "./pages/Invoices";
 import InvoiceStatus from "./pages/InvoiceStatus";
 import NotFound from "./pages/NotFound";
@@ -22,11 +24,12 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ReceiptProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <SettingsProvider>
+      <ReceiptProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
@@ -38,6 +41,7 @@ const App = () => (
             <Route path="vendors" element={<Vendors />} />
             <Route path="vendors/:id" element={<VendorDetails />} />
             <Route path="vendors/:id/edit" element={<VendorEdit />} />
+            <Route path="settings" element={<AppSettings />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoice-status" element={<InvoiceStatus />} />
           </Route>
@@ -47,6 +51,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </ReceiptProvider>
+    </SettingsProvider>
   </QueryClientProvider>
 );
 
