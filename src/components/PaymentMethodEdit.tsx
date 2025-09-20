@@ -55,6 +55,7 @@ export default function PaymentMethodEdit({
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showConfirmAccountNumber, setShowConfirmAccountNumber] = useState(false);
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
+  const [showEditConfirm, setShowEditConfirm] = useState(false);
 
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
@@ -65,7 +66,19 @@ export default function PaymentMethodEdit({
   };
 
   const handleInputChange = (field: string, value: string) => {
+    // Only allow numeric characters for routing and account numbers
+    if ((field === 'routingNumber' || field === 'accountNumber') && !/^\d*$/.test(value)) {
+      return;
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAccountNumberEdit = () => {
+    if (isEditing) {
+      setShowEditConfirm(true);
+    } else {
+      setShowAccountNumber(true);
+    }
   };
 
   const handleVoidedCheckUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,6 +149,7 @@ export default function PaymentMethodEdit({
                   id="routingNumber"
                   value={formData.routingNumber}
                   onChange={(e) => handleInputChange('routingNumber', e.target.value)}
+                  placeholder="9 digit routing number"
                 />
               </div>
 
@@ -144,21 +158,16 @@ export default function PaymentMethodEdit({
                 <div className="relative">
                   <Input
                     id="accountNumber"
-                    type={showAccountNumber ? 'text' : 'password'}
-                    value={isEditing && !showAccountNumber ? maskAccountNumber(formData.accountNumber) : formData.accountNumber}
+                    value={formData.accountNumber}
                     onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                    disabled={isEditing && !showAccountNumber && !canViewSensitiveData}
+                    placeholder="Account number"
+                    onClick={isEditing ? handleAccountNumberEdit : undefined}
+                    readOnly={isEditing && !showAccountNumber}
                   />
-                  {canViewSensitiveData && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                      onClick={() => setShowAccountNumber(!showAccountNumber)}
-                    >
-                      {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
+                  {isEditing && !showAccountNumber && (
+                    <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleAccountNumberEdit}>
+                      <span className="text-muted-foreground text-sm">Click to edit</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -166,23 +175,12 @@ export default function PaymentMethodEdit({
               {!isEditing && (
                 <div>
                   <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmAccountNumber"
-                      type={showConfirmAccountNumber ? 'text' : 'password'}
-                      value={confirmAccountNumber}
-                      onChange={(e) => setConfirmAccountNumber(e.target.value)}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                      onClick={() => setShowConfirmAccountNumber(!showConfirmAccountNumber)}
-                    >
-                      {showConfirmAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
+                  <Input
+                    id="confirmAccountNumber"
+                    value={confirmAccountNumber}
+                    onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                    placeholder="Re-enter account number"
+                  />
                 </div>
               )}
 
@@ -232,18 +230,12 @@ export default function PaymentMethodEdit({
               {formData.checkDelivery === 'office_pickup' && (
                 <div>
                   <Label htmlFor="pickupLocation">Pickup Location</Label>
-                  <Select value={formData.pickupLocation} onValueChange={(value) => handleInputChange('pickupLocation', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select pickup location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {settings.companySettings?.checkPickupLocations?.map((location) => (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name} - {location.address}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="pickupLocation"
+                    value={formData.pickupLocation}
+                    onChange={(e) => handleInputChange('pickupLocation', e.target.value)}
+                    placeholder="Enter pickup location"
+                  />
                 </div>
               )}
             </>
@@ -252,29 +244,38 @@ export default function PaymentMethodEdit({
           {formData.type === 'Credit Card' && (
             <div>
               <Label htmlFor="accountNumber">Card Number</Label>
-              <div className="relative">
-                <Input
-                  id="accountNumber"
-                  type={showAccountNumber ? 'text' : 'password'}
-                  value={isEditing && !showAccountNumber ? maskAccountNumber(formData.accountNumber) : formData.accountNumber}
-                  onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                  disabled={isEditing && !showAccountNumber && !canViewSensitiveData}
-                />
-                {canViewSensitiveData && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                    onClick={() => setShowAccountNumber(!showAccountNumber)}
-                  >
-                    {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                )}
-              </div>
+              <Input
+                id="accountNumber"
+                value={formData.accountNumber}
+                onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                placeholder="Card number"
+                onClick={isEditing ? handleAccountNumberEdit : undefined}
+                readOnly={isEditing && !showAccountNumber}
+              />
             </div>
           )}
         </div>
+
+        {/* Edit Account Number Confirmation Dialog */}
+        <AlertDialog open={showEditConfirm} onOpenChange={setShowEditConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Edit Account Number</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to edit the account number? This is sensitive financial information and changes should be made carefully.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                setShowAccountNumber(true);
+                setShowEditConfirm(false);
+              }}>
+                Yes, Edit Account Number
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <DialogFooter className="flex justify-between">
           <div className="flex gap-2">

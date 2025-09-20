@@ -162,20 +162,6 @@ export default function VendorDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => document.getElementById('payment-methods')?.scrollIntoView({ behavior: 'smooth' })}
-          >
-            <CreditCard className="h-4 w-4 mr-2" />
-            Payment Methods
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => document.getElementById('compliance-documents')?.scrollIntoView({ behavior: 'smooth' })}
-          >
-            <FileIcon className="h-4 w-4 mr-2" />
-            Compliance
-          </Button>
           <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit Vendor
@@ -201,7 +187,7 @@ export default function VendorDetails() {
                   ) : (
                     <Building className="h-5 w-5" />
                   )}
-                  {vendor.name}
+                  Company Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -321,28 +307,18 @@ export default function VendorDetails() {
           </div>
         </div>
 
-        {/* Payment Methods Section */}
-        <div id="payment-methods">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Payment Methods
-              </CardTitle>
-              <Badge variant="outline" className="text-xs">View Only</Badge>
-            </CardHeader>
-            <CardContent>
-              {paymentMethods.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No Payment Methods</h3>
-                  <p className="text-muted-foreground mb-4">Configure payment methods in the edit page</p>
-                  <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Configure Payment Methods
-                  </Button>
-                </div>
-              ) : (
+        {/* Payment Methods Section - Only show if there are payment methods */}
+        {paymentMethods.length > 0 && (
+          <div id="payment-methods">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Methods
+                </CardTitle>
+                <Badge variant="outline" className="text-xs">View Only</Badge>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-4">
                   {paymentMethods.map((method) => (
                     <Card key={method.id} className="border-dashed">
@@ -365,92 +341,64 @@ export default function VendorDetails() {
                     </Card>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {/* Compliance Documents Section */}
-        <div id="compliance-documents">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <FileIcon className="h-5 w-5" />
-                Compliance Documents
-              </CardTitle>
-              <Badge variant="outline" className="text-xs">View Only</Badge>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {['Insurance', 'W-9 Form', 'License'].map((docType) => {
-                  const docTypeKey = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
-                  const doc = complianceDocuments.find(d => d.type === docTypeKey);
-                  const isUploaded = doc?.is_uploaded || false;
-                  const isRequired = doc?.is_required || false;
-                  
-                  // Only show if required
-                  if (!isRequired) return null;
-                  
-                  return (
-                    <Card key={docType} className="border-dashed">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <FileText className="h-8 w-8 p-1.5 bg-muted rounded text-muted-foreground" />
-                            <div>
-                              <h4 className="font-medium">{docType}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Required • {isUploaded ? 'Uploaded' : 'Missing'}
-                              </p>
+        {/* Compliance Documents Section - Only show if there are required documents */}
+        {complianceDocuments.filter(d => d.is_required).length > 0 && (
+          <div id="compliance-documents">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileIcon className="h-5 w-5" />
+                  Compliance Documents
+                </CardTitle>
+                <Badge variant="outline" className="text-xs">View Only</Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {['Insurance', 'W-9 Form', 'License'].map((docType) => {
+                    const docTypeKey = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const doc = complianceDocuments.find(d => d.type === docTypeKey);
+                    const isUploaded = doc?.is_uploaded || false;
+                    const isRequired = doc?.is_required || false;
+                    
+                    // Only show if required
+                    if (!isRequired) return null;
+                    
+                    return (
+                      <Card key={docType} className="border-dashed">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FileText className="h-8 w-8 p-1.5 bg-muted rounded text-muted-foreground" />
+                              <div>
+                                <h4 className="font-medium">{docType}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Required • {isUploaded ? 'Uploaded' : 'Missing'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {!isUploaded && (
+                                <Badge variant="destructive" className="text-xs">Missing</Badge>
+                              )}
+                              <Badge variant={isUploaded ? "default" : "secondary"} className="text-xs">
+                                {isUploaded ? "Uploaded" : "Not Uploaded"}
+                              </Badge>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {!isUploaded && (
-                              <Badge variant="destructive" className="text-xs">Missing</Badge>
-                            )}
-                            <Badge variant={isUploaded ? "default" : "secondary"} className="text-xs">
-                              {isUploaded ? "Uploaded" : "Not Uploaded"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                }).filter(Boolean)}
-              </div>
-              
-              {/* Show message if no required documents */}
-              {complianceDocuments.filter(d => d.is_required).length === 0 && (
-                <div className="text-center py-8">
-                  <FileIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No Required Documents</h3>
-                  <p className="text-muted-foreground mb-4">No compliance documents are currently marked as required</p>
-                  <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Configure Documents
-                  </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  }).filter(Boolean)}
                 </div>
-              )}
-              
-              {/* Show action required for missing documents */}
-              {complianceDocuments.filter(d => d.is_required && !d.is_uploaded).length > 0 && (
-                <div className="mt-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="font-medium">Action Required</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Some required compliance documents are missing. Please upload them in the edit page.
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate(`/vendors/${id}/edit`)}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Documents
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Jobs Section */}
         <Card>
