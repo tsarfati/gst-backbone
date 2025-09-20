@@ -18,7 +18,7 @@ export default function VendorEdit() {
 
   const isAddMode = id === "add";
   // In a real app, you would fetch vendor data from backend
-  const vendor = null; // No mock data
+  const vendor = isAddMode ? null : null; // No mock data - will be fetched from database later
 
   const [formData, setFormData] = useState({
     name: vendor?.name || "",
@@ -34,6 +34,7 @@ export default function VendorEdit() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(formData.logo);
 
+  // Only show "not found" if we're in edit mode and vendor doesn't exist
   if (!isAddMode && !vendor) {
     return (
       <div className="p-6 max-w-4xl mx-auto">

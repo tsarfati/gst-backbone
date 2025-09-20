@@ -61,15 +61,15 @@ export default function AddJob() {
       name: formData.jobName,
       client: formData.client,
       address: formData.address,
-      job_type: formData.jobType,
-      status: formData.status,
+      job_type: formData.jobType as any,
+      status: formData.status as any,
       start_date: formData.startDate || null,
       end_date: formData.endDate || null,
       budget: budgetNumber,
       description: formData.description,
       project_manager_user_id: formData.projectManagerId || null,
       created_by: user.id,
-    });
+    } as any);
 
     if (error) {
       toast({ title: "Error creating job", description: error.message, variant: "destructive" });
