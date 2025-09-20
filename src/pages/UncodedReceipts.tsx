@@ -36,6 +36,7 @@ export default function UncodedReceipts() {
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const [showMessaging, setShowMessaging] = useState(false);
+  const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Auto-select first receipt when component mounts or receipts change
@@ -54,6 +55,34 @@ export default function UncodedReceipts() {
     }
   }, []);
 
+  // For PDFs, fetch as Blob and use a local object URL to bypass X-Frame-Options on the storage domain
+  React.useEffect(() => {
+    let toRevoke: string | null = null;
+
+    async function loadPdf() {
+      if (selectedReceipt?.type === 'pdf' && selectedReceipt.previewUrl) {
+        try {
+          const res = await fetch(selectedReceipt.previewUrl);
+          if (!res.ok) throw new Error('Failed to fetch PDF');
+          const blob = await res.blob();
+          const objUrl = URL.createObjectURL(blob);
+          toRevoke = objUrl;
+          setPdfObjectUrl(objUrl);
+        } catch (err) {
+          console.error('PDF preview load error:', err);
+          setPdfObjectUrl(null);
+        }
+      } else {
+        setPdfObjectUrl(null);
+      }
+    }
+
+    loadPdf();
+
+    return () => {
+      if (toRevoke) URL.revokeObjectURL(toRevoke);
+    };
+  }, [selectedReceipt?.id, selectedReceipt?.previewUrl, selectedReceipt?.type]);
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
       toast({
@@ -352,11 +381,22 @@ export default function UncodedReceipts() {
                 {selectedReceipt.type === 'pdf' ? (
                   <div className="bg-white rounded-lg shadow-lg overflow-hidden">
                     {selectedReceipt.previewUrl ? (
-                      <iframe
-                        src={selectedReceipt.previewUrl}
-                        title={`PDF ${selectedReceipt.filename}`}
-                        className="w-full h-[70vh]"
-                      />
+                      pdfObjectUrl ? (
+                        <iframe
+                          src={pdfObjectUrl}
+                          title={`PDF ${selectedReceipt.filename}`}
+                          className="w-full h-[70vh]"
+                        />
+                      ) : (
+                        <div className="p-8 aspect-[8.5/11]">
+                          <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
+                            <div className="text-center">
+                              <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                              <p className="text-sm text-muted-foreground">Loading preview...</p>
+                            </div>
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <div className="p-8 aspect-[8.5/11]">
                         <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
