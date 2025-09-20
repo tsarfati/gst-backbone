@@ -59,6 +59,7 @@ export default function PaymentMethodEdit({
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showConfirmAccountNumber, setShowConfirmAccountNumber] = useState(false);
+  const [showRoutingNumber, setShowRoutingNumber] = useState(false);
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
   const [showEditConfirm, setShowEditConfirm] = useState(false);
 
@@ -152,6 +153,10 @@ export default function PaymentMethodEdit({
                   value={formData.routing_number || ''}
                   onChange={(value) => handleInputChange('routing_number', value)}
                   placeholder="9 digit routing number"
+                  masked={true}
+                  showMasked={showRoutingNumber}
+                  canToggleMask={canViewSensitiveData}
+                  onToggleMask={setShowRoutingNumber}
                 />
               </div>
 
@@ -165,6 +170,8 @@ export default function PaymentMethodEdit({
                       placeholder="Account number"
                       masked={true}
                       showMasked={showAccountNumber}
+                      canToggleMask={canViewSensitiveData}
+                      onToggleMask={setShowAccountNumber}
                       onClick={isEditing ? handleAccountNumberEdit : undefined}
                       readOnly={isEditing && !showAccountNumber}
                     />
@@ -184,6 +191,10 @@ export default function PaymentMethodEdit({
                     value={confirmAccountNumber}
                     onChange={setConfirmAccountNumber}
                     placeholder="Re-enter account number"
+                    masked={true}
+                    showMasked={showConfirmAccountNumber}
+                    canToggleMask={canViewSensitiveData}
+                    onToggleMask={setShowConfirmAccountNumber}
                   />
                 </div>
               )}
