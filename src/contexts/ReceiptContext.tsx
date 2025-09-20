@@ -101,23 +101,32 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   }, [uncodedReceipts]);
 
   const addReceipts = useCallback((files: FileList) => {
-    const newReceipts: Receipt[] = Array.from(files).map(file => {
-      // Create a more persistent preview URL using FileReader for images
-      const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
-      
-      return {
-        id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        filename: file.name,
-        amount: "$0.00",
-        date: new Date().toISOString().split('T')[0],
-        type: file.type.startsWith('image/') ? 'image' : 'pdf',
-        previewUrl,
-        uploadedBy: "Current User",
-        uploadedDate: new Date(),
-      };
-    });
+    const readAsDataURL = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    setUncodedReceipts(prev => [...prev, ...newReceipts]);
+    Promise.all(
+      Array.from(files).map(async (file) => {
+        const dataUrl = await readAsDataURL(file);
+        const isImage = file.type.startsWith('image/');
+        return {
+          id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          filename: file.name,
+          amount: "$0.00",
+          date: new Date().toISOString().split('T')[0],
+          type: isImage ? 'image' : 'pdf',
+          previewUrl: dataUrl,
+          uploadedBy: "Current User",
+          uploadedDate: new Date(),
+        } as Receipt;
+      })
+    ).then((newReceipts) => {
+      setUncodedReceipts((prev) => [...prev, ...newReceipts]);
+    });
   }, []);
 
   const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string) => {

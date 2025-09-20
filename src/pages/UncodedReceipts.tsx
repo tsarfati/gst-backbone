@@ -336,18 +336,30 @@ export default function UncodedReceipts() {
             <div className="flex-1 p-6 flex items-center justify-center bg-accent/20">
               <div className="max-w-2xl w-full">
                 {selectedReceipt.type === 'pdf' ? (
-                  <div className="bg-white rounded-lg shadow-lg p-8 aspect-[8.5/11]">
-                    <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
-                      <div className="text-center">
-                        <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-lg font-medium">PDF Receipt</p>
-                        <p className="text-sm text-muted-foreground">{selectedReceipt.filename}</p>
-                        <Button variant="outline" className="mt-4">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Open PDF
-                        </Button>
+                  <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                    {selectedReceipt.previewUrl ? (
+                      <iframe
+                        src={selectedReceipt.previewUrl}
+                        title={`PDF ${selectedReceipt.filename}`}
+                        className="w-full h-[70vh]"
+                      />
+                    ) : (
+                      <div className="p-8 aspect-[8.5/11]">
+                        <div className="flex items-center justify-center h-full border-2 border-dashed border-muted">
+                          <div className="text-center">
+                            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                            <p className="text-lg font-medium">PDF Receipt</p>
+                            <p className="text-sm text-muted-foreground">{selectedReceipt.filename}</p>
+                            <Button asChild variant="outline" className="mt-4">
+                              <a href="#" onClick={(e) => e.preventDefault()}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Open PDF
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-white rounded-lg shadow-lg overflow-hidden">
