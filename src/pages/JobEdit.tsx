@@ -9,45 +9,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const mockJobs = [
-  {
-    id: "1",
-    name: "Office Renovation",
-    budget: "25000",
-    startDate: "2024-01-01",
-    status: "active",
-    description: "Complete renovation of the main office space including flooring, painting, and furniture.",
-    location: "123 Main St, Downtown",
-    contractor: "ABC Construction"
-  },
-  {
-    id: "2",
-    name: "Warehouse Project",
-    budget: "50000",
-    startDate: "2023-12-15",
-    status: "active",
-    description: "Warehouse expansion and modernization project.",
-    location: "456 Industrial Blvd",
-    contractor: "XYZ Builders"
-  },
-  {
-    id: "3",
-    name: "Retail Buildout",
-    budget: "15000",
-    startDate: "2024-01-10",
-    status: "completed",
-    description: "Retail space buildout for new store location.",
-    location: "789 Shopping Center",
-    contractor: "Retail Builders Inc"
-  }
-];
+// Jobs are managed with proper state - no mock data
 
 export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const job = mockJobs.find(j => j.id === id);
+  // In a real app, you would fetch job data from backend
+  const job = null; // No mock data
 
   const [formData, setFormData] = useState({
     name: job?.name || "",
@@ -61,12 +31,22 @@ export default function JobEdit() {
 
   if (!job) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Job Not Found</h1>
-          <Button onClick={() => navigate("/jobs")} className="mt-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Jobs
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" onClick={() => navigate("/jobs")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Job Not Found</h1>
+            <p className="text-muted-foreground">The requested job could not be found</p>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground mb-4">
+            This job doesn&apos;t exist or you don&apos;t have permission to edit it.
+          </p>
+          <Button onClick={() => navigate("/jobs")}>
+            Return to Jobs
           </Button>
         </div>
       </div>

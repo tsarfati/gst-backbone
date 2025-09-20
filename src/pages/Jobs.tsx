@@ -7,58 +7,43 @@ import JobCard from "@/components/JobCard";
 import JobListView from "@/components/JobListView";
 import JobCompactView from "@/components/JobCompactView";
 
-const mockJobs = [
-  {
-    id: "1",
-    name: "Office Renovation",
-    budget: "$25,000",
-    spent: "$18,450",
-    receipts: 8,
-    startDate: "2024-01-01",
-    status: "active"
-  },
-  {
-    id: "2",
-    name: "Warehouse Project",
-    budget: "$50,000",
-    spent: "$32,100",
-    receipts: 15,
-    startDate: "2023-12-15",
-    status: "active"
-  },
-  {
-    id: "3",
-    name: "Retail Buildout",
-    budget: "$15,000",
-    spent: "$14,800",
-    receipts: 4,
-    startDate: "2024-01-10",
-    status: "completed"
-  },
-];
+// Jobs are now managed with proper state - no mock data
 
 export default function Jobs() {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<ViewType>("tiles");
+  const [jobs, setJobs] = useState<any[]>([]);
 
   const handleJobClick = (job: any) => {
     navigate(`/jobs/${job.id}`);
   };
 
   const renderJobs = () => {
+    if (jobs.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">
+            <Plus className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No jobs found</p>
+            <p className="text-sm">Create your first job to get started</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (currentView) {
       case "tiles":
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockJobs.map((job) => (
+            {jobs.map((job) => (
               <JobCard key={job.id} job={job} onClick={() => handleJobClick(job)} />
             ))}
           </div>
         );
       case "list":
-        return <JobListView jobs={mockJobs} onJobClick={handleJobClick} />;
+        return <JobListView jobs={jobs} onJobClick={handleJobClick} />;
       case "compact":
-        return <JobCompactView jobs={mockJobs} onJobClick={handleJobClick} />;
+        return <JobCompactView jobs={jobs} onJobClick={handleJobClick} />;
       default:
         return null;
     }
@@ -75,7 +60,7 @@ export default function Jobs() {
         </div>
         <div className="flex items-center gap-4">
           <JobViewSelector currentView={currentView} onViewChange={setCurrentView} />
-          <Button>
+          <Button onClick={() => navigate("/jobs/add")}>
             <Plus className="h-4 w-4 mr-2" />
             New Job
           </Button>

@@ -7,78 +7,43 @@ import VendorCard from "@/components/VendorCard";
 import VendorListView from "@/components/VendorListView";
 import VendorCompactView from "@/components/VendorCompactView";
 
-const mockVendors = [
-  {
-    id: "1",
-    name: "ABC Materials",
-    contact: "John Smith",
-    phone: "(555) 123-4567",
-    email: "john@abcmaterials.com",
-    address: "123 Industrial Way, City, ST 12345",
-    totalSpent: "$15,250",
-    invoices: 12,
-    category: "Materials",
-    logo: "https://images.unsplash.com/photo-1518458028785-8fbcd101ebb9?w=100&h=100&fit=crop&crop=center"
-  },
-  {
-    id: "2",
-    name: "Home Depot",
-    contact: "N/A",
-    phone: "(555) 987-6543",
-    email: "support@homedepot.com",
-    address: "456 Retail Blvd, City, ST 12345",
-    totalSpent: "$8,450",
-    invoices: 8,
-    category: "Retail",
-    logo: "https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=100&h=100&fit=crop&crop=center"
-  },
-  {
-    id: "3",
-    name: "Elite Electrical",
-    contact: "Sarah Johnson",
-    phone: "(555) 456-7890",
-    email: "sarah@eliteelectrical.com",
-    address: "789 Service St, City, ST 12345",
-    totalSpent: "$22,100",
-    invoices: 15,
-    category: "Subcontractor"
-  },
-  {
-    id: "4",
-    name: "Office Supply Co",
-    contact: "Mike Davis",
-    phone: "(555) 321-0987",
-    email: "mike@officesupply.com",
-    address: "321 Business Park, City, ST 12345",
-    totalSpent: "$1,250",
-    invoices: 5,
-    category: "Office",
-    logo: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=100&h=100&fit=crop&crop=center"
-  }
-];
+// Vendors are now managed with proper state - no mock data
 
 export default function Vendors() {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<VendorViewType>("tiles");
+  const [vendors, setVendors] = useState<any[]>([]);
 
   const handleVendorClick = (vendor: any) => {
     navigate(`/vendors/${vendor.id}`);
   };
 
   const renderVendors = () => {
+    if (vendors.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">
+            <Plus className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No vendors found</p>
+            <p className="text-sm">Add your first vendor to get started</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (currentView) {
       case "tiles":
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockVendors.map((vendor) => (
+            {vendors.map((vendor) => (
               <VendorCard key={vendor.id} vendor={vendor} onClick={() => handleVendorClick(vendor)} />
             ))}
           </div>
         );
       case "list":
-        return <VendorListView vendors={mockVendors} onVendorClick={handleVendorClick} />;
+        return <VendorListView vendors={vendors} onVendorClick={handleVendorClick} />;
       case "compact":
-        return <VendorCompactView vendors={mockVendors} onVendorClick={handleVendorClick} />;
+        return <VendorCompactView vendors={vendors} onVendorClick={handleVendorClick} />;
       default:
         return null;
     }

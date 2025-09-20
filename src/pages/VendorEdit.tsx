@@ -9,41 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Save, Trash2, Upload, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const mockVendors = [
-  {
-    id: "1",
-    name: "ABC Materials",
-    contact: "John Smith",
-    phone: "(555) 123-4567",
-    email: "john@abcmaterials.com",
-    address: "123 Industrial Way, City, ST 12345",
-    category: "Materials",
-    description: "Trusted supplier of high-quality construction materials with over 20 years of experience.",
-    logo: "https://images.unsplash.com/photo-1518458028785-8fbcd101ebb9?w=100&h=100&fit=crop&crop=center"
-  },
-  {
-    id: "2", 
-    name: "Home Depot",
-    contact: "N/A",
-    phone: "(555) 987-6543",
-    email: "support@homedepot.com",
-    address: "456 Retail Blvd, City, ST 12345",
-    category: "Retail",
-    description: "Major home improvement retailer providing materials and tools.",
-    logo: "https://images.unsplash.com/photo-1572021335469-31706a17aaef?w=100&h=100&fit=crop&crop=center"
-  },
-  {
-    id: "3",
-    name: "Elite Electrical", 
-    contact: "Sarah Johnson",
-    phone: "(555) 456-7890",
-    email: "sarah@eliteelectrical.com",
-    address: "789 Service St, City, ST 12345",
-    category: "Subcontractor",
-    description: "Licensed electrical contractor specializing in commercial and industrial projects.",
-    logo: null
-  }
-];
+// Vendors are managed with proper state - no mock data
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -51,7 +17,8 @@ export default function VendorEdit() {
   const { toast } = useToast();
 
   const isAddMode = id === "add";
-  const vendor = isAddMode ? null : mockVendors.find(v => v.id === id);
+  // In a real app, you would fetch vendor data from backend
+  const vendor = null; // No mock data
 
   const [formData, setFormData] = useState({
     name: vendor?.name || "",
@@ -69,12 +36,22 @@ export default function VendorEdit() {
 
   if (!isAddMode && !vendor) {
     return (
-      <div className="p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Vendor Not Found</h1>
-          <Button onClick={() => navigate("/vendors")} className="mt-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Vendors
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" onClick={() => navigate("/vendors")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Vendor Not Found</h1>
+            <p className="text-muted-foreground">The requested vendor could not be found</p>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground mb-4">
+            This vendor doesn&apos;t exist or you don&apos;t have permission to edit it.
+          </p>
+          <Button onClick={() => navigate("/vendors")}>
+            Return to Vendors
           </Button>
         </div>
       </div>
