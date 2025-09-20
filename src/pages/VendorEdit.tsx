@@ -306,11 +306,24 @@ export default function VendorEdit() {
   };
 
   const handlePaymentMethodSave = async (paymentMethodData: any) => {
+    // Only send columns that exist in vendor_payment_methods
+    const mapToDb = (data: any) => ({
+      type: data.type,
+      bank_name: data.bank_name || null,
+      routing_number: data.routing_number || null,
+      account_number: data.account_number || null,
+      is_primary: data.is_primary ?? false,
+      check_delivery: data.check_delivery || null,
+      pickup_location: data.pickup_location || null,
+      voided_check_url: data.voided_check_url || null,
+      account_type: data.account_type || null,
+    });
+
     try {
       if (editingPaymentMethod) {
         const { error } = await supabase
           .from('vendor_payment_methods')
-          .update(paymentMethodData)
+          .update(mapToDb(paymentMethodData))
           .eq('id', editingPaymentMethod.id);
         
         if (error) throw error;
@@ -323,7 +336,7 @@ export default function VendorEdit() {
         const { error } = await supabase
           .from('vendor_payment_methods')
           .insert({
-            ...paymentMethodData,
+            ...mapToDb(paymentMethodData),
             vendor_id: id
           });
         
@@ -678,7 +691,7 @@ export default function VendorEdit() {
 
       {/* Payment Method Dialog */}
       <PaymentMethodEdit
-        paymentMethod={editingPaymentMethod || { type: 'ach', accountNumber: '', isDefault: false }}
+        paymentMethod={editingPaymentMethod}
         isOpen={showPaymentMethodDialog}
         onClose={() => setShowPaymentMethodDialog(false)}
         onSave={handlePaymentMethodSave}

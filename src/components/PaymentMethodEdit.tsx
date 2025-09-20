@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Eye, EyeOff, Trash2, Upload, FileText } from "lucide-react";
+import { Eye, EyeOff, Trash2, Upload, FileText, Lock } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -62,7 +63,10 @@ export default function PaymentMethodEdit({
   const [showRoutingNumber, setShowRoutingNumber] = useState(false);
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
   const [showEditConfirm, setShowEditConfirm] = useState(false);
-
+  const [editField, setEditField] = useState<'account' | 'routing' | null>(null);
+  const [allowAccountEdit, setAllowAccountEdit] = useState(false);
+  const [allowRoutingEdit, setAllowRoutingEdit] = useState(false);
+ 
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
 
@@ -77,12 +81,22 @@ export default function PaymentMethodEdit({
 
   const handleAccountNumberEdit = () => {
     if (isEditing) {
+      setEditField('account');
       setShowEditConfirm(true);
     } else {
       setShowAccountNumber(true);
     }
   };
 
+  const handleRoutingNumberEdit = () => {
+    if (isEditing) {
+      setEditField('routing');
+      setShowEditConfirm(true);
+    } else {
+      setShowRoutingNumber(true);
+    }
+  };
+ 
   const handleVoidedCheckUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -111,32 +125,43 @@ export default function PaymentMethodEdit({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby="payment-method-description">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Payment Method' : 'Add Payment Method'}
           </DialogTitle>
+          <DialogDescription>
+            Manage vendor payment details. Sensitive fields are masked and encrypted.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="type">Payment Type</Label>
-            <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ACH">ACH</SelectItem>
-                <SelectItem value="Wire">Wire Transfer</SelectItem>
-                <SelectItem value="Check">Check</SelectItem>
-                <SelectItem value="Credit Card">Credit Card</SelectItem>
-                <SelectItem value="Vendor Payment Portal">Vendor Payment Portal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="type">Payment Type</Label>
+              <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACH">ACH</SelectItem>
+                  <SelectItem value="Wire">Wire Transfer</SelectItem>
+                  <SelectItem value="Check">Check</SelectItem>
+                  <SelectItem value="Credit Card">Credit Card</SelectItem>
+                  <SelectItem value="Vendor Payment Portal">Vendor Payment Portal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
           {(formData.type === 'ACH' || formData.type === 'Wire') && (
             <>
+              <Alert>
+                <Lock className="h-4 w-4" />
+                <AlertTitle>Sensitive information</AlertTitle>
+                <AlertDescription>
+                  Bank details are encrypted at rest. Only admins and controllers can unmask on screen.
+                </AlertDescription>
+              </Alert>
+
               <div>
                 <Label htmlFor="bankName">Bank Name</Label>
                 <Input
@@ -148,16 +173,25 @@ export default function PaymentMethodEdit({
 
               <div>
                 <Label htmlFor="routingNumber">Routing Number</Label>
-                <NumericInput
-                  id="routingNumber"
-                  value={formData.routing_number || ''}
-                  onChange={(value) => handleInputChange('routing_number', value)}
-                  placeholder="9 digit routing number"
-                  masked={true}
-                  showMasked={showRoutingNumber}
-                  canToggleMask={canViewSensitiveData}
-                  onToggleMask={setShowRoutingNumber}
-                />
+                <div className="relative">
+                  <NumericInput
+                    id="routingNumber"
+                    value={formData.routing_number || ''}
+                    onChange={(value) => handleInputChange('routing_number', value)}
+                    placeholder="9 digit routing number"
+                    masked={true}
+                    showMasked={showRoutingNumber}
+                    canToggleMask={canViewSensitiveData}
+                    onToggleMask={setShowRoutingNumber}
+                    onClick={isEditing ? handleRoutingNumberEdit : undefined}
+                    readOnly={isEditing && !allowRoutingEdit}
+                  />
+                  {isEditing && !allowRoutingEdit && (
+                    <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleRoutingNumberEdit}>
+                      <span className="text-muted-foreground text-sm">Click to edit</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
                 <div>
@@ -173,9 +207,9 @@ export default function PaymentMethodEdit({
                       canToggleMask={canViewSensitiveData}
                       onToggleMask={setShowAccountNumber}
                       onClick={isEditing ? handleAccountNumberEdit : undefined}
-                      readOnly={isEditing && !showAccountNumber}
+                      readOnly={isEditing && !allowAccountEdit}
                     />
-                    {isEditing && !showAccountNumber && (
+                    {isEditing && !allowAccountEdit && (
                       <div className="absolute inset-0 bg-muted/50 rounded-md flex items-center justify-center cursor-pointer" onClick={handleAccountNumberEdit}>
                         <span className="text-muted-foreground text-sm">Click to edit</span>
                       </div>
@@ -297,22 +331,31 @@ export default function PaymentMethodEdit({
           )}
         </div>
 
-        {/* Edit Account Number Confirmation Dialog */}
+        {/* Edit Sensitive Field Confirmation Dialog */}
         <AlertDialog open={showEditConfirm} onOpenChange={setShowEditConfirm}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Edit Account Number</AlertDialogTitle>
+              <AlertDialogTitle>
+                {editField === 'routing' ? 'Edit Routing Number' : 'Edit Account Number'}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to edit the account number? This is sensitive financial information and changes should be made carefully.
+                You are about to edit sensitive financial information. Proceed only if you intend to change the {editField === 'routing' ? 'routing number' : 'account number'}.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={() => {
-                setShowAccountNumber(true);
+                if (editField === 'routing') {
+                  setAllowRoutingEdit(true);
+                  setShowRoutingNumber(true);
+                } else {
+                  setAllowAccountEdit(true);
+                  setShowAccountNumber(true);
+                }
                 setShowEditConfirm(false);
+                setEditField(null);
               }}>
-                Yes, Edit Account Number
+                Yes, Edit
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
