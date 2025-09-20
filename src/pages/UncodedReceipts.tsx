@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,11 +13,12 @@ import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
 import PdfPreview from "@/components/PdfPreview";
 import ViewSelector, { ViewType } from "@/components/ViewSelector";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-// Remove mock data - will be loaded from database
-const jobs = [];
-const costCodes = [];
-const vendors = [];
+interface JobOption { id: string; name: string }
+interface CostCodeOption { id: string; code: string; description: string }
+interface VendorOption { id: string; name: string }
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
@@ -35,7 +36,66 @@ export default function UncodedReceipts() {
     setCurrentView, 
     setDefaultView 
   } = useViewPreference('uncoded-receipts-view', 'grid');
+  const { user } = useAuth();
 
+  const [jobs, setJobs] = useState<JobOption[]>([]);
+  const [costCodes, setCostCodes] = useState<CostCodeOption[]>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .order('name');
+        if (error) throw error;
+        setJobs((data || []) as JobOption[]);
+      } catch (err) {
+        console.error('Error loading jobs:', err);
+      }
+    };
+    loadJobs();
+  }, []);
+
+  useEffect(() => {
+    const loadCostCodes = async () => {
+      try {
+        const job = jobs.find(j => j.name === selectedJob);
+        if (!job) { setCostCodes([]); return; }
+        const { data, error } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('job_id', job.id)
+          .eq('is_active', true)
+          .order('code');
+        if (error) throw error;
+        setCostCodes((data || []) as CostCodeOption[]);
+      } catch (err) {
+        console.error('Error loading cost codes:', err);
+      }
+    };
+    if (selectedJob) loadCostCodes(); else setCostCodes([]);
+  }, [selectedJob, jobs]);
+
+  useEffect(() => {
+    const loadVendors = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from('vendors')
+          .select('id, name')
+          .eq('company_id', user.id)
+          .eq('is_active', true)
+          .order('name');
+        if (error) throw error;
+        setVendors((data || []) as VendorOption[]);
+      } catch (err) {
+        console.error('Error loading vendors:', err);
+      }
+    };
+    loadVendors();
+  }, [user]);
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
       toast({
@@ -540,8 +600,8 @@ export default function UncodedReceipts() {
                       </SelectTrigger>
                       <SelectContent className="bg-popover border border-border shadow-md z-50">
                         {jobs.map((job) => (
-                          <SelectItem key={job} value={job} className="cursor-pointer">
-                            {job}
+                          <SelectItem key={job.id} value={job.name} className="cursor-pointer">
+                            {job.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -555,9 +615,9 @@ export default function UncodedReceipts() {
                         <SelectValue placeholder="Select cost code" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover border border-border shadow-md z-50">
-                        {costCodes.map((code) => (
-                          <SelectItem key={code} value={code} className="cursor-pointer">
-                            {code}
+                        {costCodes.map((cc) => (
+                          <SelectItem key={cc.id} value={cc.code} className="cursor-pointer">
+                            {cc.code} - {cc.description}
                           </SelectItem>
                         ))}
                       </SelectContent>

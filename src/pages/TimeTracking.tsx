@@ -269,25 +269,33 @@ export default function TimeTracking() {
     }
 
     setIsLoading(true);
-    setLoadingStatus('Getting location...');
+    setLoadingStatus('Preparing camera...');
 
     try {
-      // Get location
-      console.log('Starting punch in process...');
-      const currentLocation = await getCurrentLocation();
-      console.log('Location obtained:', currentLocation);
-      setLocation(currentLocation);
-
-      // Start camera for photo
-      setLoadingStatus('Starting camera...');
-      await startCamera();
       setPunchType('in');
-      setShowPunchDialog(true);
+      setShowPunchDialog(true); // Always show dialog
+
+      // Start camera immediately
+      await startCamera();
+
+      // Try to fetch location in the background (non-blocking)
+      getCurrentLocation()
+        .then((currentLocation) => {
+          console.log('Location obtained:', currentLocation);
+          setLocation(currentLocation);
+        })
+        .catch((error: any) => {
+          console.warn('Location unavailable:', error?.message || error);
+          toast({
+            title: 'Location Unavailable',
+            description: 'Proceeding without location. Please enable location permissions for future punches.',
+          });
+        });
     } catch (error: any) {
       console.error('Error during punch in preparation:', error);
       toast({
         title: 'Setup Error',
-        description: error.message || 'Could not get location or start camera. Please check your browser permissions.',
+        description: error.message || 'Could not start camera. Please check your browser permissions.',
         variant: 'destructive',
       });
     } finally {
@@ -300,25 +308,33 @@ export default function TimeTracking() {
     if (!user || !currentStatus) return;
 
     setIsLoading(true);
-    setLoadingStatus('Getting location...');
+    setLoadingStatus('Preparing camera...');
 
     try {
-      // Get location
-      console.log('Starting punch out process...');
-      const currentLocation = await getCurrentLocation();
-      console.log('Location obtained:', currentLocation);
-      setLocation(currentLocation);
-
-      // Start camera for photo
-      setLoadingStatus('Starting camera...');
-      await startCamera();
       setPunchType('out');
-      setShowPunchDialog(true);
+      setShowPunchDialog(true); // Always show dialog
+
+      // Start camera immediately
+      await startCamera();
+
+      // Try to fetch location in the background (non-blocking)
+      getCurrentLocation()
+        .then((currentLocation) => {
+          console.log('Location obtained:', currentLocation);
+          setLocation(currentLocation);
+        })
+        .catch((error: any) => {
+          console.warn('Location unavailable:', error?.message || error);
+          toast({
+            title: 'Location Unavailable',
+            description: 'Proceeding without location. Please enable location permissions for future punches.',
+          });
+        });
     } catch (error: any) {
       console.error('Error during punch out preparation:', error);
       toast({
         title: 'Setup Error',
-        description: error.message || 'Could not get location or start camera. Please check your browser permissions.',
+        description: error.message || 'Could not start camera. Please check your browser permissions.',
         variant: 'destructive',
       });
     } finally {
@@ -328,7 +344,7 @@ export default function TimeTracking() {
   };
 
   const confirmPunch = async () => {
-    if (!user || !location) return;
+    if (!user) return;
 
     setIsLoading(true);
     setLoadingStatus('Processing punch...');
@@ -349,8 +365,8 @@ export default function TimeTracking() {
             job_id: selectedJob,
             cost_code_id: selectedCostCode,
             punch_type: 'punched_in',
-            latitude: location.lat,
-            longitude: location.lng,
+            latitude: location?.lat ?? null,
+            longitude: location?.lng ?? null,
             photo_url: photoUrl
           });
 
@@ -364,8 +380,8 @@ export default function TimeTracking() {
             job_id: selectedJob,
             cost_code_id: selectedCostCode,
             punch_in_time: new Date().toISOString(),
-            punch_in_location_lat: location.lat,
-            punch_in_location_lng: location.lng,
+            punch_in_location_lat: location?.lat ?? null,
+            punch_in_location_lng: location?.lng ?? null,
             punch_in_photo_url: photoUrl
           });
 
@@ -384,8 +400,8 @@ export default function TimeTracking() {
             job_id: currentStatus?.job_id,
             cost_code_id: currentStatus?.cost_code_id,
             punch_type: 'punched_out',
-            latitude: location.lat,
-            longitude: location.lng,
+            latitude: location?.lat ?? null,
+            longitude: location?.lng ?? null,
             photo_url: photoUrl,
             notes: notes || null
           });

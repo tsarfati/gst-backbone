@@ -14,24 +14,6 @@ import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
 
-const jobs = [
-  "Office Renovation", 
-  "Warehouse Project", 
-  "Retail Buildout", 
-  "Kitchen Remodel",
-  "Parking Lot Repair"
-];
-
-const costCodes = [
-  "Materials", 
-  "Labor", 
-  "Equipment", 
-  "Subcontractors", 
-  "Travel",
-  "Permits & Fees",
-  "Utilities",
-  "Safety Equipment"
-];
 
 export default function CodedReceipts() {
   const { codedReceipts } = useReceipts();

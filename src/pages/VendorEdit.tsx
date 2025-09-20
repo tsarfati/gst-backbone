@@ -17,7 +17,7 @@ export default function VendorEdit() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const isAddMode = id === "add";
+  const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
   const [loading, setLoading] = useState(!isAddMode);
 
