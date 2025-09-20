@@ -23,6 +23,11 @@ import Invoices from "./pages/Invoices";
 import InvoiceStatus from "./pages/InvoiceStatus";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import AllEmployees from "./pages/AllEmployees";
+import AddEmployee from "./pages/AddEmployee";
+import TimeTracking from "./pages/TimeTracking";
+import TimeSheets from "./pages/TimeSheets";
+import AllMessages from "./pages/AllMessages";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +74,11 @@ function App() {
                       <Route path="vendors/:id/edit" element={<VendorEdit />} />
                       <Route path="settings" element={<AppSettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
+                      <Route path="employees" element={<AllEmployees />} />
+                      <Route path="add-employee" element={<AddEmployee />} />
+                      <Route path="time-tracking" element={<TimeTracking />} />
+                      <Route path="time-sheets" element={<TimeSheets />} />
+                      <Route path="messages" element={<AllMessages />} />
                       <Route path="invoices" element={<Invoices />} />
                       <Route path="invoices/status" element={<InvoiceStatus />} />
                     </Route>

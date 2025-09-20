@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import DashboardCustomizer from '@/components/DashboardCustomizer';
 import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -253,48 +254,10 @@ export default function Dashboard() {
                 Choose what sections you want to see on your dashboard
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show-stats">Statistics Cards</Label>
-                <Switch
-                  id="show-stats"
-                  checked={dashboardSettings.show_stats}
-                  onCheckedChange={(checked) => updateDashboardSettings({ show_stats: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show-notifications">Notifications</Label>
-                <Switch
-                  id="show-notifications"
-                  checked={dashboardSettings.show_notifications}
-                  onCheckedChange={(checked) => updateDashboardSettings({ show_notifications: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show-messages">Messages</Label>
-                <Switch
-                  id="show-messages"
-                  checked={dashboardSettings.show_messages}
-                  onCheckedChange={(checked) => updateDashboardSettings({ show_messages: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show-activity">Recent Activity</Label>
-                <Switch
-                  id="show-activity"
-                  checked={dashboardSettings.show_recent_activity}
-                  onCheckedChange={(checked) => updateDashboardSettings({ show_recent_activity: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="show-jobs">Active Jobs</Label>
-                <Switch
-                  id="show-jobs"
-                  checked={dashboardSettings.show_active_jobs}
-                  onCheckedChange={(checked) => updateDashboardSettings({ show_active_jobs: checked })}
-                />
-              </div>
-            </div>
+            <DashboardCustomizer 
+              onSettingsChange={updateDashboardSettings}
+              currentSettings={dashboardSettings}
+            />
           </DialogContent>
         </Dialog>
       </div>

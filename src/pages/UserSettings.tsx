@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
+import RoleDefinitions from '@/components/RoleDefinitions';
 
 interface UserProfile {
   id: string;
@@ -224,63 +225,7 @@ export default function UserSettings() {
         </TabsContent>
 
         <TabsContent value="roles">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(roleLabels).map(([role, label]) => (
-              <Card key={role}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Badge variant={roleColors[role as keyof typeof roleColors]}>
-                      {label}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    {role === 'admin' && (
-                      <>
-                        <p>• Full system access</p>
-                        <p>• Manage all users and roles</p>
-                        <p>• Access all data and settings</p>
-                        <p>• Create/edit/delete all records</p>
-                      </>
-                    )}
-                    {role === 'controller' && (
-                      <>
-                        <p>• Financial oversight</p>
-                        <p>• Manage user roles (except admin)</p>
-                        <p>• Access all financial data</p>
-                        <p>• Approve invoices and payments</p>
-                      </>
-                    )}
-                    {role === 'project_manager' && (
-                      <>
-                        <p>• Manage assigned projects</p>
-                        <p>• Create and edit jobs</p>
-                        <p>• Assign vendors to projects</p>
-                        <p>• View project financial data</p>
-                      </>
-                    )}
-                    {role === 'employee' && (
-                      <>
-                        <p>• Upload and code receipts</p>
-                        <p>• View assigned jobs</p>
-                        <p>• Basic vendor information</p>
-                        <p>• Limited financial access</p>
-                      </>
-                    )}
-                    {role === 'view_only' && (
-                      <>
-                        <p>• Read-only access</p>
-                        <p>• View reports and dashboards</p>
-                        <p>• No editing capabilities</p>
-                        <p>• Basic system navigation</p>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <RoleDefinitions />
         </TabsContent>
       </Tabs>
     </div>
