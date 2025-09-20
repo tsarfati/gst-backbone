@@ -138,6 +138,7 @@ export type Database = {
           created_at: string
           id: string
           show_active_jobs: boolean
+          show_invoices: boolean
           show_messages: boolean
           show_notifications: boolean
           show_recent_activity: boolean
@@ -149,6 +150,7 @@ export type Database = {
           created_at?: string
           id?: string
           show_active_jobs?: boolean
+          show_invoices?: boolean
           show_messages?: boolean
           show_notifications?: boolean
           show_recent_activity?: boolean
@@ -160,6 +162,7 @@ export type Database = {
           created_at?: string
           id?: string
           show_active_jobs?: boolean
+          show_invoices?: boolean
           show_messages?: boolean
           show_notifications?: boolean
           show_recent_activity?: boolean

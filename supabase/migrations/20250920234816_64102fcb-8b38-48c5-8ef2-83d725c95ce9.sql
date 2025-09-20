@@ -1,0 +1,1 @@
+ALTER TABLE dashboard_settings ADD COLUMN show_invoices boolean NOT NULL DEFAULT true;
