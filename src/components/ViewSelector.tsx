@@ -13,7 +13,7 @@ interface ViewSelectorProps {
   isDefault?: boolean;
 }
 
-export default function ViewSelector({ currentView, onViewChange, onSetDefault, isDefault }: ViewSelectorProps) {
+function ViewSelector({ currentView, onViewChange, onSetDefault, isDefault }: ViewSelectorProps) {
   const views = [
     { type: 'grid' as const, icon: LayoutGrid, label: 'Tile View' },
     { type: 'list' as const, icon: List, label: 'List View' },
@@ -61,3 +61,5 @@ export default function ViewSelector({ currentView, onViewChange, onSetDefault, 
     </div>
   );
 }
+
+export default ViewSelector;
