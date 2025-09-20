@@ -445,6 +445,112 @@ export type Database = {
           },
         ]
       }
+      vendor_compliance_documents: {
+        Row: {
+          created_at: string
+          expiration_date: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          is_required: boolean
+          is_uploaded: boolean
+          type: string
+          updated_at: string
+          uploaded_at: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          expiration_date?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_required?: boolean
+          is_uploaded?: boolean
+          type: string
+          updated_at?: string
+          uploaded_at?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          expiration_date?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_required?: boolean
+          is_uploaded?: boolean
+          type?: string
+          updated_at?: string
+          uploaded_at?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_compliance_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_payment_methods: {
+        Row: {
+          account_number: string | null
+          account_type: string | null
+          bank_name: string | null
+          check_delivery: string | null
+          created_at: string
+          id: string
+          is_primary: boolean
+          pickup_location: string | null
+          routing_number: string | null
+          type: string
+          updated_at: string
+          vendor_id: string
+          voided_check_url: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          check_delivery?: string | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          pickup_location?: string | null
+          routing_number?: string | null
+          type: string
+          updated_at?: string
+          vendor_id: string
+          voided_check_url?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          check_delivery?: string | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          pickup_location?: string | null
+          routing_number?: string | null
+          type?: string
+          updated_at?: string
+          vendor_id?: string
+          voided_check_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_payment_methods_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           address: string | null
@@ -455,6 +561,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          logo_url: string | null
           name: string
           notes: string | null
           payment_terms: string | null
@@ -473,6 +580,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          logo_url?: string | null
           name: string
           notes?: string | null
           payment_terms?: string | null
@@ -491,6 +599,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          logo_url?: string | null
           name?: string
           notes?: string | null
           payment_terms?: string | null

@@ -13,7 +13,7 @@ interface Vendor {
   totalSpent: string;
   invoices: number;
   category: string;
-  logo?: string;
+  logo_url?: string;
 }
 
 interface VendorListViewProps {
@@ -49,8 +49,8 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
             <TableRow key={vendor.id} className="cursor-pointer" onClick={() => onVendorClick(vendor)}>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  {vendor.logo ? (
-                    <img src={vendor.logo} alt={vendor.name} className="h-6 w-6 rounded object-cover" />
+                  {vendor.logo_url ? (
+                    <img src={vendor.logo_url} alt={vendor.name} className="h-6 w-6 rounded object-cover" />
                   ) : (
                     <Building className="h-4 w-4 text-primary" />
                   )}

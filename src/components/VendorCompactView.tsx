@@ -13,7 +13,7 @@ interface Vendor {
   totalSpent: string;
   invoices: number;
   category: string;
-  logo?: string;
+  logo_url?: string;
 }
 
 interface VendorCompactViewProps {
@@ -36,8 +36,8 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1">
-                {vendor.logo ? (
-                  <img src={vendor.logo} alt={vendor.name} className="h-8 w-8 rounded object-cover" />
+                {vendor.logo_url ? (
+                  <img src={vendor.logo_url} alt={vendor.name} className="h-8 w-8 rounded object-cover" />
                 ) : (
                   <Building className="h-5 w-5 text-primary" />
                 )}

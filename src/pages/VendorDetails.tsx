@@ -41,8 +41,10 @@ export default function VendorDetails() {
         } else {
           setVendor(data);
           if (data) {
-            // Fetch related jobs
+            // Fetch related data
             fetchVendorJobs(data.company_id);
+            fetchPaymentMethods(data.id);
+            fetchComplianceDocuments(data.id);
           }
         }
       } catch (err) {
@@ -54,6 +56,36 @@ export default function VendorDetails() {
         });
       } finally {
         setLoading(false);
+      }
+    };
+
+    const fetchPaymentMethods = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('vendor_payment_methods')
+          .select('*')
+          .eq('vendor_id', vendorId)
+          .order('created_at');
+
+        if (error) throw error;
+        setPaymentMethods(data || []);
+      } catch (error) {
+        console.error('Error loading payment methods:', error);
+      }
+    };
+
+    const fetchComplianceDocuments = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('vendor_compliance_documents')
+          .select('*')
+          .eq('vendor_id', vendorId)
+          .order('type');
+
+        if (error) throw error;
+        setComplianceDocuments(data || []);
+      } catch (error) {
+        console.error('Error loading compliance documents:', error);
       }
     };
 
@@ -169,15 +201,10 @@ export default function VendorDetails() {
                   ) : (
                     <Building className="h-5 w-5" />
                   )}
-                  Company Information
+                  {vendor.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Company Name</label>
-                  <p className="text-lg font-semibold">{vendor.name}</p>
-                </div>
-                
                 {vendor.contact_person && (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Contact Person</label>
@@ -199,8 +226,68 @@ export default function VendorDetails() {
                   </div>
                 )}
 
+                {/* Contact Information */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Contact Information</h4>
+                  <div className="space-y-3">
+                    {vendor.email && (
+                      <div className="flex items-center gap-3">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <a href={`mailto:${vendor.email}`} className="text-primary hover:underline">
+                          {vendor.email}
+                        </a>
+                      </div>
+                    )}
+                    
+                    {vendor.phone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <a href={`tel:${vendor.phone}`} className="text-primary hover:underline">
+                          {vendor.phone}
+                        </a>
+                      </div>
+                    )}
+
+                    {!vendor.email && !vendor.phone && (
+                      <p className="text-muted-foreground text-sm">No contact information available</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Business Information */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Business Information</h4>
+                  <div className="space-y-3">
+                    {vendor.tax_id && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Tax ID</label>
+                        <p className="text-foreground">{vendor.tax_id}</p>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>
+                      <p className="text-foreground">
+                        {vendor.payment_terms === 'asap' ? 'ASAP' : 
+                         vendor.payment_terms === '15' ? 'Net 15' :
+                         vendor.payment_terms === '30' ? 'Net 30' : 
+                         `${vendor.payment_terms} days`}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Status</label>
+                      <div>
+                        <Badge variant={vendor.is_active ? "default" : "secondary"}>
+                          {vendor.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {vendor.notes && (
-                  <div>
+                  <div className="border-t pt-4">
                     <label className="text-sm font-medium text-muted-foreground">Notes</label>
                     <p className="text-foreground">{vendor.notes}</p>
                   </div>
@@ -211,65 +298,6 @@ export default function VendorDetails() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Contact Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Contact Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {vendor.email && (
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${vendor.email}`} className="text-primary hover:underline">
-                      {vendor.email}
-                    </a>
-                  </div>
-                )}
-                
-                {vendor.phone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${vendor.phone}`} className="text-primary hover:underline">
-                      {vendor.phone}
-                    </a>
-                  </div>
-                )}
-
-                {!vendor.email && !vendor.phone && (
-                  <p className="text-muted-foreground text-sm">No contact information available</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Business Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Business Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {vendor.tax_id && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Tax ID</label>
-                    <p className="text-foreground">{vendor.tax_id}</p>
-                  </div>
-                )}
-                
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Payment Terms</label>
-                  <p className="text-foreground">{vendor.payment_terms} days</p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Status</label>
-                  <div>
-                    <Badge variant={vendor.is_active ? "default" : "secondary"}>
-                      {vendor.is_active ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Quick Actions */}
             <Card>
               <CardHeader>
@@ -321,17 +349,17 @@ export default function VendorDetails() {
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-medium">{method.bankName || 'Payment Method'}</h4>
+                            <h4 className="font-medium">{method.bank_name || 'Payment Method'}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {method.type} - ****{method.accountNumber?.slice(-4) || '****'}
+                              {method.type.toUpperCase()} - ****{method.account_number?.slice(-4) || '****'}
                             </p>
-                            {method.checkDelivery && (
+                            {method.check_delivery && (
                               <p className="text-sm text-muted-foreground">
-                                Delivery: {method.checkDelivery === 'office_pickup' ? 'Office Pickup' : 'Mail'}
+                                Delivery: {method.check_delivery === 'office_pickup' ? 'Office Pickup' : 'Mail'}
                               </p>
                             )}
                           </div>
-                          <Badge variant="outline">{method.type}</Badge>
+                          <Badge variant="outline">{method.type.toUpperCase()}</Badge>
                         </div>
                       </CardContent>
                     </Card>
@@ -355,9 +383,10 @@ export default function VendorDetails() {
             <CardContent>
               <div className="space-y-4">
                 {['Insurance', 'W-9 Form', 'License'].map((docType) => {
-                  const doc = complianceDocuments.find(d => d.type === docType.toLowerCase().replace(/[^a-z0-9]/g, ''));
-                  const isUploaded = doc?.uploaded || false;
-                  const isRequired = doc?.required || false;
+                  const docTypeKey = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const doc = complianceDocuments.find(d => d.type === docTypeKey);
+                  const isUploaded = doc?.is_uploaded || false;
+                  const isRequired = doc?.is_required || false;
                   
                   return (
                     <Card key={docType} className="border-dashed">
@@ -387,7 +416,7 @@ export default function VendorDetails() {
                   );
                 })}
               </div>
-              {complianceDocuments.filter(d => d.required && !d.uploaded).length > 0 && (
+              {complianceDocuments.filter(d => d.is_required && !d.is_uploaded).length > 0 && (
                 <div className="mt-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                   <div className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-4 w-4" />

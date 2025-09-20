@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Upload, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import PaymentMethodEdit from "@/components/PaymentMethodEdit";
+import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -38,10 +41,55 @@ export default function VendorEdit() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
+  const [showPaymentMethodDialog, setShowPaymentMethodDialog] = useState(false);
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState<any>(null);
 
   useEffect(() => {
     if (!isAddMode && user) {
       loadVendor();
+    }
+  }, [id, isAddMode, user]);
+
+  const loadPaymentMethods = async () => {
+    if (!user || !id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('vendor_payment_methods')
+        .select('*')
+        .eq('vendor_id', id)
+        .order('created_at');
+
+      if (error) throw error;
+      setPaymentMethods(data || []);
+    } catch (error) {
+      console.error('Error loading payment methods:', error);
+    }
+  };
+
+  const loadComplianceDocuments = async () => {
+    if (!user || !id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('vendor_compliance_documents')
+        .select('*')
+        .eq('vendor_id', id)
+        .order('type');
+
+      if (error) throw error;
+      setComplianceDocuments(data || []);
+    } catch (error) {
+      console.error('Error loading compliance documents:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAddMode && id && user) {
+      loadPaymentMethods();
+      loadComplianceDocuments();
     }
   }, [id, isAddMode, user]);
 
@@ -73,6 +121,10 @@ export default function VendorEdit() {
           payment_terms: data.payment_terms || "30",
           notes: data.notes || ""
         });
+        
+        if (data.logo_url) {
+          setLogoPreview(data.logo_url);
+        }
       }
     } catch (error) {
       console.error('Error loading vendor:', error);
@@ -152,12 +204,38 @@ export default function VendorEdit() {
     setSaving(true);
     
     try {
+      let logoUrl = vendor?.logo_url;
+      
+      // Handle logo upload
+      if (logoFile) {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `vendor-logos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, logoFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(filePath);
+
+        logoUrl = publicUrl;
+      }
+
+      const vendorData = {
+        ...formData,
+        logo_url: logoUrl
+      };
+
       if (isAddMode) {
         const { data, error } = await supabase
           .from('vendors')
           .insert({
             company_id: user.id,
-            ...formData
+            ...vendorData
           })
           .select()
           .single();
@@ -172,7 +250,7 @@ export default function VendorEdit() {
       } else {
         const { error } = await supabase
           .from('vendors')
-          .update(formData)
+          .update(vendorData)
           .eq('id', id)
           .eq('company_id', user.id);
 
@@ -219,6 +297,77 @@ export default function VendorEdit() {
       toast({
         title: "Error",
         description: "Failed to delete vendor",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePaymentMethodSave = async (paymentMethodData: any) => {
+    try {
+      if (editingPaymentMethod) {
+        const { error } = await supabase
+          .from('vendor_payment_methods')
+          .update(paymentMethodData)
+          .eq('id', editingPaymentMethod.id);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Payment Method Updated",
+          description: "Payment method has been successfully updated.",
+        });
+      } else {
+        const { error } = await supabase
+          .from('vendor_payment_methods')
+          .insert({
+            ...paymentMethodData,
+            vendor_id: id
+          });
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Payment Method Added",
+          description: "Payment method has been successfully added.",
+        });
+      }
+      
+      setShowPaymentMethodDialog(false);
+      setEditingPaymentMethod(null);
+      if (id) loadPaymentMethods();
+    } catch (error) {
+      console.error('Error saving payment method:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save payment method",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePaymentMethodDelete = async (paymentMethodId: string) => {
+    try {
+      const { error } = await supabase
+        .from('vendor_payment_methods')
+        .delete()
+        .eq('id', paymentMethodId);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Payment Method Deleted",
+        description: "Payment method has been successfully deleted.",
+        variant: "destructive",
+      });
+      
+      setShowPaymentMethodDialog(false);
+      setEditingPaymentMethod(null);
+      if (id) loadPaymentMethods();
+    } catch (error) {
+      console.error('Error deleting payment method:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete payment method",
         variant: "destructive",
       });
     }
@@ -438,13 +587,17 @@ export default function VendorEdit() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="payment_terms">Payment Terms (days)</Label>
-                <Input
-                  id="payment_terms"
-                  value={formData.payment_terms}
-                  onChange={(e) => handleInputChange("payment_terms", e.target.value)}
-                  placeholder="Enter payment terms"
-                />
+                <Label htmlFor="payment_terms">Payment Terms</Label>
+                <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment terms" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asap">ASAP</SelectItem>
+                    <SelectItem value="15">Net 15</SelectItem>
+                    <SelectItem value="30">Net 30</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>
@@ -453,13 +606,51 @@ export default function VendorEdit() {
         {!isAddMode && (
           <>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Payment Methods</CardTitle>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setEditingPaymentMethod(null);
+                    setShowPaymentMethodDialog(true);
+                  }}
+                >
+                  Add Payment Method
+                </Button>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Payment methods can be added after creating the vendor
-                </div>
+                {paymentMethods.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No payment methods configured
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {paymentMethods.map((method) => (
+                      <Card key={method.id} className="border-dashed">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium">{method.bank_name || 'Payment Method'}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                {method.type.toUpperCase()} - ****{method.account_number?.slice(-4) || '****'}
+                              </p>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setEditingPaymentMethod(method);
+                                setShowPaymentMethodDialog(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -468,14 +659,25 @@ export default function VendorEdit() {
                 <CardTitle>Compliance Documents</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  Compliance documents can be uploaded after creating the vendor
-                </div>
+                <ComplianceDocumentManager
+                  vendorId={id!}
+                  documents={complianceDocuments}
+                  onDocumentsChange={setComplianceDocuments}
+                />
               </CardContent>
             </Card>
           </>
         )}
       </div>
+
+      {/* Payment Method Dialog */}
+      <PaymentMethodEdit
+        paymentMethod={editingPaymentMethod || { type: 'ach', accountNumber: '', isDefault: false }}
+        isOpen={showPaymentMethodDialog}
+        onClose={() => setShowPaymentMethodDialog(false)}
+        onSave={handlePaymentMethodSave}
+        onDelete={editingPaymentMethod ? handlePaymentMethodDelete : undefined}
+      />
     </div>
   );
 }
