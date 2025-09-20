@@ -50,6 +50,72 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          address: string | null
+          budget: number | null
+          client: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          end_date: string | null
+          id: string
+          job_type: Database["public"]["Enums"]["job_type"] | null
+          name: string
+          project_manager_user_id: string | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          budget?: number | null
+          client?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          job_type?: Database["public"]["Enums"]["job_type"] | null
+          name: string
+          project_manager_user_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["job_status"] | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          budget?: number | null
+          client?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          job_type?: Database["public"]["Enums"]["job_type"] | null
+          name?: string
+          project_manager_user_id?: string | null
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["job_status"] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "jobs_project_manager_user_id_fkey"
+            columns: ["project_manager_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -164,6 +230,13 @@ export type Database = {
       }
     }
     Enums: {
+      job_status: "planning" | "active" | "on-hold" | "completed"
+      job_type:
+        | "residential"
+        | "commercial"
+        | "industrial"
+        | "renovation"
+        | "maintenance"
       user_role:
         | "admin"
         | "controller"
@@ -297,6 +370,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      job_status: ["planning", "active", "on-hold", "completed"],
+      job_type: [
+        "residential",
+        "commercial",
+        "industrial",
+        "renovation",
+        "maintenance",
+      ],
       user_role: [
         "admin",
         "controller",

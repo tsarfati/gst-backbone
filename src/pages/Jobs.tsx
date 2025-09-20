@@ -8,13 +8,12 @@ import JobListView from "@/components/JobListView";
 import JobCompactView from "@/components/JobCompactView";
 import { supabase } from "@/integrations/supabase/client";
 
-// Jobs are now managed with proper state - no mock data
-
 export default function Jobs() {
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<ViewType>("tiles");
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     const loadJobs = async () => {
       setLoading(true);
@@ -35,6 +34,10 @@ export default function Jobs() {
     };
     loadJobs();
   }, []);
+
+  const handleJobClick = (job: any) => {
+    navigate(`/jobs/${job.id}`);
+  };
 
   const renderJobs = () => {
     if (jobs.length === 0) {

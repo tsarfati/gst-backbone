@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface Receipt {
   id: string;
@@ -50,6 +52,8 @@ interface ReceiptContextType {
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  
   // Load receipts from localStorage or use demo data
   const [uncodedReceipts, setUncodedReceipts] = useState<Receipt[]>(() => {
     const saved = localStorage.getItem('uncoded-receipts');
@@ -100,34 +104,55 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('uncoded-receipts', JSON.stringify(uncodedReceipts));
   }, [uncodedReceipts]);
 
-  const addReceipts = useCallback((files: FileList) => {
-    const readAsDataURL = (file: File) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+  const addReceipts = useCallback(async (files: FileList) => {
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
 
-    Promise.all(
-      Array.from(files).map(async (file) => {
-        const dataUrl = await readAsDataURL(file);
-        const isImage = file.type.startsWith('image/');
-        return {
+    const newReceipts: Receipt[] = [];
+    
+    for (const file of Array.from(files)) {
+      try {
+        // Upload to Supabase Storage
+        const fileName = `${Date.now()}-${file.name}`;
+        const filePath = `${user.id}/${fileName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          continue;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(filePath);
+
+        const newReceipt: Receipt = {
           id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           filename: file.name,
           amount: "$0.00",
           date: new Date().toISOString().split('T')[0],
-          type: isImage ? 'image' : 'pdf',
-          previewUrl: dataUrl,
+          type: file.type.startsWith('image/') ? 'image' : 'pdf',
+          previewUrl: urlData.publicUrl,
           uploadedBy: "Current User",
           uploadedDate: new Date(),
-        } as Receipt;
-      })
-    ).then((newReceipts) => {
-      setUncodedReceipts((prev) => [...prev, ...newReceipts]);
-    });
-  }, []);
+        };
+        
+        newReceipts.push(newReceipt);
+      } catch (error) {
+        console.error('Error processing file:', file.name, error);
+      }
+    }
+
+    if (newReceipts.length > 0) {
+      setUncodedReceipts(prev => [...prev, ...newReceipts]);
+    }
+  }, [user]);
 
   const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string) => {
     const receipt = uncodedReceipts.find(r => r.id === receiptId);
