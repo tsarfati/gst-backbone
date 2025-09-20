@@ -29,47 +29,7 @@ interface Announcement {
 export default function Announcements() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([
-    {
-      id: '1',
-      title: 'New Project Management System Launch',
-      content: 'We are excited to announce the launch of our new project management system. This will help streamline our workflows and improve collaboration across all teams. Training sessions will be scheduled for next week.',
-      author: 'Sarah Johnson',
-      author_id: '1',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      priority: 'high',
-      pinned: true,
-      category: 'System Updates',
-      views: 45,
-      comments: 8
-    },
-    {
-      id: '2',
-      title: 'Office Holiday Schedule',
-      content: 'Please note that the office will be closed on the following dates for the holiday season: December 24-26, December 31, and January 1. Emergency contacts will be available.',
-      author: 'Michael Davis',
-      author_id: '2',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      priority: 'normal',
-      pinned: false,
-      category: 'HR Updates',
-      views: 67,
-      comments: 12
-    },
-    {
-      id: '3',
-      title: 'Safety Protocol Updates',
-      content: 'New safety protocols have been implemented on all job sites. All employees must complete the updated safety training by the end of this month. Please contact HR for training schedules.',
-      author: 'Lisa Wilson',
-      author_id: '3',
-      created_at: new Date(Date.now() - 259200000).toISOString(),
-      priority: 'urgent',
-      pinned: true,
-      category: 'Safety',
-      views: 89,
-      comments: 15
-    }
-  ]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newAnnouncement, setNewAnnouncement] = useState({
