@@ -12,15 +12,15 @@ import { useAuth } from "@/contexts/AuthContext";
 interface PaymentMethod {
   id?: string;
   type: string;
-  accountNumber: string;
-  routingNumber?: string;
-  bankName?: string;
-  isDefault: boolean;
-  checkDelivery?: string;
-  pickupLocation?: string;
-  voidedCheckUrl?: string;
-  websiteAddress?: string;
-  loginInformation?: string;
+  account_number: string;
+  routing_number?: string;
+  bank_name?: string;
+  is_primary: boolean;
+  check_delivery?: string;
+  pickup_location?: string;
+  voided_check_url?: string;
+  website_address?: string;
+  login_information?: string;
 }
 
 interface PaymentMethodEditProps {
@@ -44,15 +44,15 @@ export default function PaymentMethodEdit({
   const { profile } = useAuth();
   const [formData, setFormData] = useState<PaymentMethod>(() => paymentMethod || {
     type: 'ACH',
-    accountNumber: '',
-    routingNumber: '',
-    bankName: '',
-    isDefault: false,
-    checkDelivery: 'mail',
-    pickupLocation: '',
-    voidedCheckUrl: '',
-    websiteAddress: '',
-    loginInformation: ''
+    account_number: '',
+    routing_number: '',
+    bank_name: '',
+    is_primary: false,
+    check_delivery: 'mail',
+    pickup_location: '',
+    voided_check_url: '',
+    website_address: '',
+    login_information: ''
   });
   
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
@@ -71,7 +71,7 @@ export default function PaymentMethodEdit({
 
   const handleInputChange = (field: string, value: string) => {
     // Only allow numeric characters for routing and account numbers
-    if ((field === 'routingNumber' || field === 'accountNumber') && !/^\d*$/.test(value)) {
+    if ((field === 'routing_number' || field === 'account_number') && !/^\d*$/.test(value)) {
       return;
     }
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -91,12 +91,12 @@ export default function PaymentMethodEdit({
       setVoidedCheckFile(file);
       // In a real app, you'd upload this to Supabase storage
       // For now, we'll just store the file name
-      handleInputChange('voidedCheckUrl', `uploads/voided-checks/${file.name}`);
+      handleInputChange('voided_check_url', `uploads/voided-checks/${file.name}`);
     }
   };
 
   const handleSave = () => {
-    if ((formData.type === 'ACH' || formData.type === 'Wire') && !isEditing && formData.accountNumber !== confirmAccountNumber) {
+    if ((formData.type === 'ACH' || formData.type === 'Wire') && !isEditing && formData.account_number !== confirmAccountNumber) {
       alert('Account numbers do not match');
       return;
     }
@@ -143,8 +143,8 @@ export default function PaymentMethodEdit({
                 <Label htmlFor="bankName">Bank Name</Label>
                 <Input
                   id="bankName"
-                  value={formData.bankName}
-                  onChange={(e) => handleInputChange('bankName', e.target.value)}
+                  value={formData.bank_name}
+                  onChange={(e) => handleInputChange('bank_name', e.target.value)}
                 />
               </div>
 
@@ -152,8 +152,10 @@ export default function PaymentMethodEdit({
                 <Label htmlFor="routingNumber">Routing Number</Label>
                 <Input
                   id="routingNumber"
-                  value={formData.routingNumber}
-                  onChange={(e) => handleInputChange('routingNumber', e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={formData.routing_number}
+                  onChange={(e) => handleInputChange('routing_number', e.target.value)}
                   placeholder="9 digit routing number"
                 />
               </div>
@@ -163,9 +165,10 @@ export default function PaymentMethodEdit({
                   <div className="relative">
                     <Input
                       id="accountNumber"
-                      type={isEditing && !showAccountNumber ? "password" : "text"}
-                      value={formData.accountNumber}
-                      onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={isEditing && !showAccountNumber ? maskAccountNumber(formData.account_number) : formData.account_number}
+                      onChange={(e) => handleInputChange('account_number', e.target.value)}
                       placeholder="Account number"
                       onClick={isEditing ? handleAccountNumberEdit : undefined}
                       readOnly={isEditing && !showAccountNumber}
@@ -183,8 +186,14 @@ export default function PaymentMethodEdit({
                   <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
                   <Input
                     id="confirmAccountNumber"
+                    type="text"
+                    inputMode="numeric"
                     value={confirmAccountNumber}
-                    onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                    onChange={(e) => {
+                      if (/^\d*$/.test(e.target.value)) {
+                        setConfirmAccountNumber(e.target.value);
+                      }
+                    }}
                     placeholder="Re-enter account number"
                   />
                 </div>
@@ -202,17 +211,17 @@ export default function PaymentMethodEdit({
                       className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                     />
                   </div>
-                  {formData.voidedCheckUrl && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <FileText className="h-4 w-4" />
-                      <span>Voided check uploaded</span>
-                      {canViewSensitiveData && (
-                        <Button variant="ghost" size="sm" className="h-6 px-2">
-                          View
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                   {formData.voided_check_url && (
+                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                       <FileText className="h-4 w-4" />
+                       <span>Voided check uploaded</span>
+                       {canViewSensitiveData && (
+                         <Button variant="ghost" size="sm" className="h-6 px-2">
+                           View
+                         </Button>
+                       )}
+                     </div>
+                   )}
                 </div>
               </div>
             </>
@@ -222,7 +231,7 @@ export default function PaymentMethodEdit({
             <>
               <div>
                 <Label htmlFor="checkDelivery">Check Delivery</Label>
-                <Select value={formData.checkDelivery} onValueChange={(value) => handleInputChange('checkDelivery', value)}>
+                <Select value={formData.check_delivery} onValueChange={(value) => handleInputChange('check_delivery', value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -233,13 +242,13 @@ export default function PaymentMethodEdit({
                 </Select>
               </div>
 
-              {formData.checkDelivery === 'office_pickup' && (
+              {formData.check_delivery === 'office_pickup' && (
                 <div>
                   <Label htmlFor="pickupLocation">Pickup Location</Label>
                   <Input
                     id="pickupLocation"
-                    value={formData.pickupLocation}
-                    onChange={(e) => handleInputChange('pickupLocation', e.target.value)}
+                    value={formData.pickup_location}
+                    onChange={(e) => handleInputChange('pickup_location', e.target.value)}
                     placeholder="Enter pickup location"
                   />
                 </div>
@@ -252,9 +261,10 @@ export default function PaymentMethodEdit({
               <Label htmlFor="accountNumber">Card Number</Label>
               <Input
                 id="accountNumber"
-                type={isEditing && !showAccountNumber ? "password" : "text"}
-                value={formData.accountNumber}
-                onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={isEditing && !showAccountNumber ? maskAccountNumber(formData.account_number) : formData.account_number}
+                onChange={(e) => handleInputChange('account_number', e.target.value)}
                 placeholder="Card number"
                 onClick={isEditing ? handleAccountNumberEdit : undefined}
                 readOnly={isEditing && !showAccountNumber}
@@ -268,8 +278,8 @@ export default function PaymentMethodEdit({
                 <Label htmlFor="websiteAddress">Website Address</Label>
                 <Input
                   id="websiteAddress"
-                  value={formData.websiteAddress}
-                  onChange={(e) => handleInputChange('websiteAddress', e.target.value)}
+                  value={formData.website_address}
+                  onChange={(e) => handleInputChange('website_address', e.target.value)}
                   placeholder="https://vendor-portal.com"
                 />
               </div>
@@ -278,8 +288,8 @@ export default function PaymentMethodEdit({
                 <Label htmlFor="loginInformation">Login Information</Label>
                 <Input
                   id="loginInformation"
-                  value={formData.loginInformation}
-                  onChange={(e) => handleInputChange('loginInformation', e.target.value)}
+                  value={formData.login_information}
+                  onChange={(e) => handleInputChange('login_information', e.target.value)}
                   placeholder="Username or login details"
                 />
               </div>
