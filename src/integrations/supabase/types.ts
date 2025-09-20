@@ -381,35 +381,47 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           avatar_url: string | null
           created_at: string
           display_name: string | null
           first_name: string | null
+          has_global_job_access: boolean | null
           id: string
           last_name: string | null
           role: Database["public"]["Enums"]["user_role"]
+          status: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          status?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           first_name?: string | null
+          has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          status?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -465,6 +477,65 @@ export type Database = {
           },
           {
             foreignKeyName: "punch_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          can_access: boolean
+          created_at: string
+          id: string
+          menu_item: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+        }
+        Insert: {
+          can_access?: boolean
+          created_at?: string
+          id?: string
+          menu_item: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Update: {
+          can_access?: boolean
+          created_at?: string
+          id?: string
+          menu_item?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_job_access: {
+        Row: {
+          granted_at: string
+          granted_by: string
+          id: string
+          job_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          granted_by: string
+          id?: string
+          job_id: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          job_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_job_access_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"

@@ -31,61 +31,74 @@ export function useSearchIndex() {
 
     try {
       // Index vendors
-      const { data: vendors } = await supabase
+      const { data: vendors, error: vendorsError } = await supabase
         .from('vendors')
         .select('*')
         .eq('company_id', user.id)
         .eq('is_active', true);
 
-      vendors?.forEach(vendor => {
-        newIndex.push({
-          id: `vendor-${vendor.id}`,
-          title: vendor.name,
-          description: `${vendor.contact_person ? `Contact: ${vendor.contact_person}` : ''} ${vendor.city ? `• ${vendor.city}` : ''}`,
-          type: 'vendor',
-          path: `/vendors/${vendor.id}`,
-          content: [vendor.name, vendor.contact_person, vendor.email, vendor.phone, vendor.address, vendor.city, vendor.state, vendor.notes].filter(Boolean).join(' '),
-          tags: ['vendor', 'company'],
-          updatedAt: vendor.updated_at
+      if (vendorsError) {
+        console.error('Error fetching vendors for search:', vendorsError);
+      } else {
+        vendors?.forEach(vendor => {
+          newIndex.push({
+            id: `vendor-${vendor.id}`,
+            title: vendor.name,
+            description: `${vendor.contact_person ? `Contact: ${vendor.contact_person}` : ''} ${vendor.city ? `• ${vendor.city}` : ''}`,
+            type: 'vendor',
+            path: `/vendors/${vendor.id}`,
+            content: [vendor.name, vendor.contact_person, vendor.email, vendor.phone, vendor.address, vendor.city, vendor.state, vendor.notes].filter(Boolean).join(' '),
+            tags: ['vendor', 'company'],
+            updatedAt: vendor.updated_at
+          });
         });
-      });
+      }
 
       // Index jobs
-      const { data: jobs } = await supabase
+      const { data: jobs, error: jobsError } = await supabase
         .from('jobs')
         .select('*')
         .eq('created_by', user.id);
 
-      jobs?.forEach(job => {
-        newIndex.push({
-          id: `job-${job.id}`,
-          title: job.name,
-          description: `${job.client ? `Client: ${job.client}` : ''} ${job.status ? `• Status: ${job.status}` : ''} ${job.budget ? `• Budget: $${job.budget}` : ''}`,
-          type: 'job',
-          path: `/jobs/${job.id}`,
-          content: [job.name, job.client, job.address, job.description, job.status].filter(Boolean).join(' '),
-          tags: ['job', 'project'],
-          updatedAt: job.updated_at
+      if (jobsError) {
+        console.error('Error fetching jobs for search:', jobsError);
+      } else {
+        jobs?.forEach(job => {
+          newIndex.push({
+            id: `job-${job.id}`,
+            title: job.name,
+            description: `${job.client ? `Client: ${job.client}` : ''} ${job.status ? `• Status: ${job.status}` : ''} ${job.budget ? `• Budget: $${job.budget}` : ''}`,
+            type: 'job',
+            path: `/jobs/${job.id}`,
+            content: [job.name, job.client, job.address, job.description, job.status].filter(Boolean).join(' '),
+            tags: ['job', 'project'],
+            updatedAt: job.updated_at
+          });
         });
-      });
+      }
 
       // Index employees/profiles
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*');
+        .select('*')
+        .eq('status', 'approved'); // Only index approved users
 
-      profiles?.forEach(profile => {
-        newIndex.push({
-          id: `employee-${profile.id}`,
-          title: profile.display_name || `${profile.first_name} ${profile.last_name}`,
-          description: `Role: ${profile.role}`,
-          type: 'employee',
-          path: `/employees/${profile.user_id}`,
-          content: [profile.display_name, profile.first_name, profile.last_name, profile.role].filter(Boolean).join(' '),
-          tags: ['employee', 'user'],
-          updatedAt: profile.updated_at
+      if (profilesError) {
+        console.error('Error fetching profiles for search:', profilesError);
+      } else {
+        profiles?.forEach(profile => {
+          newIndex.push({
+            id: `employee-${profile.id}`,
+            title: profile.display_name || `${profile.first_name} ${profile.last_name}`,
+            description: `Role: ${profile.role}`,
+            type: 'employee',
+            path: `/employees/${profile.user_id}`,
+            content: [profile.display_name, profile.first_name, profile.last_name, profile.role].filter(Boolean).join(' '),
+            tags: ['employee', 'user'],
+            updatedAt: profile.updated_at
+          });
         });
-      });
+      }
 
       // Add static pages
       const staticPages = [
