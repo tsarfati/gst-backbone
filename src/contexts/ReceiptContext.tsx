@@ -98,11 +98,44 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           .from('receipts')
           .getPublicUrl(filePath);
 
+        let ocrData = null;
+        
+        // Process with AI OCR if it's an image
+        if (file.type.startsWith('image/')) {
+          try {
+            console.log('Processing image with AI OCR...');
+            
+            // Convert file to base64 for AI processing
+            const base64 = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const base64String = reader.result as string;
+                resolve(base64String.split(',')[1]); // Remove data:image/jpeg;base64, prefix
+              };
+              reader.readAsDataURL(file);
+            });
+
+            const ocrResponse = await supabase.functions.invoke('process-receipt-ocr', {
+              body: { imageBase64: base64 }
+            });
+
+            if (ocrResponse.data?.success) {
+              ocrData = ocrResponse.data.data;
+              console.log('OCR processed successfully:', ocrData);
+            } else {
+              console.warn('OCR processing failed:', ocrResponse.data?.error);
+            }
+          } catch (ocrError) {
+            console.warn('OCR processing error:', ocrError);
+          }
+        }
+
         const newReceipt: Receipt = {
           id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           filename: file.name,
-          amount: "$0.00",
-          date: new Date().toISOString().split('T')[0],
+          amount: ocrData?.amount || "$0.00",
+          date: ocrData?.date || new Date().toISOString().split('T')[0],
+          vendor: ocrData?.vendor || undefined,
           type: file.type.startsWith('image/') ? 'image' : 'pdf',
           previewUrl: urlData.publicUrl,
           uploadedBy: "Current User",

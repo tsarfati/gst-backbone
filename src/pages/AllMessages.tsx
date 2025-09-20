@@ -24,6 +24,7 @@ interface Message {
 }
 
 export default function AllMessages() {
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

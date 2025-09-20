@@ -11,6 +11,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
 import PdfPreview from "@/components/PdfPreview";
+import ViewSelector, { ViewType } from "@/components/ViewSelector";
+import { useViewPreference } from "@/hooks/useViewPreference";
 
 const jobs = [
   "Office Renovation", 
@@ -37,6 +39,15 @@ export default function UncodedReceipts() {
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const { toast } = useToast();
+  
+  // View preference management
+  const { 
+    currentView, 
+    defaultView, 
+    isDefault, 
+    setCurrentView, 
+    setDefaultView 
+  } = useViewPreference('uncoded-receipts-view', 'grid');
 
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
@@ -99,13 +110,29 @@ export default function UncodedReceipts() {
     });
   };
 
+  const handleSetDefaultView = () => {
+    setDefaultView();
+    toast({
+      title: 'Default View Set',
+      description: `${currentView.charAt(0).toUpperCase() + currentView.slice(1)} view is now your default.`,
+    });
+  };
+
   return (
     <div className="h-full">
       {!selectedReceipt ? (
         /* Receipt List View */
         <div className="p-6">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-foreground mb-2">Uncoded Receipts</h1>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-2xl font-bold text-foreground">Uncoded Receipts</h1>
+              <ViewSelector
+                currentView={currentView}
+                onViewChange={setCurrentView}
+                onSetDefault={handleSetDefaultView}
+                isDefault={isDefault}
+              />
+            </div>
             <p className="text-muted-foreground">
               Select a receipt to code it to a job and cost code
             </p>
@@ -118,13 +145,21 @@ export default function UncodedReceipts() {
               <p className="text-muted-foreground">Upload new receipts to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className={
+              currentView === 'grid' 
+                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                : currentView === 'list'
+                ? "space-y-4"
+                : "space-y-2"
+            }>
               {uncodedReceipts.map((receipt) => (
-                <Card
-                  key={receipt.id}
-                  className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]"
-                  onClick={() => setSelectedReceipt(receipt)}
-                >
+                currentView === 'grid' ? (
+                  // Tile View
+                  <Card
+                    key={receipt.id}
+                    className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]"
+                    onClick={() => setSelectedReceipt(receipt)}
+                  >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-2">
@@ -226,6 +261,168 @@ export default function UncodedReceipts() {
                     </div>
                   </CardContent>
                 </Card>
+                ) : currentView === 'list' ? (
+                  // List View
+                  <Card
+                    key={receipt.id}
+                    className="cursor-pointer transition-all hover:shadow-md"
+                    onClick={() => setSelectedReceipt(receipt)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-shrink-0">
+                          {receipt.type === 'pdf' ? (
+                            <div className="w-16 h-16 bg-red-100 rounded-lg flex items-center justify-center">
+                              <FileText className="h-8 w-8 text-red-500" />
+                            </div>
+                          ) : receipt.previewUrl ? (
+                            <img
+                              src={receipt.previewUrl}
+                              alt={`Receipt ${receipt.filename}`}
+                              className="w-16 h-16 object-cover rounded-lg"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <FileImage className="h-8 w-8 text-blue-500" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-medium text-foreground truncate">{receipt.filename}</h3>
+                              <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                                <div className="flex items-center">
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  {receipt.amount}
+                                </div>
+                                <div className="flex items-center">
+                                  <Calendar className="h-4 w-4 mr-1" />
+                                  {receipt.date}
+                                </div>
+                                {receipt.vendor && (
+                                  <div className="flex items-center">
+                                    <Building className="h-4 w-4 mr-1" />
+                                    {receipt.vendor}
+                                  </div>
+                                )}
+                              </div>
+                              {receipt.assignedUser && (
+                                <div className="flex items-center mt-2 text-xs text-muted-foreground">
+                                  <User className="h-3 w-3 mr-1" />
+                                  Assigned to {receipt.assignedUser.name}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 ml-4">
+                              {receipt.assignedUser && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                  Assigned
+                                </Badge>
+                              )}
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeleteReceipt(receipt.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  // Compact View
+                  <div
+                    key={receipt.id}
+                    className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-accent"
+                    onClick={() => setSelectedReceipt(receipt)}
+                  >
+                    <div className="flex-shrink-0 mr-3">
+                      {receipt.type === 'pdf' ? (
+                        <FileText className="h-5 w-5 text-red-500" />
+                      ) : (
+                        <FileImage className="h-5 w-5 text-blue-500" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm truncate mr-2">{receipt.filename}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{receipt.amount}</span>
+                          <span>•</span>
+                          <span>{receipt.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 ml-4">
+                      {receipt.assignedUser && (
+                        <Badge variant="secondary" className="text-xs">Assigned</Badge>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleDeleteReceipt(receipt.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                )
               ))}
             </div>
           )}

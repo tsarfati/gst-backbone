@@ -81,8 +81,8 @@ const navigationCategories = [
     title: "Messaging",
     items: [
       { name: "All Messages", href: "/messages", icon: MessageSquare },
-      { name: "Announcements", href: "/messaging/announcements", icon: Megaphone },
-      { name: "Team Chat", href: "/messaging/chat", icon: MessageCircle },
+      { name: "Team Chat", href: "/team-chat", icon: MessageCircle },
+      { name: "Announcements", href: "/announcements", icon: Megaphone },
     ],
   },
   {

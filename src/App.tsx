@@ -28,6 +28,8 @@ import AddEmployee from "./pages/AddEmployee";
 import TimeTracking from "./pages/TimeTracking";
 import TimeSheets from "./pages/TimeSheets";
 import AllMessages from "./pages/AllMessages";
+import TeamChat from "./pages/TeamChat";
+import Announcements from "./pages/Announcements";
 import InvoiceDetails from "./pages/InvoiceDetails";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
@@ -103,6 +105,8 @@ function App() {
                       <Route path="time-sheets" element={<TimeSheets />} />
                       <Route path="punch-clock/timesheets" element={<TimeSheets />} />
                       <Route path="messages" element={<AllMessages />} />
+                      <Route path="team-chat" element={<TeamChat />} />
+                      <Route path="announcements" element={<Announcements />} />
                       <Route path="messaging" element={<AllMessages />} />
                       <Route path="invoices" element={<Invoices />} />
                       <Route path="invoices/add" element={<AddInvoice />} />
