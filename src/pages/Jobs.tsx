@@ -36,7 +36,7 @@ export default function Jobs() {
   }, []);
 
   const handleJobClick = (job: any) => {
-    navigate(`/job-details/${job.id}`);
+    navigate(`/jobs/${job.id}`);
   };
 
   const renderJobs = () => {

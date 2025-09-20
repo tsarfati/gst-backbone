@@ -3,19 +3,22 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function VendorDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [vendor, setVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
+  const [unmaskedMethods, setUnmaskedMethods] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -97,6 +100,34 @@ export default function VendorDetails() {
 
     fetchVendor();
   }, [id, toast]);
+
+  const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
+
+  const toggleUnmask = (methodId: string) => {
+    if (!canViewSensitiveData) return;
+    
+    setUnmaskedMethods(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(methodId)) {
+        newSet.delete(methodId);
+      } else {
+        newSet.add(methodId);
+      }
+      return newSet;
+    });
+  };
+
+  const maskAccountNumber = (accountNumber: string, methodId: string) => {
+    if (!accountNumber) return '****';
+    if (unmaskedMethods.has(methodId)) return accountNumber;
+    return `****${accountNumber.slice(-4)}`;
+  };
+
+  const maskRoutingNumber = (routingNumber: string, methodId: string) => {
+    if (!routingNumber) return '****';
+    if (unmaskedMethods.has(methodId)) return routingNumber;
+    return `****${routingNumber.slice(-4)}`;
+  };
 
   if (loading) {
     return (
@@ -319,26 +350,97 @@ export default function VendorDetails() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {paymentMethods.map((method) => (
-                    <Card key={method.id} className="border-dashed">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium">{method.bank_name || 'Payment Method'}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {method.type.toUpperCase()} - ****{method.account_number?.slice(-4) || '****'}
-                            </p>
-                            {method.check_delivery && (
-                              <p className="text-sm text-muted-foreground">
-                                Delivery: {method.check_delivery === 'office_pickup' ? 'Office Pickup' : 'Mail'}
-                              </p>
+                  {paymentMethods.map((method) => {
+                    const isUnmasked = unmaskedMethods.has(method.id);
+                    const isSensitiveType = method.type === 'ach' || method.type === 'wire';
+                    
+                    return (
+                      <Card key={method.id} className={`border-dashed ${isSensitiveType ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20' : ''}`}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">{method.bank_name || 'Payment Method'}</h4>
+                                {isSensitiveType && (
+                                  <Badge variant="outline" className="text-xs bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900 dark:border-amber-700 dark:text-amber-200">
+                                    Encrypted
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Account Information */}
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-muted-foreground">Type:</span>
+                                  <Badge variant="outline">{method.type.toUpperCase()}</Badge>
+                                </div>
+                                
+                                {method.account_number && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground">Account:</span>
+                                    <span className="text-sm font-mono">
+                                      {maskAccountNumber(method.account_number, method.id)}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {method.routing_number && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground">Routing:</span>
+                                    <span className="text-sm font-mono">
+                                      {maskRoutingNumber(method.routing_number, method.id)}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {method.account_type && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground">Account Type:</span>
+                                    <span className="text-sm">{method.account_type}</span>
+                                  </div>
+                                )}
+                                
+                                {method.check_delivery && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground">Delivery:</span>
+                                    <span className="text-sm">
+                                      {method.check_delivery === 'office_pickup' ? 'Office Pickup' : 'Mail'}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {method.pickup_location && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-muted-foreground">Pickup Location:</span>
+                                    <span className="text-sm">{method.pickup_location}</span>
+                                  </div>
+                                )}
+                                
+                                {method.is_primary && (
+                                  <Badge variant="default" className="text-xs">Primary</Badge>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {canViewSensitiveData && isSensitiveType && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleUnmask(method.id)}
+                                className="ml-2"
+                              >
+                                {isUnmasked ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </Button>
                             )}
                           </div>
-                          <Badge variant="outline">{method.type.toUpperCase()}</Badge>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
