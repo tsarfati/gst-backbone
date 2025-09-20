@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Users, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import CostCodeManager from "@/components/CostCodeManager";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -17,6 +18,9 @@ export default function JobEdit() {
   const { toast } = useToast();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [projectManagers, setProjectManagers] = useState<any[]>([]);
+  const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -27,10 +31,29 @@ export default function JobEdit() {
     description: "",
     address: "",
     client: "",
-    job_type: "residential" as any
+    job_type: "residential" as any,
+    project_manager_user_id: ""
   });
 
   useEffect(() => {
+    const fetchProjectManagers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('role', ['admin', 'controller', 'project_manager'])
+          .eq('status', 'approved');
+
+        if (error) {
+          console.error('Error fetching project managers:', error);
+        } else {
+          setProjectManagers(data || []);
+        }
+      } catch (err) {
+        console.error('Error:', err);
+      }
+    };
+
     const fetchJob = async () => {
       if (!id) {
         setLoading(false);
@@ -62,8 +85,38 @@ export default function JobEdit() {
             description: data.description || "",
             address: data.address || "",
             client: data.client || "",
-            job_type: data.job_type || "residential" as any
+            job_type: data.job_type || "residential" as any,
+            project_manager_user_id: data.project_manager_user_id || ""
           });
+
+          // Fetch assistant managers for this job
+          const { data: assistants, error: assistantsError } = await supabase
+            .from('job_assistant_managers')
+            .select(`
+              id,
+              user_id,
+              profiles!user_id (
+                id,
+                display_name,
+                first_name,
+                last_name
+              )
+            `)
+            .eq('job_id', id);
+
+          if (!assistantsError && assistants) {
+            setAssistantManagers(assistants);
+          }
+
+          // Fetch cost codes for this job
+          const { data: codes, error: codesError } = await supabase
+            .from('cost_codes')
+            .select('*')
+            .eq('job_id', id);
+
+          if (!codesError && codes) {
+            setCostCodes(codes);
+          }
         }
       } catch (err) {
         console.error('Error:', err);
@@ -77,6 +130,7 @@ export default function JobEdit() {
       }
     };
 
+    fetchProjectManagers();
     fetchJob();
   }, [id, toast]);
 
@@ -123,6 +177,7 @@ export default function JobEdit() {
     if (!id || !job) return;
 
     try {
+      // Update job details
       const { error } = await supabase
         .from('jobs')
         .update({
@@ -134,7 +189,8 @@ export default function JobEdit() {
           description: formData.description,
           address: formData.address,
           client: formData.client,
-          job_type: formData.job_type
+          job_type: formData.job_type,
+          project_manager_user_id: formData.project_manager_user_id || null
         })
         .eq('id', id);
 
@@ -145,13 +201,38 @@ export default function JobEdit() {
           description: "Failed to update job details",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Job Updated",
-          description: "Job details have been successfully updated.",
-        });
-        navigate(`/jobs/${id}`);
+        return;
       }
+
+      // Save cost codes
+      if (costCodes.length > 0) {
+        // Delete existing cost codes for this job
+        await supabase
+          .from('cost_codes')
+          .delete()
+          .eq('job_id', id);
+
+        // Insert new cost codes
+        const costCodeInserts = costCodes.map(code => ({
+          job_id: id,
+          code: code.code,
+          description: code.description
+        }));
+
+        const { error: costCodeError } = await supabase
+          .from('cost_codes')
+          .insert(costCodeInserts);
+
+        if (costCodeError) {
+          console.error('Error saving cost codes:', costCodeError);
+        }
+      }
+
+      toast({
+        title: "Job Updated",
+        description: "Job details have been successfully updated.",
+      });
+      navigate(`/jobs/${id}`);
     } catch (err) {
       console.error('Error:', err);
       toast({
@@ -159,6 +240,81 @@ export default function JobEdit() {
         description: "An unexpected error occurred",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleAddAssistantManager = async (userId: string) => {
+    if (!id) return;
+
+    try {
+      const { error } = await supabase
+        .from('job_assistant_managers')
+        .insert({
+          job_id: id,
+          user_id: userId,
+          assigned_by: (await supabase.auth.getUser()).data.user?.id
+        });
+
+      if (error) {
+        console.error('Error adding assistant manager:', error);
+        toast({
+          title: "Error",
+          description: "Failed to add assistant manager",
+          variant: "destructive",
+        });
+      } else {
+        // Refresh assistant managers list
+        const { data: assistants } = await supabase
+          .from('job_assistant_managers')
+          .select(`
+            id,
+            user_id,
+            profiles!user_id (
+              id,
+              display_name,
+              first_name,
+              last_name
+            )
+          `)
+          .eq('job_id', id);
+
+        if (assistants) {
+          setAssistantManagers(assistants);
+        }
+
+        toast({
+          title: "Assistant Manager Added",
+          description: "Assistant manager has been added to the job.",
+        });
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+
+  const handleRemoveAssistantManager = async (assistantId: string) => {
+    try {
+      const { error } = await supabase
+        .from('job_assistant_managers')
+        .delete()
+        .eq('id', assistantId);
+
+      if (error) {
+        console.error('Error removing assistant manager:', error);
+        toast({
+          title: "Error",
+          description: "Failed to remove assistant manager",
+          variant: "destructive",
+        });
+      } else {
+        setAssistantManagers(assistantManagers.filter(am => am.id !== assistantId));
+        toast({
+          title: "Assistant Manager Removed",
+          description: "Assistant manager has been removed from the job.",
+        });
+      }
+    } catch (err) {
+      console.error('Error:', err);
     }
   };
 
@@ -242,6 +398,41 @@ export default function JobEdit() {
 
       {/* Form */}
       <div className="space-y-6">
+        {/* Job Banner - Moved to top */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Job Banner</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="banner">Banner Image</Label>
+              <div className="flex items-center gap-4">
+                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted">
+                  <Building className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    id="banner-upload"
+                  />
+                  <Label htmlFor="banner-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" asChild>
+                      <span>
+                        Upload Banner
+                      </span>
+                    </Button>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Recommended: 1200x400px, max 5MB
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Basic Information</CardTitle>
@@ -361,40 +552,85 @@ export default function JobEdit() {
           </CardContent>
         </Card>
 
-        {/* Job Banner */}
+        {/* Project Management */}
         <Card>
           <CardHeader>
-            <CardTitle>Job Banner</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Project Management
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="banner">Banner Image</Label>
-              <div className="flex items-center gap-4">
-                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted">
-                  <Building className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="banner-upload"
-                  />
-                  <Label htmlFor="banner-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" asChild>
-                      <span>
-                        Upload Banner
+              <Label htmlFor="projectManager">Lead Project Manager</Label>
+              <Select 
+                value={formData.project_manager_user_id} 
+                onValueChange={(value) => handleInputChange("project_manager_user_id", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a project manager" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projectManagers.map((manager) => (
+                    <SelectItem key={manager.user_id} value={manager.user_id}>
+                      {manager.display_name || `${manager.first_name} ${manager.last_name}`} ({manager.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Assistant Project Managers</Label>
+              <div className="space-y-2">
+                {assistantManagers.length > 0 ? (
+                  assistantManagers.map((assistant) => (
+                    <div key={assistant.id} className="flex items-center justify-between p-2 border rounded-lg">
+                      <span className="text-sm">
+                        {assistant.profiles?.display_name || 
+                         `${assistant.profiles?.first_name} ${assistant.profiles?.last_name}`}
                       </span>
-                    </Button>
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Recommended: 1200x400px, max 5MB
-                  </p>
-                </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRemoveAssistantManager(assistant.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No assistant managers assigned</p>
+                )}
+                
+                <Select onValueChange={handleAddAssistantManager}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add assistant manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projectManagers
+                      .filter(manager => 
+                        manager.user_id !== formData.project_manager_user_id &&
+                        !assistantManagers.some(am => am.user_id === manager.user_id)
+                      )
+                      .map((manager) => (
+                        <SelectItem key={manager.user_id} value={manager.user_id}>
+                          {manager.display_name || `${manager.first_name} ${manager.last_name}`} ({manager.role})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Cost Codes */}
+        <CostCodeManager
+          jobId={id}
+          costCodes={costCodes}
+          onCostCodesChange={setCostCodes}
+        />
       </div>
     </div>
   );

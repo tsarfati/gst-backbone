@@ -211,6 +211,30 @@ export type Database = {
         }
         Relationships: []
       }
+      job_assistant_managers: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          id: string
+          job_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          id?: string
+          job_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          id?: string
+          job_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           address: string | null
