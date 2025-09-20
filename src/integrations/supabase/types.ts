@@ -50,6 +50,45 @@ export type Database = {
         }
         Relationships: []
       }
+      email_templates: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          editor_type: Database["public"]["Enums"]["template_editor"]
+          html_content: string
+          id: string
+          key: string
+          name: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          editor_type?: Database["public"]["Enums"]["template_editor"]
+          html_content: string
+          id?: string
+          key: string
+          name: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          editor_type?: Database["public"]["Enums"]["template_editor"]
+          html_content?: string
+          id?: string
+          key?: string
+          name?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           address: string | null
@@ -146,6 +185,48 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_settings: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          id: string
+          in_app_enabled: boolean
+          invoices_paid: boolean
+          job_assignments: boolean
+          overdue_invoices: boolean
+          receipt_uploaded: boolean
+          updated_at: string
+          user_id: string
+          vendor_invitations: boolean
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          id?: string
+          in_app_enabled?: boolean
+          invoices_paid?: boolean
+          job_assignments?: boolean
+          overdue_invoices?: boolean
+          receipt_uploaded?: boolean
+          updated_at?: string
+          user_id: string
+          vendor_invitations?: boolean
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          id?: string
+          in_app_enabled?: boolean
+          invoices_paid?: boolean
+          job_assignments?: boolean
+          overdue_invoices?: boolean
+          receipt_uploaded?: boolean
+          updated_at?: string
+          user_id?: string
+          vendor_invitations?: boolean
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -237,6 +318,7 @@ export type Database = {
         | "industrial"
         | "renovation"
         | "maintenance"
+      template_editor: "richtext" | "html"
       user_role:
         | "admin"
         | "controller"
@@ -378,6 +460,7 @@ export const Constants = {
         "renovation",
         "maintenance",
       ],
+      template_editor: ["richtext", "html"],
       user_role: [
         "admin",
         "controller",
