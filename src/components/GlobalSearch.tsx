@@ -6,47 +6,38 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
+import { useSearchIndex, SearchIndexItem } from '@/hooks/useSearchIndex';
 
-interface SearchResult {
-  id: string;
-  title: string;
-  description: string;
-  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page';
-  path: string;
-  icon: React.ComponentType<any>;
-}
-
-// Mock search results - in a real app this would come from your backend
-const mockResults: SearchResult[] = [
-  { id: '1', title: 'Office Renovation', description: 'Active construction project', type: 'job', path: '/jobs/1', icon: Building },
-  { id: '2', title: 'Home Depot Receipt', description: 'Building materials - $234.56', type: 'receipt', path: '/receipts/1', icon: Receipt },
-  { id: '3', title: 'John Smith', description: 'Project Manager', type: 'employee', path: '/employees/1', icon: Users },
-  { id: '4', title: 'ABC Construction', description: 'General contractor vendor', type: 'vendor', path: '/vendors/1', icon: Building },
-  { id: '5', title: 'Safety Update', description: 'New safety protocols announcement', type: 'announcement', path: '/announcements/1', icon: Megaphone },
-  { id: '6', title: 'Upload Receipts', description: 'Upload and manage receipt documents', type: 'page', path: '/upload', icon: FileText },
-  { id: '7', title: 'Time Tracking', description: 'Employee time tracking system', type: 'page', path: '/time-tracking', icon: Briefcase },
-];
+const getIconForType = (type: string) => {
+  switch (type) {
+    case 'receipt': return Receipt;
+    case 'job': return Building;
+    case 'vendor': return Building;
+    case 'employee': return Users;
+    case 'announcement': return Megaphone;
+    case 'page': return FileText;
+    default: return FileText;
+  }
+};
 
 export default function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredResults, setFilteredResults] = useState<SearchResult[]>([]);
+  const [filteredResults, setFilteredResults] = useState<SearchIndexItem[]>([]);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { searchItems } = useSearchIndex();
 
   useEffect(() => {
     if (searchQuery.trim()) {
-      const filtered = mockResults.filter(result =>
-        result.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredResults(filtered);
+      const results = searchItems(searchQuery);
+      setFilteredResults(results);
     } else {
       setFilteredResults([]);
     }
-  }, [searchQuery]);
+  }, [searchQuery, searchItems]);
 
-  const handleSelect = (result: SearchResult) => {
+  const handleSelect = (result: SearchIndexItem) => {
     navigate(result.path);
     setOpen(false);
     setSearchQuery('');
@@ -108,7 +99,7 @@ export default function GlobalSearch() {
             ) : (
               <CommandGroup heading="Results">
                 {filteredResults.slice(0, 5).map((result) => {
-                  const IconComponent = result.icon;
+                  const IconComponent = getIconForType(result.type);
                   return (
                     <CommandItem
                       key={result.id}

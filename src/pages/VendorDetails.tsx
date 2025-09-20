@@ -194,6 +194,81 @@ export default function VendorDetails() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Payment Methods Overview */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Payment Methods</CardTitle>
+                  <Badge variant="outline" className="text-xs">View Only</Badge>
+                </CardHeader>
+                <CardContent>
+                  {paymentMethods.length === 0 ? (
+                    <div className="text-center py-6">
+                      <CreditCard className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground">No payment methods configured</p>
+                      <p className="text-xs text-muted-foreground mt-1">Configure payment methods in the edit page</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {paymentMethods.slice(0, 2).map((method) => (
+                        <div key={method.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div>
+                            <p className="font-medium text-sm">{method.bankName || 'Payment Method'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {method.type} - ****{method.accountNumber?.slice(-4) || '****'}
+                            </p>
+                          </div>
+                          <Badge variant="outline">{method.type}</Badge>
+                        </div>
+                      ))}
+                      {paymentMethods.length > 2 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          +{paymentMethods.length - 2} more payment methods
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Compliance Documents Overview */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Compliance Documents</CardTitle>
+                  <Badge variant="outline" className="text-xs">View Only</Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {['Insurance', 'W-9 Form', 'License'].map((docType) => {
+                      const doc = complianceDocuments.find(d => d.type === docType.toLowerCase().replace(/[^a-z0-9]/g, ''));
+                      const isUploaded = doc?.uploaded || false;
+                      const isRequired = doc?.required || false;
+                      
+                      return (
+                        <div key={docType} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FileIcon className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium text-sm">{docType}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isRequired ? 'Required' : 'Optional'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isRequired && !isUploaded && (
+                              <Badge variant="destructive" className="text-xs">Missing</Badge>
+                            )}
+                            <Badge variant={isUploaded ? "default" : "secondary"} className="text-xs">
+                              {isUploaded ? "Uploaded" : "Not Uploaded"}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Sidebar */}

@@ -9,12 +9,13 @@ import VendorCompactView from "@/components/VendorCompactView";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useVendorViewPreference } from "@/hooks/useVendorViewPreference";
 
 export default function Vendors() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentView, setCurrentView] = useState<VendorViewType>("tiles");
+  const { currentView, setCurrentView } = useVendorViewPreference();
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
