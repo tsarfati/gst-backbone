@@ -1,0 +1,238 @@
+import { useState } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { Receipt, ChevronDown } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { 
+  LayoutDashboard,
+  Upload,
+  Clock,
+  Eye,
+  BarChart3,
+  Building2,
+  Plus,
+  FileBarChart,
+  FolderOpen,
+  Building,
+  FileText,
+  FileCheck,
+  CreditCard,
+  DollarSign,
+  FolderArchive,
+  FileKey,
+  Shield,
+  Users,
+  UserPlus,
+  Briefcase,
+  Award,
+  Timer,
+  Calendar,
+  TrendingUp,
+  MessageSquare,
+  Megaphone,
+  MessageCircle,
+  CheckSquare,
+  Target,
+  AlarmClock,
+} from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+
+const navigationCategories = [
+  {
+    title: "Dashboard",
+    items: [
+      { name: "Overview", href: "/", icon: LayoutDashboard },
+    ]
+  },
+  {
+    title: "Receipts",
+    items: [
+      { name: "Upload Receipts", href: "/upload", icon: Upload },
+      { name: "Uncoded Receipts", href: "/uncoded", icon: Clock },
+      { name: "View All Receipts", href: "/receipts", icon: Eye },
+      { name: "Receipt Reports", href: "/receipts/reports", icon: BarChart3 },
+    ]
+  },
+  {
+    title: "Vendors", 
+    items: [
+      { name: "All Vendors", href: "/vendors", icon: Building2 },
+      { name: "Add Vendor", href: "/vendors/add", icon: Plus },
+      { name: "Vendor Reports", href: "/vendors/reports", icon: FileBarChart },
+    ]
+  },
+  {
+    title: "Jobs",
+    items: [
+      { name: "All Jobs", href: "/jobs", icon: FolderOpen },
+      { name: "Add Job", href: "/jobs/add", icon: Building },
+      { name: "Cost Codes", href: "/jobs/cost-codes", icon: FileText },
+      { name: "Job Reports", href: "/jobs/reports", icon: BarChart3 },
+    ]
+  },
+  {
+    title: "Invoices",
+    items: [
+      { name: "All Invoices", href: "/invoices", icon: FileText },
+      { name: "Add Invoice", href: "/invoices/add", icon: FileCheck },
+      { name: "Invoice Status", href: "/invoice-status", icon: BarChart3 },
+      { name: "Payment History", href: "/invoices/payments", icon: CreditCard },
+      { name: "Payment Reports", href: "/invoices/payment-reports", icon: DollarSign },
+    ]
+  },
+  {
+    title: "Company Files",
+    items: [
+      { name: "All Documents", href: "/company-files", icon: FolderArchive },
+      { name: "Contracts", href: "/company-files/contracts", icon: FileKey },
+      { name: "Permits", href: "/company-files/permits", icon: FileCheck },
+      { name: "Insurance", href: "/company-files/insurance", icon: Shield },
+    ]
+  },
+  {
+    title: "Employees",
+    items: [
+      { name: "All Employees", href: "/employees", icon: Users },
+      { name: "Add Employee", href: "/employees/add", icon: UserPlus },
+      { name: "Payroll", href: "/employees/payroll", icon: DollarSign },
+      { name: "Performance", href: "/employees/performance", icon: Award },
+    ]
+  },
+  {
+    title: "Punch Clock",
+    items: [
+      { name: "Time Tracking", href: "/punch-clock", icon: Timer },
+      { name: "Timesheets", href: "/punch-clock/timesheets", icon: Calendar },
+      { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp },
+    ]
+  },
+  {
+    title: "Messaging",
+    items: [
+      { name: "All Messages", href: "/messaging", icon: MessageSquare },
+      { name: "Announcements", href: "/messaging/announcements", icon: Megaphone },
+      { name: "Team Chat", href: "/messaging/chat", icon: MessageCircle },
+    ]
+  },
+  {
+    title: "Tasks",
+    items: [
+      { name: "All Tasks", href: "/tasks", icon: CheckSquare },
+      { name: "Project Tasks", href: "/tasks/projects", icon: Target },
+      { name: "Deadlines", href: "/tasks/deadlines", icon: AlarmClock },
+    ]
+  }
+];
+
+function AppSidebar() {
+  const location = useLocation();
+  const { state } = useSidebar();
+  const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
+
+  const toggleGroup = (groupTitle: string) => {
+    setOpenGroups(prev => 
+      prev.includes(groupTitle) 
+        ? prev.filter(g => g !== groupTitle)
+        : [...prev, groupTitle]
+    );
+  };
+
+  // Keep groups open that contain the active route
+  const activeGroups = navigationCategories.filter(category =>
+    category.items.some(item => item.href === location.pathname)
+  ).map(category => category.title);
+
+  const allOpenGroups = [...new Set([...openGroups, ...activeGroups])];
+
+  return (
+    <Sidebar collapsible="icon" className="border-r">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-1">
+          <Receipt className="h-6 w-6 text-primary" />
+          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">
+            ReceiptManager
+          </span>
+        </div>
+      </SidebarHeader>
+      
+      <SidebarContent className="gap-0">
+        {navigationCategories.map((category) => (
+          <SidebarGroup key={category.title}>
+            <Collapsible 
+              open={allOpenGroups.includes(category.title)}
+              onOpenChange={() => toggleGroup(category.title)}
+            >
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center"
+                  >
+                    <span className="group-data-[collapsible=icon]:hidden">{category.title}</span>
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {category.items.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      return (
+                        <SidebarMenuItem key={item.name}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={state === "collapsed" ? item.name : undefined}
+                          >
+                            <Link to={item.href}>
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+export default function Layout() {
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <SidebarInset>
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+          </header>
+          <div className="flex-1 overflow-auto">
+            <Outlet />
+          </div>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
+  );
+}
