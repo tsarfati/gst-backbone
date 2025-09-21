@@ -16,7 +16,7 @@ import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPrefer
 
 
 export default function CodedReceipts() {
-  const { codedReceipts } = useReceipts();
+  const { codedReceipts, messages } = useReceipts();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJob, setFilterJob] = useState("all");
@@ -87,8 +87,8 @@ export default function CodedReceipts() {
       return;
     }
 
-    // Create CSV content
-    const headers = ["Filename", "Amount", "Date", "Vendor", "Job", "Cost Code", "Uploaded By"];
+    // Create main CSV content with receipt data
+    const headers = ["Filename", "Amount", "Date", "Vendor", "Job", "Cost Code", "Uploaded By", "Coded By", "Coded Date"];
     const csvContent = [
       headers.join(","),
       ...selectedReceiptData.map(receipt => [
@@ -98,17 +98,71 @@ export default function CodedReceipts() {
         receipt.vendor || "",
         receipt.job || "",
         receipt.costCode || "",
-        receipt.uploadedBy || ""
+        receipt.uploadedBy || "",
+        receipt.codedBy || "",
+        receipt.codedDate ? new Date(receipt.codedDate).toLocaleDateString() : ""
       ].map(field => `"${field}"`).join(","))
     ].join("\n");
 
-    // Download CSV
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Add audit log section for each receipt
+    let auditContent = "\n\n=== CODING INFORMATION & AUDIT LOGS ===\n\n";
+    
+    selectedReceiptData.forEach(receipt => {
+      auditContent += `Receipt: ${receipt.filename}\n`;
+      auditContent += `Amount: ${receipt.amount}\n`;
+      auditContent += `Date: ${receipt.date}\n`;
+      auditContent += `Vendor: ${receipt.vendor || "Not specified"}\n`;
+      auditContent += `Job: ${receipt.job}\n`;
+      auditContent += `Cost Code: ${receipt.costCode}\n`;
+      auditContent += `Coded By: ${receipt.codedBy}\n`;
+      auditContent += `Coded Date: ${receipt.codedDate ? new Date(receipt.codedDate).toLocaleDateString() : "Not specified"}\n`;
+      auditContent += `Uploaded By: ${receipt.uploadedBy || "Not specified"}\n`;
+      auditContent += `Upload Date: ${receipt.uploadedDate ? new Date(receipt.uploadedDate).toLocaleDateString() : "Not specified"}\n`;
+      
+      // Add assignment information if available
+      if (receipt.assignedUser) {
+        auditContent += `Assigned To: ${receipt.assignedUser.name} (${receipt.assignedUser.role})\n`;
+        auditContent += `Assigned Date: ${new Date(receipt.assignedUser.assignedDate).toLocaleDateString()}\n`;
+      }
+      
+      // Add audit log messages for this receipt
+      const receiptMessages = messages.filter(msg => msg.receiptId === receipt.id);
+      if (receiptMessages.length > 0) {
+        auditContent += "\nAudit Trail:\n";
+        receiptMessages
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          .forEach(msg => {
+            auditContent += `${new Date(msg.timestamp).toLocaleString()} - ${msg.userName} (${msg.type}): ${msg.message}\n`;
+          });
+      }
+      
+      auditContent += "\n" + "─".repeat(80) + "\n\n";
+    });
+
+    const fullContent = csvContent + auditContent;
+
+    // Calculate total amount for filename
+    const totalAmount = selectedReceiptData.reduce((sum, receipt) => {
+      const amount = parseFloat(receipt.amount.replace(/[^0-9.-]/g, '')) || 0;
+      return sum + amount;
+    }, 0);
+
+    // Generate filename with GST, date, and amount
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
+    const gstAmount = (totalAmount * 0.13).toFixed(2); // Assuming 13% GST
+    const formattedTotal = totalAmount.toFixed(2);
+    
+    const filename = `CodedReceipts_GST${gstAmount}_Total$${formattedTotal}_${dateStr}_${timeStr}.csv`;
+
+    // Download file
+    const blob = new Blob([fullContent], { type: 'text/csv;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
-    a.download = `coded_receipts_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -116,7 +170,7 @@ export default function CodedReceipts() {
 
     toast({
       title: "Export successful",
-      description: `${selectedReceiptData.length} receipt(s) exported to CSV.`,
+      description: `${selectedReceiptData.length} receipt(s) exported with audit logs. Total: $${formattedTotal} (GST: $${gstAmount})`,
     });
   };
 
