@@ -73,10 +73,18 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
         style: 'mapbox://styles/mapbox/streets-v12',
         center,
         zoom,
+        interactive: false, // Disable all interactions
+        dragPan: false,
+        scrollZoom: false,
+        boxZoom: false,
+        dragRotate: false,
+        keyboard: false,
+        doubleClickZoom: false,
+        touchZoomRotate: false
       });
 
-      // Add navigation controls
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      // Remove navigation controls since map is locked
+      // map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
       // Add marker if we have coordinates
       if (address && zoom > 10) {
@@ -167,7 +175,8 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
 
         <div 
           ref={mapContainer} 
-          className={`w-full h-[300px] rounded-lg overflow-hidden ${isLoading || error ? 'hidden' : ''}`}
+          className={`w-full h-[300px] rounded-lg overflow-hidden relative ${isLoading || error ? 'hidden' : ''}`}
+          style={{ position: 'relative', width: '100%', height: '300px' }}
         />
       </CardContent>
     </Card>
