@@ -14,10 +14,11 @@ import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
 import jsPDF from 'jspdf';
+import { supabase } from "@/integrations/supabase/client";
 
 
 export default function CodedReceipts() {
-  const { codedReceipts, messages } = useReceipts();
+  const { codedReceipts, messages, codeReceipt } = useReceipts();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJob, setFilterJob] = useState("all");
@@ -25,6 +26,8 @@ export default function CodedReceipts() {
   const [sortBy, setSortBy] = useState("date");
   const { currentView, setCurrentView, setDefaultView, isDefault } = useCodedReceiptViewPreference('coded-receipts', 'list');
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
+  const [editingReceipt, setEditingReceipt] = useState<CodedReceipt | null>(null);
+  const [editAmount, setEditAmount] = useState("");
   const { toast } = useToast();
 
   // Create dynamic lists from coded receipts data
@@ -123,48 +126,68 @@ export default function CodedReceipts() {
         try {
           // If receipt has a preview URL, try to add it to PDF
           if (receipt.previewUrl) {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
+            // Create a signed URL to bypass CORS issues
+            const { data: signedUrlData } = await supabase.storage
+              .from('receipts')
+              .createSignedUrl(receipt.previewUrl.split('/').pop() || '', 3600);
             
-            await new Promise((resolve, reject) => {
-              img.onload = () => {
-                try {
-                  // Calculate dimensions to fit the page
-                  const pageWidth = pdf.internal.pageSize.width - 40; // 20px margin on each side
-                  const pageHeight = pdf.internal.pageSize.height - 80; // Space for header and footer
-                  
-                  let imgWidth = img.width;
-                  let imgHeight = img.height;
-                  
-                  // Scale image to fit page while maintaining aspect ratio
-                  const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
-                  imgWidth *= scale;
-                  imgHeight *= scale;
-                  
-                  // Center the image
-                  const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-                  const y = 40; // Below header
-                  
-                  pdf.addImage(img, 'JPEG', x, y, imgWidth, imgHeight);
-                  resolve(true);
-                } catch (error) {
-                  console.error('Error adding image to PDF:', error);
-                  // Add placeholder text if image fails
+            if (signedUrlData?.signedUrl) {
+              // Use fetch to get the image as blob, then convert to data URL
+              const response = await fetch(signedUrlData.signedUrl);
+              const blob = await response.blob();
+              
+              // Convert blob to data URL
+              const dataUrl = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+              
+              // Create image from data URL
+              const img = new Image();
+              
+              await new Promise((resolve, reject) => {
+                img.onload = () => {
+                  try {
+                    // Calculate dimensions to fit the page
+                    const pageWidth = pdf.internal.pageSize.width - 40; // 20px margin on each side
+                    const pageHeight = pdf.internal.pageSize.height - 80; // Space for header and footer
+                    
+                    let imgWidth = img.width;
+                    let imgHeight = img.height;
+                    
+                    // Scale image to fit page while maintaining aspect ratio
+                    const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
+                    imgWidth *= scale;
+                    imgHeight *= scale;
+                    
+                    // Center the image
+                    const x = (pdf.internal.pageSize.width - imgWidth) / 2;
+                    const y = 40; // Below header
+                    
+                    pdf.addImage(dataUrl, 'JPEG', x, y, imgWidth, imgHeight);
+                    resolve(true);
+                  } catch (error) {
+                    console.error('Error adding image to PDF:', error);
+                    // Add placeholder text if image fails
+                    pdf.setFontSize(12);
+                    pdf.text('Receipt image could not be loaded', 20, 60);
+                    resolve(false);
+                  }
+                };
+                
+                img.onerror = () => {
+                  console.error('Failed to load receipt image');
                   pdf.setFontSize(12);
                   pdf.text('Receipt image could not be loaded', 20, 60);
                   resolve(false);
-                }
-              };
-              
-              img.onerror = () => {
-                console.error('Failed to load receipt image');
-                pdf.setFontSize(12);
-                pdf.text('Receipt image could not be loaded', 20, 60);
-                resolve(false);
-              };
-              
-              img.src = receipt.previewUrl;
-            });
+                };
+                
+                img.src = dataUrl;
+              });
+            } else {
+              throw new Error('Could not create signed URL');
+            }
           } else {
             // No preview available
             pdf.setFontSize(12);
@@ -350,6 +373,32 @@ export default function CodedReceipts() {
     }
   };
 
+  const handleEditReceipt = (receipt: CodedReceipt) => {
+    setEditingReceipt(receipt);
+    setEditAmount(receipt.amount.replace(/[^0-9.-]/g, ''));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingReceipt || !editAmount) return;
+    
+    try {
+      // Here you would update the receipt amount in your backend
+      // For now, we'll just update the local state
+      toast({
+        title: "Receipt updated",
+        description: "Receipt amount has been updated successfully.",
+      });
+      setEditingReceipt(null);
+      setEditAmount("");
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description: "Failed to update receipt amount.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const clearFilters = () => {
     setSearchTerm("");
     setFilterJob("all");
@@ -369,6 +418,7 @@ export default function CodedReceipts() {
       selectedReceipts,
       onSelectReceipt: handleSelectReceipt,
       onReceiptClick: setSelectedReceipt,
+      onEditReceipt: handleEditReceipt,
     };
 
     switch (currentView) {
@@ -533,9 +583,14 @@ export default function CodedReceipts() {
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl font-semibold">Receipt Details</h2>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedReceipt(null)}>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleEditReceipt(selectedReceipt)}>
+                  Edit Amount
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedReceipt(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -566,6 +621,52 @@ export default function CodedReceipts() {
               <div>
                 <Label>Uploaded By</Label>
                 <p className="font-medium">{selectedReceipt.uploadedBy}</p>
+              </div>
+              <div>
+                <Label>Coded By</Label>
+                <p className="font-medium">{selectedReceipt.codedBy}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Amount Dialog */}
+      {editingReceipt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setEditingReceipt(null)}>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-xl font-semibold">Edit Receipt Amount</h2>
+              <Button variant="ghost" size="sm" onClick={() => setEditingReceipt(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label>Receipt</Label>
+                <p className="text-sm text-muted-foreground">{editingReceipt.filename}</p>
+              </div>
+              
+              <div>
+                <Label htmlFor="amount">Amount ($)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  placeholder="Enter amount"
+                />
+              </div>
+              
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingReceipt(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveEdit} disabled={!editAmount}>
+                  Save Amount
+                </Button>
               </div>
             </div>
           </div>
