@@ -76,7 +76,7 @@ export default function CodedReceipts() {
     );
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const selectedReceiptData = filteredReceipts.filter(r => selectedReceipts.includes(r.id));
     
     if (selectedReceiptData.length === 0) {
@@ -88,192 +88,266 @@ export default function CodedReceipts() {
       return;
     }
 
-    // Calculate total amount for filename
-    const totalAmount = selectedReceiptData.reduce((sum, receipt) => {
-      const amount = parseFloat(receipt.amount.replace(/[^0-9.-]/g, '')) || 0;
-      return sum + amount;
-    }, 0);
+    try {
+      // Calculate total amount for filename
+      const totalAmount = selectedReceiptData.reduce((sum, receipt) => {
+        const amount = parseFloat(receipt.amount.replace(/[^0-9.-]/g, '')) || 0;
+        return sum + amount;
+      }, 0);
 
-    // Generate filename with GST, date, and amount
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
-    const gstAmount = (totalAmount * 0.13).toFixed(2); // Assuming 13% GST
-    const formattedTotal = totalAmount.toFixed(2);
-    
-    const filename = `CodedReceipts_GST${gstAmount}_Total$${formattedTotal}_${dateStr}_${timeStr}.pdf`;
-
-    // Create PDF
-    const pdf = new jsPDF();
-    let yPosition = 20;
-    const pageHeight = pdf.internal.pageSize.height;
-    const lineHeight = 6;
-    const sectionSpacing = 10;
-
-    // Add title
-    pdf.setFontSize(16);
-    pdf.text('Coded Receipts Export Report', 20, yPosition);
-    yPosition += 15;
-
-    // Add export summary
-    pdf.setFontSize(12);
-    pdf.text(`Export Date: ${now.toLocaleDateString()}`, 20, yPosition);
-    yPosition += lineHeight;
-    pdf.text(`Total Receipts: ${selectedReceiptData.length}`, 20, yPosition);
-    yPosition += lineHeight;
-    pdf.text(`Total Amount: $${formattedTotal}`, 20, yPosition);
-    yPosition += lineHeight;
-    pdf.text(`GST (13%): $${gstAmount}`, 20, yPosition);
-    yPosition += lineHeight;
-    pdf.text(`Grand Total: $${(totalAmount + parseFloat(gstAmount)).toFixed(2)}`, 20, yPosition);
-    yPosition += sectionSpacing;
-
-    // Add receipts table
-    pdf.setFontSize(14);
-    pdf.text('Receipt Summary', 20, yPosition);
-    yPosition += 10;
-
-    // Table headers
-    pdf.setFontSize(10);
-    pdf.text('Filename', 20, yPosition);
-    pdf.text('Amount', 80, yPosition);
-    pdf.text('Date', 120, yPosition);
-    pdf.text('Job', 160, yPosition);
-    yPosition += lineHeight;
-
-    // Add line under headers
-    pdf.line(20, yPosition - 2, 190, yPosition - 2);
-    yPosition += 2;
-
-    // Add receipt data
-    selectedReceiptData.forEach(receipt => {
-      if (yPosition > pageHeight - 30) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-
-      const shortFilename = receipt.filename.length > 25 ? 
-        receipt.filename.substring(0, 22) + '...' : receipt.filename;
+      // Generate filename with GST, date, and amount
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
+      const gstAmount = (totalAmount * 0.13).toFixed(2); // Assuming 13% GST
+      const formattedTotal = totalAmount.toFixed(2);
       
-      pdf.text(shortFilename, 20, yPosition);
-      pdf.text(receipt.amount, 80, yPosition);
-      pdf.text(receipt.date, 120, yPosition);
-      pdf.text((receipt.job || '').substring(0, 15), 160, yPosition);
-      yPosition += lineHeight;
-    });
+      const filename = `CodedReceipts_GST${gstAmount}_Total$${formattedTotal}_${dateStr}_${timeStr}.pdf`;
 
-    yPosition += sectionSpacing;
+      // Create PDF
+      const pdf = new jsPDF();
+      let pageNumber = 1;
 
-    // Add detailed coding information and audit logs
-    pdf.addPage();
-    yPosition = 20;
-    
-    pdf.setFontSize(16);
-    pdf.text('Coding Information & Audit Logs', 20, yPosition);
-    yPosition += 15;
-
-    selectedReceiptData.forEach((receipt, index) => {
-      if (yPosition > pageHeight - 50) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-
-      // Receipt header
-      pdf.setFontSize(14);
-      pdf.text(`Receipt ${index + 1}: ${receipt.filename}`, 20, yPosition);
-      yPosition += 10;
-
-      // Receipt details
-      pdf.setFontSize(10);
-      const details = [
-        `Amount: ${receipt.amount}`,
-        `Date: ${receipt.date}`,
-        `Vendor: ${receipt.vendor || 'Not specified'}`,
-        `Job: ${receipt.job}`,
-        `Cost Code: ${receipt.costCode}`,
-        `Coded By: ${receipt.codedBy}`,
-        `Coded Date: ${receipt.codedDate ? new Date(receipt.codedDate).toLocaleDateString() : 'Not specified'}`,
-        `Uploaded By: ${receipt.uploadedBy || 'Not specified'}`,
-        `Upload Date: ${receipt.uploadedDate ? new Date(receipt.uploadedDate).toLocaleDateString() : 'Not specified'}`
-      ];
-
-      details.forEach(detail => {
-        if (yPosition > pageHeight - 20) {
+      // Helper function to add original receipt image/PDF
+      const addReceiptDocument = async (receipt: CodedReceipt, receiptIndex: number) => {
+        if (pageNumber > 1) {
           pdf.addPage();
-          yPosition = 20;
         }
-        pdf.text(detail, 20, yPosition);
-        yPosition += lineHeight;
-      });
 
-      // Add assignment information if available
-      if (receipt.assignedUser) {
-        if (yPosition > pageHeight - 20) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        pdf.text(`Assigned To: ${receipt.assignedUser.name} (${receipt.assignedUser.role})`, 20, yPosition);
-        yPosition += lineHeight;
-        pdf.text(`Assigned Date: ${new Date(receipt.assignedUser.assignedDate).toLocaleDateString()}`, 20, yPosition);
-        yPosition += lineHeight;
-      }
-
-      // Add audit trail
-      const receiptMessages = messages.filter(msg => msg.receiptId === receipt.id);
-      if (receiptMessages.length > 0) {
-        if (yPosition > pageHeight - 30) {
-          pdf.addPage();
-          yPosition = 20;
-        }
+        // Add header for receipt
+        pdf.setFontSize(14);
+        pdf.text(`Receipt ${receiptIndex + 1}: ${receipt.filename}`, 20, 20);
+        pdf.setFontSize(10);
+        pdf.text(`Amount: ${receipt.amount} | Date: ${receipt.date}`, 20, 30);
         
-        pdf.setFontSize(12);
-        pdf.text('Audit Trail:', 20, yPosition);
-        yPosition += 8;
-        
-        pdf.setFontSize(9);
-        receiptMessages
-          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-          .forEach(msg => {
-            if (yPosition > pageHeight - 15) {
-              pdf.addPage();
-              yPosition = 20;
-            }
-            const msgText = `${new Date(msg.timestamp).toLocaleString()} - ${msg.userName} (${msg.type}):`;
-            pdf.text(msgText, 20, yPosition);
-            yPosition += lineHeight;
+        try {
+          // If receipt has a preview URL, try to add it to PDF
+          if (receipt.previewUrl) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
             
-            // Split long messages into multiple lines
-            const msgContent = msg.message;
-            const maxWidth = 170;
-            const lines = pdf.splitTextToSize(msgContent, maxWidth);
-            lines.forEach((line: string) => {
-              if (yPosition > pageHeight - 15) {
+            await new Promise((resolve, reject) => {
+              img.onload = () => {
+                try {
+                  // Calculate dimensions to fit the page
+                  const pageWidth = pdf.internal.pageSize.width - 40; // 20px margin on each side
+                  const pageHeight = pdf.internal.pageSize.height - 80; // Space for header and footer
+                  
+                  let imgWidth = img.width;
+                  let imgHeight = img.height;
+                  
+                  // Scale image to fit page while maintaining aspect ratio
+                  const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
+                  imgWidth *= scale;
+                  imgHeight *= scale;
+                  
+                  // Center the image
+                  const x = (pdf.internal.pageSize.width - imgWidth) / 2;
+                  const y = 40; // Below header
+                  
+                  pdf.addImage(img, 'JPEG', x, y, imgWidth, imgHeight);
+                  resolve(true);
+                } catch (error) {
+                  console.error('Error adding image to PDF:', error);
+                  // Add placeholder text if image fails
+                  pdf.setFontSize(12);
+                  pdf.text('Receipt image could not be loaded', 20, 60);
+                  resolve(false);
+                }
+              };
+              
+              img.onerror = () => {
+                console.error('Failed to load receipt image');
+                pdf.setFontSize(12);
+                pdf.text('Receipt image could not be loaded', 20, 60);
+                resolve(false);
+              };
+              
+              img.src = receipt.previewUrl;
+            });
+          } else {
+            // No preview available
+            pdf.setFontSize(12);
+            pdf.text('No preview available for this receipt', 20, 60);
+          }
+        } catch (error) {
+          console.error('Error processing receipt image:', error);
+          pdf.setFontSize(12);
+          pdf.text('Error loading receipt image', 20, 60);
+        }
+
+        pageNumber++;
+      };
+
+      // Add all receipt documents first
+      for (let i = 0; i < selectedReceiptData.length; i++) {
+        await addReceiptDocument(selectedReceiptData[i], i);
+      }
+
+      // Add coding information and audit logs as final pages
+      pdf.addPage();
+      let yPosition = 20;
+      const pageHeight = pdf.internal.pageSize.height;
+      const lineHeight = 6;
+      const sectionSpacing = 10;
+
+      // Add title for coding section
+      pdf.setFontSize(16);
+      pdf.text('Coding Information & Audit Logs', 20, yPosition);
+      yPosition += 15;
+
+      // Add export summary
+      pdf.setFontSize(12);
+      pdf.text(`Export Date: ${now.toLocaleDateString()}`, 20, yPosition);
+      yPosition += lineHeight;
+      pdf.text(`Total Receipts: ${selectedReceiptData.length}`, 20, yPosition);
+      yPosition += lineHeight;
+      pdf.text(`Total Amount: $${formattedTotal}`, 20, yPosition);
+      yPosition += lineHeight;
+      pdf.text(`GST (13%): $${gstAmount}`, 20, yPosition);
+      yPosition += lineHeight;
+      pdf.text(`Grand Total: $${(totalAmount + parseFloat(gstAmount)).toFixed(2)}`, 20, yPosition);
+      yPosition += sectionSpacing * 2;
+
+      // Add detailed coding information for each receipt
+      selectedReceiptData.forEach((receipt, index) => {
+        if (yPosition > pageHeight - 80) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        // Receipt coding header
+        pdf.setFontSize(14);
+        pdf.text(`Receipt ${index + 1} - Coding Details`, 20, yPosition);
+        yPosition += 12;
+
+        // Create a form-like layout for coding information
+        pdf.setFontSize(10);
+        
+        // Left column
+        const leftColX = 20;
+        const rightColX = 110;
+        let leftY = yPosition;
+        let rightY = yPosition;
+
+        // Receipt basic info
+        pdf.text('RECEIPT INFORMATION:', leftColX, leftY);
+        leftY += 8;
+        pdf.text(`Filename: ${receipt.filename}`, leftColX, leftY);
+        leftY += lineHeight;
+        pdf.text(`Date: ${receipt.date}`, leftColX, leftY);
+        leftY += lineHeight;
+        pdf.text(`Vendor: ${receipt.vendor || 'Not specified'}`, leftColX, leftY);
+        leftY += lineHeight;
+
+        // Receipt Amount (editable field representation)
+        pdf.text('RECEIPT AMOUNT:', leftColX, leftY);
+        leftY += 6;
+        pdf.rect(leftColX, leftY, 80, 10); // Draw a box for amount
+        pdf.text(`$ ${receipt.amount}`, leftColX + 2, leftY + 7);
+        leftY += 16;
+
+        // Coding information (right column)
+        pdf.text('CODING INFORMATION:', rightColX, rightY);
+        rightY += 8;
+        pdf.text(`Job: ${receipt.job}`, rightColX, rightY);
+        rightY += lineHeight;
+        pdf.text(`Cost Code: ${receipt.costCode}`, rightColX, rightY);
+        rightY += lineHeight;
+        
+        // User information
+        pdf.text(`Uploaded By: ${receipt.uploadedBy || 'Unknown User'}`, rightColX, rightY);
+        rightY += lineHeight;
+        pdf.text(`Upload Date: ${receipt.uploadedDate ? new Date(receipt.uploadedDate).toLocaleDateString() : 'Not specified'}`, rightColX, rightY);
+        rightY += lineHeight;
+        pdf.text(`Coded By: ${receipt.codedBy || 'Unknown User'}`, rightColX, rightY);
+        rightY += lineHeight;
+        pdf.text(`Coded Date: ${receipt.codedDate ? new Date(receipt.codedDate).toLocaleDateString() : 'Not specified'}`, rightColX, rightY);
+        rightY += lineHeight;
+
+        yPosition = Math.max(leftY, rightY) + 5;
+
+        // Add assignment information if available
+        if (receipt.assignedUser) {
+          if (yPosition > pageHeight - 30) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          
+          pdf.text('ASSIGNMENT INFORMATION:', leftColX, yPosition);
+          yPosition += 8;
+          pdf.text(`Assigned To: ${receipt.assignedUser.name} (${receipt.assignedUser.role})`, leftColX, yPosition);
+          yPosition += lineHeight;
+          pdf.text(`Assigned Date: ${new Date(receipt.assignedUser.assignedDate).toLocaleDateString()}`, leftColX, yPosition);
+          yPosition += lineHeight;
+        }
+
+        // Add audit trail
+        const receiptMessages = messages.filter(msg => msg.receiptId === receipt.id);
+        if (receiptMessages.length > 0) {
+          if (yPosition > pageHeight - 40) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          
+          pdf.setFontSize(12);
+          pdf.text('AUDIT TRAIL:', leftColX, yPosition);
+          yPosition += 10;
+          
+          pdf.setFontSize(9);
+          receiptMessages
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            .forEach(msg => {
+              if (yPosition > pageHeight - 20) {
                 pdf.addPage();
                 yPosition = 20;
               }
-              pdf.text(line, 25, yPosition);
+              const msgText = `${new Date(msg.timestamp).toLocaleString()} - ${msg.userName} (${msg.type}):`;
+              pdf.text(msgText, leftColX, yPosition);
               yPosition += lineHeight;
+              
+              // Split long messages into multiple lines
+              const msgContent = msg.message;
+              const maxWidth = 170;
+              const lines = pdf.splitTextToSize(msgContent, maxWidth);
+              lines.forEach((line: string) => {
+                if (yPosition > pageHeight - 15) {
+                  pdf.addPage();
+                  yPosition = 20;
+                }
+                pdf.text(line, leftColX + 5, yPosition);
+                yPosition += lineHeight;
+              });
+              yPosition += 2; // Small gap between messages
             });
-          });
-      }
+        }
 
-      // Add separator between receipts
-      yPosition += 5;
-      if (yPosition > pageHeight - 20) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-      pdf.line(20, yPosition, 190, yPosition);
-      yPosition += 10;
-    });
+        // Add separator between receipts
+        yPosition += 10;
+        if (yPosition > pageHeight - 20) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+        pdf.line(20, yPosition, 190, yPosition);
+        yPosition += 15;
+      });
 
-    // Save the PDF
-    pdf.save(filename);
+      // Save the PDF
+      pdf.save(filename);
 
-    toast({
-      title: "Export successful",
-      description: `${selectedReceiptData.length} receipt(s) exported to PDF. Total: $${formattedTotal} (GST: $${gstAmount})`,
-    });
+      toast({
+        title: "Export successful",
+        description: `${selectedReceiptData.length} receipt(s) exported to PDF with original documents. Total: $${formattedTotal} (GST: $${gstAmount})`,
+      });
+
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "There was an error exporting the receipts. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const clearFilters = () => {
