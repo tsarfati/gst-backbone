@@ -46,7 +46,7 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
         </TableHeader>
         <TableBody>
           {vendors.map((vendor) => (
-            <TableRow key={vendor.id} className="cursor-pointer" onClick={() => onVendorClick(vendor)}>
+            <TableRow key={vendor.id} className="cursor-pointer hover-row" onClick={() => onVendorClick(vendor)}>
               <TableCell>
                 <div className="flex items-center gap-2">
                   {vendor.logo_url ? (

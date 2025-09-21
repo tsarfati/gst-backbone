@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const { user, profile } = useAuth();
   const { settings } = useSettings();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
@@ -213,26 +215,34 @@ export default function Dashboard() {
       value: "0",
       icon: Clock,
       variant: "warning" as const,
+      href: "/uncoded",
     },
     {
       title: "Total Receipts",
       value: "0",
       icon: Receipt,
       variant: "default" as const,
+      href: "/receipts",
     },
     {
       title: "Completed Jobs",
       value: "0",
       icon: CheckCircle,
       variant: "secondary" as const,
+      href: "/jobs",
     },
     {
       title: "Pending Invoices",
       value: "$0",
       icon: DollarSign,
       variant: "destructive" as const,
+      href: "/invoices",
     },
   ];
+
+  const handleStatClick = (href: string) => {
+    navigate(href);
+  };
 
   return (
     <div className="p-6">
@@ -292,7 +302,11 @@ export default function Dashboard() {
       {dashboardSettings.show_stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat) => (
-            <Card key={stat.title}>
+            <Card 
+              key={stat.title} 
+              className="hover-stat animate-fade-in"
+              onClick={() => handleStatClick(stat.href)}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {stat.title}

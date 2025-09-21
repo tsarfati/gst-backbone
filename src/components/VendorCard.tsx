@@ -30,7 +30,7 @@ const categoryColors = {
 
 export default function VendorCard({ vendor, onClick }: VendorCardProps) {
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
+    <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-lg">

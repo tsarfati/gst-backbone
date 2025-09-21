@@ -32,7 +32,7 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
   return (
     <div className="space-y-2">
       {vendors.map((vendor) => (
-        <Card key={vendor.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => onVendorClick(vendor)}>
+        <Card key={vendor.id} className="hover-lift cursor-pointer animate-fade-in" onClick={() => onVendorClick(vendor)}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1">

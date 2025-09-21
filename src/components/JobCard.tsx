@@ -22,7 +22,7 @@ export default function JobCard({ job, onClick }: JobCardProps) {
   const budgetUsage = Math.round((parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100);
 
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
+    <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-lg">

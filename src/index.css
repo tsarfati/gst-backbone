@@ -172,13 +172,45 @@ All colors MUST be HSL.
     animation: bounceIn 0.6s ease-out forwards;
   }
 
-  /* Hover Lift Effect */
+  /* Enhanced Hover Lift Effect */
   .hover-lift {
-    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    transition: all 0.3s ease-out;
   }
 
   .hover-lift:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* Enhanced Card Hover Effect */
+  .hover-card {
+    transition: all 0.3s ease-out;
+  }
+
+  .hover-card:hover {
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: var(--shadow-2xl);
+  }
+
+  /* Table Row Hover Effect */
+  .hover-row {
+    transition: all 0.2s ease-out;
+  }
+
+  .hover-row:hover {
+    transform: scale(1.01);
+    box-shadow: var(--shadow-md);
+    background-color: hsl(var(--accent) / 0.7);
+  }
+
+  /* Stat Tile Hover Effect */
+  .hover-stat {
+    transition: all 0.3s ease-out;
+    cursor: pointer;
+  }
+
+  .hover-stat:hover {
+    transform: translateY(-4px) scale(1.05);
     box-shadow: var(--shadow-lg);
   }
 
