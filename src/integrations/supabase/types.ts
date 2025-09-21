@@ -907,6 +907,7 @@ export type Database = {
           state: string | null
           tax_id: string | null
           updated_at: string
+          vendor_type: string | null
           zip_code: string | null
         }
         Insert: {
@@ -927,6 +928,7 @@ export type Database = {
           state?: string | null
           tax_id?: string | null
           updated_at?: string
+          vendor_type?: string | null
           zip_code?: string | null
         }
         Update: {
@@ -947,6 +949,7 @@ export type Database = {
           state?: string | null
           tax_id?: string | null
           updated_at?: string
+          vendor_type?: string | null
           zip_code?: string | null
         }
         Relationships: []

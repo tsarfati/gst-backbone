@@ -19,7 +19,7 @@ export default function VendorEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -27,6 +27,7 @@ export default function VendorEdit() {
 
   const [formData, setFormData] = useState({
     name: "",
+    vendor_type: "Other",
     contact_person: "",
     phone: "",
     email: "",
@@ -112,6 +113,7 @@ export default function VendorEdit() {
         setVendor(data);
         setFormData({
           name: data.name || "",
+          vendor_type: data.vendor_type || "Other",
           contact_person: data.contact_person || "",
           phone: data.phone || "",
           email: data.email || "",
@@ -417,7 +419,7 @@ export default function VendorEdit() {
           </div>
         </div>
         <div className="flex gap-2">
-          {!isAddMode && (
+          {!isAddMode && (profile?.role === 'admin' || profile?.role === 'controller') && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive">
@@ -427,16 +429,19 @@ export default function VendorEdit() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure you want to delete this vendor?</AlertDialogTitle>
+                  <AlertDialogTitle>Delete Vendor Confirmation</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the vendor
-                    and all associated data including payment methods, compliance documents, and transaction history.
+                    Are you absolutely sure you want to delete this vendor? This action cannot be undone. 
+                    This will permanently delete the vendor and all associated data including payment methods, 
+                    compliance documents, and transaction history.
+                    <br /><br />
+                    <strong>Vendor Name:</strong> {formData.name}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete Vendor
+                    Yes, Delete Vendor
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -453,7 +458,7 @@ export default function VendorEdit() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
+            <CardTitle>Basic Information & Contact Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Logo Upload */}
@@ -490,6 +495,7 @@ export default function VendorEdit() {
               </div>
             </div>
 
+            {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Vendor Name *</Label>
@@ -502,6 +508,27 @@ export default function VendorEdit() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="vendor_type">Vendor Type</Label>
+                <Select 
+                  value={formData.vendor_type} 
+                  onValueChange={(value) => handleInputChange("vendor_type", value)}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select vendor type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="Contractor">Contractor</SelectItem>
+                    <SelectItem value="Supplier">Supplier</SelectItem>
+                    <SelectItem value="Consultant">Consultant</SelectItem>
+                    <SelectItem value="Design Professional">Design Professional</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label htmlFor="contact_person">Primary Contact</Label>
                 <Input
                   id="contact_person"
@@ -510,26 +537,18 @@ export default function VendorEdit() {
                   placeholder="Enter primary contact name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="tax_id">Tax ID/EIN Number</Label>
+                <Input
+                  id="tax_id"
+                  value={formData.tax_id}
+                  onChange={(e) => handleInputChange("tax_id", e.target.value)}
+                  placeholder="Enter Tax ID or EIN number"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Enter vendor notes"
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Contact Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            {/* Contact Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
@@ -592,16 +611,8 @@ export default function VendorEdit() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="tax_id">Tax ID</Label>
-                <Input
-                  id="tax_id"
-                  value={formData.tax_id}
-                  onChange={(e) => handleInputChange("tax_id", e.target.value)}
-                  placeholder="Enter tax ID"
-                />
-              </div>
+            {/* Business Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="customer_number">Customer Number</Label>
                 <Input
@@ -618,6 +629,17 @@ export default function VendorEdit() {
                   onValueChange={(value) => handleInputChange("payment_terms", value)} 
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleInputChange("notes", e.target.value)}
+                placeholder="Enter vendor notes"
+                rows={3}
+              />
             </div>
           </CardContent>
         </Card>
