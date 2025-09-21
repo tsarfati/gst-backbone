@@ -11,6 +11,7 @@ import { ArrowLeft, Save, Trash2, Building, Users, UserCheck } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CostCodeManager from "@/components/CostCodeManager";
+import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -353,7 +354,8 @@ export default function JobEdit() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <DevelopmentFreezeGuard>
+      <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -632,6 +634,7 @@ export default function JobEdit() {
           onCostCodesChange={setCostCodes}
         />
       </div>
-    </div>
+      </div>
+    </DevelopmentFreezeGuard>
   );
 }
