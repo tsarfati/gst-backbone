@@ -246,10 +246,10 @@ export function AppSidebar() {
                 >
                   <SidebarGroupLabel asChild>
                     <CollapsibleTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center"
-                      >
+                       <Button 
+                         variant="ghost" 
+                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
+                       >
                         <span className="group-data-[collapsible=icon]:hidden">
                           {category.title}
                         </span>
@@ -266,12 +266,12 @@ export function AppSidebar() {
                           return (
                             <SidebarMenuItem key={item.name}>
                                <SidebarMenuButton 
-                                asChild 
-                                isActive={isActive}
-                                tooltip={state === "collapsed" ? item.name : undefined}
-                                style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
-                                className={isActive ? "hover:opacity-90" : ""}
-                              >
+                                 asChild 
+                                 isActive={isActive}
+                                 tooltip={state === "collapsed" ? item.name : undefined}
+                                 style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
+                                 className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
+                               >
                                 <Link to={item.href}>
                                   <item.icon className="h-4 w-4" />
                                   <span>{item.name}</span>
