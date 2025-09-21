@@ -21,7 +21,7 @@ GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3
 
 
 export default function CodedReceipts() {
-  const { codedReceipts, messages, updateCodedReceiptAmount } = useReceipts();
+  const { codedReceipts, messages, uncodeReceipt } = useReceipts();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJob, setFilterJob] = useState("all");
@@ -29,8 +29,6 @@ export default function CodedReceipts() {
   const [sortBy, setSortBy] = useState("date");
   const { currentView, setCurrentView, setDefaultView, isDefault } = useCodedReceiptViewPreference('coded-receipts', 'list');
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
-  const [editingReceipt, setEditingReceipt] = useState<CodedReceipt | null>(null);
-  const [editAmount, setEditAmount] = useState("");
   const { toast } = useToast();
 
   // Create dynamic lists from coded receipts data
@@ -108,13 +106,13 @@ export default function CodedReceipts() {
       const gstAmount = (totalAmount * 0.13).toFixed(2); // Assuming 13% GST
       const formattedTotal = totalAmount.toFixed(2);
       
-      const filename = `CodedReceipts_GST${gstAmount}_Total$${formattedTotal}_${dateStr}_${timeStr}.pdf`;
+      const filename = `CodedReceipts_${dateStr}_$${formattedTotal}.pdf`;
 
       // Create PDF
       const pdf = new jsPDF();
       let pageNumber = 1;
 
-      // Helper function to add original receipt document at full size
+      // Helper function to add original receipt document as-is
       const addReceiptDocument = async (receipt: CodedReceipt, receiptIndex: number) => {
         if (pageNumber > 1) {
           pdf.addPage();
@@ -122,49 +120,71 @@ export default function CodedReceipts() {
 
         try {
           if (receipt.previewUrl) {
-            // Fetch the original file directly (public bucket) and embed it
+            // Fetch the original file directly
             const response = await fetch(receipt.previewUrl, { mode: 'cors' });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const blob = await response.blob();
             const contentType = response.headers.get('content-type') || '';
 
-            // If it's a PDF, render all pages into the export PDF at full size
+            // If it's a PDF, add all pages as-is
             if (contentType.includes('pdf') || receipt.filename.toLowerCase().endsWith('.pdf')) {
               const buffer = await blob.arrayBuffer();
               const srcPdf = await getDocument({ data: buffer }).promise;
 
               for (let p = 1; p <= srcPdf.numPages; p++) {
                 const page = await srcPdf.getPage(p);
+                
+                // Get the original page size
                 const viewport = page.getViewport({ scale: 1 });
-
-                // Scale to fit the entire PDF page
-                const targetWidth = pdf.internal.pageSize.width;
-                const targetHeight = pdf.internal.pageSize.height;
-                const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
-                const scaledViewport = page.getViewport({ scale });
-
-                // Render to canvas
+                
+                // Create canvas with original dimensions
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 if (!ctx) throw new Error('Canvas context not available');
-                canvas.width = Math.floor(scaledViewport.width);
-                canvas.height = Math.floor(scaledViewport.height);
+                
+                // Use higher scale for better quality
+                const scale = 2;
+                const scaledViewport = page.getViewport({ scale });
+                canvas.width = scaledViewport.width;
+                canvas.height = scaledViewport.height;
+                
+                // Render the page
                 await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
 
-                // Add a new page for each PDF page except the first of the first receipt
+                // Add a new page for each PDF page
                 if (!(pageNumber === 1 && p === 1)) {
                   pdf.addPage();
                 }
 
-                // Center the rendered page image to fill the page
-                const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                const x = (pdf.internal.pageSize.width - canvas.width) / 2;
-                const y = (pdf.internal.pageSize.height - canvas.height) / 2;
-                pdf.addImage(imgData, 'JPEG', x, y, canvas.width, canvas.height);
+                // Add the rendered page as image, fitting to PDF page
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const pdfWidth = pdf.internal.pageSize.width;
+                const pdfHeight = pdf.internal.pageSize.height;
+                
+                // Calculate scaling to fit while maintaining aspect ratio
+                const imgAspect = canvas.width / canvas.height;
+                const pdfAspect = pdfWidth / pdfHeight;
+                
+                let finalWidth, finalHeight, x, y;
+                if (imgAspect > pdfAspect) {
+                  // Image is wider, fit to width
+                  finalWidth = pdfWidth;
+                  finalHeight = pdfWidth / imgAspect;
+                  x = 0;
+                  y = (pdfHeight - finalHeight) / 2;
+                } else {
+                  // Image is taller, fit to height
+                  finalHeight = pdfHeight;
+                  finalWidth = pdfHeight * imgAspect;
+                  x = (pdfWidth - finalWidth) / 2;
+                  y = 0;
+                }
+                
+                pdf.addImage(imgData, 'JPEG', x, y, finalWidth, finalHeight);
                 pageNumber++;
               }
             } else {
-              // It's an image: convert to data URL and embed at full size
+              // It's an image - add it as-is
               const dataUrl = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
@@ -175,27 +195,40 @@ export default function CodedReceipts() {
               await new Promise((resolve) => {
                 img.onload = () => {
                   try {
-                    // Scale to fit the full page while maintaining aspect ratio
-                    const pageWidth = pdf.internal.pageSize.width;
-                    const pageHeight = pdf.internal.pageSize.height;
-                    let imgWidth = img.width;
-                    let imgHeight = img.height;
-                    const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
-                    imgWidth *= scale;
-                    imgHeight *= scale;
+                    // Get PDF page dimensions
+                    const pdfWidth = pdf.internal.pageSize.width;
+                    const pdfHeight = pdf.internal.pageSize.height;
                     
-                    // Center the image on the page
-                    const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-                    const y = (pdf.internal.pageSize.height - imgHeight) / 2;
+                    // Calculate scaling to fit while maintaining aspect ratio
+                    const imgAspect = img.width / img.height;
+                    const pdfAspect = pdfWidth / pdfHeight;
+                    
+                    let finalWidth, finalHeight, x, y;
+                    if (imgAspect > pdfAspect) {
+                      // Image is wider, fit to width
+                      finalWidth = pdfWidth;
+                      finalHeight = pdfWidth / imgAspect;
+                      x = 0;
+                      y = (pdfHeight - finalHeight) / 2;
+                    } else {
+                      // Image is taller, fit to height
+                      finalHeight = pdfHeight;
+                      finalWidth = pdfHeight * imgAspect;
+                      x = (pdfWidth - finalWidth) / 2;
+                      y = 0;
+                    }
+                    
                     const format = contentType.includes('png') ? 'PNG' : 'JPEG';
-                    pdf.addImage(dataUrl, format as any, x, y, imgWidth, imgHeight);
+                    pdf.addImage(dataUrl, format as any, x, y, finalWidth, finalHeight);
                   } catch (e) {
+                    console.error('Error adding image to PDF:', e);
                     pdf.setFontSize(12);
                     pdf.text('Receipt image could not be embedded', 20, 60);
                   }
                   resolve(true);
                 };
                 img.onerror = () => {
+                  console.error('Failed to load receipt image');
                   pdf.setFontSize(12);
                   pdf.text('Receipt image could not be loaded', 20, 60);
                   resolve(false);
@@ -213,7 +246,7 @@ export default function CodedReceipts() {
         } catch (error) {
           console.error('Error processing receipt file:', error);
           pdf.setFontSize(12);
-          pdf.text('Error loading receipt file', 20, 60);
+          pdf.text(`Error loading receipt file: ${error.message}`, 20, 60);
           pageNumber++;
         }
       };
@@ -374,7 +407,7 @@ export default function CodedReceipts() {
 
       toast({
         title: "Export successful",
-        description: `${selectedReceiptData.length} receipt(s) exported to PDF with original documents. Total: $${formattedTotal} (GST: $${gstAmount})`,
+        description: `${selectedReceiptData.length} receipt(s) exported to PDF. Total: $${formattedTotal}`,
       });
 
     } catch (error) {
@@ -387,26 +420,17 @@ export default function CodedReceipts() {
     }
   };
 
-  const handleEditReceipt = (receipt: CodedReceipt) => {
-    setEditingReceipt(receipt);
-    setEditAmount(receipt.amount.replace(/[^0-9.-]/g, ''));
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingReceipt || !editAmount) return;
-    
+  const handleUncodeReceipt = (receipt: CodedReceipt) => {
     try {
-      updateCodedReceiptAmount(editingReceipt.id, editAmount);
+      uncodeReceipt(receipt.id);
       toast({
-        title: "Receipt updated",
-        description: "Receipt amount has been updated successfully.",
+        title: "Receipt uncoded",
+        description: `Receipt moved back to uncoded receipts.`,
       });
-      setEditingReceipt(null);
-      setEditAmount("");
     } catch (error) {
       toast({
-        title: "Update failed",
-        description: "Failed to update receipt amount.",
+        title: "Uncode failed",
+        description: "Failed to uncode receipt.",
         variant: "destructive",
       });
     }
@@ -431,7 +455,7 @@ export default function CodedReceipts() {
       selectedReceipts,
       onSelectReceipt: handleSelectReceipt,
       onReceiptClick: setSelectedReceipt,
-      onEditReceipt: handleEditReceipt,
+      onUncodeReceipt: handleUncodeReceipt,
     };
 
     switch (currentView) {
@@ -597,8 +621,8 @@ export default function CodedReceipts() {
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl font-semibold">Receipt Details</h2>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleEditReceipt(selectedReceipt)}>
-                  Edit Amount
+                <Button variant="outline" size="sm" onClick={() => handleUncodeReceipt(selectedReceipt)}>
+                  Uncode Receipt
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedReceipt(null)}>
                   <X className="h-4 w-4" />
@@ -638,48 +662,6 @@ export default function CodedReceipts() {
               <div>
                 <Label>Coded By</Label>
                 <p className="font-medium">{selectedReceipt.codedBy}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Amount Dialog */}
-      {editingReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setEditingReceipt(null)}>
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold">Edit Receipt Amount</h2>
-              <Button variant="ghost" size="sm" onClick={() => setEditingReceipt(null)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <Label>Receipt</Label>
-                <p className="text-sm text-muted-foreground">{editingReceipt.filename}</p>
-              </div>
-              
-              <div>
-                <Label htmlFor="amount">Amount ($)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  value={editAmount}
-                  onChange={(e) => setEditAmount(e.target.value)}
-                  placeholder="Enter amount"
-                />
-              </div>
-              
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setEditingReceipt(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveEdit} disabled={!editAmount}>
-                  Save Amount
-                </Button>
               </div>
             </div>
           </div>

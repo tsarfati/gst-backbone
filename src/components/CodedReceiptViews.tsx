@@ -10,11 +10,11 @@ interface CodedReceiptViewsProps {
   selectedReceipts: string[];
   onSelectReceipt: (id: string) => void;
   onReceiptClick: (receipt: CodedReceipt) => void;
-  onEditReceipt?: (receipt: CodedReceipt) => void;
+  onUncodeReceipt?: (receipt: CodedReceipt) => void;
   currentView: 'list' | 'compact' | 'super-compact' | 'icons';
 }
 
-export function CodedReceiptListView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick, onEditReceipt }: Omit<CodedReceiptViewsProps, 'currentView'>) {
+export function CodedReceiptListView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick, onUncodeReceipt }: Omit<CodedReceiptViewsProps, 'currentView'>) {
   return (
     <div className="space-y-4">
       {receipts.map((receipt) => (
@@ -54,16 +54,16 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
-                      {onEditReceipt && (
+                      {onUncodeReceipt && (
                         <Button 
                           size="sm" 
                           variant="outline" 
                           onClick={(e) => {
                             e.stopPropagation();
-                            onEditReceipt(receipt);
+                            onUncodeReceipt(receipt);
                           }}
                         >
-                          Edit Amount
+                          Uncode
                         </Button>
                       )}
                     </div>

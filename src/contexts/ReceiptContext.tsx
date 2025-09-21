@@ -45,11 +45,11 @@ interface ReceiptContextType {
   messages: ReceiptMessage[];
   addReceipts: (files: FileList) => void;
   codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string, newAmount?: string) => void;
+  uncodeReceipt: (receiptId: string) => void;
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
   unassignReceipt: (receiptId: string) => void;
   addMessage: (receiptId: string, message: string, userId: string, userName: string, type?: 'message' | 'assignment' | 'coding' | 'status') => void;
   deleteReceipt: (receiptId: string) => void;
-  updateCodedReceiptAmount: (receiptId: string, newAmount: string) => void;
 }
 
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
@@ -181,6 +181,32 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const uncodeReceipt = (receiptId: string) => {
+    const codedReceipt = codedReceipts.find(r => r.id === receiptId);
+    if (codedReceipt) {
+      // Convert back to regular receipt
+      const receipt: Receipt = {
+        id: codedReceipt.id,
+        filename: codedReceipt.filename,
+        amount: codedReceipt.amount,
+        date: codedReceipt.date,
+        vendor: codedReceipt.vendor,
+        vendorId: codedReceipt.vendorId,
+        type: codedReceipt.type,
+        previewUrl: codedReceipt.previewUrl,
+        uploadedBy: codedReceipt.uploadedBy,
+        uploadedDate: codedReceipt.uploadedDate,
+        assignedUser: codedReceipt.assignedUser,
+      };
+      
+      setUncodedReceipts(prev => [...prev, receipt]);
+      setCodedReceipts(prev => prev.filter(r => r.id !== receiptId));
+      
+      const userName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User";
+      addMessage(receiptId, `Receipt uncoded and moved back to uncoded receipts`, "system", userName, 'status');
+    }
+  };
+
   const assignReceipt = (receiptId: string, userId: string, userName: string, userRole: string) => {
     setUncodedReceipts(prev => prev.map(receipt => 
       receipt.id === receiptId 
@@ -238,6 +264,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     ));
     
     // Add audit message
+    // Add audit message
     addMessage(receiptId, `Receipt amount updated to $${Number(newAmount).toFixed(2)}`, "system", userName, 'status');
   };
 
@@ -254,11 +281,11 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       messages,
       addReceipts, 
       codeReceipt,
+      uncodeReceipt,
       assignReceipt,
       unassignReceipt,
       addMessage,
-      deleteReceipt,
-      updateCodedReceiptAmount
+      deleteReceipt
     }}>
       {children}
     </ReceiptContext.Provider>
