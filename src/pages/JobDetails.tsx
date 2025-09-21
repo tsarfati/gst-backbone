@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Building, Plus, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import CommittedCosts from "@/components/CommittedCosts";
 
 export default function JobDetails() {
   const { id } = useParams();
@@ -196,6 +197,11 @@ export default function JobDetails() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Committed Costs Section */}
+      <div className="mt-8">
+        <CommittedCosts jobId={id!} />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,28 +6,110 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Upload, ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AddInvoice() {
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
-    vendor: "",
+    vendor_id: "",
+    job_id: "",
+    cost_code_id: "",
+    subcontract_id: "",
     amount: "",
     dueDate: "",
     issueDate: "",
-    job: "",
+    payment_terms: "",
     description: "",
-    status: "pending"
+    is_subcontract_invoice: false,
+    use_terms: true // toggle between due date and terms
   });
   
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [subcontracts, setSubcontracts] = useState<any[]>([]);
+  const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleInputChange = (field: string, value: string) => {
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    if (formData.job_id) {
+      fetchCostCodesForJob(formData.job_id);
+      fetchSubcontractsForJob(formData.job_id);
+    }
+  }, [formData.job_id]);
+
+  useEffect(() => {
+    if (formData.vendor_id) {
+      const vendor = vendors.find(v => v.id === formData.vendor_id);
+      setSelectedVendor(vendor);
+      if (vendor?.payment_terms && formData.use_terms) {
+        setFormData(prev => ({ ...prev, payment_terms: vendor.payment_terms }));
+      }
+    }
+  }, [formData.vendor_id, vendors, formData.use_terms]);
+
+  const fetchInitialData = async () => {
+    try {
+      const [vendorsRes, jobsRes] = await Promise.all([
+        supabase.from('vendors').select('*').eq('company_id', (await supabase.auth.getUser()).data.user?.id),
+        supabase.from('jobs').select('*')
+      ]);
+
+      if (vendorsRes.data) setVendors(vendorsRes.data);
+      if (jobsRes.data) setJobs(jobsRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load vendors and jobs",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCostCodesForJob = async (jobId: string) => {
+    try {
+      const { data } = await supabase
+        .from('cost_codes')
+        .select('*')
+        .eq('job_id', jobId)
+        .eq('is_active', true);
+      
+      setCostCodes(data || []);
+    } catch (error) {
+      console.error('Error fetching cost codes:', error);
+    }
+  };
+
+  const fetchSubcontractsForJob = async (jobId: string) => {
+    try {
+      const { data } = await supabase
+        .from('subcontracts')
+        .select('*, vendors(name)')
+        .eq('job_id', jobId)
+        .eq('status', 'active');
+      
+      setSubcontracts(data || []);
+    } catch (error) {
+      console.error('Error fetching subcontracts:', error);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -83,7 +165,7 @@ export default function AddInvoice() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!invoiceFile) {
@@ -95,17 +177,70 @@ export default function AddInvoice() {
       return;
     }
 
-    // In a real app, this would upload the file and save the invoice
-    toast({
-      title: "Invoice created",
-      description: "Invoice has been successfully created and uploaded",
-    });
-    
-    navigate("/invoices");
+    try {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to create an invoice",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Calculate due date from terms if using terms
+      let dueDate = formData.dueDate;
+      if (formData.use_terms && formData.payment_terms && formData.issueDate) {
+        const issueDate = new Date(formData.issueDate);
+        const terms = parseInt(formData.payment_terms);
+        if (!isNaN(terms)) {
+          const calculatedDueDate = new Date(issueDate);
+          calculatedDueDate.setDate(calculatedDueDate.getDate() + terms);
+          dueDate = calculatedDueDate.toISOString().split('T')[0];
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('invoices')
+        .insert({
+          vendor_id: formData.vendor_id,
+          job_id: formData.job_id,
+          cost_code_id: formData.cost_code_id || null,
+          subcontract_id: formData.subcontract_id || null,
+          amount: parseFloat(formData.amount),
+          issue_date: formData.issueDate,
+          due_date: dueDate,
+          payment_terms: formData.use_terms ? formData.payment_terms : null,
+          description: formData.description,
+          is_subcontract_invoice: formData.is_subcontract_invoice,
+          created_by: user.data.user.id
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Invoice created",
+        description: "Invoice has been successfully created",
+      });
+      
+      navigate("/invoices");
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create invoice",
+        variant: "destructive"
+      });
+    }
   };
 
-  const isFormValid = formData.vendor && formData.amount && formData.dueDate && 
-                     formData.issueDate && formData.job && invoiceFile;
+  const isFormValid = formData.vendor_id && formData.job_id && formData.amount && 
+                     formData.issueDate && invoiceFile &&
+                     (formData.use_terms ? formData.payment_terms : formData.dueDate);
+
+  if (loading) {
+    return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -208,25 +343,64 @@ export default function AddInvoice() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="vendor">Vendor Name *</Label>
-                <Input
-                  id="vendor"
-                  value={formData.vendor}
-                  onChange={(e) => handleInputChange("vendor", e.target.value)}
-                  placeholder="Enter vendor name"
-                  required
-                />
+                <Label htmlFor="vendor">Vendor *</Label>
+                <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="job">Job *</Label>
+                <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="amount">Amount *</Label>
                 <Input
                   id="amount"
                   value={formData.amount}
                   onChange={(e) => handleInputChange("amount", e.target.value)}
-                  placeholder="$0.00"
-                  type="text"
+                  placeholder="0.00"
+                  type="number"
+                  step="0.01"
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cost_code">Cost Code</Label>
+                <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select cost code (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {costCodes.map((code) => (
+                      <SelectItem key={code.id} value={code.id}>
+                        {code.code} - {code.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -242,41 +416,72 @@ export default function AddInvoice() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date *</Label>
-                <Input
-                  id="dueDate"
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e) => handleInputChange("dueDate", e.target.value)}
-                  required
-                />
+                <div className="flex items-center space-x-2 mb-2">
+                  <Checkbox
+                    id="use_terms"
+                    checked={formData.use_terms}
+                    onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
+                  />
+                  <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
+                </div>
+                {formData.use_terms ? (
+                  <div>
+                    <Label htmlFor="payment_terms">Payment Terms *</Label>
+                    <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment terms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="asap">ASAP</SelectItem>
+                        <SelectItem value="15">Net 15</SelectItem>
+                        <SelectItem value="30">Net 30</SelectItem>
+                        <SelectItem value="45">Net 45</SelectItem>
+                        <SelectItem value="60">Net 60</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="dueDate">Due Date *</Label>
+                    <Input
+                      id="dueDate"
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="job">Job/Project *</Label>
-                <Input
-                  id="job"
-                  value={formData.job}
-                  onChange={(e) => handleInputChange("job", e.target.value)}
-                  placeholder="Enter job or project name"
-                  required
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_subcontract_invoice"
+                  checked={formData.is_subcontract_invoice}
+                  onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
                 />
+                <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {formData.is_subcontract_invoice && (
+                <div className="space-y-2">
+                  <Label htmlFor="subcontract">Subcontract *</Label>
+                  <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a subcontract" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcontracts.map((subcontract) => (
+                        <SelectItem key={subcontract.id} value={subcontract.id}>
+                          {subcontract.name} - {subcontract.vendors?.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

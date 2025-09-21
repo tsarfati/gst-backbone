@@ -211,6 +211,92 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          amount: number
+          cost_code_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          file_url: string | null
+          id: string
+          is_subcontract_invoice: boolean
+          issue_date: string
+          job_id: string
+          payment_terms: string | null
+          status: string
+          subcontract_id: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          cost_code_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          is_subcontract_invoice?: boolean
+          issue_date: string
+          job_id: string
+          payment_terms?: string | null
+          status?: string
+          subcontract_id?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          cost_code_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          is_subcontract_invoice?: boolean
+          issue_date?: string
+          job_id?: string
+          payment_terms?: string | null
+          status?: string
+          subcontract_id?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_subcontract_id_fkey"
+            columns: ["subcontract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_assistant_managers: {
         Row: {
           assigned_at: string
@@ -511,6 +597,69 @@ export type Database = {
           },
         ]
       }
+      purchase_orders: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          description: string | null
+          expected_delivery: string | null
+          id: string
+          job_id: string
+          order_date: string
+          po_file_url: string | null
+          po_number: string
+          status: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          description?: string | null
+          expected_delivery?: string | null
+          id?: string
+          job_id: string
+          order_date: string
+          po_file_url?: string | null
+          po_number: string
+          status?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          expected_delivery?: string | null
+          id?: string
+          job_id?: string
+          order_date?: string
+          po_file_url?: string | null
+          po_number?: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           can_access: boolean
@@ -537,6 +686,69 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      subcontracts: {
+        Row: {
+          contract_amount: number
+          contract_file_url: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          end_date: string | null
+          id: string
+          job_id: string
+          name: string
+          start_date: string | null
+          status: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          contract_amount: number
+          contract_file_url?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          job_id: string
+          name: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          contract_amount?: number
+          contract_file_url?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          job_id?: string
+          name?: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontracts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontracts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_job_access: {
         Row: {
