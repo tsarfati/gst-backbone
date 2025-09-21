@@ -7,7 +7,6 @@ import { ArrowLeft, Edit, Building, Plus, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CommittedCosts from "@/components/CommittedCosts";
-import JobLocationMap from "@/components/JobLocationMap";
 
 export default function JobDetails() {
   const { id } = useParams();
@@ -120,7 +119,7 @@ export default function JobDetails() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card elevation={2} className="animate-fade-in">
+          <Card>
             <CardHeader>
               <CardTitle>Job Information</CardTitle>
             </CardHeader>
@@ -182,7 +181,7 @@ export default function JobDetails() {
         </div>
 
         <div className="space-y-6">
-          <Card elevation={2} className="animate-fade-in">
+          <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
@@ -197,15 +196,6 @@ export default function JobDetails() {
               </Button>
             </CardContent>
           </Card>
-
-          {/* Job Location Map */}
-          {job.address && (
-            <JobLocationMap 
-              address={job.address}
-              jobName={job.name}
-              className="animate-fade-in"
-            />
-          )}
         </div>
       </div>
 

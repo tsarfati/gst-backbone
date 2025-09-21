@@ -233,20 +233,6 @@ export default function ThemeSettings() {
                     customColors: { ...settings.customColors, destructive: value }
                   })}
                 />
-                <ColorPicker
-                  label="Main Text Color"
-                  value={settings.customColors.mainText}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, mainText: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Menu Text Color"
-                  value={settings.customColors.menuText}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, menuText: value }
-                  })}
-                />
               </div>
             </CardContent>
           </Card>

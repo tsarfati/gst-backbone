@@ -25,8 +25,6 @@ export interface AppSettings {
     success: string;
     warning: string;
     destructive: string;
-    mainText: string;
-    menuText: string;
   };
   companySettings?: {
     checkPickupLocations?: Array<{
@@ -62,8 +60,6 @@ const defaultSettings: AppSettings = {
     success: '120 60% 45%',
     warning: '38 100% 55%',
     destructive: '0 84% 60%',
-    mainText: '0 0% 20%',
-    menuText: '0 0% 45%',
   },
 };
 
@@ -105,11 +101,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Handle nested color updates
       customColors: updates.customColors
         ? { ...prev.customColors, ...updates.customColors }
-        : prev.customColors,
-      // Handle nested company settings updates  
-      companySettings: updates.companySettings
-        ? { ...prev.companySettings, ...updates.companySettings }
-        : prev.companySettings
+        : prev.customColors
     }));
   };
 
