@@ -48,21 +48,15 @@ const navigationCategories = [
     collapsible: true,
   },
   {
-    title: "Invoices",
+    title: "Payables",
     items: [
       { name: "Invoice Dashboard", href: "/invoice-status", icon: BarChart3, menuKey: "reports" },
       { name: "All Invoices", href: "/invoices", icon: FileText, menuKey: "vendors" },
       { name: "Add Invoice", href: "/invoices/add", icon: FileCheck, menuKey: "vendors" },
+      { name: "Add Sub Contract", href: "/subcontracts/add", icon: FileKey, menuKey: "vendors" },
+      { name: "Add PO", href: "/purchase-orders/add", icon: FileText, menuKey: "vendors" },
       { name: "Payment History", href: "/invoices/payments", icon: CreditCard, menuKey: "reports" },
       { name: "Invoice Reports", href: "/invoices/payment-reports", icon: DollarSign, menuKey: "reports" },
-    ],
-    collapsible: true,
-  },
-  {
-    title: "Commitments",
-    items: [
-      { name: "Contracts", href: "/commitments/contracts", icon: FileKey, menuKey: "vendors" },
-      { name: "Purchase Orders", href: "/commitments/purchase-orders", icon: FileText, menuKey: "vendors" },
     ],
     collapsible: true,
   },
@@ -145,7 +139,15 @@ export function AppSidebar() {
     if (settings.navigationMode === 'single') {
       const activeGroups = navigationCategories
         .filter(category => 
-          category.items.some(item => item.href === location.pathname)
+          category.items.some(item => 
+            item.href === location.pathname || 
+            location.pathname.startsWith(item.href + '/') ||
+            // Keep Payables open when on subcontract/PO pages
+            (category.title === 'Payables' && (
+              location.pathname.startsWith('/subcontracts/') ||
+              location.pathname.startsWith('/purchase-orders/')
+            ))
+          )
         )
         .map(category => category.title);
         
@@ -168,7 +170,15 @@ export function AppSidebar() {
 
   const activeGroups = navigationCategories
     .filter(category => 
-      category.items.some(item => item.href === location.pathname)
+      category.items.some(item => 
+        location.pathname === item.href || 
+        location.pathname.startsWith(item.href + '/') ||
+        // Keep Payables open when on subcontract/PO pages
+        (category.title === 'Payables' && (
+          location.pathname.startsWith('/subcontracts/') ||
+          location.pathname.startsWith('/purchase-orders/')
+        ))
+      )
     )
     .map(category => category.title);
 
@@ -218,7 +228,8 @@ export function AppSidebar() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {allowedItems.map((item) => {
-                      const isActive = location.pathname === item.href;
+                      const isActive = location.pathname === item.href || 
+                        location.pathname.startsWith(item.href + '/');
                       return (
                         <SidebarMenuItem key={item.name}>
                           <SidebarMenuButton 
@@ -226,7 +237,7 @@ export function AppSidebar() {
                             isActive={isActive}
                             tooltip={state === "collapsed" ? item.name : undefined}
                             style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
-                            className={isActive ? "hover:opacity-90" : ""}
+                            className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
                           >
                             <Link to={item.href}>
                               <item.icon className="h-4 w-4" />
@@ -262,7 +273,13 @@ export function AppSidebar() {
                     <SidebarGroupContent>
                       <SidebarMenu>
                         {allowedItems.map((item) => {
-                          const isActive = location.pathname === item.href;
+                          const isActive = location.pathname === item.href || 
+                            location.pathname.startsWith(item.href + '/') ||
+                            // Keep Payables items active when on related pages
+                            (category.title === 'Payables' && (
+                              (item.href === '/subcontracts/add' && location.pathname.startsWith('/subcontracts/')) ||
+                              (item.href === '/purchase-orders/add' && location.pathname.startsWith('/purchase-orders/'))
+                            ));
                           return (
                             <SidebarMenuItem key={item.name}>
                                <SidebarMenuButton 
