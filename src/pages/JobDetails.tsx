@@ -119,7 +119,7 @@ export default function JobDetails() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Job Information</CardTitle>
@@ -179,12 +179,12 @@ export default function JobDetails() {
               )}
             </CardContent>
           </Card>
+
+          {/* Location Map - moved to main content area for better visibility */}
+          <JobLocationMap address={job.address} />
         </div>
 
         <div className="space-y-6">
-          {/* Location Map */}
-          <JobLocationMap address={job.address} />
-          
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
