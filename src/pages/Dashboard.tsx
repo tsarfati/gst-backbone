@@ -235,20 +235,20 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-6">
+    <div className="p-md-6 min-h-screen bg-background">
       {settings.dashboardBanner && (
-        <div className="mb-6 relative rounded-lg overflow-hidden">
+        <div className="mb-md-6 relative rounded-md-large overflow-hidden animate-fade-in">
           <img 
             src={settings.dashboardBanner} 
             alt="Dashboard Banner" 
             className="w-full h-48 object-cover"
           />
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex items-center justify-center">
             <div className="text-center text-white">
-              <h1 className="text-4xl font-bold mb-2">
+              <h1 className="md-display-small mb-md-2">
                 Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
               </h1>
-              <p className="text-lg opacity-90">
+              <p className="md-body-large opacity-90">
                 Here's what's happening with your projects today
               </p>
             </div>
@@ -256,13 +256,13 @@ export default function Dashboard() {
         </div>
       )}
       
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-md-6 flex items-center justify-between">
         {!settings.dashboardBanner && (
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+          <div className="animate-fade-in">
+            <h1 className="md-headline-large text-foreground mb-md-2">
               Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
             </h1>
-            <p className="text-muted-foreground">
+            <p className="md-body-large text-muted-foreground">
               Here's what's happening with your projects today
             </p>
           </div>
@@ -290,18 +290,23 @@ export default function Dashboard() {
       </div>
 
       {dashboardSettings.show_stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md-6 mb-md-8">
+          {stats.map((stat, index) => (
+            <Card 
+              key={stat.title} 
+              elevation={2}
+              className="animate-fade-in hover:scale-105 transition-transform duration-200"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-md-2">
+                <CardTitle className="md-title-small">
                   {stat.title}
                 </CardTitle>
-                <stat.icon className="h-4 w-4 text-muted-foreground" />
+                <stat.icon className="h-5 w-5 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <Badge variant={stat.variant} className="mt-2">
+                <div className="md-display-small font-bold text-primary">{stat.value}</div>
+                <Badge variant={stat.variant} className="mt-md-2">
                   {stat.variant === "warning" && "Needs Attention"}
                   {stat.variant === "secondary" && "Up to Date"}
                   {stat.variant === "destructive" && "Overdue"}
