@@ -31,6 +31,10 @@ export default function JobEdit() {
     status: "planning" as any,
     description: "",
     address: "",
+    street: "",
+    city: "",
+    state: "",
+    zip: "",
     client: "",
     job_type: "residential" as any,
     project_manager_user_id: ""
@@ -77,6 +81,13 @@ export default function JobEdit() {
           });
         } else if (data) {
           setJob(data);
+          // Parse existing address into components
+          const addressParts = data.address ? data.address.split(', ') : [];
+          const street = addressParts[0] || "";
+          const city = addressParts[1] || "";
+          const stateZip = addressParts[2] || "";
+          const [state, zip] = stateZip.split(' ');
+
           setFormData({
             name: data.name || "",
             budget: data.budget ? data.budget.toString() : "",
@@ -85,6 +96,10 @@ export default function JobEdit() {
             status: data.status || "planning" as any,
             description: data.description || "",
             address: data.address || "",
+            street: street,
+            city: city || "",
+            state: state || "",
+            zip: zip || "",
             client: data.client || "",
             job_type: data.job_type || "residential" as any,
             project_manager_user_id: data.project_manager_user_id || ""
@@ -168,10 +183,26 @@ export default function JobEdit() {
   }
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+      
+      // Auto-build full address when component fields change
+      if (['street', 'city', 'state', 'zip'].includes(field)) {
+        const parts = [];
+        if (field === 'street' ? value : updated.street) parts.push(field === 'street' ? value : updated.street);
+        if (field === 'city' ? value : updated.city) parts.push(field === 'city' ? value : updated.city);
+        if ((field === 'state' ? value : updated.state) || (field === 'zip' ? value : updated.zip)) {
+          const stateZip = `${field === 'state' ? value : updated.state} ${field === 'zip' ? value : updated.zip}`.trim();
+          if (stateZip) parts.push(stateZip);
+        }
+        updated.address = parts.join(', ');
+      }
+      
+      return updated;
+    });
   };
 
   const handleSave = async () => {
@@ -542,14 +573,55 @@ export default function JobEdit() {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder="Enter job address"
-              />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="street">Street Address</Label>
+                <Input
+                  id="street"
+                  value={formData.street}
+                  onChange={(e) => handleInputChange("street", e.target.value)}
+                  placeholder="Enter street address"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange("city", e.target.value)}
+                    placeholder="Enter city"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={formData.state}
+                    onChange={(e) => handleInputChange("state", e.target.value)}
+                    placeholder="State"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="zip">ZIP Code</Label>
+                  <Input
+                    id="zip"
+                    value={formData.zip}
+                    onChange={(e) => handleInputChange("zip", e.target.value)}
+                    placeholder="ZIP"
+                  />
+                </div>
+              </div>
+              
+              {formData.address && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Full Address (Auto-generated)</Label>
+                  <p className="text-sm text-muted-foreground bg-muted p-2 rounded-md">
+                    {formData.address}
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

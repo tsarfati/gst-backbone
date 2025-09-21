@@ -7,6 +7,7 @@ import { ArrowLeft, Edit, Building, Plus, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CommittedCosts from "@/components/CommittedCosts";
+import JobLocationMap from "@/components/JobLocationMap";
 
 export default function JobDetails() {
   const { id } = useParams();
@@ -181,6 +182,9 @@ export default function JobDetails() {
         </div>
 
         <div className="space-y-6">
+          {/* Location Map */}
+          <JobLocationMap address={job.address} />
+          
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
