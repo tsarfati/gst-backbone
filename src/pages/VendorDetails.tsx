@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,7 @@ export default function VendorDetails() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
+  const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [unmaskedMethods, setUnmaskedMethods] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export default function VendorDetails() {
             fetchVendorJobs(data.company_id);
             fetchPaymentMethods(data.id);
             fetchComplianceDocuments(data.id);
+            fetchSubcontracts(data.id);
           }
         }
       } catch (err) {
@@ -89,6 +91,28 @@ export default function VendorDetails() {
         setComplianceDocuments(data || []);
       } catch (error) {
         console.error('Error loading compliance documents:', error);
+      }
+    };
+
+    const fetchSubcontracts = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('subcontracts')
+          .select(`
+            *,
+            jobs:job_id (
+              id,
+              name,
+              client
+            )
+          `)
+          .eq('vendor_id', vendorId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setSubcontracts(data || []);
+      } catch (error) {
+        console.error('Error loading subcontracts:', error);
       }
     };
 
@@ -546,6 +570,104 @@ export default function VendorDetails() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{job.status}</Badge>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Subcontracts Section */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Subcontracts
+            </CardTitle>
+            <Button 
+              onClick={() => navigate(`/subcontracts/add?vendorId=${vendor.id}`)}
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Subcontract
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {subcontracts.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-medium mb-2">No Subcontracts Found</h3>
+                <p className="text-muted-foreground mb-4">No subcontracts are currently associated with this vendor</p>
+                <Button 
+                  onClick={() => navigate(`/subcontracts/add?vendorId=${vendor.id}`)}
+                  variant="outline"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add First Subcontract
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {subcontracts.map((subcontract) => (
+                  <Card 
+                    key={subcontract.id} 
+                    className="border-dashed hover-lift cursor-pointer"
+                    onClick={() => navigate(`/jobs/${subcontract.job_id}`)}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium">{subcontract.name}</h4>
+                            <Badge variant={
+                              subcontract.status === 'active' ? 'default' :
+                              subcontract.status === 'completed' ? 'success' : 'secondary'
+                            }>
+                              {subcontract.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Job: {subcontract.jobs?.name}
+                            {subcontract.jobs?.client && ` • Client: ${subcontract.jobs.client}`}
+                          </p>
+                          {subcontract.description && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {subcontract.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-4 mt-2">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Contract Amount:</span>
+                              <span className="text-sm font-medium ml-1">
+                                ${parseFloat(subcontract.contract_amount).toLocaleString()}
+                              </span>
+                            </div>
+                            {subcontract.start_date && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Start Date:</span>
+                                <span className="text-sm ml-1">{subcontract.start_date}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {subcontract.contract_file_url && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(subcontract.contract_file_url, '_blank');
+                              }}
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              View Contract
+                            </Button>
+                          )}
                           <ExternalLink className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </div>

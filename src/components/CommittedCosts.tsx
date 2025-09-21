@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,6 @@ import { Progress } from "@/components/ui/progress";
 import { Plus, FileText, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
 
 interface CommittedCostsProps {
   jobId: string;
@@ -72,11 +72,6 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
     };
   };
 
-  const handleAddContractPO = () => {
-    // Navigate to a contracts/PO management page for this job
-    navigate(`/jobs/${jobId}/contracts`);
-  };
-
   if (loading) {
     return <div className="text-center py-4">Loading committed costs...</div>;
   }
@@ -90,7 +85,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
               <DollarSign className="h-5 w-5" />
               Committed Costs
             </CardTitle>
-            <Button size="sm" variant="outline" onClick={handleAddContractPO}>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/subcontracts/add?jobId=${jobId}`)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Contract/PO
             </Button>

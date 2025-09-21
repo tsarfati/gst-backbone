@@ -42,6 +42,7 @@ import SecuritySettings from "./pages/SecuritySettings";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
+import AddSubcontract from "./pages/AddSubcontract";
 
 const queryClient = new QueryClient();
 
@@ -108,6 +109,9 @@ function AppRoutes() {
                       <Route path="invoices/payments" element={<PaymentHistory />} />
                       <Route path="invoices/payment-reports" element={<PaymentReports />} />
                       <Route path="invoices/status" element={<InvoiceStatus />} />
+                      <Route path="subcontracts/add" element={<AddSubcontract />} />
+                      <Route path="commitments/contracts" element={<div>Contracts page coming soon</div>} />
+                      <Route path="commitments/purchase-orders" element={<div>Purchase orders page coming soon</div>} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>
