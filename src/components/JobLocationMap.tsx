@@ -14,16 +14,18 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
-  const [mapboxToken, setMapboxToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mapbox public token
+  const MAPBOX_TOKEN = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+
   // Geocode address to coordinates
-  const geocodeAddress = async (addressString: string, token: string): Promise<{ lat: number; lng: number } | null> => {
+  const geocodeAddress = async (addressString: string): Promise<{ lat: number; lng: number } | null> => {
     try {
       const encodedAddress = encodeURIComponent(addressString);
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${token}&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${MAPBOX_TOKEN}&limit=1`
       );
       
       if (!response.ok) {
@@ -45,11 +47,11 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
   };
 
   // Initialize map
-  const initializeMap = async (token: string) => {
-    if (!mapContainer.current || !token) return;
+  const initializeMap = async () => {
+    if (!mapContainer.current) return;
 
     try {
-      mapboxgl.accessToken = token;
+      mapboxgl.accessToken = MAPBOX_TOKEN;
       
       // Default center (will be updated if address is geocoded)
       let center: [number, number] = [-98.5795, 39.8283]; // Center of US
@@ -58,7 +60,7 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
       // If address is provided, try to geocode it
       if (address) {
         setIsLoading(true);
-        const coordinates = await geocodeAddress(address, token);
+        const coordinates = await geocodeAddress(address);
         if (coordinates) {
           center = [coordinates.lng, coordinates.lat];
           zoom = 14;
@@ -94,12 +96,12 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
     }
   };
 
-  // Handle token input
-  const handleTokenSubmit = () => {
-    if (mapboxToken.trim()) {
-      initializeMap(mapboxToken.trim());
+  // Auto-initialize map when component mounts if address is available
+  useEffect(() => {
+    if (address) {
+      initializeMap();
     }
-  };
+  }, [address]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -145,40 +147,6 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
           <p className="text-foreground">{address}</p>
         </div>
         
-        {!map.current && !isLoading && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="mapbox-token">Mapbox Public Token</Label>
-              <Input
-                id="mapbox-token"
-                type="text"
-                placeholder="Enter your Mapbox public token"
-                value={mapboxToken}
-                onChange={(e) => setMapboxToken(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleTokenSubmit()}
-              />
-              <p className="text-xs text-muted-foreground">
-                Get your token from{' '}
-                <a 
-                  href="https://mapbox.com/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  mapbox.com
-                </a>
-              </p>
-            </div>
-            <button
-              onClick={handleTokenSubmit}
-              disabled={!mapboxToken.trim()}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-3 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Load Map
-            </button>
-          </div>
-        )}
-
         {isLoading && (
           <div className="h-[300px] bg-muted rounded-lg flex items-center justify-center">
             <div className="text-center">
@@ -199,7 +167,7 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
 
         <div 
           ref={mapContainer} 
-          className={`w-full h-[300px] rounded-lg overflow-hidden ${!map.current ? 'hidden' : ''}`}
+          className={`w-full h-[300px] rounded-lg overflow-hidden ${isLoading || error ? 'hidden' : ''}`}
         />
       </CardContent>
     </Card>
