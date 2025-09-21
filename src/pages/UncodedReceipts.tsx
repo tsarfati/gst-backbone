@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
 import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Trash2 } from "lucide-react";
@@ -22,10 +23,11 @@ interface VendorOption { id: string; name: string }
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
-  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedAmount, setSelectedAmount] = useState("");
   const { toast } = useToast();
   
   // View preference management
@@ -37,6 +39,15 @@ export default function UncodedReceipts() {
     setDefaultView 
   } = useViewPreference('uncoded-receipts-view', 'grid');
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (selectedReceipt) {
+      const numeric = String(selectedReceipt.amount || "0").replace(/[^0-9.\-]/g, "");
+      setSelectedAmount(numeric);
+    } else {
+      setSelectedAmount("");
+    }
+  }, [selectedReceipt]);
 
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [costCodes, setCostCodes] = useState<CostCodeOption[]>([]);
@@ -107,7 +118,7 @@ export default function UncodedReceipts() {
     }
 
     // Code the receipt using context (vendor is optional)
-    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User", selectedVendor || undefined);
+    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User", selectedVendor || undefined, selectedAmount || undefined);
     
     setSelectedJob("");
     setSelectedCostCode("");
@@ -638,6 +649,19 @@ export default function UncodedReceipts() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="amount-input" className="text-xs">Receipt Amount ($)</Label>
+                    <Input
+                      id="amount-input"
+                      type="number"
+                      step="0.01"
+                      value={selectedAmount}
+                      onChange={(e) => setSelectedAmount(e.target.value)}
+                      placeholder="Enter amount"
+                      className="h-8"
+                    />
                   </div>
 
                   <Button 

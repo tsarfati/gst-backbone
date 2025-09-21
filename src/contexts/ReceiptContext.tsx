@@ -44,11 +44,12 @@ interface ReceiptContextType {
   codedReceipts: CodedReceipt[];
   messages: ReceiptMessage[];
   addReceipts: (files: FileList) => void;
-  codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string) => void;
+  codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string, newAmount?: string) => void;
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
   unassignReceipt: (receiptId: string) => void;
   addMessage: (receiptId: string, message: string, userId: string, userName: string, type?: 'message' | 'assignment' | 'coding' | 'status') => void;
   deleteReceipt: (receiptId: string) => void;
+  updateCodedReceiptAmount: (receiptId: string, newAmount: string) => void;
 }
 
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
@@ -155,11 +156,15 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string) => {
+  const codeReceipt = (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string, newAmount?: string) => {
     const receipt = uncodedReceipts.find(r => r.id === receiptId);
     if (receipt) {
+      const formattedAmount = newAmount !== undefined && newAmount !== null && newAmount !== ''
+        ? `$${Number(newAmount).toFixed(2)}`
+        : receipt.amount;
       const codedReceipt: CodedReceipt = {
         ...receipt,
+        amount: formattedAmount,
         job,
         costCode,
         codedBy,
@@ -172,7 +177,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       
       // Add coding message
       const vendorText = vendorId ? ` with vendor ${vendorId}` : '';
-      addMessage(receiptId, `Receipt coded to ${job} - ${costCode}${vendorText}`, "system", codedBy, 'coding');
+      addMessage(receiptId, `Receipt coded to ${job} - ${costCode}${vendorText}. Amount set to ${formattedAmount}`, "system", codedBy, 'coding');
     }
   };
 

@@ -14,7 +14,10 @@ import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
 import jsPDF from 'jspdf';
-import { supabase } from "@/integrations/supabase/client";
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+
+// Use CDN worker to avoid bundling issues in Vite
+GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 
 export default function CodedReceipts() {
@@ -124,85 +127,100 @@ export default function CodedReceipts() {
         pdf.text(`Amount: ${receipt.amount} | Date: ${receipt.date}`, 20, 30);
         
         try {
-          // If receipt has a preview URL, try to add it to PDF
           if (receipt.previewUrl) {
-            // Create a signed URL to bypass CORS issues
-            const { data: signedUrlData } = await supabase.storage
-              .from('receipts')
-              .createSignedUrl(receipt.previewUrl.split('/').pop() || '', 3600);
-            
-            if (signedUrlData?.signedUrl) {
-              // Use fetch to get the image as blob, then convert to data URL
-              const response = await fetch(signedUrlData.signedUrl);
-              const blob = await response.blob();
-              
-              // Convert blob to data URL
+            // Fetch the original file directly (public bucket) and embed it
+            const response = await fetch(receipt.previewUrl, { mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            const contentType = response.headers.get('content-type') || '';
+
+            // If it's a PDF, render all pages into the export PDF
+            if (contentType.includes('pdf') || receipt.filename.toLowerCase().endsWith('.pdf')) {
+              const buffer = await blob.arrayBuffer();
+              const srcPdf = await getDocument({ data: buffer }).promise;
+
+              for (let p = 1; p <= srcPdf.numPages; p++) {
+                const page = await srcPdf.getPage(p);
+                const viewport = page.getViewport({ scale: 1 });
+
+                // Fit page into jsPDF page
+                const targetWidth = pdf.internal.pageSize.width - 40;
+                const targetHeight = pdf.internal.pageSize.height - 80;
+                const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
+                const scaledViewport = page.getViewport({ scale });
+
+                // Render to canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Canvas context not available');
+                canvas.width = Math.floor(scaledViewport.width);
+                canvas.height = Math.floor(scaledViewport.height);
+                await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+
+                // Add a new page for each PDF page except the first of the first receipt page
+                if (!(pageNumber === 1 && p === 1)) {
+                  pdf.addPage();
+                }
+
+                // Center the rendered page image
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const x = (pdf.internal.pageSize.width - canvas.width) / 2;
+                const y = 40;
+                pdf.addImage(imgData, 'JPEG', x, y, canvas.width, canvas.height);
+                pageNumber++;
+              }
+            } else {
+              // It's an image: convert to data URL and embed
               const dataUrl = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
                 reader.readAsDataURL(blob);
               });
-              
-              // Create image from data URL
+
               const img = new Image();
-              
-              await new Promise((resolve, reject) => {
+              await new Promise((resolve) => {
                 img.onload = () => {
                   try {
-                    // Calculate dimensions to fit the page
-                    const pageWidth = pdf.internal.pageSize.width - 40; // 20px margin on each side
-                    const pageHeight = pdf.internal.pageSize.height - 80; // Space for header and footer
-                    
+                    const pageWidth = pdf.internal.pageSize.width - 40;
+                    const pageHeight = pdf.internal.pageSize.height - 80;
                     let imgWidth = img.width;
                     let imgHeight = img.height;
-                    
-                    // Scale image to fit page while maintaining aspect ratio
                     const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
                     imgWidth *= scale;
                     imgHeight *= scale;
-                    
-                    // Center the image
                     const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-                    const y = 40; // Below header
-                    
-                    pdf.addImage(dataUrl, 'JPEG', x, y, imgWidth, imgHeight);
-                    resolve(true);
-                  } catch (error) {
-                    console.error('Error adding image to PDF:', error);
-                    // Add placeholder text if image fails
+                    const y = 40;
+                    const format = contentType.includes('png') ? 'PNG' : 'JPEG';
+                    pdf.addImage(dataUrl, format as any, x, y, imgWidth, imgHeight);
+                  } catch (e) {
                     pdf.setFontSize(12);
-                    pdf.text('Receipt image could not be loaded', 20, 60);
-                    resolve(false);
+                    pdf.text('Receipt image could not be embedded', 20, 60);
                   }
+                  resolve(true);
                 };
-                
                 img.onerror = () => {
-                  console.error('Failed to load receipt image');
                   pdf.setFontSize(12);
                   pdf.text('Receipt image could not be loaded', 20, 60);
                   resolve(false);
                 };
-                
                 img.src = dataUrl;
               });
-            } else {
-              throw new Error('Could not create signed URL');
+              pageNumber++;
             }
           } else {
             // No preview available
             pdf.setFontSize(12);
             pdf.text('No preview available for this receipt', 20, 60);
+            pageNumber++;
           }
         } catch (error) {
-          console.error('Error processing receipt image:', error);
+          console.error('Error processing receipt file:', error);
           pdf.setFontSize(12);
-          pdf.text('Error loading receipt image', 20, 60);
+          pdf.text('Error loading receipt file', 20, 60);
+          pageNumber++;
         }
 
-        pageNumber++;
       };
-
-      // Add all receipt documents first
       for (let i = 0; i < selectedReceiptData.length; i++) {
         await addReceiptDocument(selectedReceiptData[i], i);
       }
