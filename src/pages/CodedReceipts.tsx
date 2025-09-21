@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
+import { useSettings } from "@/contexts/SettingsContext";
 import jsPDF from 'jspdf';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
@@ -22,6 +23,7 @@ GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3
 
 export default function CodedReceipts() {
   const { codedReceipts, messages, uncodeReceipt } = useReceipts();
+  const { settings } = useSettings();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJob, setFilterJob] = useState("all");
@@ -99,11 +101,9 @@ export default function CodedReceipts() {
         return sum + amount;
       }, 0);
 
-      // Generate filename with GST, date, and amount
+      // Generate filename with date and amount
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
-      const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
-      const gstAmount = (totalAmount * 0.13).toFixed(2); // Assuming 13% GST
       const formattedTotal = totalAmount.toFixed(2);
       
       const filename = `CodedReceipts_${dateStr}_$${formattedTotal}.pdf`;
@@ -261,6 +261,16 @@ export default function CodedReceipts() {
       const lineHeight = 6;
       const sectionSpacing = 10;
 
+      // Add header logo if available
+      if (settings.headerLogo) {
+        try {
+          pdf.addImage(settings.headerLogo, 'JPEG', 20, yPosition, 40, 0, '', 'FAST');
+          yPosition += 30;
+        } catch (error) {
+          console.error('Error adding header logo to PDF:', error);
+        }
+      }
+
       // Add title for coding section
       pdf.setFontSize(16);
       pdf.text('Coding Information & Audit Summary', 20, yPosition);
@@ -273,10 +283,6 @@ export default function CodedReceipts() {
       pdf.text(`Total Receipts: ${selectedReceiptData.length}`, 20, yPosition);
       yPosition += lineHeight;
       pdf.text(`Total Amount: $${formattedTotal}`, 20, yPosition);
-      yPosition += lineHeight;
-      pdf.text(`GST (13%): $${gstAmount}`, 20, yPosition);
-      yPosition += lineHeight;
-      pdf.text(`Grand Total: $${(totalAmount + parseFloat(gstAmount)).toFixed(2)}`, 20, yPosition);
       yPosition += sectionSpacing * 2;
 
       // Add detailed coding information for each receipt

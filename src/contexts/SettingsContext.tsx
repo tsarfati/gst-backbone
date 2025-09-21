@@ -26,6 +26,8 @@ export interface AppSettings {
     warning: string;
     destructive: string;
   };
+  companyLogo?: string;
+  headerLogo?: string;
   companySettings?: {
     checkPickupLocations?: Array<{
       id: string;

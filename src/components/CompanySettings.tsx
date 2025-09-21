@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Edit, Trash2, MapPin } from "lucide-react";
+import { Plus, Edit, Trash2, MapPin, Upload, X, Building2 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 
 interface PickupLocation {
@@ -28,6 +28,26 @@ export default function CompanySettings() {
   });
 
   const pickupLocations = settings.companySettings?.checkPickupLocations || [];
+
+  const handleLogoUpload = (type: 'company' | 'header') => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const logoData = e.target?.result as string;
+        updateSettings({
+          [type === 'company' ? 'companyLogo' : 'headerLogo']: logoData
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveLogo = (type: 'company' | 'header') => {
+    updateSettings({
+      [type === 'company' ? 'companyLogo' : 'headerLogo']: undefined
+    });
+  };
 
   const handleAddLocation = () => {
     setEditingLocation(null);
@@ -88,6 +108,107 @@ export default function CompanySettings() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Company Branding</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Company Logo Section */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Company Logo</Label>
+            <p className="text-sm text-muted-foreground">
+              Upload your company logo for general use throughout the application
+            </p>
+            {settings.companyLogo ? (
+              <div className="flex items-center gap-4">
+                <img 
+                  src={settings.companyLogo} 
+                  alt="Company Logo" 
+                  className="h-16 w-auto border rounded-md"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveLogo('company')}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                <div className="flex flex-col items-center gap-2">
+                  <Building2 className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">No company logo uploaded</p>
+                  <Label htmlFor="company-logo-upload" className="cursor-pointer">
+                    <Button variant="outline" size="sm" asChild>
+                      <span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Logo
+                      </span>
+                    </Button>
+                  </Label>
+                  <Input
+                    id="company-logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleLogoUpload('company')}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Header Logo Section */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Header Logo</Label>
+            <p className="text-sm text-muted-foreground">
+              Upload a logo specifically for PDF exports and document headers
+            </p>
+            {settings.headerLogo ? (
+              <div className="flex items-center gap-4">
+                <img 
+                  src={settings.headerLogo} 
+                  alt="Header Logo" 
+                  className="h-16 w-auto border rounded-md"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRemoveLogo('header')}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
+                <div className="flex flex-col items-center gap-2">
+                  <Building2 className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">No header logo uploaded</p>
+                  <Label htmlFor="header-logo-upload" className="cursor-pointer">
+                    <Button variant="outline" size="sm" asChild>
+                      <span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload Logo
+                      </span>
+                    </Button>
+                  </Label>
+                  <Input
+                    id="header-logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleLogoUpload('header')}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Check Pickup Locations</CardTitle>
