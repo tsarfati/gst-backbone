@@ -81,7 +81,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    localStorage.setItem('app-settings', JSON.stringify(settings));
+    try {
+      // Create a copy of settings without potentially large logo data for localStorage
+      const settingsForStorage = { ...settings };
+      // Remove logo data if it's base64 (starts with 'data:')
+      if (settingsForStorage.companyLogo?.startsWith('data:')) {
+        delete settingsForStorage.companyLogo;
+      }
+      if (settingsForStorage.headerLogo?.startsWith('data:')) {
+        delete settingsForStorage.headerLogo;
+      }
+      
+      localStorage.setItem('app-settings', JSON.stringify(settingsForStorage));
+    } catch (error) {
+      console.warn('Failed to save settings to localStorage:', error);
+      // If localStorage is full, try to clear it and save essential settings only
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        try {
+          localStorage.removeItem('app-settings');
+          const essentialSettings = {
+            theme: settings.theme,
+            navigationMode: settings.navigationMode,
+            customColors: settings.customColors
+          };
+          localStorage.setItem('app-settings', JSON.stringify(essentialSettings));
+        } catch (fallbackError) {
+          console.error('Failed to save even essential settings:', fallbackError);
+        }
+      }
+    }
   }, [settings]);
 
   // Apply custom colors on mount

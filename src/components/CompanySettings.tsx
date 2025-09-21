@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, MapPin, Upload, X, Building2 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface PickupLocation {
   id: string;
@@ -18,6 +20,7 @@ interface PickupLocation {
 
 export default function CompanySettings() {
   const { settings, updateSettings } = useSettings();
+  const { toast } = useToast();
   const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<PickupLocation | null>(null);
   const [locationForm, setLocationForm] = useState<Omit<PickupLocation, 'id'>>({
@@ -26,26 +29,102 @@ export default function CompanySettings() {
     contactPerson: '',
     phone: ''
   });
+  const [uploadingLogo, setUploadingLogo] = useState<'company' | 'header' | null>(null);
 
   const pickupLocations = settings.companySettings?.checkPickupLocations || [];
 
-  const handleLogoUpload = (type: 'company' | 'header') => (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = (type: 'company' | 'header') => async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const logoData = e.target?.result as string;
-        updateSettings({
-          [type === 'company' ? 'companyLogo' : 'headerLogo']: logoData
-        });
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 2MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploadingLogo(type);
+
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${type}-logo-${Date.now()}.${fileExt}`;
+      const filePath = `company-logos/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('receipts') // Using existing receipts bucket
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(filePath);
+
+      // Update settings with the URL
+      updateSettings({
+        [type === 'company' ? 'companyLogo' : 'headerLogo']: publicUrl
+      });
+
+      toast({
+        title: "Logo uploaded successfully",
+        description: `Your ${type} logo has been saved`,
+      });
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingLogo(null);
+      // Reset file input
+      event.target.value = '';
     }
   };
 
-  const handleRemoveLogo = (type: 'company' | 'header') => {
+  const handleRemoveLogo = async (type: 'company' | 'header') => {
+    const logoUrl = type === 'company' ? settings.companyLogo : settings.headerLogo;
+    
+    // If it's a Supabase Storage URL, delete the file
+    if (logoUrl?.includes('supabase')) {
+      try {
+        const urlParts = logoUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        const filePath = `company-logos/${fileName}`;
+        
+        await supabase.storage
+          .from('receipts')
+          .remove([filePath]);
+      } catch (error) {
+        console.error('Error deleting logo file:', error);
+      }
+    }
+
     updateSettings({
       [type === 'company' ? 'companyLogo' : 'headerLogo']: undefined
+    });
+
+    toast({
+      title: "Logo removed",
+      description: `Your ${type} logo has been removed`,
     });
   };
 
@@ -141,10 +220,10 @@ export default function CompanySettings() {
                   <Building2 className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No company logo uploaded</p>
                   <Label htmlFor="company-logo-upload" className="cursor-pointer">
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild disabled={uploadingLogo === 'company'}>
                       <span>
                         <Upload className="h-4 w-4 mr-2" />
-                        Upload Logo
+                        {uploadingLogo === 'company' ? 'Uploading...' : 'Upload Logo'}
                       </span>
                     </Button>
                   </Label>
@@ -154,6 +233,7 @@ export default function CompanySettings() {
                     accept="image/*"
                     className="sr-only"
                     onChange={handleLogoUpload('company')}
+                    disabled={uploadingLogo === 'company'}
                   />
                 </div>
               </div>
@@ -188,10 +268,10 @@ export default function CompanySettings() {
                   <Building2 className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No header logo uploaded</p>
                   <Label htmlFor="header-logo-upload" className="cursor-pointer">
-                    <Button variant="outline" size="sm" asChild>
+                    <Button variant="outline" size="sm" asChild disabled={uploadingLogo === 'header'}>
                       <span>
                         <Upload className="h-4 w-4 mr-2" />
-                        Upload Logo
+                        {uploadingLogo === 'header' ? 'Uploading...' : 'Upload Logo'}
                       </span>
                     </Button>
                   </Label>
@@ -201,6 +281,7 @@ export default function CompanySettings() {
                     accept="image/*"
                     className="sr-only"
                     onChange={handleLogoUpload('header')}
+                    disabled={uploadingLogo === 'header'}
                   />
                 </div>
               </div>
