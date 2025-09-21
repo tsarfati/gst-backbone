@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const calculateTotal = (invoices: any[]) => {
 };
 
 export default function InvoiceStatus() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,8 @@ export default function InvoiceStatus() {
       total: totals.waitingApproval,
       icon: Clock,
       variant: "warning" as const,
-      description: "Invoices pending management approval"
+      description: "Invoices pending management approval",
+      filter: "approval"
     },
     {
       title: "Waiting to be Paid",
@@ -71,7 +74,8 @@ export default function InvoiceStatus() {
       total: totals.waitingToBePaid,
       icon: CreditCard,
       variant: "default" as const,
-      description: "Approved invoices ready for payment"
+      description: "Approved invoices ready for payment",
+      filter: "pending"
     },
     {
       title: "Overdue",
@@ -79,7 +83,8 @@ export default function InvoiceStatus() {
       total: totals.overdue,
       icon: AlertTriangle,
       variant: "destructive" as const,
-      description: "Invoices past due date"
+      description: "Invoices past due date",
+      filter: "overdue"
     },
     {
       title: "Paid",
@@ -87,9 +92,14 @@ export default function InvoiceStatus() {
       total: totals.paid,
       icon: CheckCircle,
       variant: "success" as const,
-      description: "Successfully processed invoices"
+      description: "Successfully processed invoices",
+      filter: "paid"
     }
   ];
+
+  const handleStatusCardClick = (filter: string) => {
+    navigate(`/invoices?status=${filter}`);
+  };
 
   const selectedJobName = selectedJobId === "all" 
     ? "All Jobs" 
@@ -155,7 +165,11 @@ export default function InvoiceStatus() {
       {/* Status Counter Tiles */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statusCards.map((card) => (
-          <Card key={card.title} className="hover:shadow-md transition-shadow">
+          <Card 
+            key={card.title} 
+            className="hover-stat cursor-pointer"
+            onClick={() => handleStatusCardClick(card.filter)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {card.title}
@@ -177,8 +191,8 @@ export default function InvoiceStatus() {
         ))}
       </div>
 
-      {/* Quick Actions Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Financial Summary */}
+      <div className="mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -216,52 +230,6 @@ export default function InvoiceStatus() {
                   }}
                 />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-primary" />
-              Action Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20">
-              <div>
-                <p className="font-medium">Approval Needed</p>
-                <p className="text-sm text-muted-foreground">
-                  {invoiceStatuses.waitingApproval.length} invoices waiting
-                </p>
-              </div>
-              <Button size="sm" variant="warning">
-                Review
-              </Button>
-            </div>
-            
-            <div className="flex items-center justify-between p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-              <div>
-                <p className="font-medium">Overdue Payment</p>
-                <p className="text-sm text-muted-foreground">
-                  {invoiceStatuses.overdue.length} invoice overdue
-                </p>
-              </div>
-              <Button size="sm" variant="destructive">
-                Pay Now
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <div>
-                <p className="font-medium">Ready for Payment</p>
-                <p className="text-sm text-muted-foreground">
-                  {invoiceStatuses.waitingToBePaid.length} invoices approved
-                </p>
-              </div>
-              <Button size="sm">
-                Process
-              </Button>
             </div>
           </CardContent>
         </Card>

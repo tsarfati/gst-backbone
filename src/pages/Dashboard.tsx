@@ -246,6 +246,18 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
+      {/* Welcome text always appears above banner when banner exists */}
+      {settings.dashboardBanner && (
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
+          </h1>
+          <p className="text-muted-foreground">
+            Here's what's happening with your projects today
+          </p>
+        </div>
+      )}
+      
       {settings.dashboardBanner && (
         <div className="mb-6 relative rounded-lg overflow-hidden">
           <img 
@@ -253,16 +265,6 @@ export default function Dashboard() {
             alt="Dashboard Banner" 
             className="w-full h-48 object-cover"
           />
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-            <div className="text-center text-white">
-              <h1 className="text-4xl font-bold mb-2">
-                Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
-              </h1>
-              <p className="text-lg opacity-90">
-                Here's what's happening with your projects today
-              </p>
-            </div>
-          </div>
         </div>
       )}
       
