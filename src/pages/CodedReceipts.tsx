@@ -21,7 +21,7 @@ GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3
 
 
 export default function CodedReceipts() {
-  const { codedReceipts, messages, codeReceipt } = useReceipts();
+  const { codedReceipts, messages, updateCodedReceiptAmount } = useReceipts();
   const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJob, setFilterJob] = useState("all");
@@ -114,18 +114,12 @@ export default function CodedReceipts() {
       const pdf = new jsPDF();
       let pageNumber = 1;
 
-      // Helper function to add original receipt image/PDF
+      // Helper function to add original receipt document at full size
       const addReceiptDocument = async (receipt: CodedReceipt, receiptIndex: number) => {
         if (pageNumber > 1) {
           pdf.addPage();
         }
 
-        // Add header for receipt
-        pdf.setFontSize(14);
-        pdf.text(`Receipt ${receiptIndex + 1}: ${receipt.filename}`, 20, 20);
-        pdf.setFontSize(10);
-        pdf.text(`Amount: ${receipt.amount} | Date: ${receipt.date}`, 20, 30);
-        
         try {
           if (receipt.previewUrl) {
             // Fetch the original file directly (public bucket) and embed it
@@ -134,7 +128,7 @@ export default function CodedReceipts() {
             const blob = await response.blob();
             const contentType = response.headers.get('content-type') || '';
 
-            // If it's a PDF, render all pages into the export PDF
+            // If it's a PDF, render all pages into the export PDF at full size
             if (contentType.includes('pdf') || receipt.filename.toLowerCase().endsWith('.pdf')) {
               const buffer = await blob.arrayBuffer();
               const srcPdf = await getDocument({ data: buffer }).promise;
@@ -143,9 +137,9 @@ export default function CodedReceipts() {
                 const page = await srcPdf.getPage(p);
                 const viewport = page.getViewport({ scale: 1 });
 
-                // Fit page into jsPDF page
-                const targetWidth = pdf.internal.pageSize.width - 40;
-                const targetHeight = pdf.internal.pageSize.height - 80;
+                // Scale to fit the entire PDF page
+                const targetWidth = pdf.internal.pageSize.width;
+                const targetHeight = pdf.internal.pageSize.height;
                 const scale = Math.min(targetWidth / viewport.width, targetHeight / viewport.height);
                 const scaledViewport = page.getViewport({ scale });
 
@@ -157,20 +151,20 @@ export default function CodedReceipts() {
                 canvas.height = Math.floor(scaledViewport.height);
                 await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
 
-                // Add a new page for each PDF page except the first of the first receipt page
+                // Add a new page for each PDF page except the first of the first receipt
                 if (!(pageNumber === 1 && p === 1)) {
                   pdf.addPage();
                 }
 
-                // Center the rendered page image
+                // Center the rendered page image to fill the page
                 const imgData = canvas.toDataURL('image/jpeg', 1.0);
                 const x = (pdf.internal.pageSize.width - canvas.width) / 2;
-                const y = 40;
+                const y = (pdf.internal.pageSize.height - canvas.height) / 2;
                 pdf.addImage(imgData, 'JPEG', x, y, canvas.width, canvas.height);
                 pageNumber++;
               }
             } else {
-              // It's an image: convert to data URL and embed
+              // It's an image: convert to data URL and embed at full size
               const dataUrl = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
@@ -181,15 +175,18 @@ export default function CodedReceipts() {
               await new Promise((resolve) => {
                 img.onload = () => {
                   try {
-                    const pageWidth = pdf.internal.pageSize.width - 40;
-                    const pageHeight = pdf.internal.pageSize.height - 80;
+                    // Scale to fit the full page while maintaining aspect ratio
+                    const pageWidth = pdf.internal.pageSize.width;
+                    const pageHeight = pdf.internal.pageSize.height;
                     let imgWidth = img.width;
                     let imgHeight = img.height;
                     const scale = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
                     imgWidth *= scale;
                     imgHeight *= scale;
+                    
+                    // Center the image on the page
                     const x = (pdf.internal.pageSize.width - imgWidth) / 2;
-                    const y = 40;
+                    const y = (pdf.internal.pageSize.height - imgHeight) / 2;
                     const format = contentType.includes('png') ? 'PNG' : 'JPEG';
                     pdf.addImage(dataUrl, format as any, x, y, imgWidth, imgHeight);
                   } catch (e) {
@@ -219,7 +216,6 @@ export default function CodedReceipts() {
           pdf.text('Error loading receipt file', 20, 60);
           pageNumber++;
         }
-
       };
       for (let i = 0; i < selectedReceiptData.length; i++) {
         await addReceiptDocument(selectedReceiptData[i], i);
@@ -234,7 +230,7 @@ export default function CodedReceipts() {
 
       // Add title for coding section
       pdf.setFontSize(16);
-      pdf.text('Coding Information & Audit Logs', 20, yPosition);
+      pdf.text('Coding Information & Audit Summary', 20, yPosition);
       yPosition += 15;
 
       // Add export summary
@@ -400,8 +396,7 @@ export default function CodedReceipts() {
     if (!editingReceipt || !editAmount) return;
     
     try {
-      // Here you would update the receipt amount in your backend
-      // For now, we'll just update the local state
+      updateCodedReceiptAmount(editingReceipt.id, editAmount);
       toast({
         title: "Receipt updated",
         description: "Receipt amount has been updated successfully.",

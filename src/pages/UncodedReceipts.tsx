@@ -117,8 +117,11 @@ export default function UncodedReceipts() {
       return;
     }
 
+    // Get user's display name from profiles
+    const userName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User";
+    
     // Code the receipt using context (vendor is optional)
-    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, "Current User", selectedVendor || undefined, selectedAmount || undefined);
+    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, userName, selectedVendor || undefined, selectedAmount || undefined);
     
     setSelectedJob("");
     setSelectedCostCode("");

@@ -141,7 +141,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           vendor: ocrData?.vendor || undefined,
           type: file.type.startsWith('image/') ? 'image' : 'pdf',
           previewUrl: urlData.publicUrl,
-          uploadedBy: "Current User",
+          uploadedBy: user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User",
           uploadedDate: new Date(),
         };
         
@@ -197,7 +197,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     ));
     
     // Add assignment message
-    addMessage(receiptId, `Receipt assigned to ${userName} for review`, "system", "System", 'assignment');
+    addMessage(receiptId, `Receipt assigned to ${userName} for review`, "system", user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "System", 'assignment');
   };
 
   const unassignReceipt = (receiptId: string) => {
@@ -211,7 +211,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     ));
     
     // Add unassignment message
-    addMessage(receiptId, `Receipt unassigned from ${assignedUserName}`, "system", "System", 'status');
+    addMessage(receiptId, `Receipt unassigned from ${assignedUserName}`, "system", user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "System", 'status');
   };
 
   const addMessage = (receiptId: string, message: string, userId: string, userName: string, type: 'message' | 'assignment' | 'coding' | 'status' = 'message') => {
@@ -226,6 +226,19 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     };
     
     setMessages(prev => [...prev, newMessage]);
+  };
+
+  const updateCodedReceiptAmount = (receiptId: string, newAmount: string) => {
+    const userName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User";
+    
+    setCodedReceipts(prev => prev.map(receipt => 
+      receipt.id === receiptId 
+        ? { ...receipt, amount: `$${Number(newAmount).toFixed(2)}` }
+        : receipt
+    ));
+    
+    // Add audit message
+    addMessage(receiptId, `Receipt amount updated to $${Number(newAmount).toFixed(2)}`, "system", userName, 'status');
   };
 
   const deleteReceipt = (receiptId: string) => {
@@ -244,7 +257,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       assignReceipt,
       unassignReceipt,
       addMessage,
-      deleteReceipt
+      deleteReceipt,
+      updateCodedReceiptAmount
     }}>
       {children}
     </ReceiptContext.Provider>
