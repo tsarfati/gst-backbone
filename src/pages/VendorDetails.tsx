@@ -402,7 +402,7 @@ export default function VendorDetails() {
                                   </div>
                                 )}
                                 
-                                {method.check_delivery && (
+                                {method.check_delivery && method.type === 'check' && (
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-medium text-muted-foreground">Delivery:</span>
                                     <span className="text-sm">

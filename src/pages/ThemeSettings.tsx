@@ -233,6 +233,13 @@ export default function ThemeSettings() {
                     customColors: { ...settings.customColors, destructive: value }
                   })}
                 />
+                <ColorPicker
+                  label="Button Hover Color"
+                  value={settings.customColors.buttonHover}
+                  onChange={(value) => updateSettings({ 
+                    customColors: { ...settings.customColors, buttonHover: value }
+                  })}
+                />
               </div>
             </CardContent>
           </Card>

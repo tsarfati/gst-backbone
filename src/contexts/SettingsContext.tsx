@@ -25,6 +25,7 @@ export interface AppSettings {
     success: string;
     warning: string;
     destructive: string;
+    buttonHover: string;
   };
   companyLogo?: string;
   headerLogo?: string;
@@ -62,6 +63,7 @@ const defaultSettings: AppSettings = {
     success: '120 60% 45%',
     warning: '38 100% 55%',
     destructive: '0 84% 60%',
+    buttonHover: '210 100% 40%',
   },
 };
 
