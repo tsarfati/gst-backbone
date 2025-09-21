@@ -59,6 +59,14 @@ const navigationCategories = [
     collapsible: true,
   },
   {
+    title: "Commitments",
+    items: [
+      { name: "Contracts", href: "/commitments/contracts", icon: FileKey, menuKey: "vendors" },
+      { name: "Purchase Orders", href: "/commitments/purchase-orders", icon: FileText, menuKey: "vendors" },
+    ],
+    collapsible: true,
+  },
+  {
     title: "Company Files",
     items: [
       { name: "All Documents", href: "/company-files", icon: FolderArchive, menuKey: "settings" },
