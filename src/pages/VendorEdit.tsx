@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Upload, Building } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Upload, Building, Archive, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,7 +38,8 @@ export default function VendorEdit() {
     tax_id: "",
     customer_number: "",
     payment_terms: "30",
-    notes: ""
+    notes: "",
+    is_active: true
   });
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -124,7 +125,8 @@ export default function VendorEdit() {
           tax_id: data.tax_id || "",
           customer_number: data.customer_number || "",
           payment_terms: data.payment_terms || "30",
-          notes: data.notes || ""
+          notes: data.notes || "",
+          is_active: data.is_active ?? true
         });
         
         if (data.logo_url) {
@@ -307,6 +309,36 @@ export default function VendorEdit() {
     }
   };
 
+  const handleToggleStatus = async () => {
+    if (!user || !id) return;
+    
+    const newStatus = !formData.is_active;
+    
+    try {
+      const { error } = await supabase
+        .from('vendors')
+        .update({ is_active: newStatus })
+        .eq('id', id)
+        .eq('company_id', user.id);
+
+      if (error) throw error;
+
+      setFormData(prev => ({ ...prev, is_active: newStatus }));
+
+      toast({
+        title: `Vendor ${newStatus ? 'Activated' : 'Archived'}`,
+        description: `Vendor has been successfully ${newStatus ? 'activated' : 'archived'}.`,
+      });
+    } catch (error) {
+      console.error('Error updating vendor status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update vendor status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePaymentMethodSave = async (paymentMethodData: any) => {
     // Only send columns that exist in vendor_payment_methods
     const mapToDb = (data: any) => ({
@@ -447,6 +479,24 @@ export default function VendorEdit() {
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {!isAddMode && (
+            <Button 
+              variant={formData.is_active ? "outline" : "default"} 
+              onClick={handleToggleStatus}
+            >
+              {formData.is_active ? (
+                <>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive Vendor
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Activate Vendor
+                </>
+              )}
+            </Button>
+          )}
           <Button onClick={handleSave} disabled={saving}>
             <Save className="h-4 w-4 mr-2" />
             {saving ? "Saving..." : (isAddMode ? "Create Vendor" : "Save Changes")}
@@ -458,7 +508,14 @@ export default function VendorEdit() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Basic Information & Contact Details</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Basic Information & Contact Details
+              {!isAddMode && (
+                <span className={`text-xs px-2 py-1 rounded-full ${formData.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {formData.is_active ? 'Active' : 'Archived'}
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Logo Upload */}
@@ -508,36 +565,6 @@ export default function VendorEdit() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vendor_type">Vendor Type</Label>
-                <Select 
-                  value={formData.vendor_type} 
-                  onValueChange={(value) => handleInputChange("vendor_type", value)}
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select vendor type" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border shadow-md z-50">
-                    <SelectItem value="Contractor">Contractor</SelectItem>
-                    <SelectItem value="Supplier">Supplier</SelectItem>
-                    <SelectItem value="Consultant">Consultant</SelectItem>
-                    <SelectItem value="Design Professional">Design Professional</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="contact_person">Primary Contact</Label>
-                <Input
-                  id="contact_person"
-                  value={formData.contact_person}
-                  onChange={(e) => handleInputChange("contact_person", e.target.value)}
-                  placeholder="Enter primary contact name"
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="tax_id">Tax ID/EIN Number</Label>
                 <Input
                   id="tax_id"
@@ -549,7 +576,16 @@ export default function VendorEdit() {
             </div>
 
             {/* Contact Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contact_person">Primary Contact</Label>
+                <Input
+                  id="contact_person"
+                  value={formData.contact_person}
+                  onChange={(e) => handleInputChange("contact_person", e.target.value)}
+                  placeholder="Enter primary contact name"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
@@ -612,7 +648,25 @@ export default function VendorEdit() {
             </div>
 
             {/* Business Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendor_type">Vendor Type</Label>
+                <Select 
+                  value={formData.vendor_type} 
+                  onValueChange={(value) => handleInputChange("vendor_type", value)}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select vendor type" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="Contractor">Contractor</SelectItem>
+                    <SelectItem value="Supplier">Supplier</SelectItem>
+                    <SelectItem value="Consultant">Consultant</SelectItem>
+                    <SelectItem value="Design Professional">Design Professional</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="customer_number">Customer Number</Label>
                 <Input
