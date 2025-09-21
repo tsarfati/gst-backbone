@@ -71,6 +71,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        'elevation-xs': 'var(--shadow-xs)',
+        'elevation-sm': 'var(--shadow-sm)',
+        'elevation-md': 'var(--shadow-md)',
+        'elevation-lg': 'var(--shadow-lg)',
+        'elevation-xl': 'var(--shadow-xl)',
+        'elevation-2xl': 'var(--shadow-2xl)',
+        'focus-ring': 'var(--shadow-focus)',
+      },
       keyframes: {
         "accordion-down": {
           from: {
@@ -98,11 +107,61 @@ export default {
             borderColor: "hsl(var(--destructive) / 0.5)",
           },
         },
+        fadeIn: {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(10px)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0)",
+          },
+        },
+        slideUp: {
+          "0%": {
+            opacity: "0",
+            transform: "translateY(30px)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translateY(0)",
+          },
+        },
+        scaleIn: {
+          "0%": {
+            opacity: "0",
+            transform: "scale(0.9)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "scale(1)",
+          },
+        },
+        bounceIn: {
+          "0%": {
+            opacity: "0",
+            transform: "scale(0.3)",
+          },
+          "50%": {
+            transform: "scale(1.05)",
+          },
+          "70%": {
+            transform: "scale(0.9)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "scale(1)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-red": "pulse-red 2s ease-in-out infinite",
+        "fade-in": "fadeIn 0.3s ease-out forwards",
+        "slide-up": "slideUp 0.4s ease-out forwards",
+        "scale-in": "scaleIn 0.2s ease-out forwards",
+        "bounce-in": "bounceIn 0.6s ease-out forwards",
       },
     },
   },
