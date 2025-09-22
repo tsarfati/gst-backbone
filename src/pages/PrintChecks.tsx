@@ -1,294 +1,221 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Printer, 
-  Plus, 
-  Search, 
-  Calendar,
-  Building,
-  Edit,
-  Trash2,
-  Eye,
-  Download,
-  FileText
-} from "lucide-react";
+import { ArrowLeft, Printer, Download, Check } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface Payment {
+  id: string;
+  payment_number: string;
+  amount: number;
+  payment_date: string;
+  check_number: string;
+  status: string;
+  memo: string;
+  vendor: {
+    name: string;
+    address: string;
+  };
+}
 
 export default function PrintChecks() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedChecks, setSelectedChecks] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const checks: any[] = [];
+  useEffect(() => {
+    loadPayments();
+    
+    // If coming from a specific payment, pre-select it
+    if (location.state?.paymentId) {
+      setSelectedPayments([location.state.paymentId]);
+    }
+  }, [location.state]);
 
-  const filteredChecks = checks.filter(check => {
-    return check?.payee?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           check?.memo?.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const loadPayments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          vendors (
+            name,
+            address
+          )
+        `)
+        .eq('payment_method', 'check')
+        .in('status', ['draft', 'pending'])
+        .order('payment_date');
 
-  const handleSelectCheck = (checkId: string) => {
-    setSelectedChecks(prev => 
-      prev.includes(checkId) 
-        ? prev.filter(id => id !== checkId)
-        : [...prev, checkId]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedChecks.length === filteredChecks.length) {
-      setSelectedChecks([]);
-    } else {
-      setSelectedChecks(filteredChecks.map(check => check.id));
+      if (error) throw error;
+      setPayments((data || []).map(payment => ({
+        ...payment,
+        vendor: payment.vendors
+      })));
+    } catch (error) {
+      console.error('Error loading payments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load payments",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handlePaymentSelection = (paymentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedPayments([...selectedPayments, paymentId]);
+    } else {
+      setSelectedPayments(selectedPayments.filter(id => id !== paymentId));
+    }
+  };
+
+  const printSelectedChecks = async () => {
+    if (selectedPayments.length === 0) {
+      toast({
+        title: "No Checks Selected",
+        description: "Please select payments to print checks for",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Update payment status to 'sent'
+      const { error } = await supabase
+        .from('payments')
+        .update({ status: 'sent' })
+        .in('id', selectedPayments);
+
+      if (error) throw error;
+
+      // Here you would integrate with actual check printing
+      window.print();
+
+      toast({
+        title: "Success",
+        description: `${selectedPayments.length} check(s) sent to printer`,
+      });
+
+      loadPayments();
+      setSelectedPayments([]);
+    } catch (error) {
+      console.error('Error printing checks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to print checks",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return <div>Loading payments...</div>;
+  }
+
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-6xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Print Checks</h1>
-          <p className="text-muted-foreground">
-            Create, manage, and print checks for payments
-          </p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => navigate("/banking/make-payment")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Print Checks</h1>
+            <p className="text-muted-foreground">Select and print checks for vendor payments</p>
+          </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            disabled={selectedPayments.length === 0}
+            onClick={() => {
+              // Generate PDF preview
+              toast({
+                title: "PDF Generation",
+                description: "PDF generation feature coming soon",
+              });
+            }}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Print Selected
+            Download PDF
           </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Check
+          <Button 
+            onClick={printSelectedChecks}
+            disabled={selectedPayments.length === 0}
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print {selectedPayments.length} Check{selectedPayments.length !== 1 ? 's' : ''}
           </Button>
         </div>
       </div>
 
-      {/* Check Creation Form */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Create New Check</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-2">
-              <Label htmlFor="checkDate">Date</Label>
-              <Input id="checkDate" type="date" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="account">Bank Account</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="checking">Main Checking</SelectItem>
-                  <SelectItem value="payroll">Payroll Account</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="checkNumber">Check Number</Label>
-              <Input id="checkNumber" placeholder="Auto-generated" disabled />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="space-y-2">
-              <Label htmlFor="payee">Pay to the Order of</Label>
-              <Input id="payee" placeholder="Payee name..." />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount</Label>
-              <Input id="amount" type="number" step="0.01" placeholder="0.00" />
-            </div>
-          </div>
-          
-          <div className="space-y-2 mb-4">
-            <Label htmlFor="memo">Memo</Label>
-            <Textarea id="memo" placeholder="Check memo/description..." />
-          </div>
-
-          <div className="space-y-2 mb-4">
-            <Label htmlFor="address">Payee Address (Optional)</Label>
-            <Textarea id="address" placeholder="Payee mailing address..." />
-          </div>
-
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline">Save as Draft</Button>
-            <Button>Create & Queue for Print</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Print</CardTitle>
-            <Printer className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Checks ready to print</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Printed Today</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Checks printed</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Draft Checks</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Saved drafts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Voided</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">This month</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Bulk Actions */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search checks..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {selectedChecks.length > 0 && (
-                <Button variant="outline">
-                  <Printer className="h-4 w-4 mr-2" />
-                  Print Selected ({selectedChecks.length})
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Checks Table */}
+      {/* Payments Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Check Register</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Check className="h-5 w-5" />
+            Payments Ready for Printing
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredChecks.length === 0 ? (
-            <div className="text-center py-8">
-              <Printer className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No checks found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm 
-                  ? "Try adjusting your search"
-                  : "Start by creating your first check"
-                }
-              </p>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Check
+          {payments.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <Check className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-medium mb-2">No Payments Ready</h3>
+              <p className="mb-4">No check payments are ready for printing</p>
+              <Button onClick={() => navigate('/banking/make-payment')}>
+                Create Payment
               </Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox 
-                      checked={selectedChecks.length === filteredChecks.length}
-                      onCheckedChange={handleSelectAll}
-                    />
-                  </TableHead>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead>Payment #</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Amount</TableHead>
                   <TableHead>Check #</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Payee</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Account</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Memo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredChecks.map((check) => (
-                  <TableRow key={check.id}>
+                {payments.map(payment => (
+                  <TableRow key={payment.id}>
                     <TableCell>
-                      <Checkbox 
-                        checked={selectedChecks.includes(check.id)}
-                        onCheckedChange={() => handleSelectCheck(check.id)}
+                      <Checkbox
+                        checked={selectedPayments.includes(payment.id)}
+                        onCheckedChange={(checked) => 
+                          handlePaymentSelection(payment.id, checked as boolean)
+                        }
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{check.checkNumber}</TableCell>
+                    <TableCell className="font-medium">{payment.payment_number}</TableCell>
+                    <TableCell>{payment.vendor.name}</TableCell>
+                    <TableCell>${payment.amount.toFixed(2)}</TableCell>
+                    <TableCell>{payment.check_number || 'Auto-assign'}</TableCell>
+                    <TableCell>{new Date(payment.payment_date).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <div className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {check.date}
-                      </div>
-                    </TableCell>
-                    <TableCell>{check.payee}</TableCell>
-                    <TableCell className="font-semibold">${check.amount}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Building className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {check.account}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        check.status === "printed" ? "default" :
-                        check.status === "draft" ? "secondary" :
-                        check.status === "voided" ? "destructive" : "outline"
-                      }>
-                        {check.status}
+                      <Badge variant={payment.status === 'draft' ? 'secondary' : 'warning'}>
+                        {payment.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    <TableCell>{payment.memo}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -296,6 +223,31 @@ export default function PrintChecks() {
           )}
         </CardContent>
       </Card>
+
+      {/* Summary */}
+      {selectedPayments.length > 0 && (
+        <Card className="mt-6">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  {selectedPayments.length} payment{selectedPayments.length !== 1 ? 's' : ''} selected
+                </p>
+                <p className="text-lg font-semibold">
+                  Total: ${payments
+                    .filter(p => selectedPayments.includes(p.id))
+                    .reduce((sum, p) => sum + p.amount, 0)
+                    .toFixed(2)}
+                </p>
+              </div>
+              <Button onClick={printSelectedChecks}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print Selected Checks
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CostCodeManager from "@/components/CostCodeManager";
+import JobBudgetManager from "@/components/JobBudgetManager";
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -281,6 +282,11 @@ export default function AddJob() {
           costCodes={costCodes} 
           onCostCodesChange={setCostCodes} 
         />
+
+        {/* Job Budget Section */}
+        <div className="p-6 border-2 border-dashed border-muted-foreground/25 rounded-lg text-center">
+          <p className="text-muted-foreground">Budget setup will be available after creating the job</p>
+        </div>
 
         {/* Form Actions */}
         <div className="flex gap-3">

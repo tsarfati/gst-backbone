@@ -171,28 +171,19 @@ export default function Bills() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/invoices/${bill.id}`);
-                          }}
-                        >
-                          View
-                        </Button>
-                        {bill.status !== "paid" && (
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Handle mark as paid
-                            }}
-                          >
-                            Mark Paid
-                          </Button>
-                        )}
+                    <Button 
+                      size="sm"
+                      onClick={() => navigate(`/bills/${bill.id}`)}
+                    >
+                      View Details
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => navigate('/banking/make-payment')}
+                    >
+                      Create Payment
+                    </Button>
                       </div>
                     </TableCell>
                   </TableRow>

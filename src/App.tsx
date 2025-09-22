@@ -56,6 +56,7 @@ import BankingReports from "./pages/BankingReports";
 import JournalEntries from "./pages/JournalEntries";
 import Deposits from "./pages/Deposits";
 import PrintChecks from "./pages/PrintChecks";
+import MakePayment from "./pages/MakePayment";
 import Reconcile from "./pages/Reconcile";
 
 const queryClient = new QueryClient();
@@ -146,6 +147,7 @@ function AppRoutes() {
                       <Route path="banking/journal-entries" element={<JournalEntries />} />
                       <Route path="banking/deposits" element={<Deposits />} />
                       <Route path="banking/print-checks" element={<PrintChecks />} />
+                      <Route path="banking/make-payment" element={<MakePayment />} />
                       <Route path="banking/reconcile" element={<Reconcile />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />

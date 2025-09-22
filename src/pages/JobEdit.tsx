@@ -11,6 +11,7 @@ import { ArrowLeft, Save, Trash2, Building, Users, UserCheck } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import CostCodeManager from "@/components/CostCodeManager";
+import JobBudgetManager from "@/components/JobBudgetManager";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 
 export default function JobEdit() {
@@ -705,6 +706,9 @@ export default function JobEdit() {
           costCodes={costCodes}
           onCostCodesChange={setCostCodes}
         />
+
+        {/* Job Budget Section */}
+        <JobBudgetManager jobId={id!} jobName={formData.name} />
       </div>
       </div>
     </DevelopmentFreezeGuard>

@@ -103,9 +103,9 @@ export default function BillDetails() {
             <Eye className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
+          <Button onClick={() => navigate('/banking/make-payment')}>
+            <DollarSign className="h-4 w-4 mr-2" />
+            Create Payment
           </Button>
         </div>
       </div>
