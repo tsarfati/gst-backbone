@@ -37,20 +37,18 @@ export default function CompanyRequest() {
   const [requestingAccess, setRequestingAccess] = useState<string | null>(null);
   const [selectingCompany, setSelectingCompany] = useState<string | null>(null);
 
-  // Resolve storage paths like "bucket/path/to/file.png" to public URLs
+  // Resolve storage paths to public URLs using Supabase Storage API
   const resolveLogoUrl = (logo?: string) => {
     if (!logo) return undefined;
     if (/^https?:\/\//i.test(logo)) return logo;
-    
-    // Handle different storage path formats
-    let path = logo.replace(/^\/+/, '');
-    
-    // If it doesn't include a bucket name, assume it's in a specific bucket
-    if (!path.includes('/')) {
-      path = `company-logos/${path}`;
+    const raw = logo.replace(/^\/+/, '');
+    if (raw.includes('/')) {
+      const [bucket, ...rest] = raw.split('/');
+      const filePath = rest.join('/');
+      return supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
     }
-    
-    return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${path}`;
+    // Fallback to avatars bucket if no bucket in path
+    return supabase.storage.from('avatars').getPublicUrl(raw).data.publicUrl;
   };
 
   useEffect(() => {
@@ -179,7 +177,8 @@ export default function CompanyRequest() {
     setSelectingCompany(companyId);
     try {
       await switchCompany(companyId);
-      // Navigation will happen automatically due to page reload in switchCompany
+      // After successful switch, go to dashboard
+      window.location.href = '/';
     } catch (error: any) {
       console.error('Error selecting company:', error);
       toast({

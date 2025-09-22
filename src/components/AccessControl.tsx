@@ -40,14 +40,20 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // Allow access to company request page regardless of approval status
+    // Determine if user has approved company access
+    const hasApprovedAccess = userCompanies.length > 0;
+
+    // If on company-request and user already has access, send to home
     if (location.pathname === '/company-request') {
+      if (hasApprovedAccess) {
+        navigate('/');
+        return;
+      }
       setChecking(false);
       return;
     }
 
-    // If user has no approved company access, redirect to company request
-    const hasApprovedAccess = userCompanies.length > 0;
+    // If user lacks access, force them to company-request
     if (!hasApprovedAccess) {
       navigate('/company-request');
       return;
