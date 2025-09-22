@@ -491,6 +491,24 @@ export default function CompanyManagement() {
         </CardContent>
       </Card>
 
+      {/* Access Requests Card - Only show for company admins */}
+      {isCompanyAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Access Requests
+            </CardTitle>
+            <CardDescription>
+              Review and approve requests to join this company
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CompanyAccessApproval />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Users Management Card */}
       <Card>
         <CardHeader>
