@@ -6,7 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import AppLayout from "@/components/AppLayout";
+import Layout from "@/components/AppLayout";
 
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -81,7 +81,7 @@ function AppRoutes() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/" element={
           <ProtectedRoute>
-            <AppLayout />
+            <Layout />
           </ProtectedRoute>
         }>
                       <Route index element={<Dashboard />} />
