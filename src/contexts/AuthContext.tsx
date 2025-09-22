@@ -108,13 +108,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`
+        redirectTo: `${window.location.origin}/`,
+        skipBrowserRedirect: true
       }
     });
-    return { error };
+
+    if (error) return { error };
+
+    // Open OAuth in the top window to avoid iframe "refused to connect"
+    if (data?.url) {
+      if (window.top) {
+        (window.top as Window).location.href = data.url;
+      } else {
+        window.location.href = data.url;
+      }
+    }
+    return { error: null } as any;
   };
 
   const signOut = async () => {
