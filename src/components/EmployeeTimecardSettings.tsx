@@ -62,7 +62,7 @@ export default function EmployeeTimecardSettings({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';

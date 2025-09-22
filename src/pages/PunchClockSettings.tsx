@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
+import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 
 interface PunchClockSettings {
   require_location: boolean;
@@ -205,9 +206,10 @@ export default function PunchClockSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="general">General Settings</TabsTrigger>
           <TabsTrigger value="employees">Employee Settings</TabsTrigger>
+          <TabsTrigger value="jobs">Job Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -590,6 +592,9 @@ export default function PunchClockSettings() {
             selectedEmployeeId={selectedEmployeeId}
             onEmployeeChange={setSelectedEmployeeId}
           />
+        </TabsContent>
+        <TabsContent value="jobs" className="space-y-6">
+          <JobPunchClockSettings />
         </TabsContent>
       </Tabs>
     </div>

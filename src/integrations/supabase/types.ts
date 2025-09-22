@@ -637,6 +637,95 @@ export type Database = {
           },
         ]
       }
+      job_punch_clock_settings: {
+        Row: {
+          allow_manual_entry: boolean | null
+          auto_break_duration: number | null
+          auto_break_wait_hours: number | null
+          calculate_overtime: boolean | null
+          company_id: string
+          created_at: string
+          created_by: string
+          earliest_punch_start_time: string | null
+          enable_punch_rounding: boolean | null
+          grace_period_minutes: number | null
+          id: string
+          job_id: string
+          latest_punch_in_time: string | null
+          location_accuracy_meters: number | null
+          manager_approval_required: boolean | null
+          notification_enabled: boolean | null
+          overtime_threshold: number | null
+          punch_rounding_direction: string | null
+          punch_rounding_minutes: number | null
+          punch_time_window_end: string | null
+          punch_time_window_start: string | null
+          require_location: boolean | null
+          require_photo: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          allow_manual_entry?: boolean | null
+          auto_break_duration?: number | null
+          auto_break_wait_hours?: number | null
+          calculate_overtime?: boolean | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          earliest_punch_start_time?: string | null
+          enable_punch_rounding?: boolean | null
+          grace_period_minutes?: number | null
+          id?: string
+          job_id: string
+          latest_punch_in_time?: string | null
+          location_accuracy_meters?: number | null
+          manager_approval_required?: boolean | null
+          notification_enabled?: boolean | null
+          overtime_threshold?: number | null
+          punch_rounding_direction?: string | null
+          punch_rounding_minutes?: number | null
+          punch_time_window_end?: string | null
+          punch_time_window_start?: string | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          allow_manual_entry?: boolean | null
+          auto_break_duration?: number | null
+          auto_break_wait_hours?: number | null
+          calculate_overtime?: boolean | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          earliest_punch_start_time?: string | null
+          enable_punch_rounding?: boolean | null
+          grace_period_minutes?: number | null
+          id?: string
+          job_id?: string
+          latest_punch_in_time?: string | null
+          location_accuracy_meters?: number | null
+          manager_approval_required?: boolean | null
+          notification_enabled?: boolean | null
+          overtime_threshold?: number | null
+          punch_rounding_direction?: string | null
+          punch_rounding_minutes?: number | null
+          punch_time_window_end?: string | null
+          punch_time_window_start?: string | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_punch_clock_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           address: string | null
