@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, Save, Trash2, Building, Users, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import CostCodeManager from "@/components/CostCodeManager";
+import JobCostCodeSelector from "@/components/JobCostCodeSelector";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 
@@ -22,7 +22,7 @@ export default function JobEdit() {
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
   const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
-  const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [selectedCostCodes, setSelectedCostCodes] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -125,14 +125,15 @@ export default function JobEdit() {
             setAssistantManagers(assistants);
           }
 
-          // Fetch cost codes for this job
+          // Fetch selected cost codes for this job
           const { data: codes, error: codesError } = await supabase
             .from('cost_codes')
             .select('*')
-            .eq('job_id', id);
+            .eq('job_id', id)
+            .eq('is_active', true);
 
           if (!codesError && codes) {
-            setCostCodes(codes);
+            setSelectedCostCodes(codes);
           }
         }
       } catch (err) {
@@ -237,19 +238,20 @@ export default function JobEdit() {
         return;
       }
 
-      // Save cost codes
-      if (costCodes.length > 0) {
-        // Delete existing cost codes for this job
+      // Save selected cost codes relationship
+      if (selectedCostCodes.length > 0) {
+        // Delete existing job-cost code relationships
         await supabase
           .from('cost_codes')
           .delete()
           .eq('job_id', id);
 
-        // Insert new cost codes
-        const costCodeInserts = costCodes.map(code => ({
+        // Create job-specific copies of selected cost codes
+        const costCodeInserts = selectedCostCodes.map(code => ({
           job_id: id,
           code: code.code,
-          description: code.description
+          description: code.description,
+          is_active: true
         }));
 
         const { error: costCodeError } = await supabase
@@ -259,6 +261,12 @@ export default function JobEdit() {
         if (costCodeError) {
           console.error('Error saving cost codes:', costCodeError);
         }
+      } else {
+        // Remove all job cost codes if none selected
+        await supabase
+          .from('cost_codes')
+          .delete()
+          .eq('job_id', id);
       }
 
       toast({
@@ -701,14 +709,18 @@ export default function JobEdit() {
         </Card>
 
         {/* Cost Codes */}
-        <CostCodeManager
+        <JobCostCodeSelector
           jobId={id}
-          costCodes={costCodes}
-          onCostCodesChange={setCostCodes}
+          selectedCostCodes={selectedCostCodes}
+          onSelectedCostCodesChange={setSelectedCostCodes}
         />
 
         {/* Job Budget Section */}
-        <JobBudgetManager jobId={id!} jobName={formData.name} />
+        <JobBudgetManager 
+          jobId={id!} 
+          jobName={formData.name}
+          selectedCostCodes={selectedCostCodes}
+        />
       </div>
       </div>
     </DevelopmentFreezeGuard>

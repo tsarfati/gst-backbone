@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 interface JobBudgetManagerProps {
   jobId: string;
   jobName?: string;
+  selectedCostCodes: CostCode[];
 }
 
 interface CostCode {
@@ -28,7 +29,7 @@ interface BudgetLine {
   cost_code?: CostCode;
 }
 
-export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerProps) {
+export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: JobBudgetManagerProps) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,17 +40,13 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
     loadData();
   }, [jobId]);
 
+  useEffect(() => {
+    // Auto-populate budget lines for selected cost codes
+    populateBudgetLines();
+  }, [selectedCostCodes]);
+
   const loadData = async () => {
     try {
-      // Load cost codes
-      const { data: costCodesData, error: costCodesError } = await supabase
-        .from('cost_codes')
-        .select('*')
-        .eq('is_active', true)
-        .order('code');
-
-      if (costCodesError) throw costCodesError;
-
       // Load existing budget lines
       const { data: budgetData, error: budgetError } = await supabase
         .from('job_budgets')
@@ -65,7 +62,6 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
 
       if (budgetError) throw budgetError;
 
-      setCostCodes(costCodesData || []);
       setBudgetLines(budgetData || []);
     } catch (error) {
       console.error('Error loading budget data:', error);
@@ -79,44 +75,43 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
     }
   };
 
-  const addBudgetLine = () => {
-    const availableCostCode = costCodes.find(cc => 
-      !budgetLines.some(bl => bl.cost_code_id === cc.id)
-    );
-    
-    if (!availableCostCode) {
-      toast({
-        title: "No Available Cost Codes",
-        description: "All cost codes have been added to the budget",
-        variant: "destructive",
-      });
+  const populateBudgetLines = () => {
+    if (selectedCostCodes.length === 0) {
+      setBudgetLines([]);
       return;
     }
 
-    setBudgetLines([...budgetLines, {
-      cost_code_id: availableCostCode.id,
-      budgeted_amount: 0,
-      actual_amount: 0,
-      committed_amount: 0,
-      cost_code: availableCostCode
-    }]);
+    const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
+      // Check if we already have a budget line for this cost code
+      const existingLine = budgetLines.find(bl => bl.cost_code_id === costCode.id);
+      
+      if (existingLine) {
+        return {
+          ...existingLine,
+          cost_code: costCode
+        };
+      }
+      
+      // Create new budget line
+      return {
+        cost_code_id: costCode.id,
+        budgeted_amount: 0,
+        actual_amount: 0,
+        committed_amount: 0,
+        cost_code: costCode
+      };
+    });
+
+    setBudgetLines(newBudgetLines);
   };
+
 
   const updateBudgetLine = (index: number, field: keyof BudgetLine, value: any) => {
     const updated = [...budgetLines];
     updated[index] = { ...updated[index], [field]: value };
-    
-    if (field === 'cost_code_id') {
-      const costCode = costCodes.find(cc => cc.id === value);
-      updated[index].cost_code = costCode;
-    }
-    
     setBudgetLines(updated);
   };
 
-  const removeBudgetLine = (index: number) => {
-    setBudgetLines(budgetLines.filter((_, i) => i !== index));
-  };
 
   const saveBudget = async () => {
     setSaving(true);
@@ -181,16 +176,10 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>Job Budget - {jobName}</span>
-          <div className="flex gap-2">
-            <Button onClick={addBudgetLine} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Line
-            </Button>
-            <Button onClick={saveBudget} disabled={saving} size="sm">
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Budget'}
-            </Button>
-          </div>
+          <Button onClick={saveBudget} disabled={saving} size="sm">
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Saving...' : 'Save Budget'}
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -204,27 +193,18 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
                 <TableHead>Actual Amount</TableHead>
                 <TableHead>Committed Amount</TableHead>
                 <TableHead>Variance</TableHead>
-                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {budgetLines.map((line, index) => (
                 <TableRow key={index}>
                   <TableCell>
-                    <select
-                      value={line.cost_code_id}
-                      onChange={(e) => updateBudgetLine(index, 'cost_code_id', e.target.value)}
-                      className="w-full p-2 border rounded"
-                    >
-                      {costCodes.map(cc => (
-                        <option key={cc.id} value={cc.id}>
-                          {cc.code}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="font-mono text-sm">
+                      {line.cost_code?.code}
+                    </span>
                   </TableCell>
                   <TableCell>
-                    {line.cost_code?.description || costCodes.find(cc => cc.id === line.cost_code_id)?.description}
+                    {line.cost_code?.description}
                   </TableCell>
                   <TableCell>
                     <Input
@@ -232,7 +212,8 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
                       step="0.01"
                       value={line.budgeted_amount}
                       onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
-                      className="w-24"
+                      className="w-32"
+                      placeholder="0.00"
                     />
                   </TableCell>
                   <TableCell>
@@ -250,21 +231,12 @@ export default function JobBudgetManager({ jobId, jobName }: JobBudgetManagerPro
                       ${(line.budgeted_amount - (line.actual_amount + line.committed_amount)).toFixed(2)}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeBudgetLine(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
                 </TableRow>
               ))}
               {budgetLines.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    No budget lines added. Click "Add Line" to start building your budget.
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No budget lines available. Select cost codes for this job to create budget lines.
                   </TableCell>
                 </TableRow>
               )}
