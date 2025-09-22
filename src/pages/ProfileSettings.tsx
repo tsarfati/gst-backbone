@@ -33,7 +33,7 @@ interface NotificationSettings {
 
 export default function ProfileSettings() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -142,6 +142,7 @@ export default function ProfileSettings() {
       if (updateError) throw updateError;
 
       setProfileData(prev => ({ ...prev, avatar_url: avatarUrl }));
+      await refreshProfile();
       
       toast({
         title: 'Success',
@@ -248,6 +249,8 @@ export default function ProfileSettings() {
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      await refreshProfile();
 
       toast({
         title: 'Success',
