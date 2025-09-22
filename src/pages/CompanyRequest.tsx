@@ -41,7 +41,15 @@ export default function CompanyRequest() {
   const resolveLogoUrl = (logo?: string) => {
     if (!logo) return undefined;
     if (/^https?:\/\//i.test(logo)) return logo;
-    const path = logo.replace(/^\/+/, '');
+    
+    // Handle different storage path formats
+    let path = logo.replace(/^\/+/, '');
+    
+    // If it doesn't include a bucket name, assume it's in a specific bucket
+    if (!path.includes('/')) {
+      path = `company-logos/${path}`;
+    }
+    
     return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${path}`;
   };
 
