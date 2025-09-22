@@ -80,10 +80,10 @@ export default function ProfileCompletion() {
     if (!user) return;
 
     // Validate required fields
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.birthday) {
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.birthday || !avatarFile) {
       toast({
         title: 'Required Fields Missing',
-        description: 'Please fill in first name, last name, and birthday.',
+        description: 'Please fill in first name, last name, birthday, and profile picture.',
         variant: 'destructive'
       });
       return;
@@ -181,7 +181,7 @@ export default function ProfileCompletion() {
                 className="hidden"
               />
               <p className="text-sm text-muted-foreground text-center">
-                Click the upload button to add a profile picture
+                Click the upload button to add a profile picture *
               </p>
             </div>
 
