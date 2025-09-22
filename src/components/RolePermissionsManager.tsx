@@ -15,22 +15,88 @@ interface RolePermission {
   can_access: boolean;
 }
 
+interface MenuItem {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+}
+
 const menuItems = [
-  { key: 'dashboard', label: 'Dashboard', description: 'Main dashboard overview' },
-  { key: 'jobs', label: 'Jobs', description: 'Manage construction jobs and projects' },
-  { key: 'vendors', label: 'Vendors', description: 'Manage vendor relationships' },
-  { key: 'employees', label: 'Employees', description: 'Employee management and profiles' },
-  { key: 'receipts', label: 'Receipts', description: 'Upload and manage receipts' },
-  { key: 'messages', label: 'Messages', description: 'Internal messaging system' },
-  { key: 'announcements', label: 'Announcements', description: 'Company announcements' },
-  { key: 'settings', label: 'Settings', description: 'Application settings and configuration' },
-  { key: 'reports', label: 'Reports', description: 'Analytics and reporting features' },
+  // Core Application
+  { key: 'dashboard', label: 'Dashboard', description: 'Main dashboard overview', category: 'Core' },
+  
+  // Project Management
+  { key: 'jobs', label: 'Jobs', description: 'View and manage construction jobs', category: 'Projects' },
+  { key: 'jobs-add', label: 'Add Jobs', description: 'Create new construction projects', category: 'Projects' },
+  { key: 'jobs-edit', label: 'Edit Jobs', description: 'Modify existing job details', category: 'Projects' },
+  { key: 'jobs-budget', label: 'Job Budgets', description: 'Manage project budgeting', category: 'Projects' },
+  { key: 'jobs-reports', label: 'Job Reports', description: 'Generate job performance reports', category: 'Projects' },
+  { key: 'cost-codes', label: 'Cost Codes', description: 'Manage job cost codes', category: 'Projects' },
+  
+  // Vendor Management
+  { key: 'vendors', label: 'Vendors', description: 'View vendor directory', category: 'Vendors' },
+  { key: 'vendors-add', label: 'Add Vendors', description: 'Register new vendors', category: 'Vendors' },
+  { key: 'vendors-edit', label: 'Edit Vendors', description: 'Modify vendor information', category: 'Vendors' },
+  
+  // Employee Management
+  { key: 'employees', label: 'Employees', description: 'View employee directory', category: 'HR' },
+  { key: 'employees-add', label: 'Add Employees', description: 'Register new employees', category: 'HR' },
+  { key: 'time-tracking', label: 'Time Tracking', description: 'Employee time clock system', category: 'HR' },
+  { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'HR' },
+  
+  // Financial Management
+  { key: 'bills', label: 'Bills & Invoices', description: 'Manage bills and invoices', category: 'Finance' },
+  { key: 'bills-add', label: 'Add Bills', description: 'Create new bills/invoices', category: 'Finance' },
+  { key: 'bill-status', label: 'Bill Status', description: 'Track bill payment status', category: 'Finance' },
+  { key: 'payment-history', label: 'Payment History', description: 'View payment records', category: 'Finance' },
+  { key: 'payment-reports', label: 'Payment Reports', description: 'Generate payment reports', category: 'Finance' },
+  
+  // Receipt Management
+  { key: 'receipts-upload', label: 'Upload Receipts', description: 'Upload receipt images', category: 'Receipts' },
+  { key: 'receipts-uncoded', label: 'Uncoded Receipts', description: 'Process uncoded receipts', category: 'Receipts' },
+  { key: 'receipts-coded', label: 'Coded Receipts', description: 'View processed receipts', category: 'Receipts' },
+  { key: 'receipt-reports', label: 'Receipt Reports', description: 'Generate receipt reports', category: 'Receipts' },
+  
+  // Banking
+  { key: 'banking-accounts', label: 'Bank Accounts', description: 'Manage bank accounts', category: 'Banking' },
+  { key: 'banking-credit-cards', label: 'Credit Cards', description: 'Manage credit cards', category: 'Banking' },
+  { key: 'banking-reports', label: 'Banking Reports', description: 'Generate banking reports', category: 'Banking' },
+  { key: 'journal-entries', label: 'Journal Entries', description: 'Manage accounting entries', category: 'Banking' },
+  { key: 'deposits', label: 'Deposits', description: 'Record bank deposits', category: 'Banking' },
+  { key: 'print-checks', label: 'Print Checks', description: 'Print payment checks', category: 'Banking' },
+  { key: 'make-payment', label: 'Make Payments', description: 'Process payments', category: 'Banking' },
+  { key: 'reconcile', label: 'Bank Reconciliation', description: 'Reconcile bank statements', category: 'Banking' },
+  
+  // Communication
+  { key: 'messages', label: 'Messages', description: 'Internal messaging system', category: 'Communication' },
+  { key: 'team-chat', label: 'Team Chat', description: 'Team communication', category: 'Communication' },
+  { key: 'announcements', label: 'Announcements', description: 'Company announcements', category: 'Communication' },
+  
+  // Company Management
+  { key: 'company-files', label: 'Company Files', description: 'Manage company documents', category: 'Company' },
+  { key: 'company-contracts', label: 'Contracts', description: 'Manage company contracts', category: 'Company' },
+  { key: 'company-permits', label: 'Permits', description: 'Track company permits', category: 'Company' },
+  { key: 'company-insurance', label: 'Insurance', description: 'Manage insurance policies', category: 'Company' },
+  
+  // Administration
+  { key: 'settings', label: 'App Settings', description: 'Application configuration', category: 'Admin' },
+  { key: 'company-settings', label: 'Company Settings', description: 'Company configuration', category: 'Admin' },
+  { key: 'company-management', label: 'Company Management', description: 'Company user management', category: 'Admin' },
+  { key: 'user-settings', label: 'User Management', description: 'User roles and permissions', category: 'Admin' },
+  { key: 'theme-settings', label: 'Theme Settings', description: 'Customize app appearance', category: 'Admin' },
+  { key: 'notification-settings', label: 'Notifications', description: 'Configure notifications', category: 'Admin' },
+  { key: 'security-settings', label: 'Security Settings', description: 'Security configuration', category: 'Admin' },
+  { key: 'email-templates', label: 'Email Templates', description: 'Manage email templates', category: 'Admin' },
+  { key: 'profile-settings', label: 'Profile Settings', description: 'Personal profile settings', category: 'Personal' },
 ];
 
 const roles = [
-  { key: 'admin', label: 'Admin', color: 'bg-red-500' },
-  { key: 'controller', label: 'Controller', color: 'bg-blue-500' },
-  { key: 'employee', label: 'Employee', color: 'bg-gray-500' },
+  { key: 'admin', label: 'Admin', color: 'bg-red-100 text-red-800', description: 'Full system access' },
+  { key: 'controller', label: 'Controller', color: 'bg-blue-100 text-blue-800', description: 'Financial oversight' },
+  { key: 'project_manager', label: 'Project Manager', color: 'bg-green-100 text-green-800', description: 'Project management' },
+  { key: 'employee', label: 'Employee', color: 'bg-gray-100 text-gray-800', description: 'Basic employee access' },
+  { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access' },
 ];
 
 export default function RolePermissionsManager() {
@@ -143,48 +209,64 @@ export default function RolePermissionsManager() {
         </Button>
       </div>
 
-      <div className="grid gap-6">
+      <div className="space-y-4">
         {roles.map((role) => (
-          <Card key={role.key}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Badge className={role.color}>{role.label}</Badge>
-                <Settings className="h-5 w-5" />
-                Menu Access Permissions
+          <Card key={role.key} className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge className={`${role.color} border-0`}>{role.label}</Badge>
+                  <span className="text-xs text-muted-foreground">({role.description})</span>
+                </div>
+                <Settings className="h-4 w-4 text-muted-foreground" />
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {menuItems.map((menuItem) => (
-                  <div key={menuItem.key} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="space-y-1">
-                      <Label htmlFor={`${role.key}-${menuItem.key}`} className="font-medium">
-                        {menuItem.label}
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        {menuItem.description}
-                      </p>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {/* Group permissions by category */}
+                {['Core', 'Projects', 'Vendors', 'HR', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
+                  const categoryItems = menuItems.filter(item => item.category === category);
+                  if (categoryItems.length === 0) return null;
+                  
+                  return (
+                    <div key={category} className="space-y-2">
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {categoryItems.map((menuItem) => (
+                          <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors">
+                            <Switch
+                              id={`${role.key}-${menuItem.key}`}
+                              checked={getPermission(role.key, menuItem.key)}
+                              onCheckedChange={(checked) => updatePermission(role.key, menuItem.key, checked)}
+                              className="scale-75"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <Label 
+                                htmlFor={`${role.key}-${menuItem.key}`} 
+                                className="text-xs font-medium cursor-pointer block truncate"
+                              >
+                                {menuItem.label}
+                              </Label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Switch
-                      id={`${role.key}-${menuItem.key}`}
-                      checked={getPermission(role.key, menuItem.key)}
-                      onCheckedChange={(checked) => updatePermission(role.key, menuItem.key, checked)}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="bg-muted p-4 rounded-lg">
-        <h3 className="font-medium mb-2">Permission Notes:</h3>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Menu items will be hidden for roles that don't have access</li>
-          <li>• Changes take effect immediately after saving</li>
-          <li>• Users may need to refresh their browser to see menu changes</li>
-          <li>• Admin role should typically have access to all features</li>
+      <div className="bg-muted/50 p-3 rounded-lg">
+        <h3 className="text-sm font-medium mb-2">Permission Guidelines:</h3>
+        <ul className="text-xs text-muted-foreground space-y-1">
+          <li>• Changes are saved automatically when toggled</li>
+          <li>• Users need to refresh to see menu changes</li>
+          <li>• Admin role should have access to all features</li>
+          <li>• Group permissions by category for easier management</li>
         </ul>
       </div>
     </div>
