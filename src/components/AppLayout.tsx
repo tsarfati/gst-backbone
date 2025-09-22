@@ -272,14 +272,27 @@ export function AppSidebar() {
                   <CollapsibleContent>
                     <SidebarGroupContent>
                       <SidebarMenu>
-                        {allowedItems.map((item) => {
-                          const isActive = location.pathname === item.href || 
-                            location.pathname.startsWith(item.href + '/') ||
-                            // Keep Payables items active when on related pages
-                            (category.title === 'Payables' && (
-                              (item.href === '/subcontracts/add' && location.pathname.startsWith('/subcontracts/')) ||
-                              (item.href === '/purchase-orders/add' && location.pathname.startsWith('/purchase-orders/'))
-                            ));
+                         {allowedItems.map((item) => {
+                           // More precise active state logic
+                           let isActive = false;
+                           
+                           if (location.pathname === item.href) {
+                             isActive = true;
+                           } else if (location.pathname.startsWith(item.href + '/')) {
+                             // Only highlight if this is the most specific match
+                             const otherMatches = allowedItems.filter(otherItem => 
+                               otherItem.href !== item.href && 
+                               location.pathname.startsWith(otherItem.href + '/')
+                             );
+                             isActive = otherMatches.length === 0 || item.href.length >= Math.max(...otherMatches.map(m => m.href.length));
+                           } else if (category.title === 'Payables') {
+                             // Special cases for Payables
+                             if (item.href === '/subcontracts/add' && location.pathname.startsWith('/subcontracts/')) {
+                               isActive = true;
+                             } else if (item.href === '/purchase-orders/add' && location.pathname.startsWith('/purchase-orders/')) {
+                               isActive = true;
+                             }
+                           }
                           return (
                             <SidebarMenuItem key={item.name}>
                                <SidebarMenuButton 
