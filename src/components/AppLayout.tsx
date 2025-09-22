@@ -89,7 +89,8 @@ const navigationCategories = [
     items: [
       { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "employees" },
       { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "employees" },
-      { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp, menuKey: "reports" },
+      { name: "Time Card Reports", href: "/punch-clock/reports", icon: TrendingUp, menuKey: "reports" },
+      { name: "Punch Clock Settings", href: "/punch-clock/settings", icon: Settings, menuKey: "settings" },
     ],
     collapsible: true,
   },
