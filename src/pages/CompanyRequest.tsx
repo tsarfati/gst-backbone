@@ -48,6 +48,10 @@ export default function CompanyRequest() {
         .order('name');
 
       if (error) throw error;
+      console.log('Fetched companies:', data);
+      data?.forEach(company => {
+        console.log(`Company: ${company.name}, Logo URL: ${company.logo_url || 'No logo'}`);
+      });
       setCompanies(data || []);
     } catch (error) {
       console.error('Error fetching companies:', error);
@@ -226,11 +230,18 @@ export default function CompanyRequest() {
                 {/* Logo spanning the whole tile */}
                 <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-background to-muted/50">
                   {company.logo_url ? (
-                    <img 
-                      src={company.logo_url} 
-                      alt={`${company.name} logo`}
-                      className="w-full h-full object-cover"
-                    />
+                    <div className="w-full h-full flex items-center justify-center p-4">
+                      <img 
+                        src={company.logo_url} 
+                        alt={`${company.name} logo`}
+                        className="max-w-full max-h-full object-contain"
+                        onLoad={() => console.log(`Logo loaded for ${company.name}:`, company.logo_url)}
+                        onError={(e) => {
+                          console.error(`Logo failed to load for ${company.name}:`, company.logo_url);
+                          console.error('Error details:', e);
+                        }}
+                      />
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center p-6">
                       <Building2 className="h-16 w-16 text-muted-foreground mb-3" />
@@ -242,6 +253,9 @@ export default function CompanyRequest() {
                           {company.city}, {company.state}
                         </p>
                       )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        No logo available
+                      </p>
                     </div>
                   )}
 
