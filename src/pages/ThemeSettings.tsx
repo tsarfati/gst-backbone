@@ -36,16 +36,16 @@ export default function ThemeSettings() {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `logo-${Date.now()}.${fileExt}`;
-      const filePath = `theme-logos/${user.id}/${fileName}`;
+      const filePath = `${user.id}/theme-logos/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
+        .from('company-logos')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage
-        .from('avatars')
+        .from('company-logos')
         .getPublicUrl(filePath);
 
       updateSettings({ customLogo: data.publicUrl });
@@ -74,16 +74,16 @@ export default function ThemeSettings() {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `banner-${Date.now()}.${fileExt}`;
-      const filePath = `theme-banners/${user.id}/${fileName}`;
+      const filePath = `${user.id}/theme-banners/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
+        .from('company-logos')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage
-        .from('avatars')
+        .from('company-logos')
         .getPublicUrl(filePath);
 
       updateSettings({ dashboardBanner: data.publicUrl });
