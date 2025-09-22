@@ -131,10 +131,10 @@ export default function RolePermissionsManager() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Role Permissions</h1>
+          <h2 className="text-lg font-semibold">Role Permissions</h2>
           <p className="text-muted-foreground">Configure menu access for each user role</p>
         </div>
         <Button onClick={saveAllPermissions} disabled={saving}>

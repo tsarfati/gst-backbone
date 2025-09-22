@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
-import RoleDefinitions from '@/components/RoleDefinitions';
+import RolePermissionsManager from '@/components/RolePermissionsManager';
 import UserMenuPermissions from '@/components/UserMenuPermissions';
 import UserJobAccess from '@/components/UserJobAccess';
 
@@ -243,7 +243,7 @@ export default function UserSettings() {
         </TabsContent>
 
         <TabsContent value="roles">
-          <RoleDefinitions />
+          <RolePermissionsManager />
         </TabsContent>
 
         <TabsContent value="menu-access">
