@@ -15,8 +15,8 @@ interface NotificationSettings {
   user_id: string;
   email_enabled: boolean;
   in_app_enabled: boolean;
-  overdue_invoices: boolean;
-  invoices_paid: boolean;
+  overdue_bills: boolean;
+  bills_paid: boolean;
   vendor_invitations: boolean;
   job_assignments: boolean;
   receipt_uploaded: boolean;
@@ -38,8 +38,8 @@ export default function NotificationSettings() {
     user_id: user?.id || "",
     email_enabled: true,
     in_app_enabled: true,
-    overdue_invoices: true,
-    invoices_paid: true,
+    overdue_bills: true,
+    bills_paid: true,
     vendor_invitations: true,
     job_assignments: true,
     receipt_uploaded: true,
@@ -69,7 +69,12 @@ export default function NotificationSettings() {
       }
 
       if (data) {
-        setSettings(data);
+        // Map database fields to interface fields
+        setSettings({
+          ...data,
+          overdue_bills: data.overdue_invoices,
+          bills_paid: data.invoices_paid,
+        });
       }
     } catch (error) {
       console.error("Error loading notification settings:", error);
@@ -101,9 +106,16 @@ export default function NotificationSettings() {
     if (!user) return;
 
     try {
+      // Map interface fields back to database fields
+      const dbSettings = {
+        ...settings,
+        overdue_invoices: settings.overdue_bills,
+        invoices_paid: settings.bills_paid,
+      };
+      
       const { error } = await supabase
         .from("notification_settings")
-        .upsert(settings, { onConflict: "user_id" });
+        .upsert(dbSettings, { onConflict: "user_id" });
 
       if (error) throw error;
 
@@ -198,24 +210,24 @@ export default function NotificationSettings() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="overdue-invoices">Overdue Invoices</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about overdue invoices</p>
+                  <Label htmlFor="overdue-bills">Overdue Bills</Label>
+                  <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
                 </div>
                 <Switch
-                  id="overdue-invoices"
-                  checked={settings.overdue_invoices}
-                  onCheckedChange={(checked) => updateSetting("overdue_invoices", checked)}
+                  id="overdue-bills"
+                  checked={settings.overdue_bills}
+                  onCheckedChange={(checked) => updateSetting("overdue_bills", checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="invoices-paid">Invoice Payments</Label>
-                  <p className="text-sm text-muted-foreground">Get notified when invoices are paid</p>
+                  <Label htmlFor="bills-paid">Bill Payments</Label>
+                  <p className="text-sm text-muted-foreground">Get notified when bills are paid</p>
                 </div>
                 <Switch
-                  id="invoices-paid"
-                  checked={settings.invoices_paid}
-                  onCheckedChange={(checked) => updateSetting("invoices_paid", checked)}
+                  id="bills-paid"
+                  checked={settings.bills_paid}
+                  onCheckedChange={(checked) => updateSetting("bills_paid", checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
