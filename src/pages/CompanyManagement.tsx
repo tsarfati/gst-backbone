@@ -70,21 +70,37 @@ export default function CompanyManagement() {
     if (!currentCompany) return;
 
     try {
-      const { data, error } = await supabase
+      // Use a manual approach to join user_company_access with profiles
+      const { data: userAccessData, error: accessError } = await supabase
         .from('user_company_access')
-        .select(`
-          *,
-          profiles!inner(
-            display_name,
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (accessError) throw accessError;
+
+      if (!userAccessData || userAccessData.length === 0) {
+        setUsers([]);
+        return;
+      }
+
+      // Get user IDs to fetch profiles
+      const userIds = userAccessData.map(access => access.user_id);
+      
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name')
+        .in('user_id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Combine the data
+      const combinedData = userAccessData.map(access => ({
+        ...access,
+        profile: profilesData?.find(profile => profile.user_id === access.user_id)
+      }));
+
+      setUsers(combinedData);
     } catch (error) {
       console.error('Error fetching company users:', error);
       toast({
@@ -157,9 +173,19 @@ export default function CompanyManagement() {
 
       if (accessError) throw accessError;
 
+      // Update the current user's profile to set the new company as current
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ current_company_id: companyData.id })
+        .eq('user_id', user.id);
+
+      if (profileError) {
+        console.warn('Failed to update current company:', profileError);
+      }
+
       toast({
         title: "Success",
-        description: "Company created successfully"
+        description: "Company created successfully and you've been added as admin"
       });
 
       setShowCreateCompanyDialog(false);
@@ -381,42 +407,63 @@ export default function CompanyManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((companyUser) => (
-                <TableRow key={companyUser.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">
-                        {companyUser.profile?.display_name || 
-                         `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
-                         'Unknown User'}
-                      </p>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={isCompanyAdmin ? 4 : 3} className="text-center py-8">
+                    Loading users...
+                  </TableCell>
+                </TableRow>
+              ) : users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isCompanyAdmin ? 4 : 3} className="text-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <Users className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-muted-foreground">No users found for this company</p>
+                      <p className="text-sm text-muted-foreground">Company admins will be automatically listed here</p>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="capitalize">
-                      {companyUser.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(companyUser.granted_at).toLocaleDateString()}
-                  </TableCell>
-                  {isCompanyAdmin && (
+                </TableRow>
+              ) : (
+                users.map((companyUser) => (
+                  <TableRow key={companyUser.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {companyUser.user_id !== user?.id && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleRemoveUser(companyUser.user_id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                      <div>
+                        <p className="font-medium">
+                          {companyUser.profile?.display_name || 
+                           `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
+                           'Unknown User'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {companyUser.user_id === user?.id && '(You)'}
+                        </p>
                       </div>
                     </TableCell>
-                  )}
-                </TableRow>
-              ))}
+                    <TableCell>
+                      <Badge variant={companyUser.role === 'admin' ? 'default' : 'outline'} className="capitalize">
+                        {companyUser.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(companyUser.granted_at).toLocaleDateString()}
+                    </TableCell>
+                    {isCompanyAdmin && (
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {companyUser.user_id !== user?.id && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRemoveUser(companyUser.user_id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
