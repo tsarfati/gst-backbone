@@ -31,7 +31,9 @@ interface Job {
 interface EmployeeTimecardSettings {
   user_id: string;
   assigned_jobs: string[];
+  assigned_cost_codes: string[];
   default_job_id?: string;
+  default_cost_code_id?: string;
   require_location: boolean;
   require_photo: boolean;
   auto_lunch_deduction: boolean;
@@ -41,7 +43,8 @@ interface EmployeeTimecardSettings {
   allow_early_punch_in_minutes: number;
   allow_late_punch_out_minutes: number;
   notification_preferences: {
-    punch_reminders: boolean;
+    punch_in_reminders: boolean;
+    punch_out_reminders: boolean;
     overtime_alerts: boolean;
     missed_punch_alerts: boolean;
   };
@@ -61,6 +64,7 @@ export default function EmployeeTimecardSettings({
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [costCodes, setCostCodes] = useState<{ id: string; code: string; description: string; }[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,6 +74,7 @@ export default function EmployeeTimecardSettings({
   useEffect(() => {
     loadEmployees();
     loadJobs();
+    loadCostCodes();
   }, []);
 
   useEffect(() => {
@@ -112,6 +117,21 @@ export default function EmployeeTimecardSettings({
     }
   };
 
+  const loadCostCodes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('is_active', true)
+        .order('code');
+
+      if (error) throw error;
+      setCostCodes(data || []);
+    } catch (error) {
+      console.error('Error loading cost codes:', error);
+    }
+  };
+
   const loadEmployeeSettings = async (employeeId: string) => {
     try {
       setLoading(true);
@@ -130,7 +150,9 @@ export default function EmployeeTimecardSettings({
         setSettings({
           user_id: data.user_id,
           assigned_jobs: data.assigned_jobs || [],
+          assigned_cost_codes: data.assigned_cost_codes || [],
           default_job_id: data.default_job_id,
+          default_cost_code_id: data.default_cost_code_id,
           require_location: data.require_location,
           require_photo: data.require_photo,
           auto_lunch_deduction: data.auto_lunch_deduction,
@@ -140,7 +162,8 @@ export default function EmployeeTimecardSettings({
           allow_early_punch_in_minutes: data.allow_early_punch_in_minutes,
           allow_late_punch_out_minutes: data.allow_late_punch_out_minutes,
           notification_preferences: (data.notification_preferences as any) || {
-            punch_reminders: true,
+            punch_in_reminders: true,
+            punch_out_reminders: true,
             overtime_alerts: true,
             missed_punch_alerts: true
           },
@@ -151,6 +174,7 @@ export default function EmployeeTimecardSettings({
         const defaultSettings: EmployeeTimecardSettings = {
           user_id: employeeId,
           assigned_jobs: [],
+          assigned_cost_codes: [],
           require_location: true,
           require_photo: true,
           auto_lunch_deduction: true,
@@ -160,7 +184,8 @@ export default function EmployeeTimecardSettings({
           allow_early_punch_in_minutes: 15,
           allow_late_punch_out_minutes: 15,
           notification_preferences: {
-            punch_reminders: true,
+            punch_in_reminders: true,
+            punch_out_reminders: true,
             overtime_alerts: true,
             missed_punch_alerts: true
           }
@@ -188,10 +213,11 @@ export default function EmployeeTimecardSettings({
       
       const settingsData = {
         user_id: settings.user_id,
-        company_id: profile.current_company_id || profile.user_id, // Use company if available
+        company_id: profile.current_company_id || profile.user_id,
         assigned_jobs: settings.assigned_jobs,
-        assigned_cost_codes: [], // For future implementation
+        assigned_cost_codes: settings.assigned_cost_codes,
         default_job_id: settings.default_job_id,
+        default_cost_code_id: settings.default_cost_code_id,
         require_location: settings.require_location,
         require_photo: settings.require_photo,
         auto_lunch_deduction: settings.auto_lunch_deduction,
@@ -243,6 +269,16 @@ export default function EmployeeTimecardSettings({
       : [...settings.assigned_jobs, jobId];
     
     updateSettings({ assigned_jobs: updatedJobs });
+  };
+
+  const toggleCostCodeAssignment = (costCodeId: string) => {
+    if (!settings) return;
+    
+    const updatedCostCodes = settings.assigned_cost_codes.includes(costCodeId)
+      ? settings.assigned_cost_codes.filter(id => id !== costCodeId)
+      : [...settings.assigned_cost_codes, costCodeId];
+    
+    updateSettings({ assigned_cost_codes: updatedCostCodes });
   };
 
   if (loading) {
@@ -300,73 +336,130 @@ export default function EmployeeTimecardSettings({
         </CardContent>
       </Card>
 
-      {/* Employee Settings */}
-      {settings && (
-        <div className="space-y-6">
-          {/* Job Assignments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Job Assignments
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Assigned Jobs ({settings.assigned_jobs.length} selected)</Label>
-                <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
+          {/* Employee Settings */}
+          {settings && (
+            <div className="space-y-6">
+              {/* Job Assignments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Job Assignments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    {jobs.map((job) => (
-                      <div key={job.id} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`job-${job.id}`}
-                            checked={settings.assigned_jobs.includes(job.id)}
-                            onChange={() => toggleJobAssignment(job.id)}
-                            className="rounded"
-                          />
-                          <Label htmlFor={`job-${job.id}`} className="text-sm">
-                            {job.name}
-                          </Label>
-                        </div>
-                        {job.address && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {job.address}
+                    <Label>Assigned Jobs ({settings.assigned_jobs.length} selected)</Label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <div className="space-y-2">
+                        {jobs.map((job) => (
+                          <div key={job.id} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`job-${job.id}`}
+                                checked={settings.assigned_jobs.includes(job.id)}
+                                onChange={() => toggleJobAssignment(job.id)}
+                                className="rounded"
+                              />
+                              <Label htmlFor={`job-${job.id}`} className="text-sm">
+                                {job.name}
+                              </Label>
+                            </div>
+                            {job.address && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {job.address}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Default Job</Label>
-                <Select 
-                  value={settings.default_job_id} 
-                  onValueChange={(value) => updateSettings({ default_job_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select default job (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {settings.assigned_jobs.map((jobId) => {
-                      const job = jobs.find(j => j.id === jobId);
-                      return job ? (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.name}
-                        </SelectItem>
-                      ) : null;
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-2">
+                    <Label>Default Job</Label>
+                    <Select 
+                      value={settings.default_job_id} 
+                      onValueChange={(value) => updateSettings({ default_job_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select default job (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {settings.assigned_jobs.map((jobId) => {
+                          const job = jobs.find(j => j.id === jobId);
+                          return job ? (
+                            <SelectItem key={job.id} value={job.id}>
+                              {job.name}
+                            </SelectItem>
+                          ) : null;
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Time Tracking Settings */}
+              {/* Cost Code Assignments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Cost Code Assignments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Assigned Cost Codes ({settings.assigned_cost_codes.length} selected)</Label>
+                    <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <div className="space-y-2">
+                        {costCodes.map((costCode) => (
+                          <div key={costCode.id} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`costcode-${costCode.id}`}
+                                checked={settings.assigned_cost_codes.includes(costCode.id)}
+                                onChange={() => toggleCostCodeAssignment(costCode.id)}
+                                className="rounded"
+                              />
+                              <Label htmlFor={`costcode-${costCode.id}`} className="text-sm">
+                                {costCode.code} - {costCode.description}
+                              </Label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Default Cost Code</Label>
+                    <Select 
+                      value={settings.default_cost_code_id} 
+                      onValueChange={(value) => updateSettings({ default_cost_code_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select default cost code (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {settings.assigned_cost_codes.map((costCodeId) => {
+                          const costCode = costCodes.find(cc => cc.id === costCodeId);
+                          return costCode ? (
+                            <SelectItem key={costCode.id} value={costCode.id}>
+                              {costCode.code} - {costCode.description}
+                            </SelectItem>
+                          ) : null;
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Time Tracking Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -467,70 +560,88 @@ export default function EmployeeTimecardSettings({
             </CardContent>
           </Card>
 
-          {/* Notification Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Notification Preferences
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Punch Reminders</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Remind employee to punch in/out
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.notification_preferences.punch_reminders}
-                  onCheckedChange={(checked) => updateSettings({
-                    notification_preferences: {
-                      ...settings.notification_preferences,
-                      punch_reminders: checked
-                    }
-                  })}
-                />
-              </div>
+              {/* Notification Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Notification Preferences
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Punch In Reminders</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Remind employee to punch in at start of shift
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.notification_preferences.punch_in_reminders}
+                      onCheckedChange={(checked) => updateSettings({
+                        notification_preferences: {
+                          ...settings.notification_preferences,
+                          punch_in_reminders: checked
+                        }
+                      })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Overtime Alerts</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Alert when approaching overtime threshold
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.notification_preferences.overtime_alerts}
-                  onCheckedChange={(checked) => updateSettings({
-                    notification_preferences: {
-                      ...settings.notification_preferences,
-                      overtime_alerts: checked
-                    }
-                  })}
-                />
-              </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Punch Out Reminders</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Remind employee to punch out at end of shift
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.notification_preferences.punch_out_reminders}
+                      onCheckedChange={(checked) => updateSettings({
+                        notification_preferences: {
+                          ...settings.notification_preferences,
+                          punch_out_reminders: checked
+                        }
+                      })}
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Missed Punch Alerts</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Alert when employee forgets to punch in/out
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.notification_preferences.missed_punch_alerts}
-                  onCheckedChange={(checked) => updateSettings({
-                    notification_preferences: {
-                      ...settings.notification_preferences,
-                      missed_punch_alerts: checked
-                    }
-                  })}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Overtime Alerts</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Alert when approaching overtime threshold
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.notification_preferences.overtime_alerts}
+                      onCheckedChange={(checked) => updateSettings({
+                        notification_preferences: {
+                          ...settings.notification_preferences,
+                          overtime_alerts: checked
+                        }
+                      })}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Missed Punch Alerts</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Alert when employee forgets to punch in/out
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.notification_preferences.missed_punch_alerts}
+                      onCheckedChange={(checked) => updateSettings({
+                        notification_preferences: {
+                          ...settings.notification_preferences,
+                          missed_punch_alerts: checked
+                        }
+                      })}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
           {/* Notes */}
           <Card>
