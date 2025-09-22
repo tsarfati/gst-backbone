@@ -28,8 +28,17 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // Allow access to profile completion page regardless of status
+    // Wait for profile to load to avoid false redirects
+    if (profile === null) {
+      return;
+    }
+
+    // Handle profile completion route
     if (location.pathname === '/profile-completion') {
+      if (profile?.profile_completed) {
+        navigate('/');
+        return;
+      }
       setChecking(false);
       return;
     }
