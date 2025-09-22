@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AccessControl } from "@/components/AccessControl";
 import Layout from "@/components/AppLayout";
 import CompanyRequest from "@/pages/CompanyRequest";
+import ProfileCompletion from "@/pages/ProfileCompletion";
 
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -87,6 +88,11 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/profile-completion" element={
+          <ProtectedRoute>
+            <ProfileCompletion />
+          </ProtectedRoute>
+        } />
         <Route path="/company-request" element={
           <ProtectedRoute>
             <CompanyRequest />

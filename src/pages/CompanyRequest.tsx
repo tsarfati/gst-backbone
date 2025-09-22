@@ -4,8 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Loader2, CheckCircle } from 'lucide-react';
+import { Building2, Loader2, CheckCircle, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface Company {
   id: string;
@@ -158,12 +159,44 @@ export default function CompanyRequest() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
+        {/* User Profile Header */}
+        {profile && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="text-xl">Your Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="text-lg">
+                    {`${profile.first_name?.charAt(0) || ''}${profile.last_name?.charAt(0) || ''}`.toUpperCase() || <User className="h-8 w-8" />}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {profile.display_name || `${profile.first_name} ${profile.last_name}`}
+                  </h3>
+                  {profile.nickname && (
+                    <p className="text-sm text-muted-foreground">"{profile.nickname}"</p>
+                  )}
+                  {profile.birthday && (
+                    <p className="text-sm text-muted-foreground">
+                      Birthday: {new Date(profile.birthday).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome to GSTHUB</h1>
+          <h1 className="text-3xl font-bold mb-2">Request Company Access</h1>
           <p className="text-muted-foreground text-lg">
             {hasAnyApprovedAccess 
               ? "You have access to company resources. You can request access to additional companies below."
-              : "To get started, please request access to a company. A company administrator will need to approve your request."
+              : "Select a company to request access. A company administrator will review your profile and approve your request."
             }
           </p>
         </div>

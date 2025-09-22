@@ -10,6 +10,7 @@ import { CheckCircle, XCircle, User, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface AccessRequest {
   id: string;
@@ -22,6 +23,9 @@ interface AccessRequest {
     first_name?: string;
     last_name?: string;
     display_name?: string;
+    nickname?: string;
+    birthday?: string;
+    avatar_url?: string;
   };
 }
 
@@ -53,14 +57,14 @@ export default function CompanyAccessApproval() {
 
       if (requestsError) throw requestsError;
 
-      // Then get user profiles for each request
-      const requestsWithProfiles = await Promise.all(
-        (requestsData || []).map(async (request) => {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, display_name')
-            .eq('user_id', request.user_id)
-            .single();
+        // Then get user profiles for each request
+        const requestsWithProfiles = await Promise.all(
+          (requestsData || []).map(async (request) => {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, display_name, nickname, birthday, avatar_url')
+              .eq('user_id', request.user_id)
+              .single();
 
           if (profileError) {
             console.warn('Error fetching profile for user:', request.user_id, profileError);
@@ -192,14 +196,24 @@ export default function CompanyAccessApproval() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <User className="h-8 w-8 text-muted-foreground" />
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={request.user_profile?.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {`${request.user_profile?.first_name?.charAt(0) || ''}${request.user_profile?.last_name?.charAt(0) || ''}`.toUpperCase() || <User className="h-6 w-6" />}
+                        </AvatarFallback>
+                      </Avatar>
                       <div>
                         <CardTitle className="text-base">
                           {request.user_profile?.display_name || 
                            `${request.user_profile?.first_name || ''} ${request.user_profile?.last_name || ''}`.trim() ||
                            'Unknown User'}
                         </CardTitle>
-                        <p className="text-sm text-muted-foreground">
+                        {request.user_profile?.nickname && (
+                          <p className="text-sm text-muted-foreground">
+                            "{request.user_profile.nickname}"
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
                           Requested: {formatDate(request.requested_at)}
                         </p>
                       </div>

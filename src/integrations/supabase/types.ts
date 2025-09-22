@@ -923,6 +923,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           avatar_url: string | null
+          birthday: string | null
           created_at: string
           current_company_id: string | null
           display_name: string | null
@@ -930,6 +931,9 @@ export type Database = {
           has_global_job_access: boolean | null
           id: string
           last_name: string | null
+          nickname: string | null
+          profile_completed: boolean | null
+          profile_completed_at: string | null
           role: Database["public"]["Enums"]["user_role"]
           status: string | null
           updated_at: string
@@ -939,6 +943,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           avatar_url?: string | null
+          birthday?: string | null
           created_at?: string
           current_company_id?: string | null
           display_name?: string | null
@@ -946,6 +951,9 @@ export type Database = {
           has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
+          nickname?: string | null
+          profile_completed?: boolean | null
+          profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string | null
           updated_at?: string
@@ -955,6 +963,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           avatar_url?: string | null
+          birthday?: string | null
           created_at?: string
           current_company_id?: string | null
           display_name?: string | null
@@ -962,6 +971,9 @@ export type Database = {
           has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
+          nickname?: string | null
+          profile_completed?: boolean | null
+          profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string | null
           updated_at?: string

@@ -28,6 +28,18 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
+    // Allow access to profile completion page regardless of status
+    if (location.pathname === '/profile-completion') {
+      setChecking(false);
+      return;
+    }
+
+    // If profile is not completed, redirect to profile completion
+    if (!profile?.profile_completed) {
+      navigate('/profile-completion');
+      return;
+    }
+
     // Allow access to company request page regardless of approval status
     if (location.pathname === '/company-request') {
       setChecking(false);
