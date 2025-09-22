@@ -58,6 +58,66 @@ export type Database = {
           },
         ]
       }
+      companies: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          created_by: string
+          display_name: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          license_number: string | null
+          logo_url: string | null
+          name: string
+          phone: string | null
+          state: string | null
+          tax_id: string | null
+          updated_at: string
+          website: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          license_number?: string | null
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          state?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          license_number?: string | null
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          state?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
       company_settings: {
         Row: {
           company_id: string
@@ -825,6 +885,7 @@ export type Database = {
           approved_by: string | null
           avatar_url: string | null
           created_at: string
+          current_company_id: string | null
           display_name: string | null
           first_name: string | null
           has_global_job_access: boolean | null
@@ -840,6 +901,7 @@ export type Database = {
           approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
+          current_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
           has_global_job_access?: boolean | null
@@ -855,6 +917,7 @@ export type Database = {
           approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
+          current_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
           has_global_job_access?: boolean | null
@@ -865,7 +928,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_current_company_id_fkey"
+            columns: ["current_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       punch_records: {
         Row: {
@@ -1073,6 +1144,44 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_company_access: {
+        Row: {
+          company_id: string
+          granted_at: string
+          granted_by: string
+          id: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          granted_at?: string
+          granted_by: string
+          id?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1286,9 +1395,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_companies: {
+        Args: { _user_id: string }
+        Returns: {
+          company_id: string
+          company_name: string
+          role: Database["public"]["Enums"]["user_role"]
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      has_company_access: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
       }
       has_role: {
         Args: {

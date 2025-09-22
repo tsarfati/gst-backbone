@@ -11,6 +11,7 @@ import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
+import { CompanySwitcher } from '@/components/CompanySwitcher';
 
 const navigationCategories = [
   {
@@ -128,6 +129,7 @@ const navigationCategories = [
       { name: "General", href: "/settings", icon: Settings, menuKey: "settings" },
       { name: "Theme & Appearance", href: "/settings/theme", icon: Settings, menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", icon: Building, menuKey: "settings" },
+      { name: "Company Management", href: "/settings/company-management", icon: Building2, menuKey: "settings" },
       { name: "Notifications & Email", href: "/settings/notifications", icon: Bell, menuKey: "settings" },
       { name: "Data & Security", href: "/settings/security", icon: Shield, menuKey: "settings" },
       { name: "User Management", href: "/settings/users", icon: UserCog, menuKey: "settings" },
@@ -382,7 +384,10 @@ export default function Layout() {
               <SidebarTrigger className="-ml-1" />
               <GlobalSearch />
             </div>
-            <DateTimeDisplay />
+            <div className="flex items-center gap-4">
+              <CompanySwitcher />
+              <DateTimeDisplay />
+            </div>
           </header>
           <div className="flex-1 overflow-auto">
             <Outlet />

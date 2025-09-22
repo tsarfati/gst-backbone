@@ -1,0 +1,472 @@
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus } from 'lucide-react';
+import { useCompany } from '@/contexts/CompanyContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface CompanyUser {
+  id: string;
+  user_id: string;
+  company_id: string;
+  role: string;
+  is_active: boolean;
+  granted_at: string;
+  profile?: {
+    display_name?: string;
+    first_name?: string;
+    last_name?: string;
+  };
+}
+
+export default function CompanyManagement() {
+  const { currentCompany, userCompanies, refreshCompanies } = useCompany();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [users, setUsers] = useState<CompanyUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<string>('employee');
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    display_name: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    phone: '',
+    email: '',
+    website: ''
+  });
+
+  // Get current user's role in this company
+  const currentUserCompany = userCompanies.find(uc => uc.company_id === currentCompany?.id);
+  const isCompanyAdmin = currentUserCompany?.role === 'admin' || currentUserCompany?.role === 'controller';
+
+  const fetchCompanyUsers = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_company_access')
+        .select(`
+          *,
+          profiles!inner(
+            display_name,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching company users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load company users",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddUser = async () => {
+    if (!currentCompany || !newUserEmail.trim()) return;
+
+    try {
+      // First, check if user exists in the system
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', newUserEmail); // This would need to be email lookup
+
+      if (profileError) throw profileError;
+
+      // For now, show a message that user invitation system needs to be implemented
+      toast({
+        title: "Feature in development",
+        description: "User invitation system will be implemented in the next update. For now, users need to sign up first.",
+        variant: "default"
+      });
+
+      setShowAddUserDialog(false);
+      setNewUserEmail('');
+      setNewUserRole('employee');
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add user to company",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateCompany = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .update(companyForm)
+        .eq('id', currentCompany.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Company information updated successfully"
+      });
+
+      setShowEditCompanyDialog(false);
+      await refreshCompanies();
+    } catch (error) {
+      console.error('Error updating company:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update company information",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    if (!currentCompany) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_company_access')
+        .update({ is_active: false })
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "User removed from company"
+      });
+
+      fetchCompanyUsers();
+    } catch (error) {
+      console.error('Error removing user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove user from company",
+        variant: "destructive"
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (currentCompany) {
+      fetchCompanyUsers();
+      setCompanyForm({
+        name: currentCompany.name || '',
+        display_name: currentCompany.display_name || '',
+        address: currentCompany.address || '',
+        city: currentCompany.city || '',
+        state: currentCompany.state || '',
+        zip_code: currentCompany.zip_code || '',
+        phone: currentCompany.phone || '',
+        email: currentCompany.email || '',
+        website: currentCompany.website || ''
+      });
+    }
+  }, [currentCompany]);
+
+  if (!currentCompany) {
+    return (
+      <div className="container mx-auto py-10 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>No Company Selected</CardTitle>
+            <CardDescription>
+              Please select a company to manage its settings and users.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-10 px-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Company Management</h1>
+          <p className="text-muted-foreground">
+            Manage {currentCompany.display_name || currentCompany.name} settings and users
+          </p>
+        </div>
+        {isCompanyAdmin && (
+          <Button onClick={() => setShowEditCompanyDialog(true)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Company
+          </Button>
+        )}
+      </div>
+
+      {/* Company Info Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Company Information
+          </CardTitle>
+          <CardDescription>
+            Basic information about your company
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-medium">Company Name</Label>
+              <p className="text-sm text-muted-foreground">{currentCompany.name}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Display Name</Label>
+              <p className="text-sm text-muted-foreground">{currentCompany.display_name || 'Not set'}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Phone</Label>
+              <p className="text-sm text-muted-foreground">{currentCompany.phone || 'Not set'}</p>
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Email</Label>
+              <p className="text-sm text-muted-foreground">{currentCompany.email || 'Not set'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Users Management Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Company Users ({users.length})
+            </div>
+            {isCompanyAdmin && (
+              <Button onClick={() => setShowAddUserDialog(true)} size="sm">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Manage users who have access to this company
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Access Granted</TableHead>
+                {isCompanyAdmin && <TableHead>Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((companyUser) => (
+                <TableRow key={companyUser.id}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">
+                        {companyUser.profile?.display_name || 
+                         `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
+                         'Unknown User'}
+                      </p>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize">
+                      {companyUser.role}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(companyUser.granted_at).toLocaleDateString()}
+                  </TableCell>
+                  {isCompanyAdmin && (
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {companyUser.user_id !== user?.id && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveUser(companyUser.user_id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Add User Dialog */}
+      <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add User to Company</DialogTitle>
+            <DialogDescription>
+              Invite a user to join this company. They must already have an account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email">User Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="role">Role</Label>
+              <Select value={newUserRole} onValueChange={setNewUserRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="controller">Controller</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddUserDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddUser}>Add User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Dialog */}
+      <Dialog open={showEditCompanyDialog} onOpenChange={setShowEditCompanyDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Company Information</DialogTitle>
+            <DialogDescription>
+              Update your company's basic information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Company Name</Label>
+                <Input
+                  id="name"
+                  value={companyForm.name}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="display_name">Display Name</Label>
+                <Input
+                  id="display_name"
+                  value={companyForm.display_name}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, display_name: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                value={companyForm.address}
+                onChange={(e) => setCompanyForm(prev => ({ ...prev, address: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={companyForm.city}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, city: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="state">State</Label>
+                <Input
+                  id="state"
+                  value={companyForm.state}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, state: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="zip">Zip Code</Label>
+                <Input
+                  id="zip"
+                  value={companyForm.zip_code}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, zip_code: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={companyForm.phone}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={companyForm.email}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                value={companyForm.website}
+                onChange={(e) => setCompanyForm(prev => ({ ...prev, website: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditCompanyDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateCompany}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

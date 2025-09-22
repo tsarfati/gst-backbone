@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
+import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/AppLayout";
 
@@ -50,6 +51,7 @@ import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
 import CompanyPermits from "./pages/CompanyPermits";
 import CompanyInsurance from "./pages/CompanyInsurance";
+import CompanyManagement from "./pages/CompanyManagement";
 import BankAccounts from "./pages/BankAccounts";
 import CreditCards from "./pages/CreditCards";
 import BankingReports from "./pages/BankingReports";
@@ -103,6 +105,7 @@ function AppRoutes() {
                       <Route path="settings" element={<AppSettings />} />
                       <Route path="settings/theme" element={<ThemeSettings />} />
                       <Route path="settings/company" element={<CompanySettingsPage />} />
+                      <Route path="settings/company-management" element={<CompanyManagement />} />
                       <Route path="settings/notifications" element={<NotificationSettings />} />
                       <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
                       <Route path="settings/security" element={<SecuritySettings />} />
@@ -162,12 +165,14 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <AuthProvider>
           <SettingsProvider>
-            <ReceiptProvider>
-              <TooltipProvider>
-                <Toaster />
-                <AppRoutes />
-              </TooltipProvider>
-            </ReceiptProvider>
+            <CompanyProvider>
+              <ReceiptProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <AppRoutes />
+                </TooltipProvider>
+              </ReceiptProvider>
+            </CompanyProvider>
           </SettingsProvider>
         </AuthProvider>
       </ThemeProvider>
