@@ -213,21 +213,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-2 min-h-[60px]">
-          {currentCompany?.logo_url ? (
+        <div className="flex items-center justify-center p-2 min-h-[60px] w-full">
+          {settings.customLogo ? (
             <img 
-              src={currentCompany.logo_url} 
-              alt={`${currentCompany.display_name || currentCompany.name} Logo`} 
-              className="h-10 w-10 object-contain rounded" 
+              src={settings.customLogo} 
+              alt="Company Logo" 
+              className="h-full w-full object-contain max-h-12" 
             />
           ) : (
-            <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-primary" />
+            <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-8 w-8 text-primary" />
             </div>
           )}
-          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden truncate">
-            {currentCompany?.display_name || currentCompany?.name || 'Loading...'}
-          </span>
         </div>
       </SidebarHeader>
       
