@@ -55,8 +55,8 @@ export default function ProfileCompletion() {
     if (!avatarFile || !user) return null;
 
     const fileExt = avatarFile.name.split('.').pop();
-    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-    const filePath = `avatars/${fileName}`;
+    const fileName = `avatar-${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('avatars')
