@@ -206,74 +206,70 @@ export default function CompanyRequest() {
             const status = getRequestStatus(company.id);
             
             return (
-              <Card key={company.id} className="relative overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {company.logo_url ? (
-                        <img 
-                          src={company.logo_url} 
-                          alt={`${company.name} logo`}
-                          className="w-12 h-12 object-contain rounded"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                          <Building2 className="h-6 w-6 text-muted-foreground" />
-                        </div>
+              <Card key={company.id} className="relative overflow-hidden h-48 group cursor-pointer hover:shadow-lg transition-shadow">
+                {/* Status Badge */}
+                {status === 'approved' && (
+                  <Badge variant="default" className="absolute top-3 right-3 z-10 bg-green-500 hover:bg-green-600">
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Approved
+                  </Badge>
+                )}
+                {status === 'pending' && (
+                  <Badge variant="outline" className="absolute top-3 right-3 z-10 bg-background">
+                    Pending
+                  </Badge>
+                )}
+
+                {/* Logo spanning the whole tile */}
+                <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-background to-muted/50">
+                  {company.logo_url ? (
+                    <img 
+                      src={company.logo_url} 
+                      alt={`${company.name} logo`}
+                      className="max-w-[80%] max-h-[80%] object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-6">
+                      <Building2 className="h-16 w-16 text-muted-foreground mb-3" />
+                      <h3 className="font-semibold text-lg text-foreground mb-1">
+                        {company.display_name || company.name}
+                      </h3>
+                      {company.city && company.state && (
+                        <p className="text-sm text-muted-foreground">
+                          {company.city}, {company.state}
+                        </p>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg truncate">
-                          {company.display_name || company.name}
-                        </CardTitle>
-                      </div>
                     </div>
-                    {status === 'approved' && (
-                      <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Approved
-                      </Badge>
+                  )}
+
+                  {/* Overlay with action button - appears on hover */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    {status === 'none' && (
+                      <Button 
+                        onClick={() => requestAccess(company.id)}
+                        disabled={requestingAccess === company.id}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {requestingAccess === company.id && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Request Access
+                      </Button>
                     )}
+                    
                     {status === 'pending' && (
-                      <Badge variant="outline">
-                        Pending
-                      </Badge>
+                      <Button disabled variant="secondary">
+                        Request Pending
+                      </Button>
+                    )}
+                    
+                    {status === 'approved' && (
+                      <Button disabled variant="secondary">
+                        Access Granted
+                      </Button>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {company.address && (
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {company.address}
-                      {company.city && `, ${company.city}`}
-                      {company.state && `, ${company.state}`}
-                    </p>
-                  )}
-                  
-                  {status === 'none' && (
-                    <Button 
-                      onClick={() => requestAccess(company.id)}
-                      disabled={requestingAccess === company.id}
-                      className="w-full"
-                    >
-                      {requestingAccess === company.id && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Request Access
-                    </Button>
-                  )}
-                  
-                  {status === 'pending' && (
-                    <Button disabled className="w-full" variant="outline">
-                      Request Pending
-                    </Button>
-                  )}
-                  
-                  {status === 'approved' && (
-                    <Button disabled className="w-full" variant="outline">
-                      Access Granted
-                    </Button>
-                  )}
-                </CardContent>
+                </div>
               </Card>
             );
           })}
