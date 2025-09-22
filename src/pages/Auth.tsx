@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
+import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -17,15 +18,19 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('signin');
   
-  const { signIn, signUp, signInWithGoogle, user } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Use role-based routing after successful auth
+  useRoleBasedRouting();
 
   useEffect(() => {
-    if (user) {
-      navigate('/');
+    if (user && !profile) {
+      // Wait for profile to load before redirecting
+      return;
     }
-  }, [user, navigate]);
+  }, [user, profile]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

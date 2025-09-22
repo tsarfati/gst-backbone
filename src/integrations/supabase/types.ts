@@ -354,6 +354,75 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_timecard_settings: {
+        Row: {
+          allow_early_punch_in_minutes: number | null
+          allow_late_punch_out_minutes: number | null
+          assigned_cost_codes: string[] | null
+          assigned_jobs: string[] | null
+          auto_lunch_deduction: boolean | null
+          company_id: string
+          created_at: string | null
+          created_by: string
+          default_cost_code_id: string | null
+          default_job_id: string | null
+          id: string
+          lunch_duration_minutes: number | null
+          max_daily_hours: number | null
+          notes: string | null
+          notification_preferences: Json | null
+          overtime_threshold: number | null
+          require_location: boolean | null
+          require_photo: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          allow_early_punch_in_minutes?: number | null
+          allow_late_punch_out_minutes?: number | null
+          assigned_cost_codes?: string[] | null
+          assigned_jobs?: string[] | null
+          auto_lunch_deduction?: boolean | null
+          company_id: string
+          created_at?: string | null
+          created_by: string
+          default_cost_code_id?: string | null
+          default_job_id?: string | null
+          id?: string
+          lunch_duration_minutes?: number | null
+          max_daily_hours?: number | null
+          notes?: string | null
+          notification_preferences?: Json | null
+          overtime_threshold?: number | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          allow_early_punch_in_minutes?: number | null
+          allow_late_punch_out_minutes?: number | null
+          assigned_cost_codes?: string[] | null
+          assigned_jobs?: string[] | null
+          auto_lunch_deduction?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          created_by?: string
+          default_cost_code_id?: string | null
+          default_job_id?: string | null
+          id?: string
+          lunch_duration_minutes?: number | null
+          max_daily_hours?: number | null
+          notes?: string | null
+          notification_preferences?: Json | null
+          overtime_threshold?: number | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
@@ -1162,6 +1231,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_default_pages: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          default_page: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          default_page: string
+          id?: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          default_page?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       role_permissions: {
         Row: {

@@ -5,10 +5,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Settings, ChevronDown, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Settings, ChevronDown, ChevronRight, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import RoleDefaultPageSettings from './RoleDefaultPageSettings';
 
 interface RolePermission {
   role: string;
@@ -234,12 +236,26 @@ export default function RolePermissionsManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Role Permissions</h2>
-          <p className="text-muted-foreground">Configure menu access for each user role. Click to expand each role.</p>
-        </div>
-      </div>
+      <Tabs defaultValue="permissions" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="permissions">Menu Permissions</TabsTrigger>
+          <TabsTrigger value="default-pages">Default Pages</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="permissions" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Role-Based Menu Permissions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-muted-foreground">Configure menu access for each user role. Click to expand each role.</p>
+                </div>
+              </div>
 
       <div className="space-y-4">
         {roles.map((role) => (
@@ -313,15 +329,23 @@ export default function RolePermissionsManager() {
         ))}
       </div>
 
-      <div className="bg-muted/50 p-3 rounded-lg">
-        <h3 className="text-sm font-medium mb-2">Permission Guidelines:</h3>
-        <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Changes are automatically saved when toggled</li>
-          <li>• Click on role headers to expand/collapse settings</li>
-          <li>• Admin role automatically has full system access</li>
-          <li>• Users need to refresh their browser to see menu changes</li>
-        </ul>
-      </div>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <h3 className="text-sm font-medium mb-2">Permission Guidelines:</h3>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Changes are automatically saved when toggled</li>
+                  <li>• Click on role headers to expand/collapse settings</li>
+                  <li>• Admin role automatically has full system access</li>
+                  <li>• Users need to refresh their browser to see menu changes</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="default-pages">
+          <RoleDefaultPageSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

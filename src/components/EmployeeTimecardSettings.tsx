@@ -110,26 +110,58 @@ export default function EmployeeTimecardSettings({
     try {
       setLoading(true);
       
-      // For now, use default settings since we need to implement employee_timecard_settings table
-      const defaultSettings: EmployeeTimecardSettings = {
-        user_id: employeeId,
-        assigned_jobs: [],
-        require_location: true,
-        require_photo: true,
-        auto_lunch_deduction: true,
-        lunch_duration_minutes: 30,
-        max_daily_hours: 12,
-        overtime_threshold: 8,
-        allow_early_punch_in_minutes: 15,
-        allow_late_punch_out_minutes: 15,
-        notification_preferences: {
-          punch_reminders: true,
-          overtime_alerts: true,
-          missed_punch_alerts: true
-        }
-      };
+      // Load existing settings from database
+      const { data, error } = await supabase
+        .from('employee_timecard_settings')
+        .select('*')
+        .eq('user_id', employeeId)
+        .maybeSingle();
 
-      setSettings(defaultSettings);
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      if (data) {
+        // Use existing settings
+        setSettings({
+          user_id: data.user_id,
+          assigned_jobs: data.assigned_jobs || [],
+          default_job_id: data.default_job_id,
+          require_location: data.require_location,
+          require_photo: data.require_photo,
+          auto_lunch_deduction: data.auto_lunch_deduction,
+          lunch_duration_minutes: data.lunch_duration_minutes,
+          max_daily_hours: data.max_daily_hours,
+          overtime_threshold: data.overtime_threshold,
+          allow_early_punch_in_minutes: data.allow_early_punch_in_minutes,
+          allow_late_punch_out_minutes: data.allow_late_punch_out_minutes,
+          notification_preferences: (data.notification_preferences as any) || {
+            punch_reminders: true,
+            overtime_alerts: true,
+            missed_punch_alerts: true
+          },
+          notes: data.notes
+        });
+      } else {
+        // Use default settings for new employee
+        const defaultSettings: EmployeeTimecardSettings = {
+          user_id: employeeId,
+          assigned_jobs: [],
+          require_location: true,
+          require_photo: true,
+          auto_lunch_deduction: true,
+          lunch_duration_minutes: 30,
+          max_daily_hours: 12,
+          overtime_threshold: 8,
+          allow_early_punch_in_minutes: 15,
+          allow_late_punch_out_minutes: 15,
+          notification_preferences: {
+            punch_reminders: true,
+            overtime_alerts: true,
+            missed_punch_alerts: true
+          }
+        };
+
+        setSettings(defaultSettings);
+      }
     } catch (error) {
       console.error('Error loading employee settings:', error);
       toast({
@@ -143,13 +175,37 @@ export default function EmployeeTimecardSettings({
   };
 
   const saveEmployeeSettings = async () => {
-    if (!settings) return;
+    if (!settings || !profile?.user_id) return;
 
     try {
       setSaving(true);
       
-      // For now just show success message
-      // In a real implementation, you would save to employee_timecard_settings table
+      const settingsData = {
+        user_id: settings.user_id,
+        company_id: profile.current_company_id || profile.user_id, // Use company if available
+        assigned_jobs: settings.assigned_jobs,
+        assigned_cost_codes: [], // For future implementation
+        default_job_id: settings.default_job_id,
+        require_location: settings.require_location,
+        require_photo: settings.require_photo,
+        auto_lunch_deduction: settings.auto_lunch_deduction,
+        lunch_duration_minutes: settings.lunch_duration_minutes,
+        max_daily_hours: settings.max_daily_hours,
+        overtime_threshold: settings.overtime_threshold,
+        allow_early_punch_in_minutes: settings.allow_early_punch_in_minutes,
+        allow_late_punch_out_minutes: settings.allow_late_punch_out_minutes,
+        notification_preferences: settings.notification_preferences,
+        notes: settings.notes,
+        created_by: profile.user_id
+      };
+
+      const { error } = await supabase
+        .from('employee_timecard_settings')
+        .upsert(settingsData, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
       
       toast({
         title: "Settings Saved",

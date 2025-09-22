@@ -48,6 +48,7 @@ export default function TimeTracking() {
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [employeeSettings, setEmployeeSettings] = useState<any>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +62,11 @@ export default function TimeTracking() {
     if (user) {
       loadCurrentStatus();
       loadJobs();
+      loadEmployeeSettings();
+      // Auto-start location in background
+      getCurrentLocation()
+        .then(setLocation)
+        .catch(() => {}); // Silently fail, user will be prompted later
     }
   }, [user]);
 
@@ -104,17 +110,55 @@ export default function TimeTracking() {
 
   const loadCostCodes = async (jobId: string) => {
     try {
-      const { data, error } = await supabase
+      // First try to load cost codes assigned to employee for this job
+      let query = supabase
         .from('cost_codes')
         .select('id, code, description')
-        .eq('job_id', jobId)
-        .eq('is_active', true)
-        .order('code');
+        .eq('is_active', true);
+      
+      // If employee has settings with assigned cost codes, filter by those
+      if (employeeSettings?.assigned_cost_codes?.length > 0) {
+        query = query.in('id', employeeSettings.assigned_cost_codes);
+      }
+      
+      // If job is specified, filter by job
+      if (jobId) {
+        query = query.eq('job_id', jobId);
+      }
+      
+      const { data, error } = await query.order('code');
 
       if (error) throw error;
       setCostCodes(data || []);
     } catch (error) {
       console.error('Error loading cost codes:', error);
+    }
+  };
+
+  const loadEmployeeSettings = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('employee_timecard_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      setEmployeeSettings(data);
+      
+      // Auto-select default job if available
+      if (data?.default_job_id && !selectedJob) {
+        setSelectedJob(data.default_job_id);
+      }
+      
+      // Auto-select default cost code if available
+      if (data?.default_cost_code_id && !selectedCostCode) {
+        setSelectedCostCode(data.default_cost_code_id);
+      }
+    } catch (error) {
+      console.error('Error loading employee settings:', error);
     }
   };
 
@@ -270,33 +314,40 @@ export default function TimeTracking() {
     }
 
     setIsLoading(true);
-    setLoadingStatus('Preparing camera...');
+    setLoadingStatus('Starting camera and location...');
 
     try {
       setPunchType('in');
-      setShowPunchDialog(true); // Always show dialog
+      setShowPunchDialog(true);
 
-      // Start camera immediately
-      await startCamera();
+      // Auto-start camera and location simultaneously
+      const promises = [];
+      
+      if (employeeSettings?.require_photo !== false) {
+        promises.push(startCamera());
+      }
+      
+      if (employeeSettings?.require_location !== false) {
+        promises.push(
+          getCurrentLocation()
+            .then(setLocation)
+            .catch((error: any) => {
+              console.warn('Location unavailable:', error?.message || error);
+              toast({
+                title: 'Location Unavailable',
+                description: 'Proceeding without location.',
+                variant: 'default',
+              });
+            })
+        );
+      }
 
-      // Try to fetch location in the background (non-blocking)
-      getCurrentLocation()
-        .then((currentLocation) => {
-          console.log('Location obtained:', currentLocation);
-          setLocation(currentLocation);
-        })
-        .catch((error: any) => {
-          console.warn('Location unavailable:', error?.message || error);
-          toast({
-            title: 'Location Unavailable',
-            description: 'Proceeding without location. Please enable location permissions for future punches.',
-          });
-        });
+      await Promise.allSettled(promises);
     } catch (error: any) {
       console.error('Error during punch in preparation:', error);
       toast({
         title: 'Setup Error',
-        description: error.message || 'Could not start camera. Please check your browser permissions.',
+        description: error.message || 'Could not start camera or location.',
         variant: 'destructive',
       });
     } finally {
@@ -468,18 +519,20 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
-        <p className="text-muted-foreground">
-          Track your work hours with job and cost code selection
-        </p>
-      </div>
+    <div className="min-h-screen bg-background">
+      {/* Mobile-optimized container */}
+      <div className="max-w-md mx-auto md:max-w-4xl p-4 md:p-6 space-y-4 md:space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Track your work hours with job and cost code selection
+          </p>
+        </div>
 
-      {/* Current Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      {/* Current Status - Mobile optimized */}
+      <Card className="shadow-elevation-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
             <Clock className="h-5 w-5" />
             Current Status
           </CardTitle>
@@ -487,17 +540,17 @@ export default function TimeTracking() {
         <CardContent className="space-y-4">
           {currentStatus ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="px-3 py-1">
+              <div className="flex flex-col sm:flex-row items-center gap-3 sm:justify-between">
+                <Badge variant="secondary" className="px-3 py-2 text-sm">
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Punched In
                 </Badge>
-                <div className="text-2xl font-mono font-bold">
+                <div className="text-3xl md:text-4xl font-mono font-bold text-center">
                   {getElapsedTime()}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-muted-foreground">Started:</span>
                   <div className="font-medium">{formatTime(currentStatus.punch_in_time)}</div>
@@ -692,13 +745,14 @@ export default function TimeTracking() {
         </DialogContent>
       </Dialog>
 
-      {/* Employee Messaging Panel */}
-      {currentStatus && (
-        <EmployeeMessagingPanel 
-          currentJobId={currentStatus.job_id}
-          isVisible={!!currentStatus}
-        />
-      )}
+        {/* Employee Messaging Panel */}
+        {currentStatus && (
+          <EmployeeMessagingPanel 
+            currentJobId={currentStatus.job_id}
+            isVisible={!!currentStatus}
+          />
+        )}
+      </div>
     </div>
   );
 }
