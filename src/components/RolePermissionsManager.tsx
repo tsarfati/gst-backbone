@@ -157,11 +157,10 @@ export default function RolePermissionsManager() {
 
     try {
       const { error } = await supabase
-        .from('role_permissions')
-        .upsert({
-          role: role as any,
-          menu_item: menuItem,
-          can_access: canAccess
+        .rpc('set_role_permission', {
+          p_role: role as any,
+          p_menu_item: menuItem,
+          p_can_access: canAccess,
         });
 
       if (error) throw error;
@@ -189,7 +188,7 @@ export default function RolePermissionsManager() {
       console.error('Error updating permission:', error);
       toast({
         title: "Error",
-        description: "Failed to update permission. Please try again.",
+        description: (error as any)?.message || "Failed to update permission. Please try again.",
         variant: "destructive",
       });
     }

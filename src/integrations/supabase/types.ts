@@ -1677,6 +1677,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_role_permission: {
+        Args: {
+          p_can_access: boolean
+          p_menu_item: string
+          p_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       job_status: "planning" | "active" | "on-hold" | "completed"
