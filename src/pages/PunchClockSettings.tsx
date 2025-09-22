@@ -28,6 +28,13 @@ interface PunchClockSettings {
   grace_period_minutes: number;
   allowed_job_sites: string[];
   break_reminder_minutes: number;
+  punch_time_window_start: string;
+  punch_time_window_end: string;
+  enable_punch_rounding: boolean;
+  punch_rounding_minutes: number;
+  punch_rounding_direction: 'up' | 'down' | 'nearest';
+  auto_break_wait_hours: number;
+  calculate_overtime: boolean;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -42,7 +49,14 @@ const defaultSettings: PunchClockSettings = {
   manager_approval_required: false,
   grace_period_minutes: 5,
   allowed_job_sites: [],
-  break_reminder_minutes: 240
+  break_reminder_minutes: 240,
+  punch_time_window_start: '06:00',
+  punch_time_window_end: '22:00',
+  enable_punch_rounding: false,
+  punch_rounding_minutes: 15,
+  punch_rounding_direction: 'nearest',
+  auto_break_wait_hours: 6,
+  calculate_overtime: true
 };
 
 export default function PunchClockSettings() {
@@ -86,7 +100,14 @@ export default function PunchClockSettings() {
           manager_approval_required: data.manager_approval_required,
           grace_period_minutes: data.grace_period_minutes,
           allowed_job_sites: [],
-          break_reminder_minutes: data.break_reminder_minutes
+          break_reminder_minutes: data.break_reminder_minutes,
+          punch_time_window_start: data.punch_time_window_start || '06:00',
+          punch_time_window_end: data.punch_time_window_end || '22:00',
+          enable_punch_rounding: data.enable_punch_rounding || false,
+          punch_rounding_minutes: data.punch_rounding_minutes || 15,
+          punch_rounding_direction: (data.punch_rounding_direction as 'up' | 'down' | 'nearest') || 'nearest',
+          auto_break_wait_hours: parseFloat(data.auto_break_wait_hours?.toString() || '6'),
+          calculate_overtime: data.calculate_overtime !== false
         });
       }
       
@@ -121,7 +142,14 @@ export default function PunchClockSettings() {
           notification_enabled: settings.notification_enabled,
           manager_approval_required: settings.manager_approval_required,
           grace_period_minutes: settings.grace_period_minutes,
-          break_reminder_minutes: settings.break_reminder_minutes
+          break_reminder_minutes: settings.break_reminder_minutes,
+          punch_time_window_start: settings.punch_time_window_start,
+          punch_time_window_end: settings.punch_time_window_end,
+          enable_punch_rounding: settings.enable_punch_rounding,
+          punch_rounding_minutes: settings.punch_rounding_minutes,
+          punch_rounding_direction: settings.punch_rounding_direction,
+          auto_break_wait_hours: settings.auto_break_wait_hours,
+          calculate_overtime: settings.calculate_overtime
         });
 
       if (error) throw error;
@@ -252,6 +280,111 @@ export default function PunchClockSettings() {
                   />
                   <p className="text-xs text-muted-foreground">Remind employees to take breaks after this time</p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="auto-break-wait">Auto Break Wait (hours)</Label>
+                  <Input
+                    id="auto-break-wait"
+                    type="number"
+                    value={settings.auto_break_wait_hours}
+                    onChange={(e) => updateSetting('auto_break_wait_hours', parseFloat(e.target.value))}
+                    min="4"
+                    max="8"
+                    step="0.5"
+                  />
+                  <p className="text-xs text-muted-foreground">Hours worked before automatic break deduction</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="time-window-start">Punch Time Window Start</Label>
+                  <Input
+                    id="time-window-start"
+                    type="time"
+                    value={settings.punch_time_window_start}
+                    onChange={(e) => updateSetting('punch_time_window_start', e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Earliest time employees can punch in</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="time-window-end">Punch Time Window End</Label>
+                  <Input
+                    id="time-window-end"
+                    type="time"
+                    value={settings.punch_time_window_end}
+                    onChange={(e) => updateSetting('punch_time_window_end', e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Latest time employees can punch out</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Calculate Overtime</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable overtime calculation for hours over threshold
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.calculate_overtime}
+                    onCheckedChange={(checked) => updateSetting('calculate_overtime', checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Enable Punch Rounding</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Round punch times to nearest interval
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.enable_punch_rounding}
+                    onCheckedChange={(checked) => updateSetting('enable_punch_rounding', checked)}
+                  />
+                </div>
+
+                {settings.enable_punch_rounding && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-4 p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-2">
+                      <Label htmlFor="rounding-minutes">Rounding Interval (minutes)</Label>
+                      <Select
+                        value={settings.punch_rounding_minutes.toString()}
+                        onValueChange={(value) => updateSetting('punch_rounding_minutes', parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 minutes</SelectItem>
+                          <SelectItem value="10">10 minutes</SelectItem>
+                          <SelectItem value="15">15 minutes</SelectItem>
+                          <SelectItem value="30">30 minutes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="rounding-direction">Rounding Direction</Label>
+                      <Select
+                        value={settings.punch_rounding_direction}
+                        onValueChange={(value) => updateSetting('punch_rounding_direction', value as 'up' | 'down' | 'nearest')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="up">Round Up</SelectItem>
+                          <SelectItem value="down">Round Down</SelectItem>
+                          <SelectItem value="nearest">Round to Nearest</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

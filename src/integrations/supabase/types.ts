@@ -1112,9 +1112,12 @@ export type Database = {
         Row: {
           allow_manual_entry: boolean | null
           auto_break_duration: number | null
+          auto_break_wait_hours: number | null
           break_reminder_minutes: number | null
+          calculate_overtime: boolean | null
           company_id: string
           created_at: string
+          enable_punch_rounding: boolean | null
           grace_period_minutes: number | null
           id: string
           location_accuracy_meters: number | null
@@ -1122,6 +1125,10 @@ export type Database = {
           notification_enabled: boolean | null
           overtime_threshold: number | null
           photo_required_for_corrections: boolean | null
+          punch_rounding_direction: string | null
+          punch_rounding_minutes: number | null
+          punch_time_window_end: string | null
+          punch_time_window_start: string | null
           require_location: boolean | null
           require_photo: boolean | null
           updated_at: string
@@ -1129,9 +1136,12 @@ export type Database = {
         Insert: {
           allow_manual_entry?: boolean | null
           auto_break_duration?: number | null
+          auto_break_wait_hours?: number | null
           break_reminder_minutes?: number | null
+          calculate_overtime?: boolean | null
           company_id: string
           created_at?: string
+          enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           location_accuracy_meters?: number | null
@@ -1139,6 +1149,10 @@ export type Database = {
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           photo_required_for_corrections?: boolean | null
+          punch_rounding_direction?: string | null
+          punch_rounding_minutes?: number | null
+          punch_time_window_end?: string | null
+          punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
           updated_at?: string
@@ -1146,9 +1160,12 @@ export type Database = {
         Update: {
           allow_manual_entry?: boolean | null
           auto_break_duration?: number | null
+          auto_break_wait_hours?: number | null
           break_reminder_minutes?: number | null
+          calculate_overtime?: boolean | null
           company_id?: string
           created_at?: string
+          enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           location_accuracy_meters?: number | null
@@ -1156,6 +1173,10 @@ export type Database = {
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           photo_required_for_corrections?: boolean | null
+          punch_rounding_direction?: string | null
+          punch_rounding_minutes?: number | null
+          punch_time_window_end?: string | null
+          punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
           updated_at?: string

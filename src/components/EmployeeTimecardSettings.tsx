@@ -83,12 +83,18 @@ export default function EmployeeTimecardSettings({
       const { data, error } = await supabase
         .from('profiles')
         .select('id, user_id, display_name, first_name, last_name, role')
+        .eq('role', 'employee')
         .order('display_name');
 
       if (error) throw error;
       setEmployees(data || []);
     } catch (error) {
       console.error('Error loading employees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load employees",
+        variant: "destructive",
+      });
     }
   };
 
