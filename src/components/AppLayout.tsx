@@ -3,12 +3,13 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
 import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
+import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 const navigationCategories = [
@@ -136,6 +137,7 @@ const navigationCategories = [
 ];
 
 export function AppSidebar() {
+  const navigate = useNavigate();
   const location = useLocation();
   const { state } = useSidebar();
   const { settings } = useSettings();
@@ -333,15 +335,24 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className="p-4 border-t">
           <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <p className="font-medium">{profile?.display_name || 'User'}</p>
-              <p className="text-muted-foreground capitalize">{profile?.role}</p>
-            </div>
+            <Button
+              variant="ghost"
+              className="flex items-center gap-3 h-auto p-2 justify-start flex-1"
+              onClick={() => navigate('/profile-settings')}
+            >
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-4 w-4" />
+              </div>
+              <div className="text-left group-data-[collapsible=icon]:hidden">
+                <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
+                <p className="text-muted-foreground text-xs capitalize">{profile?.role}</p>
+              </div>
+            </Button>
             <Button
               size="sm"
               variant="ghost"
               onClick={signOut}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 group-data-[collapsible=icon]:hidden"
             >
               <LogOut className="h-4 w-4" />
             </Button>

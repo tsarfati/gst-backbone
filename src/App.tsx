@@ -39,6 +39,7 @@ import CostCodes from "./pages/CostCodes";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
+import ProfileSettings from "./pages/ProfileSettings";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
@@ -104,6 +105,7 @@ function AppRoutes() {
                       <Route path="settings/notifications" element={<NotificationSettings />} />
                       <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
                       <Route path="settings/security" element={<SecuritySettings />} />
+                      <Route path="profile-settings" element={<ProfileSettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
                       <Route path="employees/add" element={<AddEmployee />} />
