@@ -19,44 +19,7 @@ import {
   Building
 } from "lucide-react";
 
-const mockContracts = [
-  {
-    id: "1",
-    name: "Master Subcontractor Agreement",
-    type: "Template",
-    vendor: "General Template",
-    value: null,
-    startDate: "2024-01-01",
-    endDate: null,
-    status: "active",
-    uploadDate: "2024-01-15",
-    fileSize: "1.2 MB"
-  },
-  {
-    id: "2",
-    name: "Electrical Work Contract - Johnson Residence",
-    type: "Project Contract",
-    vendor: "ABC Electrical",
-    value: 15000,
-    startDate: "2024-02-01",
-    endDate: "2024-03-15",
-    status: "active",
-    uploadDate: "2024-01-28",
-    fileSize: "856 KB"
-  },
-  {
-    id: "3",
-    name: "Plumbing Subcontract - Smith Project",
-    type: "Subcontract",
-    vendor: "Pro Plumbing Inc",
-    value: 8500,
-    startDate: "2024-01-15",
-    endDate: "2024-02-28",
-    status: "completed",
-    uploadDate: "2024-01-10",
-    fileSize: "742 KB"
-  }
-];
+const mockContracts: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {

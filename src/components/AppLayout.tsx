@@ -108,6 +108,18 @@ const navigationCategories = [
     collapsible: true,
   },
   {
+    title: "Banking",
+    items: [
+      { name: "Bank Accounts", href: "/banking/accounts", icon: Building, menuKey: "settings" },
+      { name: "Reporting", href: "/banking/reports", icon: BarChart3, menuKey: "reports" },
+      { name: "Journal Entries", href: "/banking/journal-entries", icon: FileText, menuKey: "settings" },
+      { name: "Deposits", href: "/banking/deposits", icon: DollarSign, menuKey: "settings" },
+      { name: "Print Checks", href: "/banking/print-checks", icon: FileCheck, menuKey: "settings" },
+      { name: "Reconcile", href: "/banking/reconcile", icon: CheckSquare, menuKey: "settings" },
+    ],
+    collapsible: true,
+  },
+  {
     title: "Settings",
     items: [
       { name: "General", href: "/settings", icon: Settings, menuKey: "settings" },

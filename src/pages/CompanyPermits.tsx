@@ -19,47 +19,7 @@ import {
   Hash
 } from "lucide-react";
 
-const mockPermits = [
-  {
-    id: "1",
-    permitNumber: "2024-BUILD-001",
-    type: "Building Permit",
-    jobName: "Johnson Residence Addition",
-    address: "123 Oak Street, Springfield",
-    issueDate: "2024-01-15",
-    expirationDate: "2024-07-15",
-    status: "active",
-    authority: "Springfield Building Department",
-    cost: 450,
-    fileSize: "1.2 MB"
-  },
-  {
-    id: "2",
-    permitNumber: "2024-ELEC-007",
-    type: "Electrical Permit",
-    jobName: "Smith Kitchen Remodel",
-    address: "456 Maple Ave, Springfield",
-    issueDate: "2024-02-01",
-    expirationDate: "2024-05-01",
-    status: "expiring",
-    authority: "Springfield Electrical Inspector",
-    cost: 125,
-    fileSize: "856 KB"
-  },
-  {
-    id: "3",
-    permitNumber: "2023-PLUMB-089",
-    type: "Plumbing Permit",
-    jobName: "Brown Bathroom Renovation",
-    address: "789 Pine Rd, Springfield",
-    issueDate: "2023-11-15",
-    expirationDate: "2024-02-15",
-    status: "expired",
-    authority: "Springfield Plumbing Division",
-    cost: 85,
-    fileSize: "742 KB"
-  }
-];
+const mockPermits: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {

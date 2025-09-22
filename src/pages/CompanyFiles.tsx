@@ -19,41 +19,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const mockDocuments = [
-  {
-    id: "1",
-    name: "General Liability Insurance Policy",
-    type: "Insurance",
-    category: "insurance",
-    uploadDate: "2024-01-15",
-    expiryDate: "2024-12-31",
-    uploadedBy: "John Smith",
-    fileSize: "2.3 MB",
-    status: "current"
-  },
-  {
-    id: "2", 
-    name: "Building Permit #2024-001",
-    type: "Permit",
-    category: "permit",
-    uploadDate: "2024-02-10",
-    expiryDate: "2024-08-10",
-    uploadedBy: "Jane Doe",
-    fileSize: "1.2 MB",
-    status: "expiring"
-  },
-  {
-    id: "3",
-    name: "Subcontractor Agreement Template",
-    type: "Contract",
-    category: "contract", 
-    uploadDate: "2024-01-20",
-    expiryDate: null,
-    uploadedBy: "Mike Johnson",
-    fileSize: "856 KB",
-    status: "current"
-  }
-];
+const mockDocuments: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {

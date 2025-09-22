@@ -21,50 +21,7 @@ import {
   Phone
 } from "lucide-react";
 
-const mockInsurance = [
-  {
-    id: "1",
-    policyNumber: "GL-2024-001234",
-    type: "General Liability",
-    provider: "ABC Insurance Company",
-    coverage: 2000000,
-    premium: 8500,
-    effectiveDate: "2024-01-01",
-    expirationDate: "2024-12-31",
-    status: "active",
-    agent: "John Smith",
-    agentPhone: "(555) 123-4567",
-    fileSize: "2.1 MB"
-  },
-  {
-    id: "2",
-    policyNumber: "WC-2024-567890",
-    type: "Workers' Compensation",
-    provider: "XYZ Insurance Group",
-    coverage: 1000000,
-    premium: 12000,
-    effectiveDate: "2024-01-01",
-    expirationDate: "2024-12-31",
-    status: "active",
-    agent: "Sarah Johnson",
-    agentPhone: "(555) 987-6543",
-    fileSize: "1.8 MB"
-  },
-  {
-    id: "3",
-    policyNumber: "AU-2023-112233",
-    type: "Commercial Auto",
-    provider: "DEF Insurance Co",
-    coverage: 500000,
-    premium: 3200,
-    effectiveDate: "2023-06-01",
-    expirationDate: "2024-06-01",
-    status: "expiring",
-    agent: "Mike Davis",
-    agentPhone: "(555) 456-7890",
-    fileSize: "1.2 MB"
-  }
-];
+const mockInsurance: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
