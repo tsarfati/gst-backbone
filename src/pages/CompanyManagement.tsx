@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -62,6 +63,7 @@ export default function CompanyManagement() {
     email: '',
     website: ''
   });
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Get current user's role in this company
   const currentUserCompany = userCompanies.find(uc => uc.company_id === currentCompany?.id);
@@ -269,6 +271,74 @@ export default function CompanyManagement() {
     }
   };
 
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !currentCompany) return;
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 2MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploadingLogo(true);
+
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentCompany.id}/company-logo-${Date.now()}.${fileExt}`;
+      
+      // Upload to company-logos bucket
+      const { data, error } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      // Get the storage path (not full URL)
+      const logoPath = `company-logos/${fileName}`;
+
+      // Update company record with logo path
+      const { error: updateError } = await supabase
+        .from('companies')
+        .update({ logo_url: logoPath })
+        .eq('id', currentCompany.id);
+
+      if (updateError) throw updateError;
+
+      // Refresh company data to show new logo
+      await refreshCompanies();
+      
+      toast({
+        title: "Success", 
+        description: "Company logo updated successfully"
+      });
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload company logo",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   useEffect(() => {
     if (currentCompany) {
       fetchCompanyUsers();
@@ -357,6 +427,49 @@ export default function CompanyManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex items-center gap-6 mb-6">
+            <div className="flex flex-col items-center gap-2">
+              <Avatar className="h-20 w-20">
+                <AvatarImage 
+                  src={currentCompany.logo_url ? `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${currentCompany.logo_url}` : undefined}
+                  alt={`${currentCompany.name} logo`}
+                />
+                <AvatarFallback className="text-lg bg-primary/10">
+                  {currentCompany.name.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {isCompanyAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingLogo}
+                    onClick={() => document.getElementById('logo-upload')?.click()}
+                  >
+                    {uploadingLogo ? (
+                      <>Uploading...</>
+                    ) : (
+                      <>
+                        <Camera className="h-4 w-4 mr-2" />
+                        Upload Logo
+                      </>
+                    )}
+                  </Button>
+                  <input
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-semibold">{currentCompany.display_name || currentCompany.name}</h3>
+              <p className="text-sm text-muted-foreground">Company Logo</p>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium">Company Name</Label>
