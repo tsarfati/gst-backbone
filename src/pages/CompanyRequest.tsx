@@ -32,6 +32,14 @@ export default function CompanyRequest() {
   const [loading, setLoading] = useState(true);
   const [requestingAccess, setRequestingAccess] = useState<string | null>(null);
 
+  // Resolve storage paths like "bucket/path/to/file.png" to public URLs
+  const resolveLogoUrl = (logo?: string) => {
+    if (!logo) return undefined;
+    if (/^https?:\/\//i.test(logo)) return logo;
+    const path = logo.replace(/^\/+/, '');
+    return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${path}`;
+  };
+
   useEffect(() => {
     if (user) {
       fetchCompanies();
@@ -232,12 +240,12 @@ export default function CompanyRequest() {
                   {company.logo_url ? (
                     <div className="w-full h-full flex items-center justify-center p-4">
                       <img 
-                        src={company.logo_url} 
+                        src={resolveLogoUrl(company.logo_url)} 
                         alt={`${company.name} logo`}
                         className="max-w-full max-h-full object-contain"
-                        onLoad={() => console.log(`Logo loaded for ${company.name}:`, company.logo_url)}
+                        onLoad={() => console.log(`Logo loaded for ${company.name}:`, resolveLogoUrl(company.logo_url))}
                         onError={(e) => {
-                          console.error(`Logo failed to load for ${company.name}:`, company.logo_url);
+                          console.error(`Logo failed to load for ${company.name}:`, resolveLogoUrl(company.logo_url));
                           console.error('Error details:', e);
                         }}
                       />
