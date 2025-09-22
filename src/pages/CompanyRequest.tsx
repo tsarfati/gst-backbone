@@ -20,6 +20,7 @@ interface Company {
 interface AccessRequest {
   company_id: string;
   is_active: boolean;
+  status?: string;
 }
 
 export default function CompanyRequest() {
@@ -62,12 +63,40 @@ export default function CompanyRequest() {
     
     try {
       const { data, error } = await supabase
-        .from('user_company_access')
-        .select('company_id, is_active')
+        .from('company_access_requests')
+        .select('company_id, status')
         .eq('user_id', user.id);
 
       if (error) throw error;
-      setAccessRequests(data || []);
+      
+      // Also fetch approved company access from user_company_access
+      const { data: approvedAccess, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('company_id, is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (accessError) console.error('Error fetching approved access:', accessError);
+
+      // Combine request data with approved access
+      const combinedRequests = (data || []).map(req => ({
+        company_id: req.company_id,
+        is_active: req.status === 'approved',
+        status: req.status
+      }));
+
+      // Add approved access that might not have requests
+      (approvedAccess || []).forEach(access => {
+        if (!combinedRequests.find(req => req.company_id === access.company_id)) {
+          combinedRequests.push({
+            company_id: access.company_id,
+            is_active: true,
+            status: 'approved'
+          });
+        }
+      });
+
+      setAccessRequests(combinedRequests);
     } catch (error) {
       console.error('Error fetching access requests:', error);
     } finally {
@@ -81,13 +110,11 @@ export default function CompanyRequest() {
     setRequestingAccess(companyId);
     try {
       const { error } = await supabase
-        .from('user_company_access')
+        .from('company_access_requests')
         .insert({
           user_id: user.id,
           company_id: companyId,
-          role: 'employee',
-          is_active: false,
-          granted_by: null
+          status: 'pending'
         });
 
       if (error) throw error;
@@ -114,7 +141,8 @@ export default function CompanyRequest() {
   const getRequestStatus = (companyId: string) => {
     const request = accessRequests.find(r => r.company_id === companyId);
     if (!request) return 'none';
-    return request.is_active ? 'approved' : 'pending';
+    if (request.is_active) return 'approved';
+    return request.status || 'pending';
   };
 
   const hasAnyApprovedAccess = accessRequests.some(r => r.is_active);

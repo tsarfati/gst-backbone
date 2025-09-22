@@ -7,7 +7,9 @@ import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AccessControl } from "@/components/AccessControl";
 import Layout from "@/components/AppLayout";
+import CompanyRequest from "@/pages/CompanyRequest";
 
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -85,9 +87,16 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/company-request" element={
+          <ProtectedRoute>
+            <CompanyRequest />
+          </ProtectedRoute>
+        } />
         <Route path="/" element={
           <ProtectedRoute>
-            <Layout />
+            <AccessControl>
+              <Layout />
+            </AccessControl>
           </ProtectedRoute>
         }>
                       <Route index element={<Dashboard />} />
