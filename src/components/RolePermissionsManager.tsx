@@ -100,7 +100,7 @@ const roles = [
 ];
 
 export default function RolePermissionsManager() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +133,16 @@ export default function RolePermissionsManager() {
   };
 
   const updatePermission = async (role: string, menuItem: string, canAccess: boolean) => {
+    // Only allow admins to make changes
+    if (profile?.role !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can modify role permissions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('role_permissions')
@@ -158,17 +168,27 @@ export default function RolePermissionsManager() {
         }
       });
 
+      toast({
+        title: "Permission Updated",
+        description: `${role} access to ${menuItem} has been ${canAccess ? 'granted' : 'revoked'}.`,
+      });
+
     } catch (error) {
       console.error('Error updating permission:', error);
       toast({
         title: "Error",
-        description: "Failed to update permission",
+        description: "Failed to update permission. Please try again.",
         variant: "destructive",
       });
     }
   };
 
   const getPermission = (role: string, menuItem: string): boolean => {
+    // Admins automatically have access to everything - no database check needed
+    if (profile?.role === 'admin') {
+      return true;
+    }
+    
     const permission = permissions.find(p => p.role === role && p.menu_item === menuItem);
     return permission?.can_access || false;
   };
@@ -194,6 +214,16 @@ export default function RolePermissionsManager() {
 
   if (loading) {
     return <div className="p-6 text-center">Loading permissions...</div>;
+  }
+
+  // Show access denied if not admin
+  if (profile?.role !== 'admin') {
+    return (
+      <div className="p-6 text-center">
+        <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
+        <p className="text-muted-foreground">Only administrators can manage role permissions.</p>
+      </div>
+    );
   }
 
   return (
