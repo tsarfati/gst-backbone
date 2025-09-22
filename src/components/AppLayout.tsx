@@ -7,6 +7,7 @@ import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBa
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useNavigate } from 'react-router-dom';
@@ -144,6 +145,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { signOut, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
 
@@ -211,18 +213,20 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          {settings.customLogo ? (
+        <div className="flex items-center gap-2 px-2 py-2 min-h-[60px]">
+          {currentCompany?.logo_url ? (
             <img 
-              src={settings.customLogo} 
-              alt="Custom Logo" 
-              className="h-6 w-6 object-contain" 
+              src={currentCompany.logo_url} 
+              alt={`${currentCompany.display_name || currentCompany.name} Logo`} 
+              className="h-10 w-10 object-contain rounded" 
             />
           ) : (
-            <Receipt className="h-6 w-6 text-primary" />
+            <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
           )}
-          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">
-            Green Star TEAM
+          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden truncate">
+            {currentCompany?.display_name || currentCompany?.name || 'Loading...'}
           </span>
         </div>
       </SidebarHeader>
