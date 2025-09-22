@@ -56,6 +56,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase.rpc('get_user_companies', {
         _user_id: user.id
       });
@@ -79,6 +80,13 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
         if (!companyError && companyData) {
           setCurrentCompany(companyData);
+        } else {
+          console.error('Error fetching company details:', companyError);
+          // Use basic company info from get_user_companies if detailed fetch fails
+          setCurrentCompany({
+            id: companyToSet.company_id,
+            name: companyToSet.company_name
+          });
         }
       }
     } catch (error) {
