@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, Plus, FileText } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import CommittedCosts from "@/components/CommittedCosts";
@@ -190,6 +190,22 @@ export default function JobDetails() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                onClick={() => navigate(`/jobs/${id}/budget`)}
+              >
+                <Calculator className="h-4 w-4 mr-2" />
+                Manage Budget
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                onClick={() => navigate(`/subcontracts/add?jobId=${id}`)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Contract/PO
+              </Button>
               <Button variant="outline" className="w-full justify-start" disabled>
                 <FileText className="h-4 w-4 mr-2" />
                 View Receipts

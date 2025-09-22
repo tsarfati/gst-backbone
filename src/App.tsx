@@ -15,6 +15,7 @@ import UncodedReceipts from "./pages/UncodedReceipts";
 import Jobs from "./pages/Jobs";
 import JobDetails from "./pages/JobDetails";
 import JobEdit from "./pages/JobEdit";
+import JobBudget from "./pages/JobBudget";
 import Vendors from "./pages/Vendors";
 import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
@@ -100,6 +101,7 @@ function AppRoutes() {
                       <Route path="jobs/reports" element={<JobReports />} />
                       <Route path="jobs/:id" element={<JobDetails />} />
                       <Route path="jobs/:id/edit" element={<JobEdit />} />
+                      <Route path="jobs/:id/budget" element={<JobBudget />} />
                       <Route path="vendors" element={<Vendors />} />
                       <Route path="vendors/add" element={<VendorEdit />} />
                       <Route path="vendors/:id" element={<VendorDetails />} />

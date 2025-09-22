@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, FileText, DollarSign } from "lucide-react";
+import { FileText, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,7 +13,6 @@ interface CommittedCostsProps {
 
 export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
@@ -80,16 +78,10 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Committed Costs
-            </CardTitle>
-            <Button size="sm" variant="outline" onClick={() => navigate(`/subcontracts/add?jobId=${jobId}`)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contract/PO
-            </Button>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Committed Costs
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Subcontracts Section */}
