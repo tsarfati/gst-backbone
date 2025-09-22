@@ -176,10 +176,17 @@ export default function CompanyRequest() {
 
     setSelectingCompany(companyId);
     try {
-      // First activate company access to ensure the user has proper access
-      await supabase.rpc('activate_company_access', { _company_id: companyId });
-      
-      // Then switch to the company
+      // If already approved, skip RPC activation
+      const status = getRequestStatus(companyId);
+      if (status !== 'approved') {
+        try {
+          await supabase.rpc('activate_company_access', { _company_id: companyId });
+        } catch (rpcErr) {
+          console.warn('activate_company_access failed, proceeding if access exists:', rpcErr);
+        }
+      }
+
+      // Switch to the company regardless (AccessControl will validate real access)
       await switchCompany(companyId);
       
       // After successful switch, go to dashboard

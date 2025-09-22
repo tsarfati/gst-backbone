@@ -120,10 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Open OAuth in the top window to avoid iframe "refused to connect"
     if (data?.url) {
-      if (window.top) {
-        (window.top as Window).location.href = data.url;
-      } else {
-        window.location.href = data.url;
+      try {
+        if (window.top && window.top !== window) {
+          (window.top as Window).location.href = data.url;
+        } else {
+          window.location.assign(data.url);
+        }
+      } catch (_) {
+        // Fallbacks for sandboxed iframes
+        const win = window.open(data.url, '_blank');
+        if (!win) {
+          window.location.href = data.url;
+        }
       }
     }
     return { error: null } as any;
