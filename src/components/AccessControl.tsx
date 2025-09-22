@@ -50,7 +50,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // Determine if user has approved company access
-    const hasApprovedAccess = userCompanies.length > 0;
+    const hasApprovedAccess = userCompanies.length > 0 || !!profile?.current_company_id;
 
     // If on company-request and user already has access, send to home
     if (location.pathname === '/company-request') {
