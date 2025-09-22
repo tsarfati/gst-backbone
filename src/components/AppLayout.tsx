@@ -87,7 +87,7 @@ const navigationCategories = [
   {
     title: "Punch Clock",
     items: [
-      { name: "Time Tracking", href: "/time-tracking", icon: Timer, menuKey: "employees" },
+      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "employees" },
       { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "employees" },
       { name: "Overtime Reports", href: "/punch-clock/overtime", icon: TrendingUp, menuKey: "reports" },
     ],

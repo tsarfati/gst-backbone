@@ -24,7 +24,7 @@ const APP_PAGES = [
   { id: '6', name: 'Uncoded Receipts', path: '/uncoded-receipts' },
   { id: '7', name: 'Upload Receipts', path: '/upload-receipts' },
   { id: '8', name: 'Time Sheets', path: '/timesheets' },
-  { id: '9', name: 'Time Tracking', path: '/time-tracking' },
+  { id: '9', name: 'Punch Clock', path: '/time-tracking' },
   { id: '10', name: 'All Employees', path: '/employees' },
   { id: '11', name: 'Add Employee', path: '/add-employee' },
   { id: '12', name: 'Team Chat', path: '/team-chat' },

@@ -212,7 +212,7 @@ export default function JobDetails() {
               </Button>
               <Button variant="outline" className="w-full justify-start" disabled>
                 <Building className="h-4 w-4 mr-2" />
-                Time Tracking
+                Punch Clock
               </Button>
             </CardContent>
           </Card>

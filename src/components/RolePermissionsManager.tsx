@@ -42,7 +42,7 @@ const menuItems = [
   // Employee Management
   { key: 'employees', label: 'Employees', description: 'View employee directory', category: 'HR' },
   { key: 'employees-add', label: 'Add Employees', description: 'Register new employees', category: 'HR' },
-  { key: 'time-tracking', label: 'Time Tracking', description: 'Employee time clock system', category: 'HR' },
+  { key: 'time-tracking', label: 'Punch Clock', description: 'Employee time clock system', category: 'HR' },
   { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'HR' },
   
   // Financial Management

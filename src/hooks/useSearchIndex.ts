@@ -106,7 +106,7 @@ export function useSearchIndex() {
         { title: 'Upload Receipts', description: 'Upload and manage receipt documents', path: '/upload', tags: ['page', 'receipts'] },
         { title: 'Uncoded Receipts', description: 'Process uncoded receipts', path: '/uncoded-receipts', tags: ['page', 'receipts'] },
         { title: 'Coded Receipts', description: 'View coded receipts', path: '/coded-receipts', tags: ['page', 'receipts'] },
-        { title: 'Time Tracking', description: 'Employee time tracking system', path: '/time-tracking', tags: ['page', 'time'] },
+        { title: 'Punch Clock', description: 'Employee time tracking system', path: '/time-tracking', tags: ['page', 'time'] },
         { title: 'Time Sheets', description: 'View employee time sheets', path: '/timesheets', tags: ['page', 'time'] },
         { title: 'Cost Codes', description: 'Manage project cost codes', path: '/cost-codes', tags: ['page', 'codes'] },
         { title: 'Bills', description: 'Manage vendor bills', path: '/bills', tags: ['page', 'bills'] },
