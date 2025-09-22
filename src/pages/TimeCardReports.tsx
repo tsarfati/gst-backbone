@@ -71,31 +71,71 @@ export default function TimeCardReports() {
     try {
       setLoading(true);
       
-      // For now, using mock data since we need to implement the time card system
-      const mockRecords: TimeRecord[] = [
-        {
-          id: '1',
-          user_id: user?.id || '',
-          punch_in: '2024-01-15T08:00:00Z',
-          punch_out: '2024-01-15T17:00:00Z',
-          total_hours: 8.5,
-          job_name: 'Office Renovation',
-          cost_code: 'FRAMING',
-          status: 'approved'
-        },
-        {
-          id: '2',
-          user_id: user?.id || '',
-          punch_in: '2024-01-16T08:15:00Z',
-          punch_out: '2024-01-16T16:30:00Z',
-          total_hours: 8.25,
-          job_name: 'Warehouse Project',
-          cost_code: 'ELECTRICAL',
-          status: 'approved'
-        }
-      ];
+      let query = supabase
+        .from('time_cards')
+        .select(`
+          id,
+          user_id,
+          punch_in_time,
+          punch_out_time,
+          total_hours,
+          overtime_hours,
+          status,
+          job_id,
+          cost_code_id
+        `)
+        .order('punch_in_time', { ascending: false });
 
-      setTimeRecords(mockRecords);
+      // Filter by employee if selected and user is manager
+      if (isManager && selectedEmployee !== 'all') {
+        query = query.eq('user_id', selectedEmployee);
+      } else if (!isManager) {
+        // Non-managers can only see their own records
+        query = query.eq('user_id', user?.id);
+      }
+
+      // Filter by date range
+      if (startDate) {
+        query = query.gte('punch_in_time', startDate.toISOString());
+      }
+      if (endDate) {
+        query = query.lte('punch_out_time', endDate.toISOString());
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Get job and cost code names separately
+      const jobIds = [...new Set((data || []).map(r => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
+
+      const [jobsData, costCodesData] = await Promise.all([
+        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds) : { data: [] },
+        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] }
+      ]);
+
+      const jobsMap = new Map((jobsData.data || []).map(job => [job.id, job]));
+      const costCodesMap = new Map((costCodesData.data || []).map(code => [code.id, code]));
+
+      // Transform the data to match our interface
+      const transformedRecords: TimeRecord[] = (data || []).map(record => {
+        const job = jobsMap.get(record.job_id);
+        const costCode = costCodesMap.get(record.cost_code_id);
+        
+        return {
+          id: record.id,
+          user_id: record.user_id,
+          punch_in: record.punch_in_time,
+          punch_out: record.punch_out_time,
+          total_hours: parseFloat(record.total_hours.toString()) || 0,
+          job_name: job?.name || 'Unknown Job',
+          cost_code: costCode ? `${costCode.code} - ${costCode.description}` : 'Unknown Code',
+          status: record.status as 'approved' | 'pending' | 'corrected'
+        };
+      });
+
+      setTimeRecords(transformedRecords);
     } catch (error) {
       console.error('Error loading time records:', error);
       toast({

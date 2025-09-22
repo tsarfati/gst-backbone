@@ -989,6 +989,60 @@ export type Database = {
           },
         ]
       }
+      punch_clock_settings: {
+        Row: {
+          allow_manual_entry: boolean | null
+          auto_break_duration: number | null
+          break_reminder_minutes: number | null
+          company_id: string
+          created_at: string
+          grace_period_minutes: number | null
+          id: string
+          location_accuracy_meters: number | null
+          manager_approval_required: boolean | null
+          notification_enabled: boolean | null
+          overtime_threshold: number | null
+          photo_required_for_corrections: boolean | null
+          require_location: boolean | null
+          require_photo: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          allow_manual_entry?: boolean | null
+          auto_break_duration?: number | null
+          break_reminder_minutes?: number | null
+          company_id: string
+          created_at?: string
+          grace_period_minutes?: number | null
+          id?: string
+          location_accuracy_meters?: number | null
+          manager_approval_required?: boolean | null
+          notification_enabled?: boolean | null
+          overtime_threshold?: number | null
+          photo_required_for_corrections?: boolean | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          allow_manual_entry?: boolean | null
+          auto_break_duration?: number | null
+          break_reminder_minutes?: number | null
+          company_id?: string
+          created_at?: string
+          grace_period_minutes?: number | null
+          id?: string
+          location_accuracy_meters?: number | null
+          manager_approval_required?: boolean | null
+          notification_enabled?: boolean | null
+          overtime_threshold?: number | null
+          photo_required_for_corrections?: boolean | null
+          require_location?: boolean | null
+          require_photo?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       punch_records: {
         Row: {
           cost_code_id: string | null
@@ -1198,6 +1252,156 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      time_card_corrections: {
+        Row: {
+          correction_type: string
+          created_at: string
+          id: string
+          original_cost_code_id: string | null
+          original_job_id: string | null
+          original_punch_in: string | null
+          original_punch_out: string | null
+          reason: string
+          requested_by: string
+          requested_cost_code_id: string | null
+          requested_job_id: string | null
+          requested_punch_in: string | null
+          requested_punch_out: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          time_card_id: string
+          updated_at: string
+        }
+        Insert: {
+          correction_type: string
+          created_at?: string
+          id?: string
+          original_cost_code_id?: string | null
+          original_job_id?: string | null
+          original_punch_in?: string | null
+          original_punch_out?: string | null
+          reason: string
+          requested_by: string
+          requested_cost_code_id?: string | null
+          requested_job_id?: string | null
+          requested_punch_in?: string | null
+          requested_punch_out?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          time_card_id: string
+          updated_at?: string
+        }
+        Update: {
+          correction_type?: string
+          created_at?: string
+          id?: string
+          original_cost_code_id?: string | null
+          original_job_id?: string | null
+          original_punch_in?: string | null
+          original_punch_out?: string | null
+          reason?: string
+          requested_by?: string
+          requested_cost_code_id?: string | null
+          requested_job_id?: string | null
+          requested_punch_in?: string | null
+          requested_punch_out?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          time_card_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      time_cards: {
+        Row: {
+          break_minutes: number | null
+          correction_approved_at: string | null
+          correction_approved_by: string | null
+          correction_reason: string | null
+          correction_requested_at: string | null
+          cost_code_id: string | null
+          created_at: string
+          id: string
+          is_correction: boolean | null
+          job_id: string | null
+          notes: string | null
+          original_time_card_id: string | null
+          overtime_hours: number | null
+          punch_in_location_lat: number | null
+          punch_in_location_lng: number | null
+          punch_in_photo_url: string | null
+          punch_in_time: string
+          punch_out_location_lat: number | null
+          punch_out_location_lng: number | null
+          punch_out_photo_url: string | null
+          punch_out_time: string
+          status: string
+          total_hours: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          break_minutes?: number | null
+          correction_approved_at?: string | null
+          correction_approved_by?: string | null
+          correction_reason?: string | null
+          correction_requested_at?: string | null
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          is_correction?: boolean | null
+          job_id?: string | null
+          notes?: string | null
+          original_time_card_id?: string | null
+          overtime_hours?: number | null
+          punch_in_location_lat?: number | null
+          punch_in_location_lng?: number | null
+          punch_in_photo_url?: string | null
+          punch_in_time: string
+          punch_out_location_lat?: number | null
+          punch_out_location_lng?: number | null
+          punch_out_photo_url?: string | null
+          punch_out_time: string
+          status?: string
+          total_hours: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          break_minutes?: number | null
+          correction_approved_at?: string | null
+          correction_approved_by?: string | null
+          correction_reason?: string | null
+          correction_requested_at?: string | null
+          cost_code_id?: string | null
+          created_at?: string
+          id?: string
+          is_correction?: boolean | null
+          job_id?: string | null
+          notes?: string | null
+          original_time_card_id?: string | null
+          overtime_hours?: number | null
+          punch_in_location_lat?: number | null
+          punch_in_location_lng?: number | null
+          punch_in_photo_url?: string | null
+          punch_in_time?: string
+          punch_out_location_lat?: number | null
+          punch_out_location_lng?: number | null
+          punch_out_photo_url?: string | null
+          punch_out_time?: string
+          status?: string
+          total_hours?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_company_access: {
         Row: {

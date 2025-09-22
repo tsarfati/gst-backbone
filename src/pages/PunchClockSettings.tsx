@@ -58,8 +58,32 @@ export default function PunchClockSettings() {
     try {
       setLoading(true);
       
-      // For now using default settings since we need to implement the settings table
-      // In a real implementation, you would fetch from a punch_clock_settings table
+      // Load punch clock settings from database
+      const { data, error } = await supabase
+        .from('punch_clock_settings')
+        .select('*')
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+        throw error;
+      }
+
+      if (data) {
+        setSettings({
+          require_location: data.require_location,
+          require_photo: data.require_photo,
+          allow_manual_entry: data.allow_manual_entry,
+          auto_break_duration: data.auto_break_duration,
+          overtime_threshold: parseFloat(data.overtime_threshold.toString()),
+          location_accuracy_meters: data.location_accuracy_meters,
+          photo_required_for_corrections: data.photo_required_for_corrections,
+          notification_enabled: data.notification_enabled,
+          manager_approval_required: data.manager_approval_required,
+          grace_period_minutes: data.grace_period_minutes,
+          allowed_job_sites: [],
+          break_reminder_minutes: data.break_reminder_minutes
+        });
+      }
       
       setLoading(false);
     } catch (error) {
@@ -77,8 +101,25 @@ export default function PunchClockSettings() {
     try {
       setSaving(true);
       
-      // For now just show success message
-      // In a real implementation, you would save to database
+      // Upsert punch clock settings
+      const { error } = await supabase
+        .from('punch_clock_settings')
+        .upsert({
+          company_id: profile?.current_company_id || user?.id, // Use company_id when available
+          require_location: settings.require_location,
+          require_photo: settings.require_photo,
+          allow_manual_entry: settings.allow_manual_entry,
+          auto_break_duration: settings.auto_break_duration,
+          overtime_threshold: settings.overtime_threshold,
+          location_accuracy_meters: settings.location_accuracy_meters,
+          photo_required_for_corrections: settings.photo_required_for_corrections,
+          notification_enabled: settings.notification_enabled,
+          manager_approval_required: settings.manager_approval_required,
+          grace_period_minutes: settings.grace_period_minutes,
+          break_reminder_minutes: settings.break_reminder_minutes
+        });
+
+      if (error) throw error;
       
       toast({
         title: "Settings Saved",
