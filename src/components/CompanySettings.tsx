@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, MapPin, Upload, X, Building2 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +21,7 @@ interface PickupLocation {
 
 export default function CompanySettings() {
   const { settings, updateSettings } = useSettings();
+  const { currentCompany, refreshCompanies } = useCompany();
   const { toast } = useToast();
   const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<PickupLocation | null>(null);
@@ -35,7 +37,7 @@ export default function CompanySettings() {
 
   const handleLogoUpload = (type: 'company' | 'header') => async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentCompany) return;
 
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
@@ -62,25 +64,39 @@ export default function CompanySettings() {
     try {
       // Create a unique filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `${type}-logo-${Date.now()}.${fileExt}`;
-      const filePath = `company-logos/${fileName}`;
-
-      // Upload to Supabase Storage
+      const fileName = `${currentCompany.id}/${type}-logo-${Date.now()}.${fileExt}`;
+      
+      // Upload to company-logos bucket
       const { data, error } = await supabase.storage
-        .from('receipts') // Using existing receipts bucket
-        .upload(filePath, file);
+        .from('company-logos')
+        .upload(fileName, file);
 
       if (error) throw error;
 
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('receipts')
-        .getPublicUrl(filePath);
+      // Get the storage path (not full URL)
+      const logoPath = `company-logos/${fileName}`;
 
-      // Update settings with the URL
-      updateSettings({
-        [type === 'company' ? 'companyLogo' : 'headerLogo']: publicUrl
-      });
+      if (type === 'company') {
+        // Update company record with logo path
+        const { error: updateError } = await supabase
+          .from('companies')
+          .update({ logo_url: logoPath })
+          .eq('id', currentCompany.id);
+
+        if (updateError) throw updateError;
+
+        // Refresh company data to show new logo
+        await refreshCompanies();
+      } else {
+        // Update settings with the public URL for header logo
+        const { data: { publicUrl } } = supabase.storage
+          .from('company-logos')
+          .getPublicUrl(fileName);
+
+        updateSettings({
+          headerLogo: publicUrl
+        });
+      }
 
       toast({
         title: "Logo uploaded successfully",
@@ -101,26 +117,55 @@ export default function CompanySettings() {
   };
 
   const handleRemoveLogo = async (type: 'company' | 'header') => {
-    const logoUrl = type === 'company' ? settings.companyLogo : settings.headerLogo;
-    
-    // If it's a Supabase Storage URL, delete the file
-    if (logoUrl?.includes('supabase')) {
+    if (type === 'company' && currentCompany) {
       try {
-        const urlParts = logoUrl.split('/');
-        const fileName = urlParts[urlParts.length - 1];
-        const filePath = `company-logos/${fileName}`;
-        
-        await supabase.storage
-          .from('receipts')
-          .remove([filePath]);
-      } catch (error) {
-        console.error('Error deleting logo file:', error);
-      }
-    }
+        // Remove logo from company record
+        const { error } = await supabase
+          .from('companies')
+          .update({ logo_url: null })
+          .eq('id', currentCompany.id);
 
-    updateSettings({
-      [type === 'company' ? 'companyLogo' : 'headerLogo']: undefined
-    });
+        if (error) throw error;
+
+        // If it's a storage path, delete the file
+        if (currentCompany.logo_url && currentCompany.logo_url.includes('company-logos/')) {
+          const fileName = currentCompany.logo_url.replace('company-logos/', '');
+          await supabase.storage
+            .from('company-logos')
+            .remove([fileName]);
+        }
+
+        await refreshCompanies();
+      } catch (error) {
+        console.error('Error removing company logo:', error);
+        toast({
+          title: "Failed to remove logo",
+          description: "Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      // Handle header logo (still uses settings)
+      const logoUrl = settings.headerLogo;
+      
+      if (logoUrl?.includes('supabase')) {
+        try {
+          const urlParts = logoUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          
+          await supabase.storage
+            .from('company-logos')
+            .remove([fileName]);
+        } catch (error) {
+          console.error('Error deleting logo file:', error);
+        }
+      }
+
+      updateSettings({
+        headerLogo: undefined
+      });
+    }
 
     toast({
       title: "Logo removed",
@@ -198,10 +243,13 @@ export default function CompanySettings() {
             <p className="text-sm text-muted-foreground">
               Upload your company logo for general use throughout the application
             </p>
-            {settings.companyLogo ? (
+            {currentCompany?.logo_url ? (
               <div className="flex items-center gap-4">
                 <img 
-                  src={settings.companyLogo} 
+                  src={currentCompany.logo_url.includes('http') 
+                    ? currentCompany.logo_url 
+                    : supabase.storage.from('company-logos').getPublicUrl(currentCompany.logo_url.replace('company-logos/', '')).data.publicUrl
+                  } 
                   alt="Company Logo" 
                   className="h-16 w-auto border rounded-md"
                 />

@@ -47,8 +47,8 @@ export default function CompanyRequest() {
       const filePath = rest.join('/');
       return supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl;
     }
-    // Fallback to avatars bucket if no bucket in path
-    return supabase.storage.from('avatars').getPublicUrl(raw).data.publicUrl;
+    // Fallback to company-logos bucket
+    return supabase.storage.from('company-logos').getPublicUrl(raw).data.publicUrl;
   };
 
   useEffect(() => {
