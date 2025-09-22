@@ -272,44 +272,41 @@ export function AppSidebar() {
                   <CollapsibleContent>
                     <SidebarGroupContent>
                       <SidebarMenu>
-                         {allowedItems.map((item) => {
-                           // More precise active state logic
-                           let isActive = false;
-                           
-                           if (location.pathname === item.href) {
-                             isActive = true;
-                           } else if (location.pathname.startsWith(item.href + '/')) {
-                             // Only highlight if this is the most specific match
-                             const otherMatches = allowedItems.filter(otherItem => 
-                               otherItem.href !== item.href && 
-                               location.pathname.startsWith(otherItem.href + '/')
-                             );
-                             isActive = otherMatches.length === 0 || item.href.length >= Math.max(...otherMatches.map(m => m.href.length));
-                           } else if (category.title === 'Payables') {
-                             // Special cases for Payables
-                             if (item.href === '/subcontracts/add' && location.pathname.startsWith('/subcontracts/')) {
-                               isActive = true;
-                             } else if (item.href === '/purchase-orders/add' && location.pathname.startsWith('/purchase-orders/')) {
-                               isActive = true;
-                             }
-                           }
-                          return (
-                            <SidebarMenuItem key={item.name}>
-                               <SidebarMenuButton 
-                                 asChild 
-                                 isActive={isActive}
-                                 tooltip={state === "collapsed" ? item.name : undefined}
-                                 style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
-                                 className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
-                               >
-                                <Link to={item.href}>
-                                  <item.icon className="h-4 w-4" />
-                                  <span>{item.name}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
+                        {(() => {
+                          // Determine the single most specific active item within this category
+                          const matches = allowedItems.filter((itm) => {
+                            if (location.pathname === itm.href) return true;
+                            if (location.pathname.startsWith(itm.href + "/")) return true;
+                            if (category.title === "Payables") {
+                              if (itm.href === "/subcontracts/add" && location.pathname.startsWith("/subcontracts/")) return true;
+                              if (itm.href === "/purchase-orders/add" && location.pathname.startsWith("/purchase-orders/")) return true;
+                            }
+                            return false;
+                          });
+                          const activeItemHref = matches.length
+                            ? matches.reduce((longest, curr) => (curr.href.length > longest.length ? curr.href : longest), matches[0].href)
+                            : "";
+
+                          return allowedItems.map((item) => {
+                            const isActive = item.href === activeItemHref;
+                            return (
+                              <SidebarMenuItem key={item.name}>
+                                <SidebarMenuButton
+                                  asChild
+                                  isActive={isActive}
+                                  tooltip={state === "collapsed" ? item.name : undefined}
+                                  style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
+                                  className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
+                                >
+                                  <Link to={item.href}>
+                                    <item.icon className="h-4 w-4" />
+                                    <span>{item.name}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          });
+                        })()}
                       </SidebarMenu>
                     </SidebarGroupContent>
                   </CollapsibleContent>

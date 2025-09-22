@@ -44,6 +44,7 @@ import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
+import JobReports from "./pages/JobReports";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ function AppRoutes() {
                       <Route path="jobs" element={<Jobs />} />
                       <Route path="jobs/add" element={<AddJob />} />
                       <Route path="jobs/cost-codes" element={<CostCodes />} />
+                      <Route path="jobs/reports" element={<JobReports />} />
                       <Route path="jobs/:id" element={<JobDetails />} />
                       <Route path="jobs/:id/edit" element={<JobEdit />} />
                       <Route path="vendors" element={<Vendors />} />
