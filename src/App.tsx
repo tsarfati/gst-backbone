@@ -45,6 +45,10 @@ import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
 import JobReports from "./pages/JobReports";
+import CompanyFiles from "./pages/CompanyFiles";
+import CompanyContracts from "./pages/CompanyContracts";
+import CompanyPermits from "./pages/CompanyPermits";
+import CompanyInsurance from "./pages/CompanyInsurance";
 
 const queryClient = new QueryClient();
 
@@ -122,6 +126,10 @@ function AppRoutes() {
                       <Route path="invoices/payments" element={<PaymentHistory />} />
                       <Route path="invoices/payment-reports" element={<PaymentReports />} />
                       <Route path="invoices/status" element={<BillDashboard />} />
+                      <Route path="company-files" element={<CompanyFiles />} />
+                      <Route path="company-files/contracts" element={<CompanyContracts />} />
+                      <Route path="company-files/permits" element={<CompanyPermits />} />
+                      <Route path="company-files/insurance" element={<CompanyInsurance />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>
