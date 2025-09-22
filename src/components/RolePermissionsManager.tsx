@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Save } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Settings, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -105,6 +106,7 @@ export default function RolePermissionsManager() {
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openRoles, setOpenRoles] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchPermissions();
@@ -143,6 +145,16 @@ export default function RolePermissionsManager() {
       return;
     }
 
+    // Don't allow changing admin permissions (they're always true)
+    if (role === 'admin') {
+      toast({
+        title: "Cannot Modify",
+        description: "Admin role automatically has full system access.",
+        variant: "default",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('role_permissions')
@@ -170,7 +182,7 @@ export default function RolePermissionsManager() {
 
       toast({
         title: "Permission Updated",
-        description: `${role} access to ${menuItem} has been ${canAccess ? 'granted' : 'revoked'}.`,
+        description: `${role} access to ${menuItems.find(m => m.key === menuItem)?.label || menuItem} has been ${canAccess ? 'granted' : 'revoked'}.`,
       });
 
     } catch (error) {
@@ -184,8 +196,8 @@ export default function RolePermissionsManager() {
   };
 
   const getPermission = (role: string, menuItem: string): boolean => {
-    // Admins automatically have access to everything - no database check needed
-    if (profile?.role === 'admin') {
+    // Admin role automatically has access to everything
+    if (role === 'admin') {
       return true;
     }
     
@@ -194,22 +206,10 @@ export default function RolePermissionsManager() {
   };
 
   const saveAllPermissions = async () => {
-    setSaving(true);
-    try {
-      toast({
-        title: "Permissions Saved",
-        description: "All role permissions have been updated successfully",
-      });
-    } catch (error) {
-      console.error('Error saving permissions:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save permissions",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
+    toast({
+      title: "Permissions Saved",
+      description: "All role permissions have been updated successfully",
+    });
   };
 
   if (loading) {
@@ -231,72 +231,89 @@ export default function RolePermissionsManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Role Permissions</h2>
-          <p className="text-muted-foreground">Configure menu access for each user role</p>
+          <p className="text-muted-foreground">Configure menu access for each user role. Click to expand each role.</p>
         </div>
-        <Button onClick={saveAllPermissions} disabled={saving}>
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? 'Saving...' : 'Save All'}
-        </Button>
       </div>
 
       <div className="space-y-4">
         {roles.map((role) => (
-          <Card key={role.key} className="overflow-hidden">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <Badge className={`${role.color} border-0`}>{role.label}</Badge>
-                  <span className="text-xs text-muted-foreground">({role.description})</span>
-                </div>
-                <Settings className="h-4 w-4 text-muted-foreground" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-3">
-                {/* Group permissions by category */}
-                {['Core', 'Projects', 'Vendors', 'HR', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
-                  const categoryItems = menuItems.filter(item => item.category === category);
-                  if (categoryItems.length === 0) return null;
-                  
-                  return (
-                    <div key={category} className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {categoryItems.map((menuItem) => (
-                          <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors">
-                            <Switch
-                              id={`${role.key}-${menuItem.key}`}
-                              checked={getPermission(role.key, menuItem.key)}
-                              onCheckedChange={(checked) => updatePermission(role.key, menuItem.key, checked)}
-                              className="scale-75"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <Label 
-                                htmlFor={`${role.key}-${menuItem.key}`} 
-                                className="text-xs font-medium cursor-pointer block truncate"
-                              >
-                                {menuItem.label}
-                              </Label>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+          <Collapsible 
+            key={role.key}
+            open={openRoles[role.key]}
+            onOpenChange={(open) => setOpenRoles(prev => ({ ...prev, [role.key]: open }))}
+          >
+            <Card className="overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <CardHeader className="pb-3 cursor-pointer hover:bg-accent/50 transition-colors">
+                  <CardTitle className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${role.color} border-0`}>{role.label}</Badge>
+                      <span className="text-xs text-muted-foreground">({role.description})</span>
+                      {role.key === 'admin' && (
+                        <Badge variant="outline" className="text-xs">Full Access</Badge>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-muted-foreground" />
+                      {openRoles[role.key] ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
+                    {/* Group permissions by category */}
+                    {['Core', 'Projects', 'Vendors', 'HR', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
+                      const categoryItems = menuItems.filter(item => item.category === category);
+                      if (categoryItems.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="space-y-2">
+                          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {categoryItems.map((menuItem) => (
+                              <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors">
+                                <Switch
+                                  id={`${role.key}-${menuItem.key}`}
+                                  checked={getPermission(role.key, menuItem.key)}
+                                  onCheckedChange={(checked) => updatePermission(role.key, menuItem.key, checked)}
+                                  disabled={role.key === 'admin'}
+                                  className="scale-75"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <Label 
+                                    htmlFor={`${role.key}-${menuItem.key}`} 
+                                    className="text-xs font-medium cursor-pointer block truncate"
+                                  >
+                                    {menuItem.label}
+                                  </Label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         ))}
       </div>
 
       <div className="bg-muted/50 p-3 rounded-lg">
         <h3 className="text-sm font-medium mb-2">Permission Guidelines:</h3>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Changes are saved automatically when toggled</li>
-          <li>• Users need to refresh to see menu changes</li>
-          <li>• Admin role should have access to all features</li>
-          <li>• Group permissions by category for easier management</li>
+          <li>• Changes are automatically saved when toggled</li>
+          <li>• Click on role headers to expand/collapse settings</li>
+          <li>• Admin role automatically has full system access</li>
+          <li>• Users need to refresh their browser to see menu changes</li>
         </ul>
       </div>
     </div>
