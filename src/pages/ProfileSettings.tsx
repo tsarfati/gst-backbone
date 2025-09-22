@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Bell, Save } from 'lucide-react';
+import { ArrowLeft, User, Bell, Save, Camera, Upload, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ProfileData {
@@ -36,6 +36,12 @@ export default function ProfileSettings() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: '',
@@ -96,6 +102,135 @@ export default function ProfileSettings() {
       console.error('Error loading notification settings:', error);
     }
   };
+
+  const uploadAvatar = async (file: File) => {
+    if (!user) return;
+    
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/avatar.${fileExt}`;
+      
+      // Delete existing avatar if it exists
+      if (profile?.avatar_url) {
+        const existingPath = profile.avatar_url.split('/').pop();
+        if (existingPath) {
+          await supabase.storage
+            .from('avatars')
+            .remove([`${user.id}/${existingPath}`]);
+        }
+      }
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      const avatarUrl = data.publicUrl;
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      setProfileData(prev => ({ ...prev, avatar_url: avatarUrl }));
+      
+      toast({
+        title: 'Success',
+        description: 'Avatar updated successfully',
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to upload avatar',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      uploadAvatar(file);
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Please select a valid image file',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' } 
+      });
+      setStream(mediaStream);
+      setShowCamera(true);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      toast({
+        title: 'Error',
+        description: 'Unable to access camera',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) return;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        uploadAvatar(file);
+        stopCamera();
+      }
+    }, 'image/jpeg', 0.8);
+  };
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
 
   const saveProfile = async () => {
     if (!user) return;
@@ -203,6 +338,95 @@ export default function ProfileSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Avatar Section */}
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                    {profileData.avatar_url ? (
+                      <img 
+                        src={profileData.avatar_url} 
+                        alt="Avatar" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Photo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={startCamera}
+                    disabled={uploadingAvatar}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Take Photo
+                  </Button>
+                </div>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Camera Modal */}
+              {showCamera && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                  <div className="bg-background p-6 rounded-lg max-w-md w-full mx-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">Take a Photo</h3>
+                      <Button variant="ghost" size="sm" onClick={stopCamera}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full rounded-lg"
+                        style={{ maxHeight: '300px' }}
+                      />
+                      
+                      <div className="flex justify-center gap-2">
+                        <Button onClick={capturePhoto} disabled={uploadingAvatar}>
+                          <Camera className="h-4 w-4 mr-2" />
+                          Capture
+                        </Button>
+                        <Button variant="outline" onClick={stopCamera}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <canvas ref={canvasRef} className="hidden" />
+              
+              <Separator />
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="first-name">First Name</Label>

@@ -340,8 +340,16 @@ export function AppSidebar() {
               className="flex items-center gap-3 h-auto p-2 justify-start flex-1"
               onClick={() => navigate('/profile-settings')}
             >
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                {profile?.avatar_url ? (
+                  <img 
+                    src={profile.avatar_url} 
+                    alt="Profile" 
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <User className="h-4 w-4" />
+                )}
               </div>
               <div className="text-left group-data-[collapsible=icon]:hidden">
                 <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
