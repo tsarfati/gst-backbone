@@ -203,9 +203,9 @@ export default function TimecardReportViews({
           <Tabs value={selectedView} onValueChange={setSelectedView}>
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="detailed">Detailed Report</TabsTrigger>
-              <TabsTrigger value="employee">Employee Summary</TabsTrigger>
-              <TabsTrigger value="job">Job Summary</TabsTrigger>
-              <TabsTrigger value="date">Date Range Summary</TabsTrigger>
+              <TabsTrigger value="employee">By Employee</TabsTrigger>
+              <TabsTrigger value="job">By Job</TabsTrigger>
+              <TabsTrigger value="date">By Date Range</TabsTrigger>
             </TabsList>
 
             <TabsContent value="detailed" className="space-y-4">

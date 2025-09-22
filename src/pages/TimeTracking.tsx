@@ -11,6 +11,7 @@ import { Camera, MapPin, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import EmployeeMessagingPanel from '@/components/EmployeeMessagingPanel';
 
 interface Job {
   id: string;
@@ -690,6 +691,14 @@ export default function TimeTracking() {
           <canvas ref={canvasRef} style={{ display: 'none' }} />
         </DialogContent>
       </Dialog>
+
+      {/* Employee Messaging Panel */}
+      {currentStatus && (
+        <EmployeeMessagingPanel 
+          currentJobId={currentStatus.job_id}
+          isVisible={!!currentStatus}
+        />
+      )}
     </div>
   );
 }

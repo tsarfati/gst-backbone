@@ -189,6 +189,22 @@ export default function TimecardReportFilters({
             <Users className="h-4 w-4" />
             Employees ({filters.employees.length} selected)
           </Label>
+          <div className="flex gap-2 mb-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateFilters({ employees: employees.map(emp => emp.user_id) })}
+            >
+              Select All
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateFilters({ employees: [] })}
+            >
+              Clear All
+            </Button>
+          </div>
           <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
             <div className="space-y-2">
               {employees.map((employee) => (
@@ -210,6 +226,22 @@ export default function TimecardReportFilters({
         {/* Job Selection */}
         <div className="space-y-2">
           <Label>Jobs ({filters.jobs.length} selected)</Label>
+          <div className="flex gap-2 mb-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateFilters({ jobs: jobs.map(job => job.id) })}
+            >
+              Select All
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateFilters({ jobs: [] })}
+            >
+              Clear All
+            </Button>
+          </div>
           <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
             <div className="space-y-2">
               {jobs.map((job) => (
