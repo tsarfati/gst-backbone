@@ -43,8 +43,15 @@ const menuItems = [
   // Employee Management
   { key: 'employees', label: 'Employees', description: 'View employee directory', category: 'HR' },
   { key: 'employees-add', label: 'Add Employees', description: 'Register new employees', category: 'HR' },
-  { key: 'time-tracking', label: 'Punch Clock', description: 'Employee time clock system', category: 'HR' },
-  { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'HR' },
+  
+  // Time Tracking & Punch Clock
+  { key: 'time-tracking', label: 'Punch Clock', description: 'Employee time clock system', category: 'Time Tracking' },
+  { key: 'punch-clock-settings', label: 'Punch Clock Settings', description: 'Configure punch clock rules and settings', category: 'Time Tracking' },
+  { key: 'timecard-reports', label: 'Timecard Reports', description: 'Generate detailed timecard reports', category: 'Time Tracking' },
+  { key: 'employee-timecard-settings', label: 'Employee Time Settings', description: 'Individual employee time tracking settings', category: 'Time Tracking' },
+  { key: 'time-corrections', label: 'Time Corrections', description: 'Review and approve time corrections', category: 'Time Tracking' },
+  { key: 'punch-records', label: 'Punch Records', description: 'View punch in/out records', category: 'Time Tracking' },
+  { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'Time Tracking' },
   
   // Financial Management
   { key: 'bills', label: 'Bills & Invoices', description: 'Manage bills and invoices', category: 'Finance' },
@@ -267,7 +274,7 @@ export default function RolePermissionsManager() {
                 <CardContent className="pt-0">
                   <div className="space-y-3">
                     {/* Group permissions by category */}
-                    {['Core', 'Projects', 'Vendors', 'HR', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
+                    {['Core', 'Projects', 'Vendors', 'HR', 'Time Tracking', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
                       const categoryItems = menuItems.filter(item => item.category === category);
                       if (categoryItems.length === 0) return null;
                       
