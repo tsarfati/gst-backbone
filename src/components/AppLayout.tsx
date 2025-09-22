@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
 import GlobalSearch from '@/components/GlobalSearch';
+import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 const navigationCategories = [
@@ -357,9 +358,12 @@ export default function Layout() {
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <GlobalSearch />
+          <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <GlobalSearch />
+            </div>
+            <DateTimeDisplay />
           </header>
           <div className="flex-1 overflow-auto">
             <Outlet />
