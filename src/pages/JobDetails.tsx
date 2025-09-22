@@ -3,17 +3,32 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
+
+interface Job {
+  id: string;
+  name: string;
+  client?: string;
+  address?: string;
+  job_type?: string;
+  status?: string;
+  budget?: number;
+  start_date?: string;
+  end_date?: string;
+  description?: string;
+}
 
 export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [job, setJob] = useState<any>(null);
+  const { profile } = useAuth();
+  const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -206,13 +221,23 @@ export default function JobDetails() {
                 <Plus className="h-4 w-4 mr-2" />
                 Add Contract/PO
               </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <FileText className="h-4 w-4 mr-2" />
-                View Receipts
-              </Button>
-              <Button variant="outline" className="w-full justify-start" disabled>
-                <Building className="h-4 w-4 mr-2" />
-                Punch Clock
+              {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start" 
+                  onClick={() => navigate(`/jobs/${id}/delivery-tickets`)}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Delivery Tickets
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={() => navigate('/time-tracking')}
+              >
+                <Clock className="h-4 w-4 mr-2" />
+                Time Tracking
               </Button>
             </CardContent>
           </Card>

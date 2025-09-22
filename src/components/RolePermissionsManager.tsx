@@ -36,6 +36,7 @@ const menuItems = [
   { key: 'jobs-budget', label: 'Job Budgets', description: 'Manage project budgeting', category: 'Projects' },
   { key: 'jobs-reports', label: 'Job Reports', description: 'Generate job performance reports', category: 'Projects' },
   { key: 'cost-codes', label: 'Cost Codes', description: 'Manage job cost codes', category: 'Projects' },
+  { key: 'delivery-tickets', label: 'Delivery Tickets', description: 'Manage delivery tickets for jobs', category: 'Projects' },
   
   // Vendor Management
   { key: 'vendors', label: 'Vendors', description: 'View vendor directory', category: 'Vendors' },

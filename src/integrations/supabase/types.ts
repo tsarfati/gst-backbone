@@ -315,6 +315,56 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_tickets: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          delivery_date: string
+          description: string | null
+          id: string
+          job_id: string
+          notes: string | null
+          photo_url: string | null
+          ticket_number: string | null
+          updated_at: string | null
+          vendor_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          delivery_date?: string
+          description?: string | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          photo_url?: string | null
+          ticket_number?: string | null
+          updated_at?: string | null
+          vendor_name: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          delivery_date?: string
+          description?: string | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          photo_url?: string | null
+          ticket_number?: string | null
+          updated_at?: string | null
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_tickets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           created_at: string
