@@ -47,7 +47,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // If user has no approved company access, redirect to company request
-    const hasApprovedAccess = userCompanies.some(company => company.role);
+    const hasApprovedAccess = userCompanies.length > 0;
     if (!hasApprovedAccess) {
       navigate('/company-request');
       return;
