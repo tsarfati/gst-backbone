@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, Plus, DollarSign, Calendar, Building, Filter } from "lucide-react";
 
-const mockInvoices: any[] = [];
+const mockBills: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -22,13 +22,13 @@ const getStatusVariant = (status: string) => {
   }
 };
 
-export default function Invoices() {
+export default function Bills() {
   const navigate = useNavigate();
   const [jobFilter, setJobFilter] = useState("all");
 
-  const filteredInvoices = jobFilter === "all" 
-    ? mockInvoices 
-    : mockInvoices.filter(inv => inv.job === jobFilter);
+  const filteredBills = jobFilter === "all" 
+    ? mockBills 
+    : mockBills.filter(bill => bill.job === jobFilter);
 
   const uniqueJobs: string[] = [];
 
@@ -39,14 +39,14 @@ export default function Invoices() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
+          <h1 className="text-2xl font-bold text-foreground">Bills</h1>
           <p className="text-muted-foreground">
-            Track invoice payments and manage vendor billing
+            Track bill payments and manage vendor billing
           </p>
         </div>
         <Button onClick={() => navigate("/invoices/add")}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Invoice
+          Add Bill
         </Button>
       </div>
 
@@ -54,14 +54,14 @@ export default function Invoices() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Pending Invoices
+              Pending Bills
             </CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">$0</div>
             <Badge variant="warning" className="mt-2">
-              0 invoices
+              0 bills
             </Badge>
           </CardContent>
         </Card>
@@ -69,14 +69,14 @@ export default function Invoices() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Overdue Invoices
+              Overdue Bills
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">$0</div>
             <Badge variant="destructive" className="mt-2">
-              0 invoices
+              0 bills
             </Badge>
           </CardContent>
         </Card>
@@ -91,7 +91,7 @@ export default function Invoices() {
           <CardContent>
             <div className="text-2xl font-bold">$0</div>
             <Badge variant="success" className="mt-2">
-              0 invoices
+              0 bills
             </Badge>
           </CardContent>
         </Card>
@@ -100,7 +100,7 @@ export default function Invoices() {
       <Card>
         <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>All Invoices</CardTitle>
+              <CardTitle>All Bills</CardTitle>
               {uniqueJobs.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground" />
@@ -123,7 +123,7 @@ export default function Invoices() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Invoice ID</TableHead>
+                <TableHead>Bill ID</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Job</TableHead>
                 <TableHead>Amount</TableHead>
@@ -134,39 +134,39 @@ export default function Invoices() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredInvoices.length === 0 ? (
+              {filteredBills.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium">No invoices found</p>
-                      <p className="text-sm">Upload your first invoice to get started</p>
+                      <p className="text-lg font-medium">No bills found</p>
+                      <p className="text-sm">Upload your first bill to get started</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredInvoices.map((invoice) => (
+                filteredBills.map((bill) => (
                   <TableRow 
-                    key={invoice.id} 
+                    key={bill.id} 
                     className={`cursor-pointer hover:bg-muted/50 ${
-                      invoice.status === 'overdue' ? 'animate-pulse-red' : ''
+                      bill.status === 'overdue' ? 'animate-pulse-red' : ''
                     }`}
-                    onClick={() => navigate(`/invoices/${invoice.id}`)}
+                    onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
-                    <TableCell className="font-medium">{invoice.id}</TableCell>
+                    <TableCell className="font-medium">{bill.id}</TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <Building className="h-4 w-4 mr-2 text-muted-foreground" />
-                        {invoice.vendor}
+                        {bill.vendor}
                       </div>
                     </TableCell>
-                    <TableCell>{invoice.job}</TableCell>
-                    <TableCell className="font-semibold">{invoice.amount}</TableCell>
-                    <TableCell>{invoice.issueDate}</TableCell>
-                    <TableCell>{invoice.dueDate}</TableCell>
+                    <TableCell>{bill.job}</TableCell>
+                    <TableCell className="font-semibold">{bill.amount}</TableCell>
+                    <TableCell>{bill.issueDate}</TableCell>
+                    <TableCell>{bill.dueDate}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(invoice.status)}>
-                        {invoice.status}
+                      <Badge variant={getStatusVariant(bill.status)}>
+                        {bill.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -176,12 +176,12 @@ export default function Invoices() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/invoices/${invoice.id}`);
+                            navigate(`/invoices/${bill.id}`);
                           }}
                         >
                           View
                         </Button>
-                        {invoice.status !== "paid" && (
+                        {bill.status !== "paid" && (
                           <Button 
                             variant="default" 
                             size="sm"

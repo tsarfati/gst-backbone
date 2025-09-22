@@ -17,7 +17,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 
-const mockInvoices: any[] = [];
+const mockBills: any[] = [];
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -45,13 +45,13 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-export default function InvoiceDetails() {
+export default function BillDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const invoice = mockInvoices.find(inv => inv.id === id);
+  const bill = mockBills.find(bill => bill.id === id);
 
-  if (!invoice) {
+  if (!bill) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
@@ -59,19 +59,19 @@ export default function InvoiceDetails() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Invoice Not Found</h1>
-            <p className="text-muted-foreground">The requested invoice could not be found</p>
+            <h1 className="text-2xl font-bold text-foreground">Bill Not Found</h1>
+            <p className="text-muted-foreground">The requested bill could not be found</p>
           </div>
         </div>
         <Card>
           <CardContent className="p-8 text-center">
             <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-xl font-semibold mb-2">No Invoice Available</h2>
+            <h2 className="text-xl font-semibold mb-2">No Bill Available</h2>
             <p className="text-muted-foreground mb-4">
-              This invoice doesn&apos;t exist or you don&apos;t have permission to view it.
+              This bill doesn&apos;t exist or you don&apos;t have permission to view it.
             </p>
             <Button onClick={() => navigate("/invoices")}>
-              Return to Invoices
+              Return to Bills
             </Button>
           </CardContent>
         </Card>
@@ -90,8 +90,8 @@ export default function InvoiceDetails() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Invoice Details</h1>
-            <p className="text-muted-foreground">View invoice information and file</p>
+            <h1 className="text-2xl font-bold text-foreground">Bill Details</h1>
+            <p className="text-muted-foreground">View bill information and file</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -114,13 +114,13 @@ export default function InvoiceDetails() {
       <Card className="mb-6">
         <CardContent className="p-8 text-center">
           <StatusIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-          <h2 className="text-2xl font-bold mb-2">No Invoice Data Available</h2>
+          <h2 className="text-2xl font-bold mb-2">No Bill Data Available</h2>
           <p className="text-muted-foreground mb-6">
-            Invoice data will appear here once you upload and create invoices through the system.
+            Bill data will appear here once you upload and create bills through the system.
           </p>
           <Button onClick={() => navigate("/invoices/add")}>
             <FileText className="h-4 w-4 mr-2" />
-            Add First Invoice
+            Add First Bill
           </Button>
         </CardContent>
       </Card>
@@ -130,7 +130,7 @@ export default function InvoiceDetails() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Invoice Document
+            Bill Document
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -138,7 +138,7 @@ export default function InvoiceDetails() {
             <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h3 className="text-lg font-medium mb-2">No Document Available</h3>
             <p className="text-muted-foreground">
-              The invoice document will be displayed here once uploaded
+              The bill document will be displayed here once uploaded
             </p>
           </div>
         </CardContent>

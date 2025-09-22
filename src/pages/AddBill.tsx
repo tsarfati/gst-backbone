@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-export default function AddInvoice() {
+export default function AddBill() {
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -30,7 +30,7 @@ export default function AddInvoice() {
     use_terms: true // toggle between due date and terms
   });
   
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [billFile, setBillFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -135,7 +135,7 @@ export default function AddInvoice() {
       return;
     }
 
-    setInvoiceFile(file);
+    setBillFile(file);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -168,10 +168,10 @@ export default function AddInvoice() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!invoiceFile) {
+    if (!billFile) {
       toast({
-        title: "Invoice file required",
-        description: "Please upload an invoice file before submitting",
+        title: "Bill file required",
+        description: "Please upload a bill file before submitting",
         variant: "destructive"
       });
       return;
@@ -235,7 +235,7 @@ export default function AddInvoice() {
   };
 
   const isFormValid = formData.vendor_id && formData.job_id && formData.amount && 
-                     formData.issueDate && invoiceFile &&
+                     formData.issueDate && billFile &&
                      (formData.use_terms ? formData.payment_terms : formData.dueDate);
 
   if (loading) {
@@ -250,8 +250,8 @@ export default function AddInvoice() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Add New Invoice</h1>
-          <p className="text-muted-foreground">Upload and create a new invoice record</p>
+          <h1 className="text-2xl font-bold text-foreground">Add New Bill</h1>
+          <p className="text-muted-foreground">Upload and create a new bill record</p>
         </div>
       </div>
 
@@ -261,7 +261,7 @@ export default function AddInvoice() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Invoice File Upload
+              Bill File Upload
               <Badge variant="destructive" className="text-xs">Required</Badge>
             </CardTitle>
           </CardHeader>
@@ -274,22 +274,22 @@ export default function AddInvoice() {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {invoiceFile ? (
+              {billFile ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
                     <FileText className="h-8 w-8 text-success" />
                   </div>
                   <div>
-                    <p className="font-medium">{invoiceFile.name}</p>
+                    <p className="font-medium">{billFile.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {(invoiceFile.size / 1024 / 1024).toFixed(2)} MB
+                      {(billFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setInvoiceFile(null)}
+                    onClick={() => setBillFile(null)}
                   >
                     Remove File
                   </Button>
@@ -300,9 +300,9 @@ export default function AddInvoice() {
                     <Upload className="h-8 w-8 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-lg font-medium">Upload Invoice File</p>
+                    <p className="text-lg font-medium">Upload Bill File</p>
                     <p className="text-sm text-muted-foreground">
-                      Drag and drop your invoice file here, or click to browse
+                      Drag and drop your bill file here, or click to browse
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
                       Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
@@ -314,10 +314,10 @@ export default function AddInvoice() {
                       accept=".pdf,.jpg,.jpeg,.png,.webp"
                       onChange={handleFileInputChange}
                       className="hidden"
-                      id="invoice-file-upload"
+                      id="bill-file-upload"
                     />
                     <Button type="button" asChild>
-                      <label htmlFor="invoice-file-upload" className="cursor-pointer">
+                      <label htmlFor="bill-file-upload" className="cursor-pointer">
                         <Upload className="h-4 w-4 mr-2" />
                         Choose File
                       </label>
@@ -326,10 +326,10 @@ export default function AddInvoice() {
                 </div>
               )}
             </div>
-            {!invoiceFile && (
+            {!billFile && (
               <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
-                <span>Invoice file is required before saving</span>
+                <span>Bill file is required before saving</span>
               </div>
             )}
           </CardContent>
@@ -338,7 +338,7 @@ export default function AddInvoice() {
         {/* Invoice Information */}
         <Card>
           <CardHeader>
-            <CardTitle>Invoice Information</CardTitle>
+            <CardTitle>Bill Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

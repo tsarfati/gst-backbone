@@ -19,8 +19,8 @@ import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
 import AppSettings from "./pages/AppSettings";
 import UserSettings from "./pages/UserSettings";
-import Invoices from "./pages/Invoices";
-import InvoiceStatus from "./pages/InvoiceStatus";
+import Bills from "./pages/Bills";
+import BillDashboard from "./pages/BillDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AllEmployees from "./pages/AllEmployees";
@@ -30,10 +30,10 @@ import TimeSheets from "./pages/TimeSheets";
 import AllMessages from "./pages/AllMessages";
 import TeamChat from "./pages/TeamChat";
 import Announcements from "./pages/Announcements";
-import InvoiceDetails from "./pages/InvoiceDetails";
+import BillDetails from "./pages/BillDetails";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
-import AddInvoice from "./pages/AddInvoice";
+import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
 import CostCodes from "./pages/CostCodes";
 import ThemeSettings from "./pages/ThemeSettings";
@@ -105,15 +105,23 @@ function AppRoutes() {
                       <Route path="team-chat" element={<TeamChat />} />
                       <Route path="announcements" element={<Announcements />} />
                       <Route path="messaging" element={<AllMessages />} />
-                      <Route path="invoices" element={<Invoices />} />
-                      <Route path="invoices/add" element={<AddInvoice />} />
-                      <Route path="invoices/:id" element={<InvoiceDetails />} />
-                      <Route path="invoice-status" element={<InvoiceStatus />} />
-                      <Route path="invoices/payments" element={<PaymentHistory />} />
-                      <Route path="invoices/payment-reports" element={<PaymentReports />} />
-                      <Route path="invoices/status" element={<InvoiceStatus />} />
+                      <Route path="bills" element={<Bills />} />
+                      <Route path="bills/add" element={<AddBill />} />
+                      <Route path="bills/:id" element={<BillDetails />} />
+                      <Route path="bill-status" element={<BillDashboard />} />
+                      <Route path="bills/payments" element={<PaymentHistory />} />
+                      <Route path="bills/payment-reports" element={<PaymentReports />} />
+                      <Route path="bills/status" element={<BillDashboard />} />
                       <Route path="subcontracts/add" element={<AddSubcontract />} />
                       <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
+                      {/* Legacy routes for backwards compatibility */}
+                      <Route path="invoices" element={<Bills />} />
+                      <Route path="invoices/add" element={<AddBill />} />
+                      <Route path="invoices/:id" element={<BillDetails />} />
+                      <Route path="invoice-status" element={<BillDashboard />} />
+                      <Route path="invoices/payments" element={<PaymentHistory />} />
+                      <Route path="invoices/payment-reports" element={<PaymentReports />} />
+                      <Route path="invoices/status" element={<BillDashboard />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>

@@ -17,19 +17,19 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Invoice statuses will be loaded from database
-const invoiceStatuses = {
+// Bill statuses will be loaded from database
+const billStatuses = {
   waitingApproval: [],
   waitingToBePaid: [],
   overdue: [],
   paid: []
 };
 
-const calculateTotal = (invoices: any[]) => {
+const calculateTotal = (bills: any[]) => {
   return 0;
 };
 
-export default function InvoiceStatus() {
+export default function BillDashboard() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
@@ -61,38 +61,38 @@ export default function InvoiceStatus() {
   const statusCards = [
     {
       title: "Waiting for Approval",
-      count: invoiceStatuses.waitingApproval.length,
+      count: billStatuses.waitingApproval.length,
       total: totals.waitingApproval,
       icon: Clock,
       variant: "warning" as const,
-      description: "Invoices pending management approval",
+      description: "Bills pending management approval",
       filter: "approval"
     },
     {
       title: "Waiting to be Paid",
-      count: invoiceStatuses.waitingToBePaid.length,
+      count: billStatuses.waitingToBePaid.length,
       total: totals.waitingToBePaid,
       icon: CreditCard,
       variant: "default" as const,
-      description: "Approved invoices ready for payment",
+      description: "Approved bills ready for payment",
       filter: "pending"
     },
     {
       title: "Overdue",
-      count: invoiceStatuses.overdue.length,
+      count: billStatuses.overdue.length,
       total: totals.overdue,
       icon: AlertTriangle,
       variant: "destructive" as const,
-      description: "Invoices past due date",
+      description: "Bills past due date",
       filter: "overdue"
     },
     {
       title: "Paid",
-      count: invoiceStatuses.paid.length,
+      count: billStatuses.paid.length,
       total: totals.paid,
       icon: CheckCircle,
       variant: "success" as const,
-      description: "Successfully processed invoices",
+      description: "Successfully processed bills",
       filter: "paid"
     }
   ];
@@ -109,9 +109,9 @@ export default function InvoiceStatus() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Invoice Status Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">Bill Status Dashboard</h1>
           <p className="text-muted-foreground">
-            Monitor invoice workflow and payment status{selectedJobId !== "all" && ` for ${selectedJobName}`}
+            Monitor bill workflow and payment status{selectedJobId !== "all" && ` for ${selectedJobName}`}
           </p>
         </div>
         <div className="flex space-x-2">
@@ -238,14 +238,14 @@ export default function InvoiceStatus() {
       {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Invoice Activity</CardTitle>
+          <CardTitle>Recent Bill Activity</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {[
-              { action: "Invoice approved", invoice: "INV-005", vendor: "ABC Materials", time: "2 hours ago", type: "approved" },
+              { action: "Bill approved", invoice: "INV-005", vendor: "ABC Materials", time: "2 hours ago", type: "approved" },
               { action: "Payment processed", invoice: "INV-004", vendor: "Office Supply Co", time: "1 day ago", type: "paid" },
-              { action: "Invoice submitted", invoice: "INV-008", vendor: "Professional Services", time: "1 day ago", type: "submitted" },
+              { action: "Bill submitted", invoice: "INV-008", vendor: "Professional Services", time: "1 day ago", type: "submitted" },
               { action: "Payment overdue", invoice: "INV-003", vendor: "Home Depot", time: "2 days ago", type: "overdue" },
             ].filter(activity => {
               // Filter activities based on selected job if needed
