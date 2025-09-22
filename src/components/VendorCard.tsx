@@ -11,7 +11,7 @@ interface Vendor {
   email: string;
   address: string;
   totalSpent: string;
-  invoices: number;
+  bills: number;
   category: string;
   logo_url?: string;
 }
@@ -76,10 +76,10 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
               <p className="font-semibold text-lg">{vendor.totalSpent}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Invoices</p>
+              <p className="text-sm text-muted-foreground">Bills</p>
               <p className="font-semibold text-lg flex items-center">
                 <Receipt className="h-4 w-4 mr-1" />
-                {vendor.invoices}
+                {vendor.bills}
               </p>
             </div>
           </div>

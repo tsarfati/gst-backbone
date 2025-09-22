@@ -109,7 +109,7 @@ export function useSearchIndex() {
         { title: 'Time Tracking', description: 'Employee time tracking system', path: '/time-tracking', tags: ['page', 'time'] },
         { title: 'Time Sheets', description: 'View employee time sheets', path: '/timesheets', tags: ['page', 'time'] },
         { title: 'Cost Codes', description: 'Manage project cost codes', path: '/cost-codes', tags: ['page', 'codes'] },
-        { title: 'Invoices', description: 'Manage vendor invoices', path: '/invoices', tags: ['page', 'invoices'] },
+        { title: 'Bills', description: 'Manage vendor bills', path: '/bills', tags: ['page', 'bills'] },
         { title: 'Jobs', description: 'Manage construction jobs', path: '/jobs', tags: ['page', 'projects'] },
         { title: 'Vendors', description: 'Manage vendor relationships', path: '/vendors', tags: ['page', 'vendors'] },
         { title: 'All Employees', description: 'Employee management', path: '/employees', tags: ['page', 'employees'] },

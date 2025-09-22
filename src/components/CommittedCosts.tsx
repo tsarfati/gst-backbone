@@ -17,7 +17,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   const navigate = useNavigate();
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
 
   const fetchCommittedCosts = async () => {
     try {
-      const [subcontractsRes, posRes, invoicesRes] = await Promise.all([
+      const [subcontractsRes, posRes, billsRes] = await Promise.all([
         supabase
           .from('subcontracts')
           .select('*, vendors(name)')
@@ -43,7 +43,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
 
       if (subcontractsRes.data) setSubcontracts(subcontractsRes.data);
       if (posRes.data) setPurchaseOrders(posRes.data);
-      if (invoicesRes.data) setInvoices(invoicesRes.data);
+      if (billsRes.data) setBills(billsRes.data);
     } catch (error) {
       console.error('Error fetching committed costs:', error);
       toast({
@@ -57,11 +57,11 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   };
 
   const calculateBillingStatus = (contractAmount: number, contractId: string, isSubcontract: boolean) => {
-    const relatedInvoices = invoices.filter(inv => 
-      isSubcontract ? inv.subcontract_id === contractId : false
+    const relatedBills = bills.filter(bill => 
+      isSubcontract ? bill.subcontract_id === contractId : false
     );
     
-    const totalBilled = relatedInvoices.reduce((sum, inv) => sum + parseFloat(inv.amount), 0);
+    const totalBilled = relatedBills.reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
     const remaining = contractAmount - totalBilled;
     const percentageBilled = (totalBilled / contractAmount) * 100;
 

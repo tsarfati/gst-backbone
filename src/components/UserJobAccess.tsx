@@ -220,7 +220,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
                 Global Job Access
               </Label>
               <div className="text-xs text-muted-foreground">
-                Grant access to all jobs and their associated invoices
+                Grant access to all jobs and their associated bills
               </div>
             </div>
             <Switch
@@ -235,7 +235,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
         {!hasGlobalAccess && (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Select specific jobs this user can access. This includes viewing job details, associated invoices, and related documents.
+              Select specific jobs this user can access. This includes viewing job details, associated bills, and related documents.
             </div>
             
             {jobs.length === 0 ? (

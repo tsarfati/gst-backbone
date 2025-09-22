@@ -34,7 +34,7 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'Financial oversight',
       'Manage user roles (except admin)',
       'Access all financial data',
-      'Approve invoices and payments'
+      'Approve bills and payments'
     ]
   },
   {

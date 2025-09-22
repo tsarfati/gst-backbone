@@ -40,7 +40,7 @@ interface DashboardSettings {
   show_active_jobs: boolean;
   show_notifications: boolean;
   show_messages: boolean;
-  show_invoices: boolean;
+  show_bills: boolean;
 }
 
 export default function Dashboard() {
@@ -56,7 +56,7 @@ export default function Dashboard() {
     show_active_jobs: true,
     show_notifications: true,
     show_messages: true,
-    show_invoices: true,
+    show_bills: true,
   });
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function Dashboard() {
           show_active_jobs: data.show_active_jobs,
           show_notifications: data.show_notifications,
           show_messages: data.show_messages,
-          show_invoices: data.show_invoices ?? true,
+          show_bills: data.show_invoices ?? true,
         });
       }
     } catch (error) {
@@ -232,11 +232,11 @@ export default function Dashboard() {
       href: "/jobs",
     },
     {
-      title: "Pending Invoices",
+      title: "Pending Bills",
       value: "$0",
       icon: DollarSign,
       variant: "destructive" as const,
-      href: "/invoices",
+      href: "/bills",
     },
   ];
 
@@ -447,21 +447,21 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Invoice Management Section */}
-      {dashboardSettings.show_invoices && (
+      {/* Bill Management Section */}
+      {dashboardSettings.show_bills && (
         <div className="mb-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Invoice Management
+                Bill Management
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Important Invoices */}
+                {/* Important Bills */}
                 <div className="space-y-3">
-                  <h4 className="font-medium text-sm text-muted-foreground">Overdue Invoices</h4>
+                  <h4 className="font-medium text-sm text-muted-foreground">Overdue Bills</h4>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between p-3 border rounded-lg bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
                       <div>
@@ -543,10 +543,10 @@ export default function Dashboard() {
 
               <div className="flex gap-2 mt-4 pt-4 border-t">
                 <Button variant="outline" size="sm">
-                  View All Invoices
+                  View All Bills
                 </Button>
                 <Button variant="outline" size="sm">
-                  Create Invoice
+                  Create Bill
                 </Button>
                 <Button variant="outline" size="sm">
                   <AlertTriangle className="h-4 w-4 mr-2" />

@@ -50,6 +50,7 @@ import CompanyContracts from "./pages/CompanyContracts";
 import CompanyPermits from "./pages/CompanyPermits";
 import CompanyInsurance from "./pages/CompanyInsurance";
 import BankAccounts from "./pages/BankAccounts";
+import CreditCards from "./pages/CreditCards";
 import BankingReports from "./pages/BankingReports";
 import JournalEntries from "./pages/JournalEntries";
 import Deposits from "./pages/Deposits";
@@ -137,6 +138,8 @@ function AppRoutes() {
                       <Route path="company-files/permits" element={<CompanyPermits />} />
                       <Route path="company-files/insurance" element={<CompanyInsurance />} />
                       <Route path="banking/accounts" element={<BankAccounts />} />
+                      <Route path="banking/credit-cards" element={<CreditCards />} />
+                      <Route path="banking/reports" element={<BankingReports />} />
                       <Route path="banking/reports" element={<BankingReports />} />
                       <Route path="banking/journal-entries" element={<JournalEntries />} />
                       <Route path="banking/deposits" element={<Deposits />} />

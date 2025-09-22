@@ -11,7 +11,7 @@ interface Vendor {
   email: string;
   address: string;
   totalSpent: string;
-  invoices: number;
+  bills: number;
   category: string;
   logo_url?: string;
 }
@@ -59,7 +59,7 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
                     </div>
                     <div className="flex items-center gap-1">
                       <Receipt className="h-3 w-3" />
-                      <span>{vendor.invoices} invoices</span>
+                      <span>{vendor.bills} bills</span>
                     </div>
                   </div>
                 </div>

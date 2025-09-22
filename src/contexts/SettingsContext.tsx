@@ -12,7 +12,7 @@ export interface AppSettings {
     push: boolean;
     receiptUploads: boolean;
     jobUpdates: boolean;
-    invoiceReminders: boolean;
+    billReminders: boolean;
   };
   autoSave: boolean;
   compactMode: boolean;
@@ -52,7 +52,7 @@ const defaultSettings: AppSettings = {
     push: true,
     receiptUploads: true,
     jobUpdates: true,
-    invoiceReminders: true,
+    billReminders: true,
   },
   autoSave: true,
   compactMode: false,

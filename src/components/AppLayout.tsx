@@ -111,6 +111,7 @@ const navigationCategories = [
     title: "Banking",
     items: [
       { name: "Bank Accounts", href: "/banking/accounts", icon: Building, menuKey: "settings" },
+      { name: "Credit Cards", href: "/banking/credit-cards", icon: CreditCard, menuKey: "settings" },
       { name: "Reporting", href: "/banking/reports", icon: BarChart3, menuKey: "reports" },
       { name: "Journal Entries", href: "/banking/journal-entries", icon: FileText, menuKey: "settings" },
       { name: "Deposits", href: "/banking/deposits", icon: DollarSign, menuKey: "settings" },

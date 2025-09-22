@@ -11,7 +11,7 @@ interface Vendor {
   email: string;
   address: string;
   totalSpent: string;
-  invoices: number;
+  bills: number;
   category: string;
   logo_url?: string;
 }
@@ -40,7 +40,7 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
             <TableHead>Phone</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Total Spent</TableHead>
-            <TableHead>Invoices</TableHead>
+            <TableHead>Bills</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -66,7 +66,7 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
               <TableCell>{vendor.phone}</TableCell>
               <TableCell>{vendor.email}</TableCell>
               <TableCell className="font-medium">{vendor.totalSpent}</TableCell>
-              <TableCell>{vendor.invoices}</TableCell>
+              <TableCell>{vendor.bills}</TableCell>
               <TableCell>
                 <Button 
                   variant="outline" 
