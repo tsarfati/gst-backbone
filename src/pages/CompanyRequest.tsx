@@ -25,7 +25,7 @@ interface AccessRequest {
 }
 
 export default function CompanyRequest() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
@@ -162,8 +162,11 @@ export default function CompanyRequest() {
         {/* User Profile Header */}
         {profile && (
           <Card className="mb-8">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-xl">Your Profile</CardTitle>
+              <Button variant="outline" onClick={signOut}>
+                Log Out
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-4">
@@ -226,7 +229,7 @@ export default function CompanyRequest() {
                     <img 
                       src={company.logo_url} 
                       alt={`${company.name} logo`}
-                      className="max-w-[80%] max-h-[80%] object-contain"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center p-6">
