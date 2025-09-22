@@ -11,12 +11,15 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 export function CompanySwitcher() {
   const { currentCompany, userCompanies, loading, switchCompany } = useCompany();
+  const { user } = useAuth();
 
-  if (loading || !currentCompany || userCompanies.length === 0) {
+  // Don't render until user is authenticated
+  if (!user || loading || !currentCompany || userCompanies.length === 0) {
     return (
       <div className="flex items-center gap-2 px-3 py-2">
         <Building2 className="h-4 w-4 text-muted-foreground" />

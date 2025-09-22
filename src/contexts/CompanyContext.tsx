@@ -142,7 +142,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       fetchUserCompanies();
     } else {
       setCurrentCompany(null);
