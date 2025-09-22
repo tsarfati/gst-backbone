@@ -49,6 +49,12 @@ import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
 import CompanyPermits from "./pages/CompanyPermits";
 import CompanyInsurance from "./pages/CompanyInsurance";
+import BankAccounts from "./pages/BankAccounts";
+import BankingReports from "./pages/BankingReports";
+import JournalEntries from "./pages/JournalEntries";
+import Deposits from "./pages/Deposits";
+import PrintChecks from "./pages/PrintChecks";
+import Reconcile from "./pages/Reconcile";
 
 const queryClient = new QueryClient();
 
@@ -130,6 +136,12 @@ function AppRoutes() {
                       <Route path="company-files/contracts" element={<CompanyContracts />} />
                       <Route path="company-files/permits" element={<CompanyPermits />} />
                       <Route path="company-files/insurance" element={<CompanyInsurance />} />
+                      <Route path="banking/accounts" element={<BankAccounts />} />
+                      <Route path="banking/reports" element={<BankingReports />} />
+                      <Route path="banking/journal-entries" element={<JournalEntries />} />
+                      <Route path="banking/deposits" element={<Deposits />} />
+                      <Route path="banking/print-checks" element={<PrintChecks />} />
+                      <Route path="banking/reconcile" element={<Reconcile />} />
                     </Route>
                     <Route path="*" element={<NotFound />} />
                   </Routes>

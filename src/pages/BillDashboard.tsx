@@ -243,11 +243,8 @@ export default function BillDashboard() {
         <CardContent>
           <div className="space-y-3">
             {[
-              { action: "Bill approved", invoice: "INV-005", vendor: "ABC Materials", time: "2 hours ago", type: "approved" },
-              { action: "Payment processed", invoice: "INV-004", vendor: "Office Supply Co", time: "1 day ago", type: "paid" },
-              { action: "Bill submitted", invoice: "INV-008", vendor: "Professional Services", time: "1 day ago", type: "submitted" },
-              { action: "Payment overdue", invoice: "INV-003", vendor: "Home Depot", time: "2 days ago", type: "overdue" },
-            ].filter(activity => {
+              // No recent activity to display
+            ].filter(() => false).filter(activity => {
               // Filter activities based on selected job if needed
               // For now, showing all activities regardless of job filter
               return true;
