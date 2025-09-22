@@ -44,6 +44,7 @@ import ProfileSettings from "./pages/ProfileSettings";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
+import ReceiptReports from "./pages/ReceiptReports";
 import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
 import JobReports from "./pages/JobReports";
@@ -92,6 +93,7 @@ function AppRoutes() {
                       <Route path="upload" element={<UploadReceipts />} />
                       <Route path="uncoded" element={<UncodedReceipts />} />
                       <Route path="receipts" element={<CodedReceipts />} />
+                      <Route path="receipts/reports" element={<ReceiptReports />} />
                       <Route path="jobs" element={<Jobs />} />
                       <Route path="jobs/add" element={<AddJob />} />
                       <Route path="jobs/cost-codes" element={<CostCodes />} />

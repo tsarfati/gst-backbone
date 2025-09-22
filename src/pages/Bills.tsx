@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, DollarSign, Calendar, Building, Filter } from "lucide-react";
+import UnifiedViewSelector from "@/components/ui/unified-view-selector";
+import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
 
 const mockBills: any[] = [];
 
@@ -25,6 +27,7 @@ const getStatusVariant = (status: string) => {
 export default function Bills() {
   const navigate = useNavigate();
   const [jobFilter, setJobFilter] = useState("all");
+  const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('bills-view');
 
   const filteredBills = jobFilter === "all" 
     ? mockBills 
@@ -37,18 +40,24 @@ export default function Bills() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Bills</h1>
-          <p className="text-muted-foreground">
-            Track bill payments and manage vendor billing
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Bills</h1>
+            <p className="text-muted-foreground">Manage vendor bills and payments</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <UnifiedViewSelector
+              currentView={currentView}
+              onViewChange={setCurrentView}
+              onSetDefault={setDefaultView}
+              isDefault={isDefault}
+            />
+            <Button onClick={() => navigate("/bills/add")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Bill
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => navigate("/invoices/add")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Bill
-        </Button>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <Card>

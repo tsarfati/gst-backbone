@@ -6,10 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Plus, Search, Mail, Phone, Building, Settings, Shield } from 'lucide-react';
+import UnifiedViewSelector from '@/components/ui/unified-view-selector';
+import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
+import EmployeeViews from '@/components/EmployeeViews';
 import UserManagement from '@/components/UserManagement';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
 
@@ -38,6 +41,7 @@ export default function AllEmployees() {
   const [searchTerm, setSearchTerm] = useState('');
   const { profile } = useAuth();
   const { toast } = useToast();
+  const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('employees-view');
 
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
 
@@ -108,13 +112,21 @@ export default function AllEmployees() {
         <TabsContent value="employees">
           <Card className="mb-6">
             <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search employees by name or role..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+              <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search employees by name or role..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <UnifiedViewSelector
+                  currentView={currentView}
+                  onViewChange={setCurrentView}
+                  onSetDefault={setDefaultView}
+                  isDefault={isDefault}
                 />
               </div>
             </CardContent>
@@ -123,54 +135,12 @@ export default function AllEmployees() {
           {loading ? (
             <div className="text-center py-8">Loading employees...</div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredEmployees.map((employee) => (
-                <Card key={employee.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={employee.avatar_url} />
-                        <AvatarFallback>
-                          {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">
-                          {employee.display_name || `${employee.first_name} ${employee.last_name}`}
-                        </CardTitle>
-                        <Badge variant={roleColors[employee.role as keyof typeof roleColors]}>
-                          {employee.role.replace('_', ' ').toUpperCase()}
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Email available in profile</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">
-                          Member since {new Date(employee.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        View Profile
-                      </Button>
-                      {canManageEmployees && (
-                        <Button variant="outline" size="sm">
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <EmployeeViews 
+              employees={filteredEmployees}
+              currentView={currentView}
+              canManageEmployees={canManageEmployees}
+              loading={loading}
+            />
           )}
 
           {filteredEmployees.length === 0 && !loading && (
