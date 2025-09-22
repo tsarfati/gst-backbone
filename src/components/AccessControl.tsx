@@ -24,7 +24,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If no user, redirect to auth
     if (!user) {
-      navigate('/auth');
+      if (location.pathname !== '/auth') navigate('/auth', { replace: true });
       return;
     }
 
@@ -36,7 +36,7 @@ export function AccessControl({ children }: AccessControlProps) {
     // Handle profile completion route
     if (location.pathname === '/profile-completion') {
       if (profile?.profile_completed) {
-        navigate('/');
+        navigate('/', { replace: true });
         return;
       }
       setChecking(false);
@@ -45,7 +45,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If profile is not completed, redirect to profile completion
     if (!profile?.profile_completed) {
-      navigate('/profile-completion');
+      navigate('/profile-completion', { replace: true });
       return;
     }
 
@@ -55,7 +55,7 @@ export function AccessControl({ children }: AccessControlProps) {
     // If on company-request and user already has access, send to home
     if (location.pathname === '/company-request') {
       if (hasApprovedAccess) {
-        navigate('/');
+        navigate('/', { replace: true });
         return;
       }
       setChecking(false);
@@ -64,7 +64,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If user lacks access, force them to company-request
     if (!hasApprovedAccess) {
-      navigate('/company-request');
+      if (location.pathname !== '/company-request') navigate('/company-request', { replace: true });
       return;
     }
 
