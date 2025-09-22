@@ -9,12 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from 'next-themes';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import ColorPicker from '@/components/ColorPicker';
 
 export default function ThemeSettings() {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const { setTheme } = useTheme();
+  const { user } = useAuth();
+  const [uploading, setUploading] = useState(false);
 
   const handleSaveSettings = () => {
     setTheme(settings.theme);
@@ -24,27 +28,79 @@ export default function ThemeSettings() {
     });
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        updateSettings({ customLogo: result });
-      };
-      reader.readAsDataURL(file);
+    if (!file || !user) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const filePath = `theme-logos/${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      updateSettings({ customLogo: data.publicUrl });
+      
+      toast({
+        title: "Logo uploaded successfully",
+        description: "Your custom logo has been saved.",
+      });
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload logo. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleBannerUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        updateSettings({ dashboardBanner: result });
-      };
-      reader.readAsDataURL(file);
+    if (!file || !user) return;
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `banner-${Date.now()}.${fileExt}`;
+      const filePath = `theme-banners/${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      updateSettings({ dashboardBanner: data.publicUrl });
+      
+      toast({
+        title: "Banner uploaded successfully",
+        description: "Your dashboard banner has been saved.",
+      });
+    } catch (error) {
+      console.error('Error uploading banner:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload banner. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -140,6 +196,7 @@ export default function ThemeSettings() {
                     accept="image/*"
                     onChange={handleLogoUpload}
                     className="w-auto"
+                    disabled={uploading}
                   />
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -173,6 +230,7 @@ export default function ThemeSettings() {
                     accept="image/*"
                     onChange={handleBannerUpload}
                     className="w-auto"
+                    disabled={uploading}
                   />
                 </div>
                 <div className="text-sm text-muted-foreground">
