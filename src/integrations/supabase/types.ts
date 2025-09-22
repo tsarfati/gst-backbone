@@ -1446,6 +1446,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_company_access: {
+        Args: { _company_id: string }
+        Returns: undefined
+      }
       get_user_companies: {
         Args: { _user_id: string }
         Returns: {

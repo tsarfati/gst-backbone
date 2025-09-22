@@ -176,7 +176,12 @@ export default function CompanyRequest() {
 
     setSelectingCompany(companyId);
     try {
+      // First activate company access to ensure the user has proper access
+      await supabase.rpc('activate_company_access', { _company_id: companyId });
+      
+      // Then switch to the company
       await switchCompany(companyId);
+      
       // After successful switch, go to dashboard
       window.location.href = '/';
     } catch (error: any) {
