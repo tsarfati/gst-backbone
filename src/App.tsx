@@ -32,7 +32,7 @@ import AllEmployees from "./pages/AllEmployees";
 import AddEmployee from "./pages/AddEmployee";
 import TimeTracking from "./pages/TimeTracking";
 import TimeSheets from "./pages/TimeSheets";
-import TimeCardReports from "./pages/TimeCardReports";
+import TimecardReports from "./pages/TimecardReports";
 import PunchClockSettings from "./pages/PunchClockSettings";
 import AllMessages from "./pages/AllMessages";
 import TeamChat from "./pages/TeamChat";
@@ -139,7 +139,7 @@ function AppRoutes() {
                       <Route path="punch-clock" element={<TimeTracking />} />
                       <Route path="time-sheets" element={<TimeSheets />} />
                       <Route path="punch-clock/timesheets" element={<TimeSheets />} />
-                      <Route path="punch-clock/reports" element={<TimeCardReports />} />
+                      <Route path="punch-clock/reports" element={<TimecardReports />} />
                       <Route path="punch-clock/settings" element={<PunchClockSettings />} />
                       <Route path="messages" element={<AllMessages />} />
                       <Route path="team-chat" element={<TeamChat />} />
