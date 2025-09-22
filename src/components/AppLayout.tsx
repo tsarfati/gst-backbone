@@ -50,13 +50,13 @@ const navigationCategories = [
   {
     title: "Payables",
     items: [
-      { name: "Invoice Dashboard", href: "/invoice-status", icon: BarChart3, menuKey: "reports" },
-      { name: "All Invoices", href: "/invoices", icon: FileText, menuKey: "vendors" },
-      { name: "Add Invoice", href: "/invoices/add", icon: FileCheck, menuKey: "vendors" },
+      { name: "Bill Dashboard", href: "/invoice-status", icon: BarChart3, menuKey: "reports" },
+      { name: "All Bills", href: "/invoices", icon: FileText, menuKey: "vendors" },
+      { name: "Add Bill", href: "/invoices/add", icon: FileCheck, menuKey: "vendors" },
       { name: "Add Sub Contract", href: "/subcontracts/add", icon: FileKey, menuKey: "vendors" },
       { name: "Add PO", href: "/purchase-orders/add", icon: FileText, menuKey: "vendors" },
       { name: "Payment History", href: "/invoices/payments", icon: CreditCard, menuKey: "reports" },
-      { name: "Invoice Reports", href: "/invoices/payment-reports", icon: DollarSign, menuKey: "reports" },
+      { name: "Bill Reports", href: "/invoices/payment-reports", icon: DollarSign, menuKey: "reports" },
     ],
     collapsible: true,
   },
