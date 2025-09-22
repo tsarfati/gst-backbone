@@ -87,10 +87,10 @@ const navigationCategories = [
   {
     title: "Punch Clock",
     items: [
-      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "employees" },
-      { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "employees" },
-      { name: "Time Card Reports", href: "/punch-clock/reports", icon: TrendingUp, menuKey: "reports" },
-      { name: "Punch Clock Settings", href: "/punch-clock/settings", icon: Settings, menuKey: "settings" },
+      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "time-tracking" },
+      { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "timesheets" },
+      { name: "Time Card Reports", href: "/punch-clock/reports", icon: TrendingUp, menuKey: "timecard-reports" },
+      { name: "Punch Clock Settings", href: "/punch-clock/settings", icon: Settings, menuKey: "punch-clock-settings" },
     ],
     collapsible: true,
   },
