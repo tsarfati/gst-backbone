@@ -131,8 +131,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
         description: `Now viewing ${companyData.display_name || companyData.name}`,
       });
 
-      // Trigger a page reload to ensure all data is refreshed for the new company
-      window.location.reload();
+      // Trigger a soft navigation will be handled by caller
+      // (previously reloaded the page here)
     } catch (error) {
       console.error('Error switching company:', error);
       toast({
