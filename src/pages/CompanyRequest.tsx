@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Loader2, CheckCircle, User } from 'lucide-react';
+import { Building2, Loader2, CheckCircle, User, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useNavigate } from 'react-router-dom';
 
 interface Company {
   id: string;
@@ -26,11 +28,14 @@ interface AccessRequest {
 
 export default function CompanyRequest() {
   const { user, profile, signOut } = useAuth();
+  const { switchCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [requestingAccess, setRequestingAccess] = useState<string | null>(null);
+  const [selectingCompany, setSelectingCompany] = useState<string | null>(null);
 
   // Resolve storage paths like "bucket/path/to/file.png" to public URLs
   const resolveLogoUrl = (logo?: string) => {
@@ -159,6 +164,24 @@ export default function CompanyRequest() {
   };
 
   const hasAnyApprovedAccess = accessRequests.some(r => r.is_active);
+
+  const selectCompany = async (companyId: string) => {
+    if (!user) return;
+
+    setSelectingCompany(companyId);
+    try {
+      await switchCompany(companyId);
+      // Navigation will happen automatically due to page reload in switchCompany
+    } catch (error: any) {
+      console.error('Error selecting company:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to select company',
+        variant: 'destructive'
+      });
+      setSelectingCompany(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -289,8 +312,17 @@ export default function CompanyRequest() {
                     )}
                     
                     {status === 'approved' && (
-                      <Button disabled variant="secondary">
-                        Access Granted
+                      <Button 
+                        onClick={() => selectCompany(company.id)}
+                        disabled={selectingCompany === company.id}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {selectingCompany === company.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowRight className="mr-2 h-4 w-4" />
+                        )}
+                        Select Company
                       </Button>
                     )}
                   </div>
