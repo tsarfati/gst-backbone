@@ -36,9 +36,21 @@ export default function CompanyManagement() {
   const [loading, setLoading] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
+  const [showCreateCompanyDialog, setShowCreateCompanyDialog] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<string>('employee');
   const [companyForm, setCompanyForm] = useState({
+    name: '',
+    display_name: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    phone: '',
+    email: '',
+    website: ''
+  });
+  const [newCompanyForm, setNewCompanyForm] = useState({
     name: '',
     display_name: '',
     address: '',
@@ -117,6 +129,63 @@ export default function CompanyManagement() {
     }
   };
 
+  const handleCreateCompany = async () => {
+    if (!user || !newCompanyForm.name.trim()) return;
+
+    try {
+      // Create the company
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .insert({
+          ...newCompanyForm,
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (companyError) throw companyError;
+
+      // Grant admin access to the creator
+      const { error: accessError } = await supabase
+        .from('user_company_access')
+        .insert({
+          user_id: user.id,
+          company_id: companyData.id,
+          role: 'admin',
+          granted_by: user.id
+        });
+
+      if (accessError) throw accessError;
+
+      toast({
+        title: "Success",
+        description: "Company created successfully"
+      });
+
+      setShowCreateCompanyDialog(false);
+      setNewCompanyForm({
+        name: '',
+        display_name: '',
+        address: '',
+        city: '',
+        state: '',
+        zip_code: '',
+        phone: '',
+        email: '',
+        website: ''
+      });
+      
+      await refreshCompanies();
+    } catch (error) {
+      console.error('Error creating company:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create company",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleUpdateCompany = async () => {
     if (!currentCompany) return;
 
@@ -190,6 +259,27 @@ export default function CompanyManagement() {
     }
   }, [currentCompany]);
 
+  if (!currentCompany && userCompanies.length === 0) {
+    return (
+      <div className="container mx-auto py-10 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>No Companies Found</CardTitle>
+            <CardDescription>
+              You don't have access to any companies yet. Create your first company to get started.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setShowCreateCompanyDialog(true)} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Your First Company
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!currentCompany) {
     return (
       <div className="container mx-auto py-10 px-4">
@@ -214,12 +304,18 @@ export default function CompanyManagement() {
             Manage {currentCompany.display_name || currentCompany.name} settings and users
           </p>
         </div>
-        {isCompanyAdmin && (
-          <Button onClick={() => setShowEditCompanyDialog(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Company
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowCreateCompanyDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Company
           </Button>
-        )}
+          {isCompanyAdmin && (
+            <Button onClick={() => setShowEditCompanyDialog(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Company
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Company Info Card */}
@@ -365,6 +461,120 @@ export default function CompanyManagement() {
               Cancel
             </Button>
             <Button onClick={handleAddUser}>Add User</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Company Dialog */}
+      <Dialog open={showCreateCompanyDialog} onOpenChange={setShowCreateCompanyDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Company</DialogTitle>
+            <DialogDescription>
+              Set up a new company with basic information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="new_name">Company Name *</Label>
+                <Input
+                  id="new_name"
+                  value={newCompanyForm.name}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Acme Construction"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="new_display_name">Display Name</Label>
+                <Input
+                  id="new_display_name"
+                  value={newCompanyForm.display_name}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, display_name: e.target.value }))}
+                  placeholder="Acme"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new_address">Address</Label>
+              <Input
+                id="new_address"
+                value={newCompanyForm.address}
+                onChange={(e) => setNewCompanyForm(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="new_city">City</Label>
+                <Input
+                  id="new_city"
+                  value={newCompanyForm.city}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="New York"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new_state">State</Label>
+                <Input
+                  id="new_state"
+                  value={newCompanyForm.state}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, state: e.target.value }))}
+                  placeholder="NY"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new_zip">Zip Code</Label>
+                <Input
+                  id="new_zip"
+                  value={newCompanyForm.zip_code}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, zip_code: e.target.value }))}
+                  placeholder="10001"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="new_phone">Phone</Label>
+                <Input
+                  id="new_phone"
+                  value={newCompanyForm.phone}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div>
+                <Label htmlFor="new_email">Email</Label>
+                <Input
+                  id="new_email"
+                  type="email"
+                  value={newCompanyForm.email}
+                  onChange={(e) => setNewCompanyForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="info@company.com"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new_website">Website</Label>
+              <Input
+                id="new_website"
+                value={newCompanyForm.website}
+                onChange={(e) => setNewCompanyForm(prev => ({ ...prev, website: e.target.value }))}
+                placeholder="https://company.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateCompanyDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateCompany}
+              disabled={!newCompanyForm.name.trim()}
+            >
+              Create Company
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
