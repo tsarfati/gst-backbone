@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import DashboardCustomizer from '@/components/DashboardCustomizer';
-import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X, FileText, AlertTriangle } from "lucide-react";
+import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X, FileText, AlertTriangle, Users, TrendingUp, BarChart3 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +41,20 @@ interface DashboardSettings {
   show_notifications: boolean;
   show_messages: boolean;
   show_bills: boolean;
+  // Financial Management
+  show_bills_overview: boolean;
+  show_payment_status: boolean;
+  show_invoice_summary: boolean;
+  show_budget_tracking: boolean;
+  // Time Tracking
+  show_punch_clock_status: boolean;
+  show_timesheet_approval: boolean;
+  show_overtime_alerts: boolean;
+  show_employee_attendance: boolean;
+  // Project Management
+  show_project_progress: boolean;
+  show_task_deadlines: boolean;
+  show_resource_allocation: boolean;
 }
 
 export default function Dashboard() {
@@ -57,6 +71,20 @@ export default function Dashboard() {
     show_notifications: true,
     show_messages: true,
     show_bills: true,
+    // Financial Management
+    show_bills_overview: false,
+    show_payment_status: false,
+    show_invoice_summary: false,
+    show_budget_tracking: false,
+    // Time Tracking
+    show_punch_clock_status: false,
+    show_timesheet_approval: false,
+    show_overtime_alerts: false,
+    show_employee_attendance: false,
+    // Project Management
+    show_project_progress: false,
+    show_task_deadlines: false,
+    show_resource_allocation: false,
   });
 
   useEffect(() => {
@@ -139,6 +167,20 @@ export default function Dashboard() {
           show_notifications: data.show_notifications,
           show_messages: data.show_messages,
           show_bills: data.show_invoices ?? true,
+          // Financial Management
+          show_bills_overview: data.show_bills_overview ?? false,
+          show_payment_status: data.show_payment_status ?? false,
+          show_invoice_summary: data.show_invoice_summary ?? false,
+          show_budget_tracking: data.show_budget_tracking ?? false,
+          // Time Tracking
+          show_punch_clock_status: data.show_punch_clock_status ?? false,
+          show_timesheet_approval: data.show_timesheet_approval ?? false,
+          show_overtime_alerts: data.show_overtime_alerts ?? false,
+          show_employee_attendance: data.show_employee_attendance ?? false,
+          // Project Management
+          show_project_progress: data.show_project_progress ?? false,
+          show_task_deadlines: data.show_task_deadlines ?? false,
+          show_resource_allocation: data.show_resource_allocation ?? false,
         });
       }
     } catch (error) {
@@ -477,6 +519,275 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Financial Management Sections */}
+      {dashboardSettings.show_bills_overview && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Bills Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-warning/10 p-4 rounded-lg">
+                <h4 className="font-semibold text-warning">Pending Approval</h4>
+                <p className="text-2xl font-bold">0</p>
+                <p className="text-sm text-muted-foreground">Bills awaiting review</p>
+              </div>
+              <div className="bg-destructive/10 p-4 rounded-lg">
+                <h4 className="font-semibold text-destructive">Overdue</h4>
+                <p className="text-2xl font-bold">0</p>
+                <p className="text-sm text-muted-foreground">Past due bills</p>
+              </div>
+              <div className="bg-success/10 p-4 rounded-lg">
+                <h4 className="font-semibold text-success">Paid This Month</h4>
+                <p className="text-2xl font-bold">$0</p>
+                <p className="text-sm text-muted-foreground">Total processed</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_payment_status && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Payment Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-accent rounded-lg">
+                <span>Total Outstanding</span>
+                <span className="font-bold text-lg">$0.00</span>
+              </div>
+              <div className="flex justify-between items-center p-3 border rounded-lg">
+                <span>Scheduled Payments</span>
+                <span className="font-medium">0</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_invoice_summary && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              Invoice Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 border rounded-lg">
+                <p className="text-2xl font-bold text-primary">0</p>
+                <p className="text-sm text-muted-foreground">Invoices Generated</p>
+              </div>
+              <div className="text-center p-4 border rounded-lg">
+                <p className="text-2xl font-bold text-success">$0</p>
+                <p className="text-sm text-muted-foreground">Total Revenue</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_budget_tracking && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Budget Tracking
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Project Budget Utilization</span>
+                  <span>0%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-primary h-2 rounded-full" style={{ width: '0%' }}></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Time Tracking Sections */}
+      {dashboardSettings.show_punch_clock_status && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Punch Clock Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-success/10 p-4 rounded-lg">
+                <h4 className="font-semibold text-success">Currently Punched In</h4>
+                <p className="text-2xl font-bold">0</p>
+                <p className="text-sm text-muted-foreground">Active employees</p>
+              </div>
+              <div className="bg-primary/10 p-4 rounded-lg">
+                <h4 className="font-semibold text-primary">Total Hours Today</h4>
+                <p className="text-2xl font-bold">0.0</p>
+                <p className="text-sm text-muted-foreground">Company-wide</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_timesheet_approval && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Timesheet Approvals
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6">
+              <p className="text-2xl font-bold text-warning">0</p>
+              <p className="text-sm text-muted-foreground">Timesheets pending approval</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_overtime_alerts && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Overtime Alerts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span>Employees over 40hrs this week</span>
+                <Badge variant="warning">0</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Overtime hours this week</span>
+                <span className="font-medium">0.0</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_employee_attendance && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Employee Attendance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-lg font-bold text-success">0</p>
+                <p className="text-xs text-muted-foreground">Present</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-warning">0</p>
+                <p className="text-xs text-muted-foreground">Late</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-destructive">0</p>
+                <p className="text-xs text-muted-foreground">Absent</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Project Management Sections */}
+      {dashboardSettings.show_project_progress && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Project Progress
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span>Active Projects</span>
+                <span className="font-bold">0</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Overall Completion</span>
+                  <span>0%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div className="bg-success h-2 rounded-full" style={{ width: '0%' }}></div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_task_deadlines && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Task Deadlines
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-destructive/10 rounded-lg">
+                <span>Overdue Tasks</span>
+                <Badge variant="destructive">0</Badge>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-warning/10 rounded-lg">
+                <span>Due This Week</span>
+                <Badge variant="warning">0</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboardSettings.show_resource_allocation && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Resource Allocation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-3 border rounded-lg">
+                <p className="text-lg font-bold">0</p>
+                <p className="text-xs text-muted-foreground">Team Members</p>
+              </div>
+              <div className="text-center p-3 border rounded-lg">
+                <p className="text-lg font-bold">0%</p>
+                <p className="text-xs text-muted-foreground">Utilization</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {(dashboardSettings.show_recent_activity || dashboardSettings.show_active_jobs) && (

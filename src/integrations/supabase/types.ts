@@ -281,11 +281,22 @@ export type Database = {
           created_at: string
           id: string
           show_active_jobs: boolean
+          show_bills_overview: boolean | null
+          show_budget_tracking: boolean | null
+          show_employee_attendance: boolean | null
+          show_invoice_summary: boolean | null
           show_invoices: boolean
           show_messages: boolean
           show_notifications: boolean
+          show_overtime_alerts: boolean | null
+          show_payment_status: boolean | null
+          show_project_progress: boolean | null
+          show_punch_clock_status: boolean | null
           show_recent_activity: boolean
+          show_resource_allocation: boolean | null
           show_stats: boolean
+          show_task_deadlines: boolean | null
+          show_timesheet_approval: boolean | null
           updated_at: string
           user_id: string
         }
@@ -293,11 +304,22 @@ export type Database = {
           created_at?: string
           id?: string
           show_active_jobs?: boolean
+          show_bills_overview?: boolean | null
+          show_budget_tracking?: boolean | null
+          show_employee_attendance?: boolean | null
+          show_invoice_summary?: boolean | null
           show_invoices?: boolean
           show_messages?: boolean
           show_notifications?: boolean
+          show_overtime_alerts?: boolean | null
+          show_payment_status?: boolean | null
+          show_project_progress?: boolean | null
+          show_punch_clock_status?: boolean | null
           show_recent_activity?: boolean
+          show_resource_allocation?: boolean | null
           show_stats?: boolean
+          show_task_deadlines?: boolean | null
+          show_timesheet_approval?: boolean | null
           updated_at?: string
           user_id: string
         }
@@ -305,11 +327,22 @@ export type Database = {
           created_at?: string
           id?: string
           show_active_jobs?: boolean
+          show_bills_overview?: boolean | null
+          show_budget_tracking?: boolean | null
+          show_employee_attendance?: boolean | null
+          show_invoice_summary?: boolean | null
           show_invoices?: boolean
           show_messages?: boolean
           show_notifications?: boolean
+          show_overtime_alerts?: boolean | null
+          show_payment_status?: boolean | null
+          show_project_progress?: boolean | null
+          show_punch_clock_status?: boolean | null
           show_recent_activity?: boolean
+          show_resource_allocation?: boolean | null
           show_stats?: boolean
+          show_task_deadlines?: boolean | null
+          show_timesheet_approval?: boolean | null
           updated_at?: string
           user_id?: string
         }
