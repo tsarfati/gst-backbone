@@ -7,11 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Camera, MapPin, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Camera, MapPin, Clock, CheckCircle, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeMessagingPanel from '@/components/EmployeeMessagingPanel';
+import { format } from 'date-fns';
 
 interface Job {
   id: string;
@@ -35,6 +37,9 @@ interface PunchStatus {
 }
 
 export default function TimeTracking() {
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
+  const { toast } = useToast();
   const [currentStatus, setCurrentStatus] = useState<PunchStatus | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
@@ -54,9 +59,6 @@ export default function TimeTracking() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [showCamera, setShowCamera] = useState(false);
-  
-  const { user } = useAuth();
-  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -571,10 +573,57 @@ export default function TimeTracking() {
     return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const getGreetingIcon = () => {
+    const hour = new Date().getHours();
+    if (hour >= 6 && hour < 18) {
+      return <Sun className="h-5 w-5 text-amber-500" />;
+    }
+    return <Moon className="h-4 w-4 text-blue-400" />;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Mobile-optimized container */}
       <div className="max-w-md mx-auto md:max-w-4xl p-4 md:p-6 space-y-4 md:space-y-6">
+      {/* Welcome Header */}
+      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {getGreetingIcon()}
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {getGreeting()}, {profile?.first_name || profile?.display_name || 'Employee'}!
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(), 'EEEE, MMMM do, yyyy')} • {currentCompany?.display_name || currentCompany?.name || 'Your Company'}
+                </p>
+              </div>
+            </div>
+            {currentCompany?.logo_url && (
+              <img 
+                src={currentCompany.logo_url.includes('http') 
+                  ? currentCompany.logo_url 
+                  : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
+                } 
+                alt="Company Logo" 
+                className="h-12 w-12 object-contain rounded-md" 
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
         <div className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
           <p className="text-sm md:text-base text-muted-foreground">

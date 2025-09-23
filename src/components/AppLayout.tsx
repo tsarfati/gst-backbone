@@ -216,14 +216,28 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
         <div className="flex items-center justify-center p-2 min-h-[60px] w-full">
-          {settings.customLogo ? (
+          {currentCompany?.logo_url ? (
             <img 
-              src={settings.customLogo} 
+              src={currentCompany.logo_url.includes('http') 
+                ? currentCompany.logo_url 
+                : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
+              } 
               alt="Company Logo" 
               className="h-full w-full object-contain max-h-12" 
+              onError={(e) => {
+                console.error('Logo failed to load:', currentCompany.logo_url);
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
             />
-          ) : (
+          ) : null}
+          {!currentCompany?.logo_url && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-8 w-8 text-primary" />
+            </div>
+          )}
+          {currentCompany?.logo_url && (
+            <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           )}
