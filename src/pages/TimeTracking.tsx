@@ -620,7 +620,7 @@ export default function TimeTracking() {
       setLoadingStatus('');
     }
   };
-  return <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative mx-[10px]">
+  return <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative mx-[25px]">
         {/* Mobile-first container with 9:16 aspect ratio constraints */}
         <div className="w-full max-w-xs min-h-screen flex flex-col bg-background/95 backdrop-blur-sm my-0 px-0 mx-[5px] py-0">
           {/* Welcome Header */}
