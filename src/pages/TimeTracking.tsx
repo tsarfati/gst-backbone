@@ -60,6 +60,29 @@ export default function TimeTracking() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [showCamera, setShowCamera] = useState(false);
 
+  // Ensure video element receives the stream once mounted (prevents race conditions on mobile)
+  useEffect(() => {
+    if (!showCamera || !cameraStream) return;
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      // Attach stream and enforce mobile-friendly attributes
+      // @ts-ignore
+      video.srcObject = cameraStream;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('muted', 'true');
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('autoplay', 'true');
+      const p = video.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch((e: any) => console.warn('Auto play failed:', e));
+      }
+    } catch (e) {
+      console.warn('Attaching stream failed:', e);
+    }
+  }, [showCamera, cameraStream]);
+
   useEffect(() => {
     if (user) {
       loadCurrentStatus();
@@ -648,9 +671,9 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Mobile-optimized container */}
-      <div className="max-w-md mx-auto md:max-w-4xl p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="w-full mx-0 md:max-w-4xl md:mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-full">
 
         <div className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
@@ -807,7 +830,7 @@ export default function TimeTracking() {
       </Card>
 
       {/* Punch Dialog */}
-      <Dialog open={showPunchDialog} onOpenChange={setShowPunchDialog}>
+      <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -822,7 +845,7 @@ export default function TimeTracking() {
             {location && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin className="h-4 w-4" />
-                Location captured ({location.lat.toFixed(4)}, {location.lng.toFixed(4)})
+                Location captured ({location.lat?.toFixed(4)}, {location.lng?.toFixed(4)})
               </div>
             )}
             
