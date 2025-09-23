@@ -47,7 +47,7 @@ export default function TimeTracking() {
   const [selectedCostCode, setSelectedCostCode] = useState('');
   const [notes, setNotes] = useState('');
   const [showPunchDialog, setShowPunchDialog] = useState(false);
-  const [punchType, setPunchType] = useState<'in' | 'out'>('in');
+  const [punchType, setPunchType] = useState<'punched_in' | 'punched_out'>('punched_in');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -496,7 +496,7 @@ export default function TimeTracking() {
     setLoadingStatus('Starting camera and location...');
 
     try {
-      setPunchType('in');
+      setPunchType('punched_in');
       setShowPunchDialog(true);
 
       // Auto-start camera and location simultaneously
@@ -542,7 +542,7 @@ export default function TimeTracking() {
     setLoadingStatus('Preparing camera...');
 
     try {
-      setPunchType('out');
+      setPunchType('punched_out');
       setShowPunchDialog(true); // Always show dialog
 
       // Start camera immediately
@@ -623,7 +623,7 @@ export default function TimeTracking() {
 
       setLoadingStatus('Recording punch...');
 
-      if (punchType === 'in') {
+      if (punchType === 'punched_in') {
         console.log('Creating punch in record with:', {
           user_id: user.id,
           job_id: selectedJob,
@@ -870,7 +870,7 @@ export default function TimeTracking() {
               </div>
               
               <Button 
-                onClick={() => { setPunchType('out'); setShowPunchDialog(true); }}
+                onClick={() => { setPunchType('punched_out'); setShowPunchDialog(true); }}
                 variant="destructive"
                 size="lg"
                 className="w-full py-4 text-lg font-semibold"
@@ -957,7 +957,7 @@ export default function TimeTracking() {
         <DialogContent className="w-full max-w-[95vw] sm:max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {punchType === 'in' ? 'Punch In' : 'Punch Out'}
+              {punchType === 'punched_in' ? 'Punch In' : 'Punch Out'}
             </DialogTitle>
             <DialogDescription>
               Take a photo and confirm your {punchType === 'in' ? 'punch in' : 'punch out'}
