@@ -719,8 +719,8 @@ export default function TimeTracking() {
           <div className="py-4">
             <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
               <CardContent className="p-4">
-                <div className="text-center space-y-2">
-                  <div className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
+                <div className="text-left space-y-2">
+                  <div className="flex items-center gap-2 text-lg font-bold text-foreground">
                     <span className="text-xl">{getGreetingIcon()}</span>
                     <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
                   </div>
@@ -743,22 +743,22 @@ export default function TimeTracking() {
                     <Clock className="h-12 w-12 text-white" />
                   </div>
                   
-                  {/* Live Timer */}
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800">
-                    <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
-                      {getElapsedTime()}
-                    </div>
-                    <div className="text-green-600 dark:text-green-400 font-medium">
-                      Started at {formatTime(currentStatus.punch_in_time)}
-                    </div>
-                  </div>
-                  
-                  {/* Job Info */}
-                  <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
-                    <div className="text-sm text-muted-foreground mb-1">Working on</div>
-                    <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
-                    <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
-                  </div>
+                   {/* Live Timer */}
+                   <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800 text-left">
+                     <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
+                       {getElapsedTime()}
+                     </div>
+                     <div className="text-green-600 dark:text-green-400 font-medium">
+                       Started at {formatTime(currentStatus.punch_in_time)}
+                     </div>
+                   </div>
+                   
+                   {/* Job Info */}
+                   <div className="bg-card rounded-xl p-4 border border-border shadow-sm text-left">
+                     <div className="text-sm text-muted-foreground mb-1">Working on</div>
+                     <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
+                     <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
+                   </div>
 
                   {/* Inline Camera for Punch Out */}
                   {showCamera && (
@@ -853,10 +853,10 @@ export default function TimeTracking() {
                     <Timer className="h-12 w-12 text-white" />
                   </div>
                   
-                  <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
-                    <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2 text-center">Punched Out</div>
-                    <div className="text-red-600 dark:text-red-400 text-center">Ready to start your shift</div>
-                  </div>
+                   <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800 text-left">
+                     <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Punched Out</div>
+                     <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
+                   </div>
                   
                   {/* Job Selection */}
                   <div className="space-y-4">

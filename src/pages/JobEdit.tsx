@@ -47,8 +47,7 @@ export default function JobEdit() {
         const { data, error } = await supabase
           .from('profiles')
           .select('user_id, first_name, last_name, display_name, role, status')
-          .in('role', ['admin', 'controller', 'project_manager'])
-          .in('status', ['approved', 'active']);
+          .in('role', ['admin', 'controller', 'project_manager']);
 
         if (error) {
           console.error('Error fetching project managers:', error);
@@ -260,13 +259,24 @@ export default function JobEdit() {
 
         if (costCodeError) {
           console.error('Error saving cost codes:', costCodeError);
+          toast({
+            title: "Warning",
+            description: "Job saved but cost codes may not have been updated properly.",
+            variant: "destructive",
+          });
+        } else {
+          console.log('Cost codes saved successfully for job:', id);
         }
       } else {
         // Remove all job cost codes if none selected
-        await supabase
+        const { error: deleteError } = await supabase
           .from('cost_codes')
           .delete()
           .eq('job_id', id);
+          
+        if (deleteError) {
+          console.error('Error removing job cost codes:', deleteError);
+        }
       }
 
       toast({
