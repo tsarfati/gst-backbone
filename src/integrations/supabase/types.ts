@@ -1560,6 +1560,50 @@ export type Database = {
           },
         ]
       }
+      time_card_audit_trail: {
+        Row: {
+          change_type: string
+          changed_by: string
+          created_at: string
+          field_name: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string | null
+          time_card_id: string
+        }
+        Insert: {
+          change_type: string
+          changed_by: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          time_card_id: string
+        }
+        Update: {
+          change_type?: string
+          changed_by?: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+          time_card_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_card_audit_trail_time_card_id_fkey"
+            columns: ["time_card_id"]
+            isOneToOne: false
+            referencedRelation: "time_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_card_corrections: {
         Row: {
           correction_type: string
@@ -1978,6 +2022,10 @@ export type Database = {
       activate_company_access: {
         Args: { _company_id: string }
         Returns: undefined
+      }
+      get_mapbox_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_user_companies: {
         Args: { _user_id: string }
