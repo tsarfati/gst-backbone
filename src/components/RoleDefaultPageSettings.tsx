@@ -92,14 +92,29 @@ export default function RoleDefaultPageSettings() {
         created_by: profile?.user_id || ''
       }));
 
-      const { error } = await supabase
-        .from('role_default_pages')
-        .upsert(updates, {
-          onConflict: 'role'
-        });
+      // Save each role setting individually to avoid ON CONFLICT requirement
+      for (const u of updates) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('role_default_pages')
+          .select('id')
+          .eq('role', u.role)
+          .maybeSingle();
+        if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
 
-      if (error) throw error;
-
+        if (existing?.id) {
+          const { error: updErr } = await supabase
+            .from('role_default_pages')
+            .update({ default_page: u.default_page, created_by: u.created_by })
+            .eq('id', existing.id);
+          if (updErr) throw updErr;
+        } else {
+          const { error: insErr } = await supabase
+            .from('role_default_pages')
+            .insert(u);
+          if (insErr) throw insErr;
+        }
+      }
+      // All role defaults saved
       toast({
         title: "Settings Saved",
         description: "Role default pages have been updated successfully.",

@@ -231,11 +231,29 @@ export default function EmployeeTimecardSettings({
         created_by: profile.user_id
       };
 
-      const { error } = await supabase
+      // Check if settings exist for this user
+      const { data: existing, error: fetchErr } = await supabase
         .from('employee_timecard_settings')
-        .upsert(settingsData, {
-          onConflict: 'user_id'
-        });
+        .select('id')
+        .eq('user_id', settings.user_id)
+        .maybeSingle();
+
+      if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
+
+      let error;
+      if (existing?.id) {
+        // Update existing
+        ({ error } = await supabase
+          .from('employee_timecard_settings')
+          .update(settingsData)
+          .eq('id', existing.id));
+      } else {
+        // Insert new
+        ({ error } = await supabase
+          .from('employee_timecard_settings')
+          .insert(settingsData));
+      }
+
 
       if (error) throw error;
       
