@@ -72,6 +72,9 @@ import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
 import Reconcile from "./pages/Reconcile";
 import PunchClockDashboard from "./pages/PunchClockDashboard";
+import AddBankAccount from "./pages/AddBankAccount";
+import AddCreditCard from "./pages/AddCreditCard";
+import NewJournalEntry from "./pages/NewJournalEntry";
 
 const queryClient = new QueryClient();
 
@@ -177,10 +180,13 @@ function AppRoutes() {
                       <Route path="company-files/permits" element={<CompanyPermits />} />
                       <Route path="company-files/insurance" element={<CompanyInsurance />} />
                       <Route path="banking/accounts" element={<BankAccounts />} />
+                      <Route path="banking/accounts/add" element={<AddBankAccount />} />
                       <Route path="banking/credit-cards" element={<CreditCards />} />
+                      <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
                       <Route path="banking/reports" element={<BankingReports />} />
                       <Route path="banking/reports" element={<BankingReports />} />
                       <Route path="banking/journal-entries" element={<JournalEntries />} />
+                      <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
                       <Route path="banking/deposits" element={<Deposits />} />
                       <Route path="banking/print-checks" element={<PrintChecks />} />
                       <Route path="banking/make-payment" element={<MakePayment />} />

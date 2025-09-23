@@ -69,7 +69,7 @@ export default function TimeSheets() {
         return;
       }
 
-      setTimeCards(data || []);
+      setTimeCards(data as unknown as TimeCard[] || []);
     } catch (error) {
       console.error('Error:', error);
       toast({

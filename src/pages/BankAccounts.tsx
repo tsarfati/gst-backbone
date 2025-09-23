@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,9 +41,11 @@ export default function BankAccounts() {
             Manage your company bank accounts and account details
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Account
+        <Button asChild>
+          <Link to="/banking/accounts/add">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Account
+          </Link>
         </Button>
       </div>
 
@@ -132,9 +135,11 @@ export default function BankAccounts() {
                   : "Start by adding your first bank account"
                 }
               </p>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Bank Account
+              <Button asChild>
+                <Link to="/banking/accounts/add">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Bank Account
+                </Link>
               </Button>
             </div>
           ) : (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,9 +37,11 @@ export default function JournalEntries() {
             Create and manage accounting journal entries
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Journal Entry
+        <Button asChild>
+          <Link to="/banking/journal-entries/new">
+            <Plus className="h-4 w-4 mr-2" />
+            New Journal Entry
+          </Link>
         </Button>
       </div>
 
@@ -130,9 +133,11 @@ export default function JournalEntries() {
                   : "Start by creating your first journal entry"
                 }
               </p>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Journal Entry
+              <Button asChild>
+                <Link to="/banking/journal-entries/new">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Journal Entry
+                </Link>
               </Button>
             </div>
           ) : (
