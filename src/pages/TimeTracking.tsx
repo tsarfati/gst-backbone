@@ -960,7 +960,7 @@ export default function TimeTracking() {
               {punchType === 'punched_in' ? 'Punch In' : 'Punch Out'}
             </DialogTitle>
             <DialogDescription>
-              Take a photo and confirm your {punchType === 'in' ? 'punch in' : 'punch out'}
+              Take a photo and confirm your {punchType === 'punched_in' ? 'punch in' : 'punch out'}
             </DialogDescription>
           </DialogHeader>
           
@@ -1011,7 +1011,7 @@ export default function TimeTracking() {
               </div>
             )}
             
-            {punchType === 'out' && (
+            {punchType === 'punched_out' && (
               <div>
                 <Label htmlFor="notes">Notes (Optional)</Label>
                 <Textarea
@@ -1035,7 +1035,7 @@ export default function TimeTracking() {
                     {loadingStatus}
                   </>
                 ) : (
-                  `Confirm ${punchType === 'in' ? 'Punch In' : 'Punch Out'}`
+                  `Confirm ${punchType === 'punched_in' ? 'Punch In' : 'Punch Out'}`
                 )}
               </Button>
               <Button
