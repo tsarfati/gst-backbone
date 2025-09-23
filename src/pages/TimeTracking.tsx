@@ -593,6 +593,24 @@ export default function TimeTracking() {
       return;
     }
 
+    if (employeeSettings?.require_photo !== false && !photoBlob) {
+      toast({
+        title: 'Photo Required',
+        description: 'Please capture a photo to continue.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (employeeSettings?.require_location !== false && !location) {
+      toast({
+        title: 'Location Required',
+        description: 'Please enable location and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     setLoadingStatus('Processing punch...');
 
@@ -641,7 +659,12 @@ export default function TimeTracking() {
           location: location
         });
         
-        // Create current status
+        // Ensure no existing active status remains (cleanup) then create current status
+        await supabase
+          .from('current_punch_status')
+          .delete()
+          .eq('user_id', user.id);
+
         const { error: statusError } = await supabase
           .from('current_punch_status')
           .insert({
@@ -719,11 +742,11 @@ export default function TimeTracking() {
       setPhotoPreview(null);
       setShowPunchDialog(false);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing punch:', error);
       toast({
         title: 'Error',
-        description: 'Failed to process punch. Please try again.',
+        description: error?.message ? `Failed to process punch: ${error.message}` : 'Failed to process punch. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -768,9 +791,9 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Mobile-first container with proper viewport handling */}
-      <div className="w-full max-w-md mx-auto p-3 space-y-4 min-h-screen">
+      <div className="w-full max-w-md mx-auto p-3 space-y-4">
 
         <div className="text-center px-2 pt-2">
           <h1 className="text-xl font-bold text-foreground mb-1">Punch Clock</h1>
@@ -930,7 +953,7 @@ export default function TimeTracking() {
 
       {/* Punch Dialog - Mobile optimized */}
       <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
-        <DialogContent className="max-w-[95vw] max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-[95vw] sm:max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {punchType === 'in' ? 'Punch In' : 'Punch Out'}
@@ -1002,7 +1025,7 @@ export default function TimeTracking() {
             <div className="flex gap-2">
               <Button
                 onClick={confirmPunch}
-                disabled={!photoBlob || isLoading}
+                disabled={((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
                 className="flex-1"
               >
                 {isLoading ? (
