@@ -791,9 +791,9 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-[100dvh] bg-background overflow-x-hidden">
       {/* Mobile-first container with proper viewport handling */}
-      <div className="w-full max-w-md mx-auto p-3 space-y-4">
+      <div className="w-full max-w-[420px] sm:max-w-md mx-auto px-4 py-3 space-y-4">
 
         <div className="text-center px-2 pt-2">
           <h1 className="text-xl font-bold text-foreground mb-1">Punch Clock</h1>
@@ -886,7 +886,7 @@ export default function TimeTracking() {
                 <div>
                   <Label htmlFor="job-select" className="text-sm">Select Job</Label>
                   <Select value={selectedJob} onValueChange={setSelectedJob}>
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10 w-full">
                       <SelectValue placeholder="Choose a job" />
                     </SelectTrigger>
                     <SelectContent>
@@ -903,7 +903,7 @@ export default function TimeTracking() {
                   <div>
                     <Label htmlFor="cost-code-select" className="text-sm">Select Cost Code</Label>
                     <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                      <SelectTrigger className="h-10">
+                      <SelectTrigger className="h-10 w-full">
                         <SelectValue placeholder="Choose a cost code" />
                       </SelectTrigger>
                       <SelectContent>
@@ -943,7 +943,7 @@ export default function TimeTracking() {
 
       {/* Employee Messaging Panel */}
       {currentStatus && (
-        <div className="mt-6">
+        <div className="mt-6 max-w-[420px] sm:max-w-md mx-auto w-full">
           <EmployeeMessagingPanel 
             currentJobId={currentStatus.job_id}
             isVisible={true}
