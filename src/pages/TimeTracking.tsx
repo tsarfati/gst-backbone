@@ -517,20 +517,10 @@ export default function TimeTracking() {
         photoUrl = await uploadPhoto(photoBlob);
       }
 
-      if (punchType === 'in') {
-        // Get IP address and user agent
-        let ipAddress = null;
-        let userAgent = null;
-        try {
-          const ipResponse = await fetch('https://api.ipify.org?format=json');
-          const ipData = await ipResponse.json();
-          ipAddress = ipData.ip;
-          userAgent = navigator.userAgent;
-        } catch (error) {
-          console.warn('Could not get IP address:', error);
-        }
+      setLoadingStatus('Recording punch...');
 
-        // Create punch record
+      if (punchType === 'in') {
+        // Insert punch_in record
         const { error: punchError } = await supabase
           .from('punch_records')
           .insert({
@@ -538,14 +528,17 @@ export default function TimeTracking() {
             job_id: selectedJob,
             cost_code_id: selectedCostCode,
             punch_type: 'punched_in',
-            latitude: location?.lat ?? null,
-            longitude: location?.lng ?? null,
+            punch_time: new Date().toISOString(),
+            latitude: location?.lat,
+            longitude: location?.lng,
             photo_url: photoUrl,
-            ip_address: ipAddress,
-            user_agent: userAgent
+            notes,
           });
 
-        if (punchError) throw punchError;
+        if (punchError) {
+          console.error('Punch error:', punchError);
+          throw punchError;
+        }
 
         // Create current status
         const { error: statusError } = await supabase
@@ -597,11 +590,11 @@ export default function TimeTracking() {
 
         if (punchError) throw punchError;
 
-        // Remove current status
+        // Delete current_punch_status
         const { error: statusError } = await supabase
           .from('current_punch_status')
-          .update({ is_active: false })
-          .eq('id', currentStatus.id);
+          .delete()
+          .eq('user_id', user.id);
 
         if (statusError) throw statusError;
 

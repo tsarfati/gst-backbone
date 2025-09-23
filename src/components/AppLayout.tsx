@@ -18,7 +18,7 @@ const navigationCategories = [
   {
     title: "Dashboard",
     items: [
-      { name: "Dashboard", href: "/", icon: LayoutDashboard, menuKey: "dashboard" },
+      { name: "Dashboard", href: "/", icon: LayoutDashboard, menuKey: "dashboard", employeeHidden: true },
     ],
     collapsible: false,
   },
@@ -177,7 +177,8 @@ export function AppSidebar() {
       setOpenGroups(prev => {
         const isCurrentlyOpen = prev.includes(groupTitle);
         if (isCurrentlyOpen) {
-          return activeGroups.includes(groupTitle) ? [groupTitle] : [];
+          // Allow collapsing even if it's the active group
+          return [];
         } else {
           return [...new Set([groupTitle, ...activeGroups])];
         }
@@ -249,10 +250,12 @@ export function AppSidebar() {
         {!loading && navigationCategories.map((category) => {
           const isDashboard = category.title === "Dashboard";
           
-          // Filter items based on permissions
-          const allowedItems = category.items.filter(item => 
-            !item.menuKey || hasAccess(item.menuKey)
-          );
+          // Filter items based on permissions and role
+          const allowedItems = category.items.filter(item => {
+            // Hide dashboard for employees
+            if (item.employeeHidden && profile?.role === 'employee') return false;
+            return !item.menuKey || hasAccess(item.menuKey);
+          });
           
           // Don't show category if no items are allowed
           if (allowedItems.length === 0) return null;
