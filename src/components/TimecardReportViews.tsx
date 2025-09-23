@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, Clock, User, MapPin, FileText, Download, TrendingUp } from 'lucide-react';
+import { BarChart3, Clock, User, MapPin, FileText, Download, TrendingUp, Eye } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import PunchDetailView from '@/components/PunchDetailView';
 
 interface TimeCardRecord {
   id: string;
@@ -48,6 +51,9 @@ export default function TimecardReportViews({
   onExportPDF
 }: TimecardReportViewsProps) {
   const [selectedView, setSelectedView] = useState('detailed');
+  const [selectedPunch, setSelectedPunch] = useState<any>(null);
+  const [showPunchDetail, setShowPunchDetail] = useState(false);
+  const { toast } = useToast();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -62,6 +68,68 @@ export default function TimecardReportViews({
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
     return `${h}h ${m}m`;
+  };
+
+  const handleViewPunchDetails = async (record: TimeCardRecord) => {
+    try {
+      // Fetch detailed punch records for this timecard
+      const { data: punchRecords, error } = await supabase
+        .from('punch_records')
+        .select(`
+          id,
+          punch_time,
+          punch_type,
+          latitude,
+          longitude,
+          photo_url,
+          ip_address,
+          user_agent,
+          notes,
+          profiles!punch_records_user_id_fkey(display_name),
+          jobs!punch_records_job_id_fkey(name),
+          cost_codes!punch_records_cost_code_id_fkey(code)
+        `)
+        .eq('user_id', record.user_id)
+        .gte('punch_time', record.punch_in_time)
+        .lte('punch_time', record.punch_out_time)
+        .order('punch_time', { ascending: true });
+
+      if (error) throw error;
+
+      if (punchRecords && punchRecords.length > 0) {
+        // Show the first punch record (punch in) - you could modify this to show both in/out
+        const punchData = {
+          id: punchRecords[0].id,
+          punch_time: punchRecords[0].punch_time,
+          punch_type: punchRecords[0].punch_type,
+          employee_name: record.employee_name,
+          job_name: record.job_name,
+          cost_code: record.cost_code,
+          latitude: punchRecords[0].latitude,
+          longitude: punchRecords[0].longitude,
+          photo_url: punchRecords[0].photo_url,
+          ip_address: punchRecords[0].ip_address,
+          user_agent: punchRecords[0].user_agent,
+          notes: punchRecords[0].notes
+        };
+
+        setSelectedPunch(punchData);
+        setShowPunchDetail(true);
+      } else {
+        toast({
+          title: 'No Details Found',
+          description: 'No punch records found for this timecard entry.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching punch details:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load punch details.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Employee Summary Data
@@ -223,6 +291,7 @@ export default function TimecardReportViews({
                       <TableHead>Overtime</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Notes</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -245,6 +314,16 @@ export default function TimecardReportViews({
                         </TableCell>
                         <TableCell className="max-w-xs truncate">
                           {record.notes || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewPunchDetails(record)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -352,6 +431,13 @@ export default function TimecardReportViews({
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Punch Detail Modal */}
+      <PunchDetailView
+        punch={selectedPunch}
+        open={showPunchDetail}
+        onOpenChange={setShowPunchDetail}
+      />
     </div>
   );
 }

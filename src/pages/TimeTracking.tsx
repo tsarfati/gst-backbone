@@ -213,20 +213,45 @@ export default function TimeTracking() {
         throw new Error('Camera is not supported by this browser');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Try front camera first for mobile devices
+      let constraints = {
         video: { 
-          facingMode: 'user',
+          facingMode: { ideal: 'user' },
           width: { ideal: 640 },
           height: { ideal: 480 }
         }
-      });
-      
-      console.log('Camera access granted:', stream);
-      setCameraStream(stream);
-      setShowCamera(true);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Camera access granted:', stream);
+        setCameraStream(stream);
+        setShowCamera(true);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        return;
+      } catch (frontCameraError) {
+        console.warn('Front camera failed, trying back camera:', frontCameraError);
+        
+        // Fallback to back camera if front camera fails
+        constraints = {
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Back camera access granted:', stream);
+        setCameraStream(stream);
+        setShowCamera(true);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
       }
     } catch (error: any) {
       console.error('Error starting camera:', error);
@@ -409,6 +434,18 @@ export default function TimeTracking() {
       }
 
       if (punchType === 'in') {
+        // Get IP address and user agent
+        let ipAddress = null;
+        let userAgent = null;
+        try {
+          const ipResponse = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipResponse.json();
+          ipAddress = ipData.ip;
+          userAgent = navigator.userAgent;
+        } catch (error) {
+          console.warn('Could not get IP address:', error);
+        }
+
         // Create punch record
         const { error: punchError } = await supabase
           .from('punch_records')
@@ -419,7 +456,9 @@ export default function TimeTracking() {
             punch_type: 'punched_in',
             latitude: location?.lat ?? null,
             longitude: location?.lng ?? null,
-            photo_url: photoUrl
+            photo_url: photoUrl,
+            ip_address: ipAddress,
+            user_agent: userAgent
           });
 
         if (punchError) throw punchError;
@@ -444,6 +483,18 @@ export default function TimeTracking() {
           description: 'Successfully punched in for the selected job.',
         });
       } else {
+        // Get IP address and user agent
+        let ipAddress = null;
+        let userAgent = null;
+        try {
+          const ipResponse = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipResponse.json();
+          ipAddress = ipData.ip;
+          userAgent = navigator.userAgent;
+        } catch (error) {
+          console.warn('Could not get IP address:', error);
+        }
+
         // Create punch out record
         const { error: punchError } = await supabase
           .from('punch_records')
@@ -455,7 +506,9 @@ export default function TimeTracking() {
             latitude: location?.lat ?? null,
             longitude: location?.lng ?? null,
             photo_url: photoUrl,
-            notes: notes || null
+            notes: notes || null,
+            ip_address: ipAddress,
+            user_agent: userAgent
           });
 
         if (punchError) throw punchError;

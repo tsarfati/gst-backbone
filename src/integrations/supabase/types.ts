@@ -1277,6 +1277,7 @@ export type Database = {
           cost_code_id: string | null
           created_at: string
           id: string
+          ip_address: string | null
           job_id: string | null
           latitude: number | null
           longitude: number | null
@@ -1284,12 +1285,14 @@ export type Database = {
           photo_url: string | null
           punch_time: string
           punch_type: Database["public"]["Enums"]["punch_status"]
+          user_agent: string | null
           user_id: string
         }
         Insert: {
           cost_code_id?: string | null
           created_at?: string
           id?: string
+          ip_address?: string | null
           job_id?: string | null
           latitude?: number | null
           longitude?: number | null
@@ -1297,12 +1300,14 @@ export type Database = {
           photo_url?: string | null
           punch_time?: string
           punch_type: Database["public"]["Enums"]["punch_status"]
+          user_agent?: string | null
           user_id: string
         }
         Update: {
           cost_code_id?: string | null
           created_at?: string
           id?: string
+          ip_address?: string | null
           job_id?: string | null
           latitude?: number | null
           longitude?: number | null
@@ -1310,6 +1315,7 @@ export type Database = {
           photo_url?: string | null
           punch_time?: string
           punch_type?: Database["public"]["Enums"]["punch_status"]
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: [
