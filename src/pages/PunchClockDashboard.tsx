@@ -186,25 +186,25 @@ export default function PunchClockDashboard() {
                 const prof = profiles[row.user_id];
                 const job = jobs[row.job_id];
                 return (
-                  <div key={row.id} className="flex items-center justify-between gap-3 p-3 rounded-md border">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={prof?.avatar_url || undefined} />
-                        <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{prof?.display_name || 'Employee'}</div>
-                        <div className="text-xs text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                          <Clock className="h-3 w-3" /> {format(new Date(row.punch_in_time), 'PP pp')}
-                          {row.punch_in_location_lat && row.punch_in_location_lng && (
-                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row.punch_in_location_lat.toFixed(3)}, {row.punch_in_location_lng.toFixed(3)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => openDetailForActive(row)}>View</Button>
-                  </div>
+                   <div key={row.id} className="flex items-center justify-between gap-3 p-3 rounded-md border">
+                     <div className="flex items-center gap-3 min-w-0 flex-1">
+                       <Avatar className="h-9 w-9">
+                         <AvatarImage src={prof?.avatar_url || undefined} />
+                         <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                       </Avatar>
+                       <div className="min-w-0 flex-1 text-left">
+                         <div className="font-medium truncate text-left">{prof?.display_name || 'Employee'}</div>
+                         <div className="text-xs text-muted-foreground truncate text-left">{job?.name || 'Job'}</div>
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 text-left">
+                           <Clock className="h-3 w-3" /> {format(new Date(row.punch_in_time), 'PP pp')}
+                           {row.punch_in_location_lat && row.punch_in_location_lng && (
+                             <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{row.punch_in_location_lat.toFixed(3)}, {row.punch_in_location_lng.toFixed(3)}</span>
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                     <Button size="sm" variant="outline" onClick={() => openDetailForActive(row)}>View</Button>
+                   </div>
                 );
               })}
             </CardContent>
@@ -226,22 +226,22 @@ export default function PunchClockDashboard() {
                 const prof = profiles[row.user_id];
                 const job = row.job_id ? jobs[row.job_id] : undefined;
                 return (
-                  <div key={row.id} className="flex items-center justify-between gap-3 p-3 rounded-md border">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={prof?.avatar_url || undefined} />
-                        <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{prof?.display_name || 'Employee'}</div>
-                        <div className="text-xs text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                          <Clock className="h-3 w-3" /> {format(new Date(row.punch_time), 'PP pp')}
-                        </div>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => openDetailForOut(row)}>View</Button>
-                  </div>
+                   <div key={row.id} className="flex items-center justify-between gap-3 p-3 rounded-md border">
+                     <div className="flex items-center gap-3 min-w-0 flex-1">
+                       <Avatar className="h-9 w-9">
+                         <AvatarImage src={prof?.avatar_url || undefined} />
+                         <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                       </Avatar>
+                       <div className="min-w-0 flex-1 text-left">
+                         <div className="font-medium truncate text-left">{prof?.display_name || 'Employee'}</div>
+                         <div className="text-xs text-muted-foreground truncate text-left">{job?.name || 'Job'}</div>
+                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 text-left">
+                           <Clock className="h-3 w-3" /> {format(new Date(row.punch_time), 'PP pp')}
+                         </div>
+                       </div>
+                     </div>
+                     <Button size="sm" variant="outline" onClick={() => openDetailForOut(row)}>View</Button>
+                   </div>
                 );
               })}
             </CardContent>

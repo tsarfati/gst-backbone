@@ -553,6 +553,18 @@ export default function TimeTracking() {
             description: 'Punch recorded but status may not be accurate.',
             variant: 'destructive',
           });
+        } else {
+          // Immediately update local state to reflect punched in status
+          setCurrentStatus({
+            id: 'temp-id',
+            job_id: selectedJob,
+            cost_code_id: selectedCostCode,
+            punch_in_time: new Date().toISOString(),
+            punch_in_location_lat: location?.lat ?? null,
+            punch_in_location_lng: location?.lng ?? null,
+            punch_in_photo_url: photoUrl,
+            is_active: true,
+          });
         }
 
         toast({
@@ -560,6 +572,7 @@ export default function TimeTracking() {
           description: 'Successfully punched in!',
         });
         
+        // Force reload of current status to ensure UI updates
         await loadCurrentStatus();
       } else {
         // Calculate distance from job if job has coordinates
@@ -837,7 +850,7 @@ export default function TimeTracking() {
                 </div>
                 
                 <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
-                  <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Not Working</div>
+                  <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Punched Out</div>
                   <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
                 </div>
                 
