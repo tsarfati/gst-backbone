@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MessageCircle, Send, Users, User, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ComposeMessageDialogProps {
   children: React.ReactNode;
@@ -17,20 +18,11 @@ interface ComposeMessageDialogProps {
 
 interface User {
   id: string;
+  user_id: string;
   name: string;
   role: string;
   department?: string;
 }
-
-// Mock users - in a real app, this would come from your user management system
-const availableUsers: User[] = [
-  { id: '1', name: 'John Smith', role: 'admin', department: 'Management' },
-  { id: '2', name: 'Sarah Johnson', role: 'controller', department: 'Finance' },
-  { id: '3', name: 'Mike Brown', role: 'employee', department: 'Operations' },
-  { id: '4', name: 'Lisa Wilson', role: 'employee', department: 'Safety' },
-  { id: '5', name: 'David Chen', role: 'employee', department: 'Construction' },
-  { id: '6', name: 'Emma Davis', role: 'controller', department: 'Accounting' }
-];
 
 export default function ComposeMessageDialog({ children }: ComposeMessageDialogProps) {
   const { user } = useAuth();
@@ -41,20 +33,60 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
   const [message, setMessage] = useState('');
   const [selectedUser, setSelectedUser] = useState('');
   const [priority, setPriority] = useState('normal');
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && user) {
+      fetchUsers();
+    }
+  }, [open, user]);
+
+  const fetchUsers = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, user_id, display_name, role')
+        .neq('user_id', user.id);
+
+      if (error) throw error;
+
+      const users = (data || []).map(profile => ({
+        id: profile.id,
+        user_id: profile.user_id,
+        name: profile.display_name || 'Unknown User',
+        role: profile.role || 'employee'
+      }));
+
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load users',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddRecipient = (userId: string) => {
-    const user = availableUsers.find(u => u.id === userId);
-    if (user && !recipients.find(r => r.id === userId)) {
+    const user = availableUsers.find(u => u.user_id === userId);
+    if (user && !recipients.find(r => r.user_id === userId)) {
       setRecipients(prev => [...prev, user]);
       setSelectedUser('');
     }
   };
 
   const handleRemoveRecipient = (userId: string) => {
-    setRecipients(prev => prev.filter(r => r.id !== userId));
+    setRecipients(prev => prev.filter(r => r.user_id !== userId));
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!subject.trim() || !message.trim() || recipients.length === 0) {
       toast({
         title: 'Missing Information',
@@ -64,26 +96,42 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
       return;
     }
 
-    // In a real app, you would send this to your messaging system
-    console.log('Sending message:', {
-      from: user?.id,
-      to: recipients.map(r => r.id),
-      subject,
-      message,
-      priority
-    });
+    if (!user) return;
 
-    toast({
-      title: 'Message Sent',
-      description: `Message sent to ${recipients.length} recipient${recipients.length > 1 ? 's' : ''}.`,
-    });
+    try {
+      // Send messages to each recipient
+      for (const recipient of recipients) {
+        const { error } = await supabase
+          .from('messages')
+          .insert({
+            from_user_id: user.id,
+            to_user_id: recipient.user_id,
+            subject,
+            content: message
+          });
 
-    // Reset form
-    setRecipients([]);
-    setSubject('');
-    setMessage('');
-    setPriority('normal');
-    setOpen(false);
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Message Sent',
+        description: `Message sent to ${recipients.length} recipient${recipients.length > 1 ? 's' : ''}.`,
+      });
+
+      // Reset form
+      setRecipients([]);
+      setSubject('');
+      setMessage('');
+      setPriority('normal');
+      setOpen(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send message. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleAddAllByRole = (role: string) => {
@@ -161,9 +209,9 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
                 </SelectTrigger>
                 <SelectContent>
                   {availableUsers
-                    .filter(u => !recipients.find(r => r.id === u.id))
+                    .filter(u => !recipients.find(r => r.user_id === u.user_id))
                     .map(user => (
-                      <SelectItem key={user.id} value={user.id}>
+                      <SelectItem key={user.user_id} value={user.user_id}>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4" />
                           <span>{user.name}</span>
@@ -182,29 +230,29 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
                   <Label className="text-sm">Selected Recipients ({recipients.length})</Label>
                   <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
                     {recipients.map(recipient => (
-                      <div
-                        key={recipient.id}
-                        className="flex items-center gap-2 bg-accent rounded-lg px-3 py-2"
-                      >
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {recipient.name.split(' ').map(n => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{recipient.name}</p>
-                          <p className="text-xs text-muted-foreground">{recipient.role}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => handleRemoveRecipient(recipient.id)}
+                        <div
+                          key={recipient.user_id}
+                          className="flex items-center gap-2 bg-accent rounded-lg px-3 py-2"
                         >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="text-xs">
+                              {recipient.name.split(' ').map(n => n[0]).join('')}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{recipient.name}</p>
+                            <p className="text-xs text-muted-foreground">{recipient.role}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => handleRemoveRecipient(recipient.user_id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
                     ))}
                   </div>
                 </div>

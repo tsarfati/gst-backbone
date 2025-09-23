@@ -34,9 +34,54 @@ export default function TeamChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([
+    {
+      id: 'general',
+      name: 'general',
+      description: 'General team discussions',
+      member_count: 5,
+      is_general: true
+    },
+    {
+      id: 'project-updates',
+      name: 'project-updates',
+      description: 'Project status and updates',
+      member_count: 3
+    }
+  ]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlineUsers] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      fetchOnlineUsers();
+    }
+  }, [user]);
+
+  const fetchOnlineUsers = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, role')
+        .neq('user_id', user.id)
+        .limit(10);
+
+      if (error) throw error;
+
+      const users = (data || []).map(profile => ({
+        id: profile.user_id,
+        name: profile.display_name || 'Unknown User',
+        role: profile.role || 'employee',
+        status: 'online'
+      }));
+
+      setOnlineUsers(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

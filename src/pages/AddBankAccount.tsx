@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Building, DollarSign, CreditCard, Save, ArrowLeft } from 'lucide-react';
+import { Building, DollarSign, CreditCard, Save, ArrowLeft, Eye, EyeOff, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export default function AddBankAccount() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -24,8 +24,14 @@ export default function AddBankAccount() {
     bankName: '',
     accountType: '',
     initialBalance: '',
+    balanceDate: new Date().toISOString().split('T')[0],
     description: '',
   });
+  
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [showRoutingNumber, setShowRoutingNumber] = useState(false);
+  
+  const canViewSensitiveData = profile && ['admin', 'controller'].includes(profile.role);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -44,7 +50,7 @@ export default function AddBankAccount() {
     }
 
     // Basic validation
-    if (!formData.accountName || !formData.accountNumber || !formData.bankName || !formData.accountType) {
+    if (!formData.accountName || !formData.bankName || !formData.accountType) {
       toast({
         title: 'Validation Error',
         description: 'Please fill in all required fields.',
@@ -136,25 +142,62 @@ export default function AddBankAccount() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="accountNumber">Account Number <span className="text-destructive">*</span></Label>
-                <Input
-                  id="accountNumber"
-                  placeholder="Enter account number"
-                  value={formData.accountNumber}
-                  onChange={(e) => handleInputChange('accountNumber', e.target.value)}
-                  required
-                />
+                <Label htmlFor="accountNumber">Account Number</Label>
+                <div className="relative">
+                  <Input
+                    id="accountNumber"
+                    type={showAccountNumber ? "text" : "password"}
+                    placeholder="Enter account number"
+                    value={formData.accountNumber}
+                    onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                  />
+                  {canViewSensitiveData && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowAccountNumber(!showAccountNumber)}
+                    >
+                      {showAccountNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+                {!canViewSensitiveData && formData.accountNumber && (
+                  <p className="text-xs text-muted-foreground">
+                    Account Number: ****{formData.accountNumber.slice(-4)}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="routingNumber">Routing Number</Label>
-                <Input
-                  id="routingNumber"
-                  placeholder="9-digit routing number"
-                  value={formData.routingNumber}
-                  onChange={(e) => handleInputChange('routingNumber', e.target.value)}
-                  maxLength={9}
-                />
+                <div className="relative">
+                  <Input
+                    id="routingNumber"
+                    type={showRoutingNumber ? "text" : "password"}
+                    placeholder="9-digit routing number"
+                    value={formData.routingNumber}
+                    onChange={(e) => handleInputChange('routingNumber', e.target.value)}
+                    maxLength={9}
+                  />
+                  {canViewSensitiveData && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowRoutingNumber(!showRoutingNumber)}
+                    >
+                      {showRoutingNumber ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+                {!canViewSensitiveData && formData.routingNumber && (
+                  <p className="text-xs text-muted-foreground">
+                    Routing Number: ****{formData.routingNumber.slice(-4)}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -192,6 +235,20 @@ export default function AddBankAccount() {
                     placeholder="0.00"
                     value={formData.initialBalance}
                     onChange={(e) => handleInputChange('initialBalance', e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="balanceDate">Balance Date</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="balanceDate"
+                    type="date"
+                    value={formData.balanceDate}
+                    onChange={(e) => handleInputChange('balanceDate', e.target.value)}
                     className="pl-10"
                   />
                 </div>
