@@ -794,7 +794,7 @@ export default function TimeTracking() {
   return (
     <div className="min-h-[100dvh] bg-background overflow-x-hidden">
       {/* Mobile-first container with proper viewport handling */}
-      <div className="w-full max-w-[390px] sm:max-w-md mx-auto px-3 md:px-4 py-4 space-y-4">
+      <div className="w-full max-w-[100vw] sm:max-w-md mx-auto px-4 md:px-6 py-4 space-y-4 overflow-x-hidden">
 
         <div className="text-center px-2 pt-2">
           <h1 className="text-xl font-bold text-foreground mb-1">Punch Clock</h1>

@@ -89,7 +89,7 @@ export default function PunchClockDashboard() {
       const { data: outsData } = await supabase
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
-        .eq('punch_type', 'punched_out')
+        .eq('punch_type', 'out')
         .gte('punch_time', since)
         .order('punch_time', { ascending: false })
         .limit(200);
@@ -163,7 +163,7 @@ export default function PunchClockDashboard() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      <div className="w-full max-w-[390px] sm:max-w-3xl mx-auto px-3 py-4 md:px-6 space-y-6">
+      <div className="w-full max-w-[100vw] sm:max-w-3xl mx-auto px-4 py-4 md:px-6 space-y-6 overflow-x-hidden">
         <div className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
