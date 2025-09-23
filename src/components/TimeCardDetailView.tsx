@@ -4,11 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import AuditTrailView from './AuditTrailView';
+import EditTimeCardDialog from './EditTimeCardDialog';
 
 interface TimeCardDetailViewProps {
   open: boolean;
@@ -48,6 +51,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const { user, profile } = useAuth();
   const [timeCard, setTimeCard] = useState<TimeCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -104,14 +108,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
     try {
       // Get Mapbox token from Supabase secrets
-      const { data: { MAPBOX_PUBLIC_TOKEN } } = await supabase.functions.invoke('get-mapbox-token');
+      const { data } = await supabase.functions.invoke('get-mapbox-token');
       
-      if (!MAPBOX_PUBLIC_TOKEN) {
+      if (data?.MAPBOX_PUBLIC_TOKEN) {
+        mapboxgl.accessToken = data.MAPBOX_PUBLIC_TOKEN;
+      } else {
         console.error('Mapbox token not found');
-        return;
+        // Fallback token
+        mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbGJjM3JqdncwYnBiM29tc2NveWg2YnB1In0.DSvP8_hurZYK67HlqMVJOA';
       }
-
-      mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
     } catch (error) {
       console.error('Error getting Mapbox token:', error);
       // Fallback token
@@ -258,162 +263,181 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Details */}
-          <div className="space-y-4">
-            {/* Employee & Status Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Employee Information
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getStatusColor(timeCard.status)}>
-                      {timeCard.status.toUpperCase()}
-                    </Badge>
-                    {timeCard.distance_warning && (
-                      <Badge variant="destructive" className="flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Distance Warning
-                      </Badge>
-                    )}
-                    {!timeCard.requires_approval && (
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <CheckCircle className="h-3 w-3" />
-                        Auto-Approved
-                      </Badge>
-                    )}
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <h4 className="font-medium">{timeCard.profiles?.display_name || 'Unknown Employee'}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Entry Method: {timeCard.created_via_punch_clock ? 'Punch Clock' : 'Manual Entry'}
-                  </p>
-                </div>
-                
-                {timeCard.correction_reason && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-yellow-800 mb-1">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span className="font-medium">Correction Made</span>
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="audit">
+              <History className="h-4 w-4 mr-1" />
+              Audit Trail
+            </TabsTrigger>
+            <TabsTrigger value="map">
+              <MapPin className="h-4 w-4 mr-1" />
+              Location Map
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="details" className="space-y-4 mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left Column - Details */}
+              <div className="space-y-4">
+                {/* Employee & Status Info */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Employee Information
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getStatusColor(timeCard.status)}>
+                          {timeCard.status.toUpperCase()}
+                        </Badge>
+                        {timeCard.distance_warning && (
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Distance Warning
+                          </Badge>
+                        )}
+                        {!timeCard.requires_approval && (
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Auto-Approved
+                          </Badge>
+                        )}
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <h4 className="font-medium">{timeCard.profiles?.display_name || 'Unknown Employee'}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Entry Method: {timeCard.created_via_punch_clock ? 'Punch Clock' : 'Manual Entry'}
+                      </p>
                     </div>
-                    <p className="text-sm text-yellow-700">{timeCard.correction_reason}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Job & Time Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Job & Time Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Job</p>
-                    <p className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cost Code</p>
-                    <p className="font-medium">
-                      {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
-                    </p>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Punch In</p>
-                    <p className="font-medium">{formatTime(timeCard.punch_in_time)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Punch Out</p>
-                    <p className="font-medium">{formatTime(timeCard.punch_out_time)}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Hours</p>
-                    <p className="font-bold text-lg">{timeCard.total_hours.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Overtime</p>
-                    <p className="font-bold text-lg text-warning">{timeCard.overtime_hours.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Break</p>
-                    <p className="font-bold text-lg">{timeCard.break_minutes} min</p>
-                  </div>
-                </div>
-
-                {timeCard.distance_from_job_meters && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">
-                      <strong>Distance from Job:</strong> {timeCard.distance_from_job_meters.toFixed(0)} meters
-                    </p>
-                  </div>
-                )}
-
-                {timeCard.notes && (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">Notes</p>
-                    <p className="text-sm bg-muted/50 p-3 rounded-lg">{timeCard.notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Photos */}
-            {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    Punch Photos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    {timeCard.punch_in_photo_url && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">Punch In</p>
-                        <img 
-                          src={timeCard.punch_in_photo_url} 
-                          alt="Punch in photo" 
-                          className="w-full rounded-lg border"
-                        />
+                    
+                    {timeCard.correction_reason && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-yellow-800 mb-1">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="font-medium">Correction Made</span>
+                        </div>
+                        <p className="text-sm text-yellow-700">{timeCard.correction_reason}</p>
                       </div>
                     )}
-                    {timeCard.punch_out_photo_url && (
+                  </CardContent>
+                </Card>
+
+                {/* Job & Time Details */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Job & Time Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Punch Out</p>
-                        <img 
-                          src={timeCard.punch_out_photo_url} 
-                          alt="Punch out photo" 
-                          className="w-full rounded-lg border"
-                        />
+                        <p className="text-sm text-muted-foreground">Job</p>
+                        <p className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Cost Code</p>
+                        <p className="font-medium">
+                          {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Punch In</p>
+                        <p className="font-medium">{formatTime(timeCard.punch_in_time)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Punch Out</p>
+                        <p className="font-medium">{formatTime(timeCard.punch_out_time)}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Hours</p>
+                        <p className="font-bold text-lg">{timeCard.total_hours.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Overtime</p>
+                        <p className="font-bold text-lg text-warning">{timeCard.overtime_hours.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Break</p>
+                        <p className="font-bold text-lg">{timeCard.break_minutes} min</p>
+                      </div>
+                    </div>
+
+                    {timeCard.distance_from_job_meters && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-700">
+                          <strong>Distance from Job:</strong> {timeCard.distance_from_job_meters.toFixed(0)} meters
+                        </p>
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
 
-          {/* Right Column - Map */}
-          <div className="space-y-4">
+                    {timeCard.notes && (
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">Notes</p>
+                        <p className="text-sm bg-muted/50 p-3 rounded-lg">{timeCard.notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Photos */}
+                {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Camera className="h-4 w-4" />
+                        Punch Photos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        {timeCard.punch_in_photo_url && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">Punch In</p>
+                            <img 
+                              src={timeCard.punch_in_photo_url} 
+                              alt="Punch in photo" 
+                              className="w-full rounded-lg border"
+                            />
+                          </div>
+                        )}
+                        {timeCard.punch_out_photo_url && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">Punch Out</p>
+                            <img 
+                              src={timeCard.punch_out_photo_url} 
+                              alt="Punch out photo" 
+                              className="w-full rounded-lg border"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="audit" className="mt-6">
+            <AuditTrailView timeCardId={timeCard.id} />
+          </TabsContent>
+          
+          <TabsContent value="map" className="mt-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -443,19 +467,17 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
 
         <div className="flex justify-between gap-2 pt-4 border-t">
           <div className="flex gap-2">
             {(user?.id === timeCard.user_id || isManager) && (
               <Button 
                 variant="outline"
-                onClick={() => {
-                  // TODO: Open edit time card dialog
-                  console.log('Edit time card:', timeCard.id);
-                }}
+                onClick={() => setEditDialogOpen(true)}
               >
+                <Edit className="h-4 w-4 mr-2" />
                 Edit Time Card
               </Button>
             )}
@@ -464,6 +486,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             Close
           </Button>
         </div>
+
+        <EditTimeCardDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          timeCardId={timeCard.id}
+          onSave={() => {
+            loadTimeCardDetails();
+            setEditDialogOpen(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
