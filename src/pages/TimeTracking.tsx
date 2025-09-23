@@ -209,66 +209,89 @@ export default function TimeTracking() {
   const startCamera = async () => {
     try {
       setLoadingStatus('Starting camera...');
-      console.log('Requesting camera permission...');
+      console.log('Starting camera - checking support...');
       
+      // Check if getUserMedia is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera is not supported by this browser');
       }
 
-      // Try front camera first for mobile devices
-      let constraints = {
-        video: { 
-          facingMode: { ideal: 'user' },
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
-      };
+      console.log('getUserMedia is supported');
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Camera access granted:', stream);
-        setCameraStream(stream);
-        setShowCamera(true);
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream as MediaStream;
-          try {
-            videoRef.current.muted = true;
-            await videoRef.current.play();
-          } catch (e) {
-            console.warn('Video play failed:', e);
-          }
+      // For mobile devices, prefer front camera
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('Is mobile device:', isMobile);
+
+      let stream: MediaStream;
+      
+      if (isMobile) {
+        // On mobile, try front camera first
+        try {
+          console.log('Trying front camera on mobile...');
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'user',
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
+            },
+            audio: false
+          });
+          console.log('Front camera successful:', stream);
+        } catch (frontError) {
+          console.warn('Front camera failed, trying back camera:', frontError);
+          // Fallback to back camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
+            },
+            audio: false
+          });
+          console.log('Back camera successful:', stream);
         }
-        return;
-      } catch (frontCameraError) {
-        console.warn('Front camera failed, trying back camera:', frontCameraError);
+      } else {
+        // On desktop, use default camera
+        console.log('Using default camera for desktop...');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 }
+          },
+          audio: false
+        });
+        console.log('Desktop camera successful:', stream);
+      }
+
+      setCameraStream(stream);
+      setShowCamera(true);
+      
+      if (videoRef.current) {
+        console.log('Setting video source...');
+        videoRef.current.srcObject = stream;
+        videoRef.current.muted = true;
+        videoRef.current.playsInline = true;
         
-        // Fallback to back camera if front camera fails
-        constraints = {
-          video: { 
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 640 },
-            height: { ideal: 480 }
+        // For iOS Safari, we need to handle the play promise
+        try {
+          const playPromise = videoRef.current.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+            console.log('Video started playing successfully');
           }
-        };
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Back camera access granted:', stream);
-        setCameraStream(stream);
-        setShowCamera(true);
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream as MediaStream;
-          try {
-            videoRef.current.muted = true;
-            await videoRef.current.play();
-          } catch (e) {
-            console.warn('Video play failed:', e);
-          }
+        } catch (playError) {
+          console.warn('Video play failed, but continuing:', playError);
+          // Don't throw here, video might still work
         }
       }
+      
     } catch (error: any) {
-      console.error('Error starting camera:', error);
+      console.error('Camera error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
       let errorMessage = 'Could not access camera. Please check permissions.';
       
       if (error.name === 'NotAllowedError') {
@@ -277,6 +300,30 @@ export default function TimeTracking() {
         errorMessage = 'No camera found on this device.';
       } else if (error.name === 'NotSupportedError') {
         errorMessage = 'Camera is not supported by this browser.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Camera constraints not satisfied. Trying with basic settings.';
+        
+        // Try again with minimal constraints
+        try {
+          console.log('Retrying with minimal constraints...');
+          const basicStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+          
+          setCameraStream(basicStream);
+          setShowCamera(true);
+          
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream;
+            videoRef.current.muted = true;
+            videoRef.current.playsInline = true;
+            await videoRef.current.play().catch(e => console.warn('Basic video play failed:', e));
+          }
+          return; // Success with basic constraints
+        } catch (basicError) {
+          console.error('Basic constraints also failed:', basicError);
+        }
       }
       
       toast({
@@ -786,7 +833,9 @@ export default function TimeTracking() {
                   autoPlay
                   muted
                   playsInline
-                  className="w-full rounded-lg"
+                  controls={false}
+                  className="w-full rounded-lg bg-black"
+                  style={{ aspectRatio: '4/3' }}
                 />
                 <div className="flex gap-2">
                   <Button onClick={capturePhoto} className="flex-1">
