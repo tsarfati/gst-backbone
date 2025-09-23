@@ -231,7 +231,13 @@ export default function TimeTracking() {
         setShowCamera(true);
         
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = stream as MediaStream;
+          try {
+            videoRef.current.muted = true;
+            await videoRef.current.play();
+          } catch (e) {
+            console.warn('Video play failed:', e);
+          }
         }
         return;
       } catch (frontCameraError) {
@@ -252,7 +258,13 @@ export default function TimeTracking() {
         setShowCamera(true);
         
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = stream as MediaStream;
+          try {
+            videoRef.current.muted = true;
+            await videoRef.current.play();
+          } catch (e) {
+            console.warn('Video play failed:', e);
+          }
         }
       }
     } catch (error: any) {
@@ -592,37 +604,6 @@ export default function TimeTracking() {
     <div className="min-h-screen bg-background">
       {/* Mobile-optimized container */}
       <div className="max-w-md mx-auto md:max-w-4xl p-4 md:p-6 space-y-4 md:space-y-6">
-      {/* Welcome Header */}
-      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {getGreetingIcon()}
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  {getGreeting()}, {profile?.first_name || profile?.display_name || 'Employee'}!
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {format(new Date(), 'EEEE, MMMM do, yyyy')} • {currentCompany?.display_name || currentCompany?.name || 'Your Company'}
-                </p>
-              </div>
-            </div>
-            {currentCompany?.logo_url && (
-              <img 
-                src={currentCompany.logo_url.includes('http') 
-                  ? currentCompany.logo_url 
-                  : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
-                } 
-                alt="Company Logo" 
-                className="h-12 w-12 object-contain rounded-md" 
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
         <div className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
@@ -630,6 +611,38 @@ export default function TimeTracking() {
             Track your work hours with job and cost code selection
           </p>
         </div>
+
+        {/* Welcome Header (moved below title) */}
+        <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {getGreetingIcon()}
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {getGreeting()}, {profile?.first_name || profile?.display_name || 'Employee'}!
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(), 'EEEE, MMMM do, yyyy')} • {currentCompany?.display_name || currentCompany?.name || 'Your Company'}
+                  </p>
+                </div>
+              </div>
+              {currentCompany?.logo_url && (
+                <img 
+                  src={currentCompany.logo_url.includes('http') 
+                    ? currentCompany.logo_url 
+                    : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
+                  } 
+                  alt="Company Logo" 
+                  className="h-12 w-12 object-contain rounded-md" 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Current Status - Mobile optimized */}
       <Card className="shadow-elevation-md">
@@ -771,6 +784,7 @@ export default function TimeTracking() {
                 <video
                   ref={videoRef}
                   autoPlay
+                  muted
                   playsInline
                   className="w-full rounded-lg"
                 />

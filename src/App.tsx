@@ -68,6 +68,7 @@ import Deposits from "./pages/Deposits";
 import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
 import Reconcile from "./pages/Reconcile";
+import PunchClockDashboard from "./pages/PunchClockDashboard";
 
 const queryClient = new QueryClient();
 
@@ -141,6 +142,7 @@ function AppRoutes() {
                       <Route path="punch-clock" element={<TimeTracking />} />
                       <Route path="time-sheets" element={<TimeSheets />} />
                       <Route path="punch-clock/timesheets" element={<TimeSheets />} />
+                      <Route path="punch-clock/dashboard" element={<PunchClockDashboard />} />
                       <Route path="punch-clock/reports" element={<TimecardReports />} />
                       <Route path="punch-clock/settings" element={<PunchClockSettings />} />
                       <Route path="messages" element={<AllMessages />} />
