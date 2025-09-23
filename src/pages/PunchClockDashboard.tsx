@@ -117,7 +117,7 @@ export default function PunchClockDashboard() {
     };
 
     load();
-    const interval = setInterval(load, 60_000);
+    const interval = setInterval(load, 5_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -163,8 +163,8 @@ export default function PunchClockDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="w-full max-w-full sm:max-w-3xl mx-auto px-4 py-4 md:px-6 space-y-6">
-        <div className="text-center">
+      <div className="w-full px-8 md:px-16 py-4 space-y-6">
+        <div className="text-left">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
         </div>

@@ -544,7 +544,7 @@ export default function TimeTracking() {
             punch_in_location_lng: location?.lng ?? null,
             punch_in_photo_url: photoUrl,
             is_active: true,
-          });
+          }, { onConflict: 'user_id' });
 
         if (statusError) {
           console.error('Error updating punch status:', statusError);
@@ -714,7 +714,7 @@ export default function TimeTracking() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
       {/* Mobile-first container - left aligned */}
-      <div className="w-full max-w-md min-h-screen flex flex-col bg-background/95 backdrop-blur-sm ml-0">
+      <div className="w-full max-w-4xl min-h-screen flex flex-col bg-background/95 backdrop-blur-sm px-8 md:px-16">
         {/* Welcome Header */}
         <div className="px-4 py-4">
           <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
