@@ -63,6 +63,7 @@ const menuItems = [
   { key: 'bill-status', label: 'Bill Status', description: 'Track bill payment status', category: 'Finance' },
   { key: 'payment-history', label: 'Payment History', description: 'View payment records', category: 'Finance' },
   { key: 'payment-reports', label: 'Payment Reports', description: 'Generate payment reports', category: 'Finance' },
+  { key: 'payables-dashboard', label: 'Payables Dashboard', description: 'Payables overview and analytics', category: 'Finance' },
   
   // Receipt Management
   { key: 'receipts-upload', label: 'Upload Receipts', description: 'Upload receipt images', category: 'Receipts' },

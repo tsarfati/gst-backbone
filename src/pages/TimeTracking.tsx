@@ -389,7 +389,6 @@ export default function TimeTracking() {
 
     try {
       setPunchType('punched_in');
-      setShowPunchDialog(true);
 
       // Auto-start camera and location simultaneously
       const promises = [];
@@ -435,10 +434,11 @@ export default function TimeTracking() {
 
     try {
       setPunchType('punched_out');
-      setShowPunchDialog(true);
 
       // Start camera immediately
-      await startCamera();
+      if (employeeSettings?.require_photo !== false) {
+        await startCamera();
+      }
 
       // Try to fetch location in the background (non-blocking)
       getCurrentLocation()
@@ -560,7 +560,7 @@ export default function TimeTracking() {
           description: 'Successfully punched in!',
         });
         
-        loadCurrentStatus();
+        await loadCurrentStatus();
       } else {
         // Insert punch_out record
         const { error: punchError } = await supabase
@@ -606,7 +606,6 @@ export default function TimeTracking() {
       }
 
       // Reset form
-      setShowPunchDialog(false);
       setPhotoBlob(null);
       setPhotoPreview(null);
       setNotes('');
@@ -627,14 +626,14 @@ export default function TimeTracking() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
-      {/* Mobile-first container with 9:16 aspect ratio layout */}
-      <div className="max-w-sm mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50" style={{ aspectRatio: '9/16' }}>
+      {/* Mobile-first container - left aligned */}
+      <div className="max-w-md mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50">
         {/* Welcome Header */}
         <div className="px-4 py-4">
           <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
             <CardContent className="p-4">
-              <div className="text-center space-y-2">
-                <div className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
+              <div className="text-left space-y-2">
+                <div className="flex items-center gap-2 text-lg font-bold text-foreground">
                   <span className="text-xl">{getGreetingIcon()}</span>
                   <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
                 </div>
@@ -649,17 +648,17 @@ export default function TimeTracking() {
         {/* Main Content */}
         <div className="flex-1 px-4 pb-6">
           {/* Large Status Display */}
-          <div className="text-center mb-6">
+          <div className="text-left mb-6">
             {currentStatus && currentStatus.is_active ? (
               <div className="space-y-4">
-                {/* Large Green Status Icon */}
-                <div className="mx-auto w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                  <Clock className="h-16 w-16 text-white" />
+                {/* Large Green Status Icon - Left aligned */}
+                <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                  <Clock className="h-12 w-12 text-white" />
                 </div>
                 
                 {/* Live Timer */}
                 <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800">
-                  <div className="text-5xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
+                  <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
                     {getElapsedTime()}
                   </div>
                   <div className="text-green-600 dark:text-green-400 font-medium">
@@ -673,25 +672,100 @@ export default function TimeTracking() {
                   <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
                   <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
                 </div>
+
+                {/* Inline Camera for Punch Out */}
+                {showCamera && (
+                  <div className="space-y-4">
+                    <div className="relative overflow-hidden rounded-xl bg-black">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        controls={false}
+                        className="w-full"
+                        style={{ aspectRatio: '4/3' }}
+                      />
+                      <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
+                        <Camera className="h-4 w-4 mr-2" />
+                        Take Photo
+                      </Button>
+                      <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 
-                {/* Single Punch Out Button */}
+                {photoPreview && (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
+                      <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setPhotoPreview(null);
+                        setPhotoBlob(null);
+                        startCamera();
+                      }}
+                      className="w-full h-12 rounded-xl"
+                    >
+                      Retake Photo
+                    </Button>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="notes" className="font-medium">Work Summary (Optional)</Label>
+                      <Textarea
+                        id="notes"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Describe what you accomplished today..."
+                        className="rounded-xl border-2 min-h-[100px] resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Punch Out Button */}
                 <Button 
-                  onClick={handlePunchOut}
+                  onClick={showCamera ? confirmPunch : handlePunchOut}
+                  disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
                   className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
                 >
-                  <CheckCircle className="h-6 w-6 mr-3" />
-                  Punch Out
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                      {loadingStatus}
+                    </>
+                  ) : showCamera && photoBlob ? (
+                    <>
+                      <CheckCircle className="h-6 w-6 mr-3" />
+                      Complete Punch Out
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-6 w-6 mr-3" />
+                      {showCamera ? 'Take Photo First' : 'Punch Out'}
+                    </>
+                  )}
                 </Button>
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Large Red Status Icon */}
-                <div className="mx-auto w-32 h-32 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
-                  <Timer className="h-16 w-16 text-white" />
+                {/* Large Red Status Icon - Left aligned */}
+                <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+                  <Timer className="h-12 w-12 text-white" />
                 </div>
                 
                 <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
-                  <div className="text-4xl font-bold text-red-700 dark:text-red-300 mb-2">Not Working</div>
+                  <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Not Working</div>
                   <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
                 </div>
                 
@@ -724,10 +798,59 @@ export default function TimeTracking() {
                       </SelectContent>
                     </Select>
                   )}
+
+                  {/* Inline Camera for Punch In */}
+                  {showCamera && (
+                    <div className="space-y-4">
+                      <div className="relative overflow-hidden rounded-xl bg-black">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          controls={false}
+                          className="w-full"
+                          style={{ aspectRatio: '4/3' }}
+                        />
+                        <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
+                      </div>
+                      <div className="flex gap-3">
+                        <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
+                          <Camera className="h-4 w-4 mr-2" />
+                          Take Photo
+                        </Button>
+                        <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {photoPreview && (
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
+                        <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
+                          <CheckCircle className="h-4 w-4" />
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setPhotoPreview(null);
+                          setPhotoBlob(null);
+                          startCamera();
+                        }}
+                        className="w-full h-12 rounded-xl"
+                      >
+                        Retake Photo
+                      </Button>
+                    </div>
+                  )}
                   
                   <Button
-                    onClick={handlePunchIn}
-                    disabled={!selectedJob || !selectedCostCode || isLoading}
+                    onClick={showCamera ? confirmPunch : handlePunchIn}
+                    disabled={(!showCamera && (!selectedJob || !selectedCostCode)) || (showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob)) || isLoading}
                     className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
                   >
                     {isLoading ? (
@@ -735,10 +858,15 @@ export default function TimeTracking() {
                         <Loader2 className="h-6 w-6 mr-3 animate-spin" />
                         {loadingStatus}
                       </>
+                    ) : showCamera && photoBlob ? (
+                      <>
+                        <CheckCircle className="h-6 w-6 mr-3" />
+                        Complete Punch In
+                      </>
                     ) : (
                       <>
-                        <Timer className="h-6 w-6 mr-3" />
-                        Punch In
+                        <Camera className="h-6 w-6 mr-3" />
+                        {showCamera ? 'Take Photo First' : 'Punch In'}
                       </>
                     )}
                   </Button>
@@ -759,123 +887,7 @@ export default function TimeTracking() {
         </div>
       </div>
 
-      {/* Enhanced Punch Dialog */}
-      <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
-        <DialogContent className="w-full max-w-[95vw] sm:max-w-lg mx-auto max-h-[90vh] overflow-y-auto rounded-2xl">
-          <DialogHeader className="text-center pb-4">
-            <DialogTitle className="text-xl font-bold">
-              {punchType === 'punched_in' ? 'Start Working' : 'Complete Workday'}
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              {punchType === 'punched_in' ? 'Take a photo and punch in to begin' : 'Take a photo and add notes to finish'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            {location && (
-              <div className="flex items-center gap-2 text-sm text-success bg-success/10 p-3 rounded-lg border border-success/20">
-                <MapPin className="h-4 w-4" />
-                Location verified
-              </div>
-            )}
-            
-            {showCamera && (
-              <div className="space-y-4">
-                <div className="relative overflow-hidden rounded-xl bg-black">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    controls={false}
-                    className="w-full"
-                    style={{ aspectRatio: '4/3' }}
-                  />
-                  <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
-                </div>
-                <div className="flex gap-3">
-                  <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
-                    <Camera className="h-4 w-4 mr-2" />
-                    Take Photo
-                  </Button>
-                  <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-            {photoPreview && (
-              <div className="space-y-4">
-                <div className="relative">
-                  <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
-                  <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
-                    <CheckCircle className="h-4 w-4" />
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setPhotoPreview(null);
-                    setPhotoBlob(null);
-                    startCamera();
-                  }}
-                  className="w-full h-12 rounded-xl"
-                >
-                  Retake Photo
-                </Button>
-              </div>
-            )}
-            
-            {punchType === 'punched_out' && (
-              <div className="space-y-2">
-                <Label htmlFor="notes" className="font-medium">Work Summary (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Describe what you accomplished today..."
-                  className="rounded-xl border-2 min-h-[100px] resize-none"
-                />
-              </div>
-            )}
-            
-            <div className="flex gap-3">
-              <Button
-                onClick={confirmPunch}
-                disabled={((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
-                className="flex-1 h-12 rounded-xl shadow-lg"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {loadingStatus}
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    {punchType === 'punched_in' ? 'Start Working' : 'Finish Work'}
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowPunchDialog(false);
-                  stopCamera();
-                  setPhotoPreview(null);
-                  setPhotoBlob(null);
-                }}
-                className="px-6 h-12 rounded-xl"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-          
-          <canvas ref={canvasRef} style={{ display: 'none' }} />
-        </DialogContent>
-      </Dialog>
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   );
 }

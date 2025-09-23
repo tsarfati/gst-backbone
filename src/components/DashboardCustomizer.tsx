@@ -345,7 +345,7 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
   const totalCount = allTiles.length;
 
   return (
-    <div className="space-y-6">
+    <div className="h-full max-h-[80vh] flex flex-col space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Dashboard Layout</h3>
@@ -358,14 +358,14 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
         </Badge>
       </div>
 
-      <Tabs defaultValue="customize" className="w-full">
+      <Tabs defaultValue="customize" className="w-full flex-1 flex flex-col overflow-hidden">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="customize">Customize Sections</TabsTrigger>
           <TabsTrigger value="reorder">Reorder Layout</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="customize" className="space-y-4">
-          <div className="grid gap-4">
+        <TabsContent value="customize" className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto pr-2 space-y-4">
             {Object.entries(tilesByCategory).map(([category, tiles]) => (
               <Card key={category} className="border-2">
                 <CardHeader className="pb-3">
@@ -424,8 +424,8 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
           </div>
         </TabsContent>
 
-        <TabsContent value="reorder" className="space-y-4">
-          <div className="space-y-2">
+        <TabsContent value="reorder" className="flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto pr-2 space-y-4">
             <p className="text-sm text-muted-foreground">
               Drag and drop to reorder sections. Only enabled sections will appear on your dashboard.
             </p>
