@@ -707,6 +707,7 @@ export default function TimeTracking() {
             job_id: currentStatus?.job_id,
             cost_code_id: currentStatus?.cost_code_id,
             punch_type: 'punched_out',
+            punch_time: new Date().toISOString(),
             latitude: location?.lat ?? null,
             longitude: location?.lng ?? null,
             photo_url: photoUrl,
@@ -889,7 +890,7 @@ export default function TimeTracking() {
                     <SelectTrigger className="h-10 w-full">
                       <SelectValue placeholder="Choose a job" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="w-[var(--radix-popper-anchor-width)] max-w-[95vw]">
                       {jobs.map((job) => (
                         <SelectItem key={job.id} value={job.id}>
                           {job.name}
@@ -906,7 +907,7 @@ export default function TimeTracking() {
                       <SelectTrigger className="h-10 w-full">
                         <SelectValue placeholder="Choose a cost code" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="w-[var(--radix-popper-anchor-width)] max-w-[95vw]">
                         {costCodes.map((code) => (
                           <SelectItem key={code.id} value={code.id}>
                             {code.code} - {code.description}
