@@ -500,14 +500,14 @@ export default function TimeTracking() {
     try {
       let photoUrl = null;
       if (photoBlob) {
-        setLoadingStatus('Uploading photo...');
         photoUrl = await uploadPhoto(photoBlob);
+        if (!photoUrl) {
+          throw new Error('Failed to upload photo');
+        }
       }
 
-      setLoadingStatus('Recording punch...');
-
       if (punchType === 'punched_in') {
-        // Insert punch_in record
+        // Create punch in record
         const { error: punchError } = await supabase
           .from('punch_records')
           .insert({
@@ -515,194 +515,75 @@ export default function TimeTracking() {
             job_id: selectedJob,
             cost_code_id: selectedCostCode,
             punch_type: 'punched_in',
-            punch_time: new Date().toISOString(),
-            latitude: location?.lat ?? null,
-            longitude: location?.lng ?? null,
+            latitude: location?.lat,
+            longitude: location?.lng,
             photo_url: photoUrl,
-            notes: notes || null,
+            notes: notes || null
           });
 
-        if (punchError) {
-          console.error('Error creating punch in record:', punchError);
-          toast({
-            title: 'Error',
-            description: 'Failed to record punch in. Please try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
+        if (punchError) throw punchError;
 
-        // Update current punch status
+        // Create current status
         const { error: statusError } = await supabase
           .from('current_punch_status')
-          .upsert({
+          .insert({
             user_id: user.id,
             job_id: selectedJob,
             cost_code_id: selectedCostCode,
             punch_in_time: new Date().toISOString(),
-            punch_in_location_lat: location?.lat ?? null,
-            punch_in_location_lng: location?.lng ?? null,
+            punch_in_location_lat: location?.lat,
+            punch_in_location_lng: location?.lng,
             punch_in_photo_url: photoUrl,
-            is_active: true,
-          }, { onConflict: 'user_id' });
-
-        if (statusError) {
-          console.error('Error updating punch status:', statusError);
-          toast({
-            title: 'Warning',
-            description: 'Punch recorded but status may not be accurate.',
-            variant: 'destructive',
+            is_active: true
           });
-        }
 
-        toast({
-          title: 'Success',
-          description: 'Successfully punched in!',
-        });
-        
-        // Immediately update local state to reflect punched in status
-        const newStatus: PunchStatus = {
-          id: 'temp-id',
-          job_id: selectedJob,
-          cost_code_id: selectedCostCode,
-          punch_in_time: new Date().toISOString(),
-          punch_in_location_lat: location?.lat ?? null,
-          punch_in_location_lng: location?.lng ?? null,
-          punch_in_photo_url: photoUrl,
-          is_active: true,
-        };
-        setCurrentStatus(newStatus);
-        
-        // Force reload of current status to get the correct ID
-        setTimeout(() => loadCurrentStatus(), 100);
+        if (statusError) throw statusError;
       } else {
-        // Calculate distance from job if job has coordinates
-        let distanceWarning = false;
-        let distanceFromJob = null;
-
-        if (location && currentStatus?.job_id) {
-          const { data: jobData } = await supabase
-            .from('jobs')
-            .select('latitude, longitude')
-            .eq('id', currentStatus.job_id)
-            .single();
-
-          if (jobData?.latitude && jobData?.longitude) {
-            // Calculate distance using Haversine formula
-            const lat1 = location.lat * Math.PI / 180;
-            const lat2 = jobData.latitude * Math.PI / 180;
-            const deltaLat = (jobData.latitude - location.lat) * Math.PI / 180;
-            const deltaLng = (jobData.longitude - location.lng) * Math.PI / 180;
-
-            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
-                    Math.cos(lat1) * Math.cos(lat2) *
-                    Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            distanceFromJob = 6371000 * c; // Distance in meters
-
-            // Check distance warning settings
-            const { data: punchSettings } = await supabase
-              .from('punch_clock_settings')
-              .select('enable_distance_warnings, max_distance_from_job_meters')
-              .single();
-
-            if (punchSettings?.enable_distance_warnings && distanceFromJob > (punchSettings.max_distance_from_job_meters || 200)) {
-              distanceWarning = true;
-            }
-          }
-        }
-
-        // Insert punch_out record
+        // Punch out
         const { error: punchError } = await supabase
           .from('punch_records')
           .insert({
             user_id: user.id,
-            job_id: currentStatus?.job_id,
-            cost_code_id: currentStatus?.cost_code_id,
+            job_id: currentStatus.job_id,
+            cost_code_id: currentStatus.cost_code_id,
             punch_type: 'punched_out',
-            punch_time: new Date().toISOString(),
-            latitude: location?.lat ?? null,
-            longitude: location?.lng ?? null,
+            latitude: location?.lat,
+            longitude: location?.lng,
             photo_url: photoUrl,
-            notes: notes || null,
+            notes: notes || null
           });
 
-        if (punchError) {
-          console.error('Error creating punch out record:', punchError);
-          toast({
-            title: 'Error',
-            description: 'Failed to record punch out. Please try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
+        if (punchError) throw punchError;
 
-        // Clear current punch status
-        const { error: clearError } = await supabase
+        // Deactivate current status
+        const { error: statusError } = await supabase
           .from('current_punch_status')
           .update({ is_active: false })
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .eq('is_active', true);
 
-        if (clearError) {
-          console.error('Error clearing punch status:', clearError);
-        }
-
-        // Create time card entry with appropriate approval status
-        const requiresApproval = distanceWarning; // Only require approval if distance warning
-
-        const { error: timeCardError } = await supabase
-          .from('time_cards')
-          .insert({
-            user_id: user.id,
-            job_id: currentStatus?.job_id,
-            cost_code_id: currentStatus?.cost_code_id,
-            punch_in_time: currentStatus?.punch_in_time,
-            punch_out_time: new Date().toISOString(),
-            total_hours: currentStatus ? 
-              Math.max(0, (Date.now() - new Date(currentStatus.punch_in_time).getTime()) / (1000 * 60 * 60)) : 0,
-            overtime_hours: 0, // Will be calculated by trigger
-            status: requiresApproval ? 'submitted' : 'approved',
-            break_minutes: 0,
-            notes: notes || null,
-            punch_in_location_lat: currentStatus?.punch_in_location_lat,
-            punch_in_location_lng: currentStatus?.punch_in_location_lng,
-            punch_out_location_lat: location?.lat,
-            punch_out_location_lng: location?.lng,
-            punch_in_photo_url: currentStatus?.punch_in_photo_url,
-            punch_out_photo_url: photoUrl,
-            created_via_punch_clock: true,
-            requires_approval: requiresApproval,
-            distance_warning: distanceWarning,
-            distance_from_job_meters: distanceFromJob
-          });
-
-        if (timeCardError) {
-          console.error('Error creating time card:', timeCardError);
-        }
-
-        toast({
-          title: 'Success',
-          description: distanceWarning ? 
-            'Punch out recorded with distance warning!' : 
-            'Successfully punched out!',
-          variant: distanceWarning ? 'destructive' : 'default',
-        });
-        
-        setCurrentStatus(null);
+        if (statusError) throw statusError;
       }
 
       // Reset form
+      setNotes('');
+      if (punchType === 'punched_in') {
+        setSelectedJob('');
+        setSelectedCostCode('');
+      }
       setPhotoBlob(null);
       setPhotoPreview(null);
-      setNotes('');
       setLocation(null);
-      setShowPunchDialog(false);
       stopCamera();
+
+      // Reload current status
+      loadCurrentStatus();
+
     } catch (error: any) {
       console.error('Error during punch:', error);
       toast({
-        title: 'Error',
-        description: error.message || 'An unexpected error occurred.',
+        title: 'Punch Error',
+        description: error.message || 'Failed to record punch. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -712,295 +593,270 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
-        {/* Mobile-first container with 9:16 aspect ratio constraints */}
-        <div className="w-full max-w-xs min-h-screen flex flex-col bg-background/95 backdrop-blur-sm px-4 mx-auto">
-          {/* Welcome Header */}
-          <div className="py-4">
-            <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-left space-y-2">
-                  <div className="flex items-center gap-2 text-lg font-bold text-foreground">
-                    <span className="text-xl">{getGreetingIcon()}</span>
-                    <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(), 'EEEE, MMMM do, yyyy')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+    <div className="min-h-screen bg-background">
+      <div className="w-full px-4 py-4 space-y-6">
+        {/* Greeting Section */}
+        <div className="text-left">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">{getGreetingIcon()}</span>
+            <h2 className="text-lg font-medium text-muted-foreground">{getGreeting()}</h2>
           </div>
+          <h1 className="text-xl font-bold text-foreground">
+            {profile?.display_name || profile?.first_name || 'Employee'}
+          </h1>
+        </div>
 
-          {/* Main Content */}
-          <div className="flex-1 pb-6">
-            {/* Large Status Display */}
-            <div className="text-center mb-6">
-              {currentStatus && currentStatus.is_active ? (
-                <div className="space-y-4">
-                  {/* Large Green Status Icon - Centered */}
-                  <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse mx-auto">
-                    <Clock className="h-12 w-12 text-white" />
+        {/* Status Display */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center space-y-4">
+              <div className="flex justify-center w-full">
+                <div className="relative">
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 ${
+                    currentStatus ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'
+                  }`}>
+                    <Clock className={`w-12 h-12 ${currentStatus ? 'text-green-600' : 'text-red-600'}`} />
                   </div>
-                  
-                   {/* Live Timer */}
-                   <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800 text-left">
-                     <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
-                       {getElapsedTime()}
-                     </div>
-                     <div className="text-green-600 dark:text-green-400 font-medium">
-                       Started at {formatTime(currentStatus.punch_in_time)}
-                     </div>
-                   </div>
-                   
-                   {/* Job Info */}
-                   <div className="bg-card rounded-xl p-4 border border-border shadow-sm text-left">
-                     <div className="text-sm text-muted-foreground mb-1">Working on</div>
-                     <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
-                     <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
-                   </div>
-
-                   {/* Inline Camera for Punch Out */}
-                   {showCamera && (
-                     <div className="space-y-4">
-                       <div className="relative overflow-hidden rounded-xl bg-black">
-                         <video
-                           ref={videoRef}
-                           autoPlay
-                           muted
-                           playsInline
-                           controls={false}
-                           className="w-full"
-                           style={{ aspectRatio: '4/3' }}
-                         />
-                         <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
-                       </div>
-                       <div className="flex gap-3">
-                         <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
-                           <Camera className="h-4 w-4 mr-2" />
-                           Take Photo
-                         </Button>
-                         <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
-                           Cancel
-                         </Button>
-                       </div>
-                     </div>
-                   )}
-                  
-                  {/* Punch Out Button - only show if not showing camera */}
-                  {!showCamera && (
-                    <div className="w-full">
-                      <Button 
-                        onClick={handlePunchOut}
-                        disabled={isLoading}
-                        className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                            {loadingStatus}
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="h-6 w-6 mr-3" />
-                            Punch Out
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {/* Photo Preview and Final Punch Out Button */}
-                  {photoPreview && (
-                    <div className="space-y-4">
-                      <div className="relative">
-                        <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
-                        <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
-                          <CheckCircle className="h-4 w-4" />
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setPhotoPreview(null);
-                          setPhotoBlob(null);
-                          startCamera();
-                        }}
-                        className="w-full h-12 rounded-xl"
-                      >
-                        Retake Photo
-                      </Button>
-                      
-                      <Button
-                        onClick={confirmPunch}
-                        disabled={isLoading}
-                        className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                            {loadingStatus}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-6 w-6 mr-3" />
-                            Punch Out
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
+                  <div className={`absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center ${
+                    currentStatus ? 'bg-green-500' : 'bg-red-500'
+                  }`}>
+                    {currentStatus ? (
+                      <CheckCircle className="w-4 h-4 text-white" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-white" />
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Large Red Status Icon - Centered */}
-                  <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg mx-auto">
-                    <Timer className="h-12 w-12 text-white" />
-                  </div>
-                  
-                   <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800 text-left">
-                     <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Punched Out</div>
-                     <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
-                   </div>
-                  
-                  {/* Job Selection */}
-                  <div className="space-y-4">
-                    <Select value={selectedJob} onValueChange={setSelectedJob}>
-                      <SelectTrigger className="h-14 text-lg rounded-xl border-2 bg-background/95 backdrop-blur-sm">
-                        <SelectValue placeholder="Select Job" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
-                        {jobs.map((job) => (
-                          <SelectItem key={job.id} value={job.id} className="text-lg py-3">
-                            {job.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {selectedJob && (
-                      <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                        <SelectTrigger className="h-14 text-lg rounded-xl border-2 bg-background/95 backdrop-blur-sm">
-                          <SelectValue placeholder="Select Cost Code" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
-                          {costCodes.map((code) => (
-                            <SelectItem key={code.id} value={code.id} className="text-lg py-3">
-                              {code.code} - {code.description}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {/* Take Photo Button - First step */}
-                    {!showCamera && !photoPreview && selectedJob && selectedCostCode && (
-                      <div className="space-y-4">
-                        <Button
-                          onClick={handlePunchIn}
-                          disabled={isLoading}
-                          className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                              {loadingStatus}
-                            </>
-                          ) : (
-                            <>
-                              <Camera className="h-6 w-6 mr-3" />
-                              Take Photo
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Inline Camera for Taking Photo */}
-                    {showCamera && (
-                      <div className="space-y-4">
-                        <div className="relative overflow-hidden rounded-xl bg-black">
-                          <video
-                            ref={videoRef}
-                            autoPlay
-                            muted
-                            playsInline
-                            controls={false}
-                            className="w-full"
-                            style={{ aspectRatio: '4/3' }}
-                          />
-                          <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
-                        </div>
-                        <div className="flex gap-3">
-                          <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
-                            <Camera className="h-4 w-4 mr-2" />
-                            Take Photo
-                          </Button>
-                          <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Photo Preview and Retake/Punch In Buttons */}
-                    {photoPreview && (
-                      <div className="space-y-4">
-                        <div className="relative">
-                          <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
-                          <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
-                            <CheckCircle className="h-4 w-4" />
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setPhotoPreview(null);
-                            setPhotoBlob(null);
-                            startCamera();
-                          }}
-                          className="w-full h-12 rounded-xl"
-                        >
-                          Retake Photo
-                        </Button>
-                        
-                        <Button
-                          onClick={confirmPunch}
-                          disabled={isLoading}
-                          className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                              {loadingStatus}
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="h-6 w-6 mr-3" />
-                              Punch In
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+              </div>
+            </div>
+              
+            <div className="text-left mt-4">
+              <p className="text-lg font-semibold">
+                {currentStatus ? 'Punched In' : 'Punched Out'}
+              </p>
+              {currentStatus && (
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Since {formatTime(currentStatus.punch_in_time)}
+                  </p>
+                  <p className="text-lg font-mono font-bold text-primary">
+                    {getElapsedTime()}
+                  </p>
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
 
-          {/* Employee Messaging Panel */}
-          {currentStatus && (
-            <div className="animate-fade-in">
-              <EmployeeMessagingPanel 
-                currentJobId={currentStatus.job_id}
-                isVisible={true}
-              />
+        {/* Job and Cost Code Selection */}
+        {!currentStatus && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-left">Select Job & Cost Code</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="job-select">Job</Label>
+                <Select value={selectedJob} onValueChange={setSelectedJob}>
+                  <SelectTrigger id="job-select" className="bg-background border border-input">
+                    <SelectValue placeholder="Choose a job" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-input z-50">
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="cost-code-select">Cost Code</Label>
+                <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                  <SelectTrigger id="cost-code-select" className="bg-background border border-input">
+                    <SelectValue placeholder="Choose a cost code" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-input z-50">
+                    {costCodes.map((code) => (
+                      <SelectItem key={code.id} value={code.id}>
+                        {code.code} - {code.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Add any notes about this punch..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="bg-background border border-input"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Punch Actions */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-left">
+              {!currentStatus ? (
+                <Button 
+                  onClick={handlePunchIn}
+                  disabled={isLoading || !selectedJob || !selectedCostCode}
+                  size="lg"
+                  className="w-full h-14 text-lg font-semibold bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>{loadingStatus}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Timer className="h-6 w-6" />
+                      <span>Punch In</span>
+                    </div>
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handlePunchOut}
+                  disabled={isLoading}
+                  size="lg"
+                  className="w-full h-14 text-lg font-semibold bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>{loadingStatus}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Timer className="h-6 w-6" />
+                      <span>Punch Out</span>
+                    </div>
+                  )}
+                </Button>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </CardContent>
+        </Card>
 
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+        {/* Messaging Panel */}
+        <EmployeeMessagingPanel isVisible={true} />
+
+        {/* Camera Dialog */}
+        <Dialog open={showCamera} onOpenChange={setShowCamera}>
+          <DialogContent className="w-full max-w-md">
+            <DialogHeader>
+              <DialogTitle>Take Photo</DialogTitle>
+              <DialogDescription>
+                Capture a photo for your {punchType === 'punched_in' ? 'punch in' : 'punch out'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex flex-col items-center space-y-4">
+              <div className="relative w-full">
+                <video
+                  ref={videoRef}
+                  className="w-full rounded-lg border"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                <canvas
+                  ref={canvasRef}
+                  className="hidden"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <Button onClick={capturePhoto} size="lg">
+                  <Camera className="h-5 w-5 mr-2" />
+                  Capture Photo
+                </Button>
+                <Button onClick={() => setShowCamera(false)} variant="outline" size="lg">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Photo Preview Dialog */}
+        <Dialog open={!!photoPreview} onOpenChange={(open) => !open && setPhotoPreview(null)}>
+          <DialogContent className="w-full max-w-md">
+            <DialogHeader>
+              <DialogTitle>Complete {punchType === 'punched_in' ? 'Punch In' : 'Punch Out'}</DialogTitle>
+              <DialogDescription>
+                Photo captured successfully
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex flex-col items-center space-y-4">
+              {photoPreview && (
+                <img 
+                  src={photoPreview} 
+                  alt="Captured photo" 
+                  className="w-full rounded-lg border"
+                />
+              )}
+              
+              <div className="flex gap-3 w-full">
+                {punchType === 'punched_out' ? (
+                  <Button 
+                    onClick={confirmPunch} 
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white" 
+                    disabled={isLoading}
+                    size="lg"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-5 w-5" />
+                        <span>Punch Out</span>
+                      </div>
+                    )}
+                  </Button>
+                ) : (
+                  <Button onClick={confirmPunch} className="flex-1" disabled={isLoading} size="lg">
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-5 w-5" />
+                        <span>Punch In</span>
+                      </div>
+                    )}
+                  </Button>
+                )}
+                <Button onClick={() => {
+                  setPhotoPreview(null);
+                  setPhotoBlob(null);
+                  if (employeeSettings?.require_photo !== false) {
+                    startCamera();
+                  }
+                }} variant="outline" size="lg">
+                  Retake
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
