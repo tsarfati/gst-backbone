@@ -818,19 +818,6 @@ export default function TimeTracking() {
                   </p>
                 </div>
               </div>
-              {currentCompany?.logo_url && (
-                <img 
-                  src={currentCompany.logo_url.includes('http') 
-                    ? currentCompany.logo_url 
-                    : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
-                  } 
-                  alt="Company Logo" 
-                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain rounded-md flex-shrink-0" 
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              )}
             </div>
           </CardContent>
         </Card>
