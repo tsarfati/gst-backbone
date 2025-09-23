@@ -642,7 +642,7 @@ export default function TimeTracking() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-6 space-y-6">
+        <div className="flex-1 px-6 pb-6 space-y-6">
           {/* Status Card */}
           <Card className="shadow-elevation-md border-border/50 overflow-hidden">
             <CardHeader className="pb-4">
