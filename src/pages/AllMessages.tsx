@@ -8,6 +8,7 @@ import { MessageSquare, Plus, Search, Reply, Archive, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import ComposeMessageDialog from '@/components/ComposeMessageDialog';
 
 interface Message {
   id: string;
@@ -121,10 +122,12 @@ export default function AllMessages() {
             Manage your team communications
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Compose Message
-        </Button>
+        <ComposeMessageDialog>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Compose Message
+          </Button>
+        </ComposeMessageDialog>
       </div>
 
       {/* Filters and Search */}

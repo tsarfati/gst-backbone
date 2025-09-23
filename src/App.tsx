@@ -38,6 +38,9 @@ import PunchClockSettings from "./pages/PunchClockSettings";
 import AllMessages from "./pages/AllMessages";
 import TeamChat from "./pages/TeamChat";
 import Announcements from "./pages/Announcements";
+import AllTasks from "./pages/AllTasks";
+import ProjectTasks from "./pages/ProjectTasks";
+import TaskDeadlines from "./pages/TaskDeadlines";
 import BillDetails from "./pages/BillDetails";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
@@ -149,6 +152,9 @@ function AppRoutes() {
                       <Route path="team-chat" element={<TeamChat />} />
                       <Route path="announcements" element={<Announcements />} />
                       <Route path="messaging" element={<AllMessages />} />
+                      <Route path="tasks" element={<AllTasks />} />
+                      <Route path="tasks/projects" element={<ProjectTasks />} />
+                      <Route path="tasks/deadlines" element={<TaskDeadlines />} />
                       <Route path="bills" element={<Bills />} />
                       <Route path="bills/add" element={<AddBill />} />
                       <Route path="bills/:id" element={<BillDetails />} />
