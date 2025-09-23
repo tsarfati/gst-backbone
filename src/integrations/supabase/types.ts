@@ -772,6 +772,8 @@ export type Database = {
           end_date: string | null
           id: string
           job_type: Database["public"]["Enums"]["job_type"] | null
+          latitude: number | null
+          longitude: number | null
           name: string
           project_manager_user_id: string | null
           start_date: string | null
@@ -790,6 +792,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          latitude?: number | null
+          longitude?: number | null
           name: string
           project_manager_user_id?: string | null
           start_date?: string | null
@@ -808,6 +812,8 @@ export type Database = {
           end_date?: string | null
           id?: string
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           project_manager_user_id?: string | null
           start_date?: string | null
@@ -1239,11 +1245,13 @@ export type Database = {
           calculate_overtime: boolean | null
           company_id: string
           created_at: string
+          enable_distance_warnings: boolean | null
           enable_punch_rounding: boolean | null
           grace_period_minutes: number | null
           id: string
           location_accuracy_meters: number | null
           manager_approval_required: boolean | null
+          max_distance_from_job_meters: number | null
           notification_enabled: boolean | null
           overtime_threshold: number | null
           photo_required_for_corrections: boolean | null
@@ -1263,11 +1271,13 @@ export type Database = {
           calculate_overtime?: boolean | null
           company_id: string
           created_at?: string
+          enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
+          max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           photo_required_for_corrections?: boolean | null
@@ -1287,11 +1297,13 @@ export type Database = {
           calculate_overtime?: boolean | null
           company_id?: string
           created_at?: string
+          enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
+          max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           photo_required_for_corrections?: boolean | null
@@ -1616,6 +1628,8 @@ export type Database = {
       }
       time_cards: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           break_minutes: number | null
           correction_approved_at: string | null
           correction_approved_by: string | null
@@ -1624,6 +1638,8 @@ export type Database = {
           cost_code_id: string | null
           created_at: string
           created_via_punch_clock: boolean | null
+          distance_from_job_meters: number | null
+          distance_warning: boolean | null
           id: string
           is_correction: boolean | null
           job_id: string | null
@@ -1638,12 +1654,15 @@ export type Database = {
           punch_out_location_lng: number | null
           punch_out_photo_url: string | null
           punch_out_time: string
+          requires_approval: boolean | null
           status: string
           total_hours: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           break_minutes?: number | null
           correction_approved_at?: string | null
           correction_approved_by?: string | null
@@ -1652,6 +1671,8 @@ export type Database = {
           cost_code_id?: string | null
           created_at?: string
           created_via_punch_clock?: boolean | null
+          distance_from_job_meters?: number | null
+          distance_warning?: boolean | null
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
@@ -1666,12 +1687,15 @@ export type Database = {
           punch_out_location_lng?: number | null
           punch_out_photo_url?: string | null
           punch_out_time: string
+          requires_approval?: boolean | null
           status?: string
           total_hours: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           break_minutes?: number | null
           correction_approved_at?: string | null
           correction_approved_by?: string | null
@@ -1680,6 +1704,8 @@ export type Database = {
           cost_code_id?: string | null
           created_at?: string
           created_via_punch_clock?: boolean | null
+          distance_from_job_meters?: number | null
+          distance_warning?: boolean | null
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
@@ -1694,6 +1720,7 @@ export type Database = {
           punch_out_location_lng?: number | null
           punch_out_photo_url?: string | null
           punch_out_time?: string
+          requires_approval?: boolean | null
           status?: string
           total_hours?: number
           updated_at?: string

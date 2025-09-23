@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User } from 'lucide-react';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import TimeCardDetailView from '@/components/TimeCardDetailView';
 
 interface TimeCard {
   id: string;
@@ -20,10 +21,15 @@ interface TimeCard {
   status: string;
   break_minutes: number;
   notes?: string;
+  requires_approval?: boolean;
+  distance_warning?: boolean;
+  created_via_punch_clock?: boolean;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
 }
+
+type ViewMode = 'list' | 'compact' | 'super-compact';
 
 type SupabaseTimeCard = {
   id: string;
@@ -47,6 +53,9 @@ export default function TimeSheets() {
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Array<{id: string, name: string}>>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedTimeCardId, setSelectedTimeCardId] = useState<string>('');
+  const [showDetailView, setShowDetailView] = useState(false);
   const { profile, user } = useAuth();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
@@ -98,9 +107,9 @@ export default function TimeSheets() {
       setLoading(true);
       
       let query = supabase
-        .from('punch_records')
+        .from('time_cards')
         .select('*')
-        .order('punch_time', { ascending: false })
+        .order('punch_in_time', { ascending: false })
         .limit(100);
 
       // Filter records based on user role and selection
@@ -110,10 +119,10 @@ export default function TimeSheets() {
         query = query.eq('user_id', selectedEmployeeId);
       }
 
-      const { data: punchData, error } = await query;
+      const { data: timeCardData, error } = await query;
 
       if (error) {
-        console.error('Error loading punch records:', error);
+        console.error('Error loading time cards:', error);
         toast({
           title: 'Error',
           description: 'Failed to load time sheets',
@@ -123,9 +132,9 @@ export default function TimeSheets() {
       }
 
       // Get unique user IDs, job IDs, and cost code IDs
-      const userIds = [...new Set((punchData || []).map(p => p.user_id))];
-      const jobIds = [...new Set((punchData || []).map(p => p.job_id).filter(Boolean))];
-      const costCodeIds = [...new Set((punchData || []).map(p => p.cost_code_id).filter(Boolean))];
+      const userIds = [...new Set((timeCardData || []).map(tc => tc.user_id))];
+      const jobIds = [...new Set((timeCardData || []).map(tc => tc.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((timeCardData || []).map(tc => tc.cost_code_id).filter(Boolean))];
 
       // Fetch related data separately
       const [profilesData, jobsData, costCodesData] = await Promise.all([
@@ -148,67 +157,23 @@ export default function TimeSheets() {
       const jobsMap = new Map((jobsData.data || []).map(j => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
 
-      // Group punch records by user and date to create time cards
-      const timeCardsMap = new Map<string, TimeCard>();
-      
-      (punchData || []).forEach((punch: any) => {
-        const date = new Date(punch.punch_time).toISOString().split('T')[0];
-        const key = `${punch.user_id}-${date}`;
-        
-        if (!timeCardsMap.has(key)) {
-          const profile = profilesMap.get(punch.user_id);
-          const job = jobsMap.get(punch.job_id);
-          const costCode = costCodesMap.get(punch.cost_code_id);
-          
-          timeCardsMap.set(key, {
-            id: `${punch.user_id}-${date}`,
-            user_id: punch.user_id,
-            job_id: punch.job_id || '',
-            cost_code_id: punch.cost_code_id || '',
-            punch_in_time: '',
-            punch_out_time: '',
-            total_hours: 0,
-            overtime_hours: 0,
-            status: 'draft',
-            break_minutes: 0,
-            notes: punch.notes,
-            jobs: job ? { name: job.name } : null,
-            cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
-            profiles: profile ? {
-              first_name: profile.first_name,
-              last_name: profile.last_name,
-              display_name: profile.display_name
-            } : null
-          });
-        }
-        
-        const timeCard = timeCardsMap.get(key)!;
-        
-        if (punch.punch_type === 'punched_in') {
-          if (!timeCard.punch_in_time || punch.punch_time < timeCard.punch_in_time) {
-            timeCard.punch_in_time = punch.punch_time;
-          }
-        } else if (punch.punch_type === 'punched_out') {
-          if (!timeCard.punch_out_time || punch.punch_time > timeCard.punch_out_time) {
-            timeCard.punch_out_time = punch.punch_time;
-          }
-        }
-      });
+      // Transform data with relationships
+      const transformedData: TimeCard[] = (timeCardData || []).map(tc => {
+        const profile = profilesMap.get(tc.user_id);
+        const job = jobsMap.get(tc.job_id);
+        const costCode = costCodesMap.get(tc.cost_code_id);
 
-      // Calculate total hours for each time card
-      const transformedData: TimeCard[] = Array.from(timeCardsMap.values()).map(card => {
-        if (card.punch_in_time && card.punch_out_time) {
-          const punchIn = new Date(card.punch_in_time);
-          const punchOut = new Date(card.punch_out_time);
-          const diffMs = punchOut.getTime() - punchIn.getTime();
-          const totalHours = diffMs / (1000 * 60 * 60);
-          
-          card.total_hours = Math.max(0, totalHours);
-          card.overtime_hours = Math.max(0, totalHours - 8);
-          card.status = 'submitted';
-        }
-        return card;
-      }).filter(card => card.punch_in_time); // Only include cards with at least a punch in
+        return {
+          ...tc,
+          jobs: job ? { name: job.name } : null,
+          cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
+          profiles: profile ? {
+            first_name: profile.first_name,
+            last_name: profile.last_name,
+            display_name: profile.display_name
+          } : null
+        };
+      });
 
       setTimeCards(transformedData);
     } catch (error) {
@@ -234,8 +199,20 @@ export default function TimeSheets() {
   };
 
   const handleApproval = async (timeCardId: string, approved: boolean) => {
+    if (!isManager) return;
+
     try {
-      // Update local state (in a real app, you'd have a time_cards table to update)
+      const { error } = await supabase
+        .from('time_cards')
+        .update({ 
+          status: approved ? 'approved' : 'rejected',
+          approved_at: approved ? new Date().toISOString() : null,
+          approved_by: approved ? user?.id : null
+        })
+        .eq('id', timeCardId);
+
+      if (error) throw error;
+
       setTimeCards(prev => 
         prev.map(tc => 
           tc.id === timeCardId 
@@ -252,10 +229,15 @@ export default function TimeSheets() {
       console.error('Error updating time card:', error);
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred',
+        description: 'Failed to update time card',
         variant: 'destructive',
       });
     }
+  };
+
+  const handleViewDetails = (timeCardId: string) => {
+    setSelectedTimeCardId(timeCardId);
+    setShowDetailView(true);
   };
 
   const formatWeekRange = (date: string) => {
@@ -332,6 +314,31 @@ export default function TimeSheets() {
               </SelectContent>
             </Select>
           )}
+          <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
+            <SelectTrigger className="w-48 h-11">
+              <SelectValue placeholder="View Mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="list">
+                <div className="flex items-center gap-2">
+                  <List className="h-4 w-4" />
+                  List View
+                </div>
+              </SelectItem>
+              <SelectItem value="compact">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="h-4 w-4" />
+                  Compact List
+                </div>
+              </SelectItem>
+              <SelectItem value="super-compact">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Super Compact
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" className="h-11">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -417,23 +424,36 @@ export default function TimeSheets() {
             ) : (
               timeCards.map((timeCard) => (
                 <div key={timeCard.id} className="border rounded-xl p-6 hover-card">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="space-y-1">
-                      {isManager && (
-                        <h3 className="font-semibold text-lg">{getEmployeeName(timeCard)}</h3>
-                      )}
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-sm">{formatWeekRange(timeCard.punch_in_time)}</span>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </div>
-                    </div>
+                   <div className="flex items-start justify-between mb-4">
+                     <div className="space-y-1">
+                       {isManager && (
+                         <div className="flex items-center gap-2">
+                           <h3 className="font-semibold text-lg">{getEmployeeName(timeCard)}</h3>
+                           {timeCard.distance_warning && (
+                             <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                               <AlertTriangle className="h-3 w-3" />
+                               Distance
+                             </Badge>
+                           )}
+                           {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
+                             <Badge variant="outline" className="text-xs">
+                               Auto-Approved
+                             </Badge>
+                           )}
+                         </div>
+                       )}
+                       <div className="flex items-center gap-2 text-muted-foreground">
+                         <Calendar className="h-4 w-4" />
+                         <span className="text-sm">{formatWeekRange(timeCard.punch_in_time)}</span>
+                       </div>
+                       <div className="text-sm text-muted-foreground">
+                         {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
+                           weekday: 'long', 
+                           month: 'short', 
+                           day: 'numeric' 
+                         })}
+                       </div>
+                     </div>
                     <div className="text-right space-y-2">
                       <div className="font-bold text-xl flex items-center gap-2">
                         <Clock className="h-5 w-5" />
@@ -494,40 +514,52 @@ export default function TimeSheets() {
                     </div>
                   )}
 
-                  <div className="flex gap-3">
-                    <Button variant="outline" size="sm" className="rounded-lg">
-                      View Details
-                    </Button>
-                    {isManager && timeCard.status === 'submitted' && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleApproval(timeCard.id, true)}
-                          className="rounded-lg"
-                        >
-                          Approve
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => handleApproval(timeCard.id, false)}
-                          className="rounded-lg"
-                        >
-                          Reject
-                        </Button>
-                      </>
-                    )}
-                    <Button variant="outline" size="sm" className="rounded-lg">
-                      <Download className="h-4 w-4 mr-1" />
-                      PDF
-                    </Button>
-                  </div>
+                   <div className="flex gap-3">
+                     <Button 
+                       variant="outline" 
+                       size="sm" 
+                       className="rounded-lg"
+                       onClick={() => handleViewDetails(timeCard.id)}
+                     >
+                       <Eye className="h-4 w-4 mr-1" />
+                       View Details
+                     </Button>
+                     {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
+                       <>
+                         <Button 
+                           size="sm" 
+                           onClick={() => handleApproval(timeCard.id, true)}
+                           className="rounded-lg"
+                         >
+                           Approve
+                         </Button>
+                         <Button 
+                           size="sm" 
+                           variant="destructive"
+                           onClick={() => handleApproval(timeCard.id, false)}
+                           className="rounded-lg"
+                         >
+                           Reject
+                         </Button>
+                       </>
+                     )}
+                     <Button variant="outline" size="sm" className="rounded-lg">
+                       <Download className="h-4 w-4 mr-1" />
+                       PDF
+                     </Button>
+                   </div>
                 </div>
               ))
             )}
           </div>
         </CardContent>
       </Card>
+
+      <TimeCardDetailView
+        open={showDetailView}
+        onOpenChange={setShowDetailView}
+        timeCardId={selectedTimeCardId}
+      />
     </div>
   );
 }

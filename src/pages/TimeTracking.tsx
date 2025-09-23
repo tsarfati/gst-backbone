@@ -562,6 +562,42 @@ export default function TimeTracking() {
         
         await loadCurrentStatus();
       } else {
+        // Calculate distance from job if job has coordinates
+        let distanceWarning = false;
+        let distanceFromJob = null;
+
+        if (location && currentStatus?.job_id) {
+          const { data: jobData } = await supabase
+            .from('jobs')
+            .select('latitude, longitude')
+            .eq('id', currentStatus.job_id)
+            .single();
+
+          if (jobData?.latitude && jobData?.longitude) {
+            // Calculate distance using Haversine formula
+            const lat1 = location.lat * Math.PI / 180;
+            const lat2 = jobData.latitude * Math.PI / 180;
+            const deltaLat = (jobData.latitude - location.lat) * Math.PI / 180;
+            const deltaLng = (jobData.longitude - location.lng) * Math.PI / 180;
+
+            const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
+                    Math.cos(lat1) * Math.cos(lat2) *
+                    Math.sin(deltaLng/2) * Math.sin(deltaLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distanceFromJob = 6371000 * c; // Distance in meters
+
+            // Check distance warning settings
+            const { data: punchSettings } = await supabase
+              .from('punch_clock_settings')
+              .select('enable_distance_warnings, max_distance_from_job_meters')
+              .single();
+
+            if (punchSettings?.enable_distance_warnings && distanceFromJob > (punchSettings.max_distance_from_job_meters || 200)) {
+              distanceWarning = true;
+            }
+          }
+        }
+
         // Insert punch_out record
         const { error: punchError } = await supabase
           .from('punch_records')
@@ -597,9 +633,45 @@ export default function TimeTracking() {
           console.error('Error clearing punch status:', clearError);
         }
 
+        // Create time card entry with appropriate approval status
+        const requiresApproval = distanceWarning; // Only require approval if distance warning
+
+        const { error: timeCardError } = await supabase
+          .from('time_cards')
+          .insert({
+            user_id: user.id,
+            job_id: currentStatus?.job_id,
+            cost_code_id: currentStatus?.cost_code_id,
+            punch_in_time: currentStatus?.punch_in_time,
+            punch_out_time: new Date().toISOString(),
+            total_hours: currentStatus ? 
+              Math.max(0, (Date.now() - new Date(currentStatus.punch_in_time).getTime()) / (1000 * 60 * 60)) : 0,
+            overtime_hours: 0, // Will be calculated by trigger
+            status: requiresApproval ? 'submitted' : 'approved',
+            break_minutes: 0,
+            notes: notes || null,
+            punch_in_location_lat: currentStatus?.punch_in_location_lat,
+            punch_in_location_lng: currentStatus?.punch_in_location_lng,
+            punch_out_location_lat: location?.lat,
+            punch_out_location_lng: location?.lng,
+            punch_in_photo_url: currentStatus?.punch_in_photo_url,
+            punch_out_photo_url: photoUrl,
+            created_via_punch_clock: true,
+            requires_approval: requiresApproval,
+            distance_warning: distanceWarning,
+            distance_from_job_meters: distanceFromJob
+          });
+
+        if (timeCardError) {
+          console.error('Error creating time card:', timeCardError);
+        }
+
         toast({
           title: 'Success',
-          description: 'Successfully punched out!',
+          description: distanceWarning ? 
+            'Punch out recorded with distance warning!' : 
+            'Successfully punched out!',
+          variant: distanceWarning ? 'destructive' : 'default',
         });
         
         setCurrentStatus(null);

@@ -36,6 +36,8 @@ interface PunchClockSettings {
   punch_rounding_direction: 'up' | 'down' | 'nearest';
   auto_break_wait_hours: number;
   calculate_overtime: boolean;
+  enable_distance_warnings: boolean;
+  max_distance_from_job_meters: number;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -57,7 +59,9 @@ const defaultSettings: PunchClockSettings = {
   punch_rounding_minutes: 15,
   punch_rounding_direction: 'nearest',
   auto_break_wait_hours: 6,
-  calculate_overtime: true
+  calculate_overtime: true,
+  enable_distance_warnings: true,
+  max_distance_from_job_meters: 200
 };
 
 export default function PunchClockSettings() {
@@ -108,7 +112,9 @@ export default function PunchClockSettings() {
           punch_rounding_minutes: data.punch_rounding_minutes || 15,
           punch_rounding_direction: (data.punch_rounding_direction as 'up' | 'down' | 'nearest') || 'nearest',
           auto_break_wait_hours: parseFloat(data.auto_break_wait_hours?.toString() || '6'),
-          calculate_overtime: data.calculate_overtime !== false
+          calculate_overtime: data.calculate_overtime !== false,
+          enable_distance_warnings: data.enable_distance_warnings !== false,
+          max_distance_from_job_meters: data.max_distance_from_job_meters || 200
         });
       }
       
@@ -150,7 +156,9 @@ export default function PunchClockSettings() {
           punch_rounding_minutes: settings.punch_rounding_minutes,
           punch_rounding_direction: settings.punch_rounding_direction,
           auto_break_wait_hours: settings.auto_break_wait_hours,
-          calculate_overtime: settings.calculate_overtime
+          calculate_overtime: settings.calculate_overtime,
+          enable_distance_warnings: settings.enable_distance_warnings,
+          max_distance_from_job_meters: settings.max_distance_from_job_meters
         });
 
       if (error) throw error;
@@ -434,6 +442,45 @@ export default function PunchClockSettings() {
                   Maximum distance from job site for valid punch
                 </p>
               </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Enable Distance Warnings</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Flag time cards when punches are outside job site radius
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.enable_distance_warnings}
+                  onCheckedChange={(checked) => updateSetting('enable_distance_warnings', checked)}
+                />
+              </div>
+
+              {settings.enable_distance_warnings && (
+                <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
+                  <Label htmlFor="max-distance-warning">Warning Distance (meters)</Label>
+                  <Select
+                    value={settings.max_distance_from_job_meters?.toString() || '200'}
+                    onValueChange={(value) => updateSetting('max_distance_from_job_meters', parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="100">100 meters</SelectItem>
+                      <SelectItem value="200">200 meters</SelectItem>
+                      <SelectItem value="300">300 meters</SelectItem>
+                      <SelectItem value="500">500 meters</SelectItem>
+                      <SelectItem value="1000">1000 meters</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Time cards will be flagged with a warning if punch locations are beyond this distance from the job site
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
