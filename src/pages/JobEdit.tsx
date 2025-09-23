@@ -46,9 +46,9 @@ export default function JobEdit() {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('user_id, first_name, last_name, display_name, role, status')
           .in('role', ['admin', 'controller', 'project_manager'])
-          .eq('status', 'approved');
+          .in('status', ['approved', 'active']);
 
         if (error) {
           console.error('Error fetching project managers:', error);
@@ -650,10 +650,10 @@ export default function JobEdit() {
                 value={formData.project_manager_user_id} 
                 onValueChange={(value) => handleInputChange("project_manager_user_id", value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Select a project manager" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border-border backdrop-blur-sm z-50">
                   {projectManagers.map((manager) => (
                     <SelectItem key={manager.user_id} value={manager.user_id}>
                       {manager.display_name || `${manager.first_name} ${manager.last_name}`} ({manager.role})
@@ -687,10 +687,10 @@ export default function JobEdit() {
                 )}
                 
                 <Select onValueChange={handleAddAssistantManager}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue placeholder="Add assistant manager" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-background border-border backdrop-blur-sm z-50">
                     {projectManagers
                       .filter(manager => 
                         manager.user_id !== formData.project_manager_user_id &&

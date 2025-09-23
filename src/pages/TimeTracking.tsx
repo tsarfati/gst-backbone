@@ -713,207 +713,56 @@ export default function TimeTracking() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
-      {/* Mobile-first container - left aligned */}
-      <div className="w-full max-w-4xl min-h-screen flex flex-col bg-background/95 backdrop-blur-sm px-8 md:px-16">
-        {/* Welcome Header */}
-        <div className="px-4 py-4">
-          <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
-            <CardContent className="p-4">
-              <div className="text-left space-y-2">
-                <div className="flex items-center gap-2 text-lg font-bold text-foreground">
-                  <span className="text-xl">{getGreetingIcon()}</span>
-                  <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
+        {/* Mobile-first container with 9:16 aspect ratio constraints */}
+        <div className="w-full max-w-xs min-h-screen flex flex-col bg-background/95 backdrop-blur-sm px-4 mx-auto">
+          {/* Welcome Header */}
+          <div className="py-4">
+            <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
+              <CardContent className="p-4">
+                <div className="text-center space-y-2">
+                  <div className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
+                    <span className="text-xl">{getGreetingIcon()}</span>
+                    <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(), 'EEEE, MMMM do, yyyy')}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {format(new Date(), 'EEEE, MMMM do, yyyy')}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Main Content */}
-        <div className="flex-1 px-4 pb-6">
-          {/* Large Status Display */}
-          <div className="text-left mb-6">
-            {currentStatus && currentStatus.is_active ? (
-              <div className="space-y-4">
-                {/* Large Green Status Icon - Left aligned */}
-                <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                  <Clock className="h-12 w-12 text-white" />
-                </div>
-                
-                {/* Live Timer */}
-                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800">
-                  <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
-                    {getElapsedTime()}
-                  </div>
-                  <div className="text-green-600 dark:text-green-400 font-medium">
-                    Started at {formatTime(currentStatus.punch_in_time)}
-                  </div>
-                </div>
-                
-                {/* Job Info */}
-                <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
-                  <div className="text-sm text-muted-foreground mb-1">Working on</div>
-                  <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
-                  <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
-                </div>
-
-                {/* Inline Camera for Punch Out */}
-                {showCamera && (
-                  <div className="space-y-4 max-w-sm mx-auto">
-                    <div className="relative overflow-hidden rounded-xl bg-black">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        controls={false}
-                        className="w-full"
-                        style={{ aspectRatio: '4/3' }}
-                      />
-                      <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
-                    </div>
-                    <div className="flex gap-3">
-                      <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
-                        <Camera className="h-4 w-4 mr-2" />
-                        Take Photo
-                      </Button>
-                      <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                
-                {photoPreview && (
-                  <div className="space-y-4 max-w-sm mx-auto">
-                    <div className="relative">
-                      <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
-                      <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setPhotoPreview(null);
-                        setPhotoBlob(null);
-                        startCamera();
-                      }}
-                      className="w-full h-12 rounded-xl aspect-video max-w-sm"
-                    >
-                      Retake Photo
-                    </Button>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="notes" className="font-medium">Work Summary (Optional)</Label>
-                      <Textarea
-                        id="notes"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Describe what you accomplished today..."
-                        className="rounded-xl border-2 min-h-[100px] resize-none"
-                      />
-                    </div>
-                  </div>
-                )}
-                
-                {/* Punch Out Button */}
-                <div className="max-w-sm mx-auto">
-                  <Button 
-                    onClick={showCamera ? confirmPunch : handlePunchOut}
-                    disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
-                    className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg aspect-video max-w-sm"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                        {loadingStatus}
-                      </>
-                    ) : showCamera && photoBlob ? (
-                      <>
-                        <CheckCircle className="h-6 w-6 mr-3" />
-                        Complete Punch Out
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="h-6 w-6 mr-3" />
-                        {showCamera ? 'Take Photo First' : 'Punch Out'}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Large Red Status Icon - Left aligned */}
-                <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
-                  <Timer className="h-12 w-12 text-white" />
-                </div>
-                
-                <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
-                  <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2">Punched Out</div>
-                  <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
-                </div>
-                
-                {/* Job Selection */}
+          {/* Main Content */}
+          <div className="flex-1 pb-6">
+            {/* Large Status Display */}
+            <div className="text-center mb-6">
+              {currentStatus && currentStatus.is_active ? (
                 <div className="space-y-4">
-                  <Select value={selectedJob} onValueChange={setSelectedJob}>
-                    <SelectTrigger className="h-14 text-lg rounded-xl border-2">
-                      <SelectValue placeholder="Select Job" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {jobs.map((job) => (
-                        <SelectItem key={job.id} value={job.id} className="text-lg py-3">
-                          {job.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Large Green Status Icon - Centered */}
+                  <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse mx-auto">
+                    <Clock className="h-12 w-12 text-white" />
+                  </div>
                   
-                  {selectedJob && (
-                    <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                      <SelectTrigger className="h-14 text-lg rounded-xl border-2">
-                        <SelectValue placeholder="Select Cost Code" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        {costCodes.map((code) => (
-                          <SelectItem key={code.id} value={code.id} className="text-lg py-3">
-                            {code.code} - {code.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-
-                  {/* Take Photo Button - First step */}
-                  {!showCamera && !photoPreview && selectedJob && selectedCostCode && (
-                    <div className="max-w-sm mx-auto space-y-4">
-                      <Button
-                        onClick={handlePunchIn}
-                        disabled={isLoading}
-                        className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg aspect-video max-w-sm"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                            {loadingStatus}
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="h-6 w-6 mr-3" />
-                            Take Photo
-                          </>
-                        )}
-                      </Button>
+                  {/* Live Timer */}
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800">
+                    <div className="text-4xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
+                      {getElapsedTime()}
                     </div>
-                  )}
+                    <div className="text-green-600 dark:text-green-400 font-medium">
+                      Started at {formatTime(currentStatus.punch_in_time)}
+                    </div>
+                  </div>
+                  
+                  {/* Job Info */}
+                  <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+                    <div className="text-sm text-muted-foreground mb-1">Working on</div>
+                    <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
+                    <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
+                  </div>
 
-                  {/* Inline Camera for Taking Photo */}
+                  {/* Inline Camera for Punch Out */}
                   {showCamera && (
-                    <div className="space-y-4 max-w-sm mx-auto">
+                    <div className="space-y-4">
                       <div className="relative overflow-hidden rounded-xl bg-black">
                         <video
                           ref={videoRef}
@@ -938,9 +787,8 @@ export default function TimeTracking() {
                     </div>
                   )}
                   
-                  {/* Photo Preview and Retake/Punch In Buttons */}
                   {photoPreview && (
-                    <div className="space-y-4 max-w-sm mx-auto">
+                    <div className="space-y-4">
                       <div className="relative">
                         <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
                         <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
@@ -954,34 +802,186 @@ export default function TimeTracking() {
                           setPhotoBlob(null);
                           startCamera();
                         }}
-                        className="w-full h-12 rounded-xl aspect-video max-w-sm"
+                        className="w-full h-12 rounded-xl"
                       >
                         Retake Photo
                       </Button>
                       
-                      <Button
-                        onClick={confirmPunch}
-                        disabled={isLoading}
-                        className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg aspect-video max-w-sm"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                            {loadingStatus}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-6 w-6 mr-3" />
-                            Punch In
-                          </>
-                        )}
-                      </Button>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes" className="font-medium">Work Summary (Optional)</Label>
+                        <Textarea
+                          id="notes"
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Describe what you accomplished today..."
+                          className="rounded-xl border-2 min-h-[100px] resize-none"
+                        />
+                      </div>
                     </div>
                   )}
+                  
+                  {/* Punch Out Button */}
+                  <div className="w-full">
+                    <Button 
+                      onClick={showCamera ? confirmPunch : handlePunchOut}
+                      disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
+                      className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                          {loadingStatus}
+                        </>
+                      ) : showCamera && photoBlob ? (
+                        <>
+                          <CheckCircle className="h-6 w-6 mr-3" />
+                          Complete Punch Out
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="h-6 w-6 mr-3" />
+                          {showCamera ? 'Take Photo First' : 'Punch Out'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Large Red Status Icon - Centered */}
+                  <div className="w-24 h-24 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg mx-auto">
+                    <Timer className="h-12 w-12 text-white" />
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
+                    <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-2 text-center">Punched Out</div>
+                    <div className="text-red-600 dark:text-red-400 text-center">Ready to start your shift</div>
+                  </div>
+                  
+                  {/* Job Selection */}
+                  <div className="space-y-4">
+                    <Select value={selectedJob} onValueChange={setSelectedJob}>
+                      <SelectTrigger className="h-14 text-lg rounded-xl border-2 bg-background/95 backdrop-blur-sm">
+                        <SelectValue placeholder="Select Job" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={job.id} className="text-lg py-3">
+                            {job.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {selectedJob && (
+                      <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                        <SelectTrigger className="h-14 text-lg rounded-xl border-2 bg-background/95 backdrop-blur-sm">
+                          <SelectValue placeholder="Select Cost Code" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
+                          {costCodes.map((code) => (
+                            <SelectItem key={code.id} value={code.id} className="text-lg py-3">
+                              {code.code} - {code.description}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    {/* Take Photo Button - First step */}
+                    {!showCamera && !photoPreview && selectedJob && selectedCostCode && (
+                      <div className="space-y-4">
+                        <Button
+                          onClick={handlePunchIn}
+                          disabled={isLoading}
+                          className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                              {loadingStatus}
+                            </>
+                          ) : (
+                            <>
+                              <Camera className="h-6 w-6 mr-3" />
+                              Take Photo
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Inline Camera for Taking Photo */}
+                    {showCamera && (
+                      <div className="space-y-4">
+                        <div className="relative overflow-hidden rounded-xl bg-black">
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            controls={false}
+                            className="w-full"
+                            style={{ aspectRatio: '4/3' }}
+                          />
+                          <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
+                        </div>
+                        <div className="flex gap-3">
+                          <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
+                            <Camera className="h-4 w-4 mr-2" />
+                            Take Photo
+                          </Button>
+                          <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Photo Preview and Retake/Punch In Buttons */}
+                    {photoPreview && (
+                      <div className="space-y-4">
+                        <div className="relative">
+                          <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
+                          <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
+                            <CheckCircle className="h-4 w-4" />
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setPhotoPreview(null);
+                            setPhotoBlob(null);
+                            startCamera();
+                          }}
+                          className="w-full h-12 rounded-xl"
+                        >
+                          Retake Photo
+                        </Button>
+                        
+                        <Button
+                          onClick={confirmPunch}
+                          disabled={isLoading}
+                          className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                        >
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                              {loadingStatus}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-6 w-6 mr-3" />
+                              Punch In
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
           {/* Employee Messaging Panel */}
           {currentStatus && (

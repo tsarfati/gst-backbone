@@ -163,8 +163,8 @@ export default function PunchClockDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="w-full px-8 md:px-16 py-4 space-y-6">
-        <div className="text-left">
+      <div className="w-full max-w-xs mx-auto px-4 py-4 space-y-6">
+        <div className="text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
         </div>
