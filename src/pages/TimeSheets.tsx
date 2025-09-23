@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, FileText, Download, Plus, Clock, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -44,13 +45,51 @@ type SupabaseTimeCard = {
 export default function TimeSheets() {
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState<Array<{id: string, name: string}>>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const { profile, user } = useAuth();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
+    if (isManager) {
+      loadEmployees();
+    }
     loadTimeCards();
   }, [user, profile]);
+
+  useEffect(() => {
+    if (selectedEmployeeId) {
+      loadTimeCards();
+    }
+  }, [selectedEmployeeId]);
+
+  const loadEmployees = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name')
+        .order('first_name');
+
+      if (error) {
+        console.error('Error loading employees:', error);
+        return;
+      }
+
+      const employeeOptions = (data || []).map(emp => ({
+        id: emp.user_id,
+        name: emp.display_name || 
+              (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
+               emp.first_name || emp.last_name || 'Unknown Employee')
+      }));
+
+      setEmployees(employeeOptions);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
 
   const loadTimeCards = async () => {
     if (!user) return;
@@ -69,9 +108,11 @@ export default function TimeSheets() {
         .order('punch_time', { ascending: false })
         .limit(100);
 
-      // If not a manager, filter to only show employee's own punch records
+      // Filter records based on user role and selection
       if (!isManager) {
         query = query.eq('user_id', user.id);
+      } else if (selectedEmployeeId) {
+        query = query.eq('user_id', selectedEmployeeId);
       }
 
       const { data: punchData, error } = await query;
@@ -244,6 +285,24 @@ export default function TimeSheets() {
           </p>
         </div>
         <div className="flex gap-3">
+          {isManager && (
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger className="w-64 h-11">
+                <SelectValue placeholder="Select Employee" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Employees</SelectItem>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      {emp.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" className="h-11">
             <Download className="h-4 w-4 mr-2" />
             Export

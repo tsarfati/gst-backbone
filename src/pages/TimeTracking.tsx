@@ -235,16 +235,28 @@ export default function TimeTracking() {
   };
 
   const getElapsedTime = () => {
-    if (!currentStatus) return '0:00';
+    if (!currentStatus) return '0:00:00';
     
     const now = new Date();
     const punchInTime = new Date(currentStatus.punch_in_time);
     const diffMs = now.getTime() - punchInTime.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
     
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Real-time update for elapsed time
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -615,168 +627,125 @@ export default function TimeTracking() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
-      {/* App-like container with safe padding */}
-      <div className="max-w-lg mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50">
-        {/* App Header */}
-        <div className="px-4 py-4 sm:px-6 sm:py-6">
-          <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-lg">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
-                    <span className="text-xl sm:text-2xl">{getGreetingIcon()}</span>
-                    <span className="break-words">{getGreeting()}, {profile?.display_name || profile?.first_name || 'Employee'}!</span>
-                  </div>
-                  <p className="text-sm sm:text-base text-muted-foreground">
-                    {format(new Date(), 'EEEE, MMMM do, yyyy')}
-                  </p>
+      {/* Mobile-first container with 9:16 aspect ratio layout */}
+      <div className="max-w-sm mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50" style={{ aspectRatio: '9/16' }}>
+        {/* Welcome Header */}
+        <div className="px-4 py-4">
+          <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
+            <CardContent className="p-4">
+              <div className="text-center space-y-2">
+                <div className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
+                  <span className="text-xl">{getGreetingIcon()}</span>
+                  <span>{getGreeting()}, {profile?.first_name || 'Employee'}!</span>
                 </div>
-                
-                <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                  <div className="text-right">
-                    <div className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
-                      {format(new Date(), 'h:mm a')}
-                    </div>
-                    <div className="text-xs sm:text-sm text-muted-foreground">
-                      Current Time
-                    </div>
-                  </div>
-                  <div className="h-8 sm:h-12 w-px bg-border" />
-                  <div className="text-right">
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-accent-foreground">
-                      {currentStatus ? getElapsedTime() : '0:00'}
-                    </div>
-                    <div className="text-xs sm:text-sm text-muted-foreground">
-                      {currentStatus ? 'Elapsed' : 'Ready'}
-                    </div>
-                  </div>
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(), 'EEEE, MMMM do, yyyy')}
+                </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 px-4 sm:px-6 pb-6 space-y-6">
-          {/* Status Card */}
-          <Card className="shadow-elevation-md border-border/50 overflow-hidden rounded-lg">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-center gap-2 text-primary">
-                <Timer className="h-5 w-5" />
-                <span className="font-semibold text-sm sm:text-base">Current Status</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-              {currentStatus && currentStatus.is_active ? (
-                <div className="text-center space-y-4">
-                  <div className="relative p-4 sm:p-6 bg-gradient-to-br from-success/10 to-success/5 rounded-xl border border-success/20 overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-r from-success/5 to-transparent"></div>
-                    <div className="relative z-10">
-                      <div className="text-success font-semibold mb-3 flex items-center justify-center gap-2">
-                        <div className="p-1 bg-success/20 rounded-full">
-                          <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </div>
-                        <span className="text-sm sm:text-base">Actively Working</span>
-                      </div>
-                      <div className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-                        {formatTime(currentStatus.punch_in_time)}
-                      </div>
-                      <div className="text-xs sm:text-sm text-success/80 font-medium">
-                        Elapsed: {getElapsedTime()}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 sm:p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Cost Code</div>
-                      <div className="font-semibold text-xs sm:text-sm truncate">
-                        {costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
-                      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Job</div>
-                      <div className="font-semibold text-xs sm:text-sm truncate">
-                        {jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={handlePunchOut}
-                    variant="destructive"
-                    size="lg"
-                    className="w-full py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 ripple"
-                  >
-                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                    Punch Out
-                  </Button>
+        <div className="flex-1 px-4 pb-6">
+          {/* Large Status Display */}
+          <div className="text-center mb-6">
+            {currentStatus && currentStatus.is_active ? (
+              <div className="space-y-4">
+                {/* Large Green Status Icon */}
+                <div className="mx-auto w-32 h-32 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                  <Clock className="h-16 w-16 text-white" />
                 </div>
-              ) : (
-                <div className="space-y-5">
-                  <div className="text-center p-6 bg-gradient-to-br from-muted/50 to-muted/20 rounded-xl border border-dashed border-border">
-                    <div className="text-muted-foreground text-sm mb-2">Ready to start your day?</div>
-                    <div className="text-lg font-semibold">Select job and punch in</div>
+                
+                {/* Live Timer */}
+                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 rounded-2xl p-6 border border-green-200 dark:border-green-800">
+                  <div className="text-5xl font-mono font-bold text-green-700 dark:text-green-300 mb-2">
+                    {getElapsedTime()}
                   </div>
+                  <div className="text-green-600 dark:text-green-400 font-medium">
+                    Started at {formatTime(currentStatus.punch_in_time)}
+                  </div>
+                </div>
+                
+                {/* Job Info */}
+                <div className="bg-card rounded-xl p-4 border border-border shadow-sm">
+                  <div className="text-sm text-muted-foreground mb-1">Working on</div>
+                  <div className="font-semibold text-lg">{jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}</div>
+                  <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
+                </div>
+                
+                {/* Single Punch Out Button */}
+                <Button 
+                  onClick={handlePunchOut}
+                  className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                >
+                  <CheckCircle className="h-6 w-6 mr-3" />
+                  Punch Out
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Large Red Status Icon */}
+                <div className="mx-auto w-32 h-32 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+                  <Timer className="h-16 w-16 text-white" />
+                </div>
+                
+                <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 rounded-2xl p-6 border border-red-200 dark:border-red-800">
+                  <div className="text-4xl font-bold text-red-700 dark:text-red-300 mb-2">Not Working</div>
+                  <div className="text-red-600 dark:text-red-400">Ready to start your shift</div>
+                </div>
+                
+                {/* Job Selection */}
+                <div className="space-y-4">
+                  <Select value={selectedJob} onValueChange={setSelectedJob}>
+                    <SelectTrigger className="h-14 text-lg rounded-xl border-2">
+                      <SelectValue placeholder="Select Job" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {jobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id} className="text-lg py-3">
+                          {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="job-select" className="text-sm font-medium">Job Selection</Label>
-                      <Select value={selectedJob} onValueChange={setSelectedJob}>
-                        <SelectTrigger className="h-12 border-2 rounded-xl transition-colors focus:border-primary">
-                          <SelectValue placeholder="Choose your job" />
-                        </SelectTrigger>
-                        <SelectContent className="w-[var(--radix-popper-anchor-width)] max-w-[95vw] rounded-xl">
-                          {jobs.map((job) => (
-                            <SelectItem key={job.id} value={job.id} className="rounded-lg">
-                              {job.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {selectedJob && (
-                      <div className="space-y-2 animate-slide-up">
-                        <Label htmlFor="cost-code-select" className="text-sm font-medium">Cost Code</Label>
-                        <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                          <SelectTrigger className="h-12 border-2 rounded-xl transition-colors focus:border-primary">
-                            <SelectValue placeholder="Choose cost code" />
-                          </SelectTrigger>
-                          <SelectContent className="w-[var(--radix-popper-anchor-width)] max-w-[95vw] rounded-xl">
-                            {costCodes.map((code) => (
-                              <SelectItem key={code.id} value={code.id} className="rounded-lg">
-                                {code.code} - {code.description}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
+                  {selectedJob && (
+                    <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                      <SelectTrigger className="h-14 text-lg rounded-xl border-2">
+                        <SelectValue placeholder="Select Cost Code" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {costCodes.map((code) => (
+                          <SelectItem key={code.id} value={code.id} className="text-lg py-3">
+                            {code.code} - {code.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   
                   <Button
                     onClick={handlePunchIn}
                     disabled={!selectedJob || !selectedCostCode || isLoading}
-                    className="w-full h-14 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 ripple"
-                    size="lg"
+                    className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
                   >
                     {isLoading ? (
                       <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        <Loader2 className="h-6 w-6 mr-3 animate-spin" />
                         {loadingStatus}
                       </>
                     ) : (
                       <>
-                        <Timer className="h-5 w-5 mr-2" />
-                        Start Working
+                        <Timer className="h-6 w-6 mr-3" />
+                        Punch In
                       </>
                     )}
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </div>
 
           {/* Employee Messaging Panel */}
           {currentStatus && (
