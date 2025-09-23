@@ -10,14 +10,13 @@ export function useRoleBasedRouting() {
 
   useEffect(() => {
     const redirectToDefaultPage = async () => {
-      if (!profile?.role) return;
-
-      // Only redirect if user is on root path or auth page after login
+      // Only redirect if user is on root path, auth page, or dashboard
       const shouldRedirect = location.pathname === '/' || 
                            location.pathname === '/auth' ||
-                           location.pathname === '';
+                           location.pathname === '' ||
+                           location.pathname === '/dashboard';
 
-      if (!shouldRedirect) return;
+      if (!shouldRedirect || !profile?.role) return;
 
       try {
         const { data, error } = await supabase
@@ -28,19 +27,22 @@ export function useRoleBasedRouting() {
 
         if (error) {
           console.error('Error fetching role default page:', error);
-          // Fallback to dashboard
-          navigate('/dashboard', { replace: true });
           return;
         }
 
-        const defaultPage = data?.default_page || '/dashboard';
-        navigate(defaultPage, { replace: true });
+        const defaultPage = data?.default_page;
+        if (defaultPage && defaultPage !== location.pathname) {
+          console.log(`Redirecting ${profile.role} user to ${defaultPage}`);
+          navigate(defaultPage, { replace: true });
+        }
       } catch (error) {
         console.error('Error in role-based routing:', error);
-        navigate('/dashboard', { replace: true });
       }
     };
 
-    redirectToDefaultPage();
+    // Add a small delay to ensure profile is fully loaded
+    if (profile?.role) {
+      setTimeout(redirectToDefaultPage, 100);
+    }
   }, [profile?.role, location.pathname, navigate]);
 }
