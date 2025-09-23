@@ -67,6 +67,7 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
           .setHTML(`
             <div>
               <strong>${punch.employee_name}</strong><br/>
+              <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
               ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
               ${format(new Date(punch.punch_time), 'PPpp')}
             </div>
@@ -153,7 +154,7 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Cost Code</span>
-                <p className="font-medium">{punch.cost_code}</p>
+                <p className="font-medium">{punch.cost_code || 'No Cost Code'}</p>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">IP Address</span>

@@ -762,7 +762,7 @@ export default function TimeTracking() {
 
                 {/* Inline Camera for Punch Out */}
                 {showCamera && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-w-sm mx-auto">
                     <div className="relative overflow-hidden rounded-xl bg-black">
                       <video
                         ref={videoRef}
@@ -788,7 +788,7 @@ export default function TimeTracking() {
                 )}
                 
                 {photoPreview && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-w-sm mx-auto">
                     <div className="relative">
                       <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
                       <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
@@ -802,7 +802,7 @@ export default function TimeTracking() {
                         setPhotoBlob(null);
                         startCamera();
                       }}
-                      className="w-full h-12 rounded-xl"
+                      className="w-full h-12 rounded-xl aspect-video max-w-sm"
                     >
                       Retake Photo
                     </Button>
@@ -821,28 +821,30 @@ export default function TimeTracking() {
                 )}
                 
                 {/* Punch Out Button */}
-                <Button 
-                  onClick={showCamera ? confirmPunch : handlePunchOut}
-                  disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
-                  className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                      {loadingStatus}
-                    </>
-                  ) : showCamera && photoBlob ? (
-                    <>
-                      <CheckCircle className="h-6 w-6 mr-3" />
-                      Complete Punch Out
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="h-6 w-6 mr-3" />
-                      {showCamera ? 'Take Photo First' : 'Punch Out'}
-                    </>
-                  )}
-                </Button>
+                <div className="max-w-sm mx-auto">
+                  <Button 
+                    onClick={showCamera ? confirmPunch : handlePunchOut}
+                    disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
+                    className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg aspect-video max-w-sm"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                        {loadingStatus}
+                      </>
+                    ) : showCamera && photoBlob ? (
+                      <>
+                        <CheckCircle className="h-6 w-6 mr-3" />
+                        Complete Punch Out
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-6 w-6 mr-3" />
+                        {showCamera ? 'Take Photo First' : 'Punch Out'}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -886,9 +888,32 @@ export default function TimeTracking() {
                     </Select>
                   )}
 
-                  {/* Inline Camera for Punch In */}
+                  {/* Take Photo Button - First step */}
+                  {!showCamera && !photoPreview && selectedJob && selectedCostCode && (
+                    <div className="max-w-sm mx-auto space-y-4">
+                      <Button
+                        onClick={handlePunchIn}
+                        disabled={isLoading}
+                        className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg aspect-video max-w-sm"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                            {loadingStatus}
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="h-6 w-6 mr-3" />
+                            Take Photo
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Inline Camera for Taking Photo */}
                   {showCamera && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 max-w-sm mx-auto">
                       <div className="relative overflow-hidden rounded-xl bg-black">
                         <video
                           ref={videoRef}
@@ -913,8 +938,9 @@ export default function TimeTracking() {
                     </div>
                   )}
                   
+                  {/* Photo Preview and Retake/Punch In Buttons */}
                   {photoPreview && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 max-w-sm mx-auto">
                       <div className="relative">
                         <img src={photoPreview} alt="Captured" className="w-full rounded-xl border border-border" />
                         <div className="absolute top-2 right-2 bg-success/20 text-success p-1 rounded-full">
@@ -928,35 +954,30 @@ export default function TimeTracking() {
                           setPhotoBlob(null);
                           startCamera();
                         }}
-                        className="w-full h-12 rounded-xl"
+                        className="w-full h-12 rounded-xl aspect-video max-w-sm"
                       >
                         Retake Photo
                       </Button>
+                      
+                      <Button
+                        onClick={confirmPunch}
+                        disabled={isLoading}
+                        className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg aspect-video max-w-sm"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                            {loadingStatus}
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-6 w-6 mr-3" />
+                            Punch In
+                          </>
+                        )}
+                      </Button>
                     </div>
                   )}
-                  
-                  <Button
-                    onClick={showCamera ? confirmPunch : handlePunchIn}
-                    disabled={(!showCamera && (!selectedJob || !selectedCostCode)) || (showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob)) || isLoading}
-                    className="w-full h-16 text-xl font-bold rounded-2xl bg-green-600 hover:bg-green-700 text-white shadow-lg"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                        {loadingStatus}
-                      </>
-                    ) : showCamera && photoBlob ? (
-                      <>
-                        <CheckCircle className="h-6 w-6 mr-3" />
-                        Complete Punch In
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="h-6 w-6 mr-3" />
-                        {showCamera ? 'Take Photo First' : 'Punch In'}
-                      </>
-                    )}
-                  </Button>
                 </div>
               </div>
             )}
