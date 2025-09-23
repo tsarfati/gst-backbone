@@ -120,16 +120,60 @@ export default function TimeTracking() {
   };
 
   const loadJobs = async () => {
+    if (!user) return;
+    
     try {
-      const { data, error } = await supabase
+      // Get jobs assigned to the user via employee settings first
+      const { data: settingsData } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_jobs')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let jobIds = settingsData?.assigned_jobs || [];
+      
+      // Also get jobs where user is project manager or assistant manager
+      const { data: managerJobs, error: managerError } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('project_manager_user_id', user.id);
+        
+      if (!managerError && managerJobs) {
+        jobIds = [...jobIds, ...managerJobs.map(j => j.id)];
+      }
+      
+      const { data: assistantJobs, error: assistantError } = await supabase
+        .from('job_assistant_managers')
+        .select('job_id')
+        .eq('user_id', user.id);
+        
+      if (!assistantError && assistantJobs) {
+        jobIds = [...jobIds, ...assistantJobs.map(j => j.job_id)];
+      }
+      
+      // Remove duplicates and get final job list
+      const uniqueJobIds = [...new Set(jobIds)];
+      
+      if (uniqueJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
+      
+      const { data: jobsData, error } = await supabase
         .from('jobs')
         .select('id, name')
+        .in('id', uniqueJobIds)
         .order('name');
 
       if (error) throw error;
-      setJobs(data || []);
+      setJobs(jobsData || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load assigned jobs',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -665,28 +709,28 @@ export default function TimeTracking() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      {/* Mobile-optimized container */}
-      <div className="w-full mx-0 md:max-w-4xl md:mx-auto p-4 md:p-6 space-y-4 md:space-y-6 h-full">
+      {/* Mobile-first container with proper viewport handling */}
+      <div className="w-full max-w-none sm:max-w-md md:max-w-lg lg:max-w-xl mx-auto p-3 sm:p-4 space-y-3 sm:space-y-4 h-full">
 
-        <div className="text-center">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Track your work hours with job and cost code selection
+        <div className="text-center px-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1">Punch Clock</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Track your work hours
           </p>
         </div>
 
-        {/* Welcome Header (moved below title) */}
+        {/* Welcome Header - Mobile optimized */}
         <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 sm:justify-between">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 {getGreetingIcon()}
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {getGreeting()}, {profile?.first_name || profile?.display_name || 'Employee'}!
+                <div className="text-center sm:text-left min-w-0">
+                  <h2 className="text-base sm:text-lg font-semibold text-foreground truncate">
+                    {getGreeting()}, {profile?.first_name || 'Employee'}!
                   </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(), 'EEEE, MMMM do, yyyy')} • {currentCompany?.display_name || currentCompany?.name || 'Your Company'}
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    {format(new Date(), 'EEE, MMM do')} • {currentCompany?.display_name || currentCompany?.name || 'Company'}
                   </p>
                 </div>
               </div>
@@ -697,7 +741,7 @@ export default function TimeTracking() {
                     : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
                   } 
                   alt="Company Logo" 
-                  className="h-12 w-12 object-contain rounded-md" 
+                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain rounded-md flex-shrink-0" 
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -707,35 +751,35 @@ export default function TimeTracking() {
           </CardContent>
         </Card>
 
-      {/* Current Status - Mobile optimized */}
+      {/* Current Status - Mobile-first design */}
       <Card className="shadow-elevation-md">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
-            <Clock className="h-5 w-5" />
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
             Current Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {currentStatus ? (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-center gap-3 sm:justify-between">
-                <Badge variant="secondary" className="px-3 py-2 text-sm">
-                  <CheckCircle className="h-4 w-4 mr-2" />
+            <div className="space-y-3">
+              <div className="flex flex-col items-center gap-2 text-center">
+                <Badge variant="secondary" className="px-2 py-1 text-xs">
+                  <CheckCircle className="h-3 w-3 mr-1" />
                   Punched In
                 </Badge>
-                <div className="text-3xl md:text-4xl font-mono font-bold text-center">
+                <div className="text-2xl sm:text-3xl font-mono font-bold">
                   {getElapsedTime()}
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Started:</span>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm p-3 bg-muted/30 rounded-lg">
+                <div className="text-center">
+                  <span className="text-muted-foreground block">Started</span>
                   <div className="font-medium">{formatTime(currentStatus.punch_in_time)}</div>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Job:</span>
-                  <div className="font-medium">
+                <div className="text-center">
+                  <span className="text-muted-foreground block">Job</span>
+                  <div className="font-medium truncate">
                     {jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}
                   </div>
                 </div>
@@ -744,8 +788,9 @@ export default function TimeTracking() {
               <Button
                 onClick={handlePunchOut}
                 disabled={isLoading}
-                className="w-full"
+                className="w-full h-12 text-base"
                 variant="destructive"
+                size="lg"
               >
                 {isLoading ? (
                   <>
@@ -761,14 +806,14 @@ export default function TimeTracking() {
               </Button>
             </div>
           ) : (
-            <div className="text-center space-y-4">
-              <div className="text-muted-foreground">Not currently punched in</div>
+            <div className="text-center space-y-3">
+              <div className="text-muted-foreground text-sm">Not currently punched in</div>
               
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <Label htmlFor="job-select">Select Job</Label>
+                  <Label htmlFor="job-select" className="text-sm">Select Job</Label>
                   <Select value={selectedJob} onValueChange={setSelectedJob}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10">
                       <SelectValue placeholder="Choose a job" />
                     </SelectTrigger>
                     <SelectContent>
@@ -783,9 +828,9 @@ export default function TimeTracking() {
                 
                 {selectedJob && (
                   <div>
-                    <Label htmlFor="cost-code-select">Select Cost Code</Label>
+                    <Label htmlFor="cost-code-select" className="text-sm">Select Cost Code</Label>
                     <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-10">
                         <SelectValue placeholder="Choose a cost code" />
                       </SelectTrigger>
                       <SelectContent>
@@ -803,7 +848,8 @@ export default function TimeTracking() {
               <Button
                 onClick={handlePunchIn}
                 disabled={!selectedJob || !selectedCostCode || isLoading}
-                className="w-full"
+                className="w-full h-12 text-base"
+                size="lg"
               >
                 {isLoading ? (
                   <>
@@ -822,9 +868,9 @@ export default function TimeTracking() {
         </CardContent>
       </Card>
 
-      {/* Punch Dialog */}
+      {/* Punch Dialog - Mobile optimized */}
       <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md mx-auto"  style={{ maxHeight: '90vh', overflow: 'auto' }}>
           <DialogHeader>
             <DialogTitle>
               {punchType === 'in' ? 'Punch In' : 'Punch Out'}

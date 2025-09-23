@@ -23,7 +23,7 @@ const AVAILABLE_PAGES = [
   { value: '/jobs/reports', label: 'Job Reports' },
   { value: '/delivery-tickets', label: 'Delivery Tickets' },
   { value: '/time-tracking', label: 'Time Tracking' },
-  { value: '/punch-clock/dashboard', label: 'Punch Clock Dashboard' },
+  { value: '/punch-clock-dashboard', label: 'Punch Clock Dashboard' },
   { value: '/time-sheets', label: 'Timesheets' },
   { value: '/punch-clock/reports', label: 'Time Card Reports' },
   { value: '/punch-clock/settings', label: 'Punch Clock Settings' },
