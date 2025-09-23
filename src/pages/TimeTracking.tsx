@@ -618,21 +618,27 @@ export default function TimeTracking() {
       {/* App-like container with safe padding */}
       <div className="max-w-lg mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50">
         {/* App Header */}
-        <div className="bg-gradient-to-r from-primary to-primary-glow p-6 pb-8 text-center text-primary-foreground shadow-lg">
-          <div className="space-y-3">
-            <div className="flex items-center justify-center gap-3">
-              <div className="p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                <Clock className="h-6 w-6" />
+        <div className="p-6">
+          <Card className="shadow-elevation-md border-border/50 overflow-hidden">
+            <CardContent className="p-6">
+              <div className="bg-gradient-to-r from-primary to-primary-glow p-6 text-center text-primary-foreground shadow-lg rounded-xl">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="p-2 bg-white/20 rounded-full backdrop-blur-sm">
+                      <Clock className="h-6 w-6" />
+                    </div>
+                    <span className="text-xl font-bold tracking-wide">Time Tracker</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-2xl font-bold">
+                      {getGreeting()} {getGreetingIcon()}
+                    </div>
+                    <p className="text-primary-foreground/80 text-sm">{user?.email}</p>
+                  </div>
+                </div>
               </div>
-              <span className="text-xl font-bold tracking-wide">Time Tracker</span>
-            </div>
-            <div className="space-y-1">
-              <div className="text-2xl font-bold">
-                {getGreeting()} {getGreetingIcon()}
-              </div>
-              <p className="text-primary-foreground/80 text-sm">{user?.email}</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Main Content */}
