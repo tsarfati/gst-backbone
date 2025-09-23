@@ -785,24 +785,14 @@ export default function TimeTracking() {
                 </div>
               </div>
               
-              <Button
-                onClick={handlePunchOut}
-                disabled={isLoading}
-                className="w-full h-12 text-base"
+              <Button 
+                onClick={() => { setPunchType('out'); setShowPunchDialog(true); }}
                 variant="destructive"
                 size="lg"
+                className="w-full py-4 text-lg font-semibold"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {loadingStatus}
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Punch Out
-                  </>
-                )}
+                <CheckCircle className="h-5 w-5 mr-2" />
+                Punch Out
               </Button>
             </div>
           ) : (
@@ -867,6 +857,16 @@ export default function TimeTracking() {
           )}
         </CardContent>
       </Card>
+
+      {/* Employee Messaging Panel */}
+      {currentStatus && (
+        <div className="mt-6">
+          <EmployeeMessagingPanel 
+            currentJobId={currentStatus.job_id}
+            isVisible={true}
+          />
+        </div>
+      )}
 
       {/* Punch Dialog - Mobile optimized */}
       <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
@@ -971,14 +971,6 @@ export default function TimeTracking() {
           <canvas ref={canvasRef} style={{ display: 'none' }} />
         </DialogContent>
       </Dialog>
-
-        {/* Employee Messaging Panel */}
-        {currentStatus && (
-          <EmployeeMessagingPanel 
-            currentJobId={currentStatus.job_id}
-            isVisible={!!currentStatus}
-          />
-        )}
       </div>
     </div>
   );

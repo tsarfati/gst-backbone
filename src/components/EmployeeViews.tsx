@@ -73,7 +73,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm">View Profile</Button>
+                  <Button variant="outline" size="sm" onClick={() => window.open(`/profile-settings`, '_blank')}>View Profile</Button>
                   {canManageEmployees && <Button variant="outline" size="sm">Edit</Button>}
                 </div>
               </div>
@@ -119,7 +119,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                   {employee.role.replace('_', ' ').toUpperCase()}
                 </Badge>
-                <Button variant="outline" size="sm">View</Button>
+                <Button variant="outline" size="sm" onClick={() => window.open(`/profile-settings`, '_blank')}>View</Button>
               </div>
             </div>
           </Card>
@@ -167,7 +167,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   {employee.role.replace('_', ' ').toUpperCase()}
                 </Badge>
               </div>
-              <Button variant="outline" size="sm" className="w-full">
+              <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(`/profile-settings`, '_blank')}>
                 View Profile
               </Button>
             </div>

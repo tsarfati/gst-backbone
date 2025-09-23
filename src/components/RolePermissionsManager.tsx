@@ -49,6 +49,7 @@ const menuItems = [
   
   // Time Tracking & Punch Clock
   { key: 'time-tracking', label: 'Punch Clock', description: 'Employee time clock system', category: 'Time Tracking' },
+  { key: 'punch-clock-dashboard', label: 'Punch Clock Dashboard', description: 'Time tracking dashboard overview', category: 'Time Tracking' },
   { key: 'punch-clock-settings', label: 'Punch Clock Settings', description: 'Configure punch clock rules and settings', category: 'Time Tracking' },
   { key: 'timecard-reports', label: 'Timecard Reports', description: 'Generate detailed timecard reports', category: 'Time Tracking' },
   { key: 'employee-timecard-settings', label: 'Employee Time Settings', description: 'Individual employee time tracking settings', category: 'Time Tracking' },

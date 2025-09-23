@@ -86,7 +86,7 @@ const navigationCategories = [
     collapsible: true,
   },
   {
-    title: "Punch Clock",
+    title: "Time Tracking",
     items: [
       { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "time-tracking" },
       { name: "Punch Clock Dashboard", href: "/punch-clock/dashboard", icon: LayoutDashboard, menuKey: "time-tracking" },
