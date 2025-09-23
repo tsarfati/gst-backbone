@@ -553,18 +553,6 @@ export default function TimeTracking() {
             description: 'Punch recorded but status may not be accurate.',
             variant: 'destructive',
           });
-        } else {
-          // Immediately update local state to reflect punched in status
-          setCurrentStatus({
-            id: 'temp-id',
-            job_id: selectedJob,
-            cost_code_id: selectedCostCode,
-            punch_in_time: new Date().toISOString(),
-            punch_in_location_lat: location?.lat ?? null,
-            punch_in_location_lng: location?.lng ?? null,
-            punch_in_photo_url: photoUrl,
-            is_active: true,
-          });
         }
 
         toast({
@@ -572,8 +560,21 @@ export default function TimeTracking() {
           description: 'Successfully punched in!',
         });
         
-        // Force reload of current status to ensure UI updates
-        await loadCurrentStatus();
+        // Immediately update local state to reflect punched in status
+        const newStatus: PunchStatus = {
+          id: 'temp-id',
+          job_id: selectedJob,
+          cost_code_id: selectedCostCode,
+          punch_in_time: new Date().toISOString(),
+          punch_in_location_lat: location?.lat ?? null,
+          punch_in_location_lng: location?.lng ?? null,
+          punch_in_photo_url: photoUrl,
+          is_active: true,
+        };
+        setCurrentStatus(newStatus);
+        
+        // Force reload of current status to get the correct ID
+        setTimeout(() => loadCurrentStatus(), 100);
       } else {
         // Calculate distance from job if job has coordinates
         let distanceWarning = false;
@@ -695,6 +696,7 @@ export default function TimeTracking() {
       setPhotoPreview(null);
       setNotes('');
       setLocation(null);
+      setShowPunchDialog(false);
       stopCamera();
     } catch (error: any) {
       console.error('Error during punch:', error);
@@ -712,7 +714,7 @@ export default function TimeTracking() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
       {/* Mobile-first container - left aligned */}
-      <div className="max-w-md mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50">
+      <div className="w-full max-w-md min-h-screen flex flex-col bg-background/95 backdrop-blur-sm ml-0">
         {/* Welcome Header */}
         <div className="px-4 py-4">
           <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
