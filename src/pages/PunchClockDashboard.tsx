@@ -89,7 +89,7 @@ export default function PunchClockDashboard() {
       const { data: outsData } = await supabase
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
-        .eq('punch_type', 'out')
+        .eq('punch_type', 'punched_out')
         .gte('punch_time', since)
         .order('punch_time', { ascending: false })
         .limit(200);
