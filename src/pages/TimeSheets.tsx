@@ -46,7 +46,7 @@ export default function TimeSheets() {
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Array<{id: string, name: string}>>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const { profile, user } = useAuth();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
@@ -111,7 +111,7 @@ export default function TimeSheets() {
       // Filter records based on user role and selection
       if (!isManager) {
         query = query.eq('user_id', user.id);
-      } else if (selectedEmployeeId) {
+      } else if (selectedEmployeeId && selectedEmployeeId !== 'all') {
         query = query.eq('user_id', selectedEmployeeId);
       }
 
@@ -291,7 +291,7 @@ export default function TimeSheets() {
                 <SelectValue placeholder="Select Employee" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Employees</SelectItem>
+                <SelectItem value="all">All Employees</SelectItem>
                 {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     <div className="flex items-center gap-2">
