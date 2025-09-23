@@ -24,6 +24,23 @@ interface TimeCard {
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
 }
 
+type SupabaseTimeCard = {
+  id: string;
+  user_id: string;
+  job_id: string;
+  cost_code_id: string;
+  punch_in_time: string;
+  punch_out_time: string;
+  total_hours: number;
+  overtime_hours: number;
+  status: string;
+  break_minutes: number;
+  notes?: string | null;
+  jobs?: { name: string } | null;
+  cost_codes?: { code: string; description: string } | null;
+  profiles?: { first_name: string; last_name: string; display_name: string } | null;
+}
+
 export default function TimeSheets() {
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +86,25 @@ export default function TimeSheets() {
         return;
       }
 
-      setTimeCards(data as unknown as TimeCard[] || []);
+      // Transform and filter the data to ensure type safety
+      const transformedData: TimeCard[] = ((data as unknown) as any[] || []).map(card => ({
+        id: card.id,
+        user_id: card.user_id,
+        job_id: card.job_id,
+        cost_code_id: card.cost_code_id,
+        punch_in_time: card.punch_in_time,
+        punch_out_time: card.punch_out_time,
+        total_hours: card.total_hours,
+        overtime_hours: card.overtime_hours,
+        status: card.status,
+        break_minutes: card.break_minutes,
+        notes: card.notes || undefined,
+        jobs: card.jobs && !card.jobs.error ? card.jobs : null,
+        cost_codes: card.cost_codes && !card.cost_codes.error ? card.cost_codes : null,
+        profiles: card.profiles && !card.profiles.error ? card.profiles : null
+      }));
+
+      setTimeCards(transformedData);
     } catch (error) {
       console.error('Error:', error);
       toast({
