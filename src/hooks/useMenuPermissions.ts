@@ -46,11 +46,11 @@ export function useMenuPermissions() {
   };
 
   const hasAccess = (menuItem: string): boolean => {
-    // Default access for admins if no permissions are set
-    if (profile?.role === 'admin' && Object.keys(permissions).length === 0) {
-      return true;
+    if (loading) return false;
+    if (typeof permissions[menuItem] === 'boolean') {
+      return permissions[menuItem];
     }
-    return permissions[menuItem] || false;
+    return false;
   };
 
   const canAccessJobs = (jobIds?: string[]): boolean => {
