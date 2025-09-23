@@ -4,12 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit } from 'lucide-react';
+import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import AuditTrailView from './AuditTrailView';
 
 interface TimeCardDetailViewProps {
   open: boolean;
@@ -411,18 +410,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 </CardContent>
               </Card>
             )}
-            {/* Audit Trail Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Audit Trail
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AuditTrailView timeCardId={timeCard.id} />
-              </CardContent>
-            </Card>
           </div>
 
           {/* Right Column - Map */}
