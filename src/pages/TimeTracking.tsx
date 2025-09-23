@@ -457,10 +457,36 @@ export default function TimeTracking() {
   };
 
   const handlePunchIn = async () => {
-    if (!user || !selectedJob || !selectedCostCode) {
+    console.log('handlePunchIn called with:', {
+      user: !!user,
+      selectedJob,
+      selectedCostCode,
+      jobs: jobs.length,
+      costCodes: costCodes.length
+    });
+    
+    if (!user) {
       toast({
-        title: 'Missing Information',
-        description: 'Please select a job and cost code before punching in.',
+        title: 'Authentication Error',
+        description: 'Please log in to use the punch clock.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!selectedJob) {
+      toast({
+        title: 'Missing Job Selection',
+        description: 'Please select a job before punching in.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!selectedCostCode) {
+      toast({
+        title: 'Missing Cost Code',
+        description: 'Please select a cost code before punching in.',
         variant: 'destructive',
       });
       return;
@@ -549,7 +575,23 @@ export default function TimeTracking() {
   };
 
   const confirmPunch = async () => {
-    if (!user) return;
+    console.log('confirmPunch called with:', {
+      user: !!user,
+      punchType,
+      selectedJob,
+      selectedCostCode,
+      photoBlob: !!photoBlob,
+      location
+    });
+    
+    if (!user) {
+      toast({
+        title: 'Authentication Error',
+        description: 'Please log in to continue.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsLoading(true);
     setLoadingStatus('Processing punch...');
@@ -564,6 +606,14 @@ export default function TimeTracking() {
       setLoadingStatus('Recording punch...');
 
       if (punchType === 'in') {
+        console.log('Creating punch in record with:', {
+          user_id: user.id,
+          job_id: selectedJob,
+          cost_code_id: selectedCostCode,
+          punch_type: 'punched_in',
+          location: location
+        });
+        
         // Insert punch_in record
         const { error: punchError } = await supabase
           .from('punch_records')
@@ -573,10 +623,10 @@ export default function TimeTracking() {
             cost_code_id: selectedCostCode,
             punch_type: 'punched_in',
             punch_time: new Date().toISOString(),
-            latitude: location?.lat,
-            longitude: location?.lng,
+            latitude: location?.lat ?? null,
+            longitude: location?.lng ?? null,
             photo_url: photoUrl,
-            notes,
+            notes: notes || null,
           });
 
         if (punchError) {
@@ -584,6 +634,13 @@ export default function TimeTracking() {
           throw punchError;
         }
 
+        console.log('Creating current punch status with:', {
+          user_id: user.id,
+          job_id: selectedJob,
+          cost_code_id: selectedCostCode,
+          location: location
+        });
+        
         // Create current status
         const { error: statusError } = await supabase
           .from('current_punch_status')
@@ -597,7 +654,10 @@ export default function TimeTracking() {
             punch_in_photo_url: photoUrl
           });
 
-        if (statusError) throw statusError;
+        if (statusError) {
+          console.error('Status error:', statusError);
+          throw statusError;
+        }
 
         toast({
           title: 'Punched In',
@@ -708,13 +768,13 @@ export default function TimeTracking() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="min-h-screen bg-background">
       {/* Mobile-first container with proper viewport handling */}
-      <div className="w-full max-w-none sm:max-w-md md:max-w-lg lg:max-w-xl mx-auto p-3 sm:p-4 space-y-3 sm:space-y-4 h-full">
+      <div className="w-full max-w-md mx-auto p-3 space-y-4 min-h-screen">
 
-        <div className="text-center px-2">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1">Punch Clock</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+        <div className="text-center px-2 pt-2">
+          <h1 className="text-xl font-bold text-foreground mb-1">Punch Clock</h1>
+          <p className="text-sm text-muted-foreground">
             Track your work hours
           </p>
         </div>
@@ -870,7 +930,7 @@ export default function TimeTracking() {
 
       {/* Punch Dialog - Mobile optimized */}
       <Dialog open={showPunchDialog} onOpenChange={(open) => { setShowPunchDialog(open); if (!open) { stopCamera(); setPhotoPreview(null); setPhotoBlob(null); } }}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md mx-auto"  style={{ maxHeight: '90vh', overflow: 'auto' }}>
+        <DialogContent className="max-w-[95vw] max-w-sm mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {punchType === 'in' ? 'Punch In' : 'Punch Out'}
