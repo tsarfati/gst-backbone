@@ -746,7 +746,7 @@ export default function TimeTracking() {
       console.error('Error processing punch:', error);
       toast({
         title: 'Error',
-        description: error?.message ? `Failed to process punch: ${error.message}` : 'Failed to process punch. Please try again.',
+        description: `Failed to process punch: ${error?.message || error?.details || error?.hint || 'Please try again.'}`,
         variant: 'destructive',
       });
     } finally {
@@ -793,7 +793,7 @@ export default function TimeTracking() {
   return (
     <div className="min-h-[100dvh] bg-background overflow-x-hidden">
       {/* Mobile-first container with proper viewport handling */}
-      <div className="w-full max-w-[420px] sm:max-w-md mx-auto px-4 py-3 space-y-4">
+      <div className="w-full max-w-[390px] sm:max-w-md mx-auto px-3 md:px-4 py-4 space-y-4">
 
         <div className="text-center px-2 pt-2">
           <h1 className="text-xl font-bold text-foreground mb-1">Punch Clock</h1>
@@ -803,7 +803,7 @@ export default function TimeTracking() {
         </div>
 
         {/* Welcome Header - Mobile optimized */}
-        <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
+        <Card className="w-full bg-gradient-to-r from-primary/10 via-primary/5 to-background border-primary/20">
           <CardContent className="pt-4 pb-3">
             <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 sm:justify-between">
               <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -835,7 +835,7 @@ export default function TimeTracking() {
         </Card>
 
       {/* Current Status - Mobile-first design */}
-      <Card className="shadow-elevation-md">
+      <Card className="w-full shadow-elevation-md">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Clock className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -943,7 +943,7 @@ export default function TimeTracking() {
 
       {/* Employee Messaging Panel */}
       {currentStatus && (
-        <div className="mt-6 max-w-[420px] sm:max-w-md mx-auto w-full">
+        <div className="mt-6 w-full mx-auto">
           <EmployeeMessagingPanel 
             currentJobId={currentStatus.job_id}
             isVisible={true}
