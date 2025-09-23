@@ -618,22 +618,37 @@ export default function TimeTracking() {
       {/* App-like container with safe padding */}
       <div className="max-w-lg mx-auto min-h-screen flex flex-col bg-background/95 backdrop-blur-sm border-x border-border/50">
         {/* App Header */}
-        <div className="p-6">
-          <Card className="shadow-elevation-md border-border/50 overflow-hidden">
-            <CardContent className="p-6">
-              <div className="bg-gradient-to-r from-primary to-primary-glow p-6 text-center text-primary-foreground shadow-lg rounded-xl">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="p-2 bg-white/20 rounded-full backdrop-blur-sm">
-                      <Clock className="h-6 w-6" />
-                    </div>
-                    <span className="text-xl font-bold tracking-wide">Time Tracker</span>
+        <div className="px-4 py-4 sm:px-6 sm:py-6">
+          <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-lg">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xl sm:text-2xl md:text-3xl font-bold text-foreground">
+                    <span className="text-xl sm:text-2xl">{getGreetingIcon()}</span>
+                    <span className="break-words">{getGreeting()}, {profile?.display_name || profile?.first_name || 'Employee'}!</span>
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-2xl font-bold">
-                      {getGreeting()} {getGreetingIcon()}
+                  <p className="text-sm sm:text-base text-muted-foreground">
+                    {format(new Date(), 'EEEE, MMMM do, yyyy')}
+                  </p>
+                </div>
+                
+                <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="text-right">
+                    <div className="text-xl sm:text-2xl md:text-3xl font-bold text-primary">
+                      {format(new Date(), 'h:mm a')}
                     </div>
-                    <p className="text-primary-foreground/80 text-sm">{user?.email}</p>
+                    <div className="text-xs sm:text-sm text-muted-foreground">
+                      Current Time
+                    </div>
+                  </div>
+                  <div className="h-8 sm:h-12 w-px bg-border" />
+                  <div className="text-right">
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-accent-foreground">
+                      {currentStatus ? getElapsedTime() : '0:00'}
+                    </div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">
+                      {currentStatus ? 'Elapsed' : 'Ready'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -642,46 +657,46 @@ export default function TimeTracking() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 px-6 pb-6 space-y-6">
+        <div className="flex-1 px-4 sm:px-6 pb-6 space-y-6">
           {/* Status Card */}
-          <Card className="shadow-elevation-md border-border/50 overflow-hidden">
+          <Card className="shadow-elevation-md border-border/50 overflow-hidden rounded-lg">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-center gap-2 text-primary">
                 <Timer className="h-5 w-5" />
-                <span className="font-semibold">Current Status</span>
+                <span className="font-semibold text-sm sm:text-base">Current Status</span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 sm:space-y-6 px-4 sm:px-6">
               {currentStatus && currentStatus.is_active ? (
                 <div className="text-center space-y-4">
-                  <div className="relative p-6 bg-gradient-to-br from-success/10 to-success/5 rounded-xl border border-success/20 overflow-hidden">
+                  <div className="relative p-4 sm:p-6 bg-gradient-to-br from-success/10 to-success/5 rounded-xl border border-success/20 overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-r from-success/5 to-transparent"></div>
                     <div className="relative z-10">
                       <div className="text-success font-semibold mb-3 flex items-center justify-center gap-2">
                         <div className="p-1 bg-success/20 rounded-full">
-                          <CheckCircle className="h-4 w-4" />
+                          <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                         </div>
-                        Actively Working
+                        <span className="text-sm sm:text-base">Actively Working</span>
                       </div>
-                      <div className="text-3xl font-bold text-foreground mb-2">
+                      <div className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
                         {formatTime(currentStatus.punch_in_time)}
                       </div>
-                      <div className="text-sm text-success/80 font-medium">
+                      <div className="text-xs sm:text-sm text-success/80 font-medium">
                         Elapsed: {getElapsedTime()}
                       </div>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
+                    <div className="p-3 sm:p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
                       <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Cost Code</div>
-                      <div className="font-semibold text-sm truncate">
+                      <div className="font-semibold text-xs sm:text-sm truncate">
                         {costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}
                       </div>
                     </div>
-                    <div className="p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
+                    <div className="p-3 sm:p-4 bg-gradient-to-br from-muted/80 to-muted/40 rounded-lg border border-border/50">
                       <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Job</div>
-                      <div className="font-semibold text-sm truncate">
+                      <div className="font-semibold text-xs sm:text-sm truncate">
                         {jobs.find(j => j.id === currentStatus.job_id)?.name || 'Unknown Job'}
                       </div>
                     </div>
@@ -691,9 +706,9 @@ export default function TimeTracking() {
                     onClick={handlePunchOut}
                     variant="destructive"
                     size="lg"
-                    className="w-full py-4 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 ripple"
+                    className="w-full py-3 sm:py-4 text-base sm:text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 ripple"
                   >
-                    <CheckCircle className="h-5 w-5 mr-2" />
+                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     Punch Out
                   </Button>
                 </div>
