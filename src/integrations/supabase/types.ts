@@ -1590,6 +1590,7 @@ export type Database = {
           correction_requested_at: string | null
           cost_code_id: string | null
           created_at: string
+          created_via_punch_clock: boolean | null
           id: string
           is_correction: boolean | null
           job_id: string | null
@@ -1617,6 +1618,7 @@ export type Database = {
           correction_requested_at?: string | null
           cost_code_id?: string | null
           created_at?: string
+          created_via_punch_clock?: boolean | null
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
@@ -1644,6 +1646,7 @@ export type Database = {
           correction_requested_at?: string | null
           cost_code_id?: string | null
           created_at?: string
+          created_via_punch_clock?: boolean | null
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
