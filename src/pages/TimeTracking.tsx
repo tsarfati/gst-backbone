@@ -760,33 +760,57 @@ export default function TimeTracking() {
                      <div className="text-sm text-muted-foreground">{costCodes.find(c => c.id === currentStatus.cost_code_id)?.code || 'N/A'}</div>
                    </div>
 
-                  {/* Inline Camera for Punch Out */}
-                  {showCamera && (
-                    <div className="space-y-4">
-                      <div className="relative overflow-hidden rounded-xl bg-black">
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          muted
-                          playsInline
-                          controls={false}
-                          className="w-full"
-                          style={{ aspectRatio: '4/3' }}
-                        />
-                        <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
-                      </div>
-                      <div className="flex gap-3">
-                        <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
-                          <Camera className="h-4 w-4 mr-2" />
-                          Take Photo
-                        </Button>
-                        <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
-                          Cancel
-                        </Button>
-                      </div>
+                   {/* Inline Camera for Punch Out */}
+                   {showCamera && (
+                     <div className="space-y-4">
+                       <div className="relative overflow-hidden rounded-xl bg-black">
+                         <video
+                           ref={videoRef}
+                           autoPlay
+                           muted
+                           playsInline
+                           controls={false}
+                           className="w-full"
+                           style={{ aspectRatio: '4/3' }}
+                         />
+                         <div className="absolute inset-0 border-2 border-primary/30 rounded-xl"></div>
+                       </div>
+                       <div className="flex gap-3">
+                         <Button onClick={capturePhoto} className="flex-1 h-12 rounded-xl">
+                           <Camera className="h-4 w-4 mr-2" />
+                           Take Photo
+                         </Button>
+                         <Button variant="outline" onClick={stopCamera} className="px-6 h-12 rounded-xl">
+                           Cancel
+                         </Button>
+                       </div>
+                     </div>
+                   )}
+                  
+                  {/* Punch Out Button - only show if not showing camera */}
+                  {!showCamera && (
+                    <div className="w-full">
+                      <Button 
+                        onClick={handlePunchOut}
+                        disabled={isLoading}
+                        className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                            {loadingStatus}
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="h-6 w-6 mr-3" />
+                            Punch Out
+                          </>
+                        )}
+                      </Button>
                     </div>
                   )}
                   
+                  {/* Photo Preview and Final Punch Out Button */}
                   {photoPreview && (
                     <div className="space-y-4">
                       <div className="relative">
@@ -807,44 +831,25 @@ export default function TimeTracking() {
                         Retake Photo
                       </Button>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="notes" className="font-medium">Work Summary (Optional)</Label>
-                        <Textarea
-                          id="notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Describe what you accomplished today..."
-                          className="rounded-xl border-2 min-h-[100px] resize-none"
-                        />
-                      </div>
+                      <Button
+                        onClick={confirmPunch}
+                        disabled={isLoading}
+                        className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                            {loadingStatus}
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-6 w-6 mr-3" />
+                            Punch Out
+                          </>
+                        )}
+                      </Button>
                     </div>
                   )}
-                  
-                  {/* Punch Out Button */}
-                  <div className="w-full">
-                    <Button 
-                      onClick={showCamera ? confirmPunch : handlePunchOut}
-                      disabled={showCamera && ((employeeSettings?.require_photo !== false) && !photoBlob) || isLoading}
-                      className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="h-6 w-6 mr-3 animate-spin" />
-                          {loadingStatus}
-                        </>
-                      ) : showCamera && photoBlob ? (
-                        <>
-                          <CheckCircle className="h-6 w-6 mr-3" />
-                          Complete Punch Out
-                        </>
-                      ) : (
-                        <>
-                          <Camera className="h-6 w-6 mr-3" />
-                          {showCamera ? 'Take Photo First' : 'Punch Out'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
