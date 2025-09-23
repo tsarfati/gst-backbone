@@ -72,6 +72,7 @@ import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
 import Reconcile from "./pages/Reconcile";
 import PunchClockDashboard from "./pages/PunchClockDashboard";
+import PayablesDashboard from "./pages/PayablesDashboard";
 import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";

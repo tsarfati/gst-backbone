@@ -99,12 +99,7 @@ export default function TimeSheets() {
       
       let query = supabase
         .from('punch_records')
-        .select(`
-          *,
-          jobs:job_id(name),
-          cost_codes:cost_code_id(code, description),
-          profiles:user_id(first_name, last_name, display_name)
-        `)
+        .select('*')
         .order('punch_time', { ascending: false })
         .limit(100);
 
@@ -127,6 +122,32 @@ export default function TimeSheets() {
         return;
       }
 
+      // Get unique user IDs, job IDs, and cost code IDs
+      const userIds = [...new Set((punchData || []).map(p => p.user_id))];
+      const jobIds = [...new Set((punchData || []).map(p => p.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((punchData || []).map(p => p.cost_code_id).filter(Boolean))];
+
+      // Fetch related data separately
+      const [profilesData, jobsData, costCodesData] = await Promise.all([
+        userIds.length > 0 ? supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, display_name')
+          .in('user_id', userIds) : Promise.resolve({ data: [] }),
+        jobIds.length > 0 ? supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', jobIds) : Promise.resolve({ data: [] }),
+        costCodeIds.length > 0 ? supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .in('id', costCodeIds) : Promise.resolve({ data: [] })
+      ]);
+
+      // Create lookup maps
+      const profilesMap = new Map((profilesData.data || []).map(p => [p.user_id, p]));
+      const jobsMap = new Map((jobsData.data || []).map(j => [j.id, j]));
+      const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
+
       // Group punch records by user and date to create time cards
       const timeCardsMap = new Map<string, TimeCard>();
       
@@ -135,6 +156,10 @@ export default function TimeSheets() {
         const key = `${punch.user_id}-${date}`;
         
         if (!timeCardsMap.has(key)) {
+          const profile = profilesMap.get(punch.user_id);
+          const job = jobsMap.get(punch.job_id);
+          const costCode = costCodesMap.get(punch.cost_code_id);
+          
           timeCardsMap.set(key, {
             id: `${punch.user_id}-${date}`,
             user_id: punch.user_id,
@@ -147,9 +172,13 @@ export default function TimeSheets() {
             status: 'draft',
             break_minutes: 0,
             notes: punch.notes,
-            jobs: punch.jobs && !punch.jobs.error ? punch.jobs : null,
-            cost_codes: punch.cost_codes && !punch.cost_codes.error ? punch.cost_codes : null,
-            profiles: punch.profiles && !punch.profiles.error ? punch.profiles : null
+            jobs: job ? { name: job.name } : null,
+            cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
+            profiles: profile ? {
+              first_name: profile.first_name,
+              last_name: profile.last_name,
+              display_name: profile.display_name
+            } : null
           });
         }
         

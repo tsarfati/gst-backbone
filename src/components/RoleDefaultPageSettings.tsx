@@ -22,6 +22,7 @@ const AVAILABLE_PAGES = [
   { value: '/jobs/cost-codes', label: 'Cost Codes' },
   { value: '/jobs/reports', label: 'Job Reports' },
   { value: '/delivery-tickets', label: 'Delivery Tickets' },
+  { value: '/payables-dashboard', label: 'Payables Dashboard' },
   { value: '/time-tracking', label: 'Time Tracking' },
   { value: '/punch-clock-dashboard', label: 'Punch Clock Dashboard' },
   { value: '/time-sheets', label: 'Timesheets' },

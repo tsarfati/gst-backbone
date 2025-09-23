@@ -55,6 +55,7 @@ const navigationCategories = [
   {
     title: "Payables",
     items: [
+      { name: "Payables Dashboard", href: "/payables-dashboard", icon: BarChart3, menuKey: "payables-dashboard" },
       { name: "Bill Dashboard", href: "/bill-status", icon: BarChart3, menuKey: "reports" },
       { name: "All Bills", href: "/bills", icon: FileText, menuKey: "vendors" },
       { name: "Add Bill", href: "/bills/add", icon: FileCheck, menuKey: "vendors" },
@@ -88,8 +89,8 @@ const navigationCategories = [
   {
     title: "Time Tracking",
     items: [
-      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "time-tracking" },
       { name: "Punch Clock Dashboard", href: "/punch-clock/dashboard", icon: LayoutDashboard, menuKey: "punch-clock-dashboard" },
+      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "time-tracking" },
       { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "timesheets" },
       { name: "Time Card Reports", href: "/punch-clock/reports", icon: TrendingUp, menuKey: "timecard-reports" },
       { name: "Punch Clock Settings", href: "/punch-clock/settings", icon: Settings, menuKey: "punch-clock-settings" },
