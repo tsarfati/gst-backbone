@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Building, Phone, Mail, MapPin, Receipt } from "lucide-react";
+import { Building, Phone, Mail, MapPin, Receipt, AlertTriangle } from "lucide-react";
+import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
 
 interface Vendor {
   id: string;
@@ -29,6 +30,8 @@ const categoryColors = {
 } as const;
 
 export default function VendorCard({ vendor, onClick }: VendorCardProps) {
+  const { missingCount } = useVendorCompliance(vendor.id);
+  
   return (
     <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
       <CardHeader>
@@ -41,9 +44,17 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
             )}
             {vendor.name}
           </CardTitle>
-          <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
-            {vendor.category}
-          </Badge>
+          <div className="flex gap-2">
+            <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
+              {vendor.category}
+            </Badge>
+            {missingCount > 0 && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                {missingCount} Missing
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

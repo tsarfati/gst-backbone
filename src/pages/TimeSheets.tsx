@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle } from 'lucide-react';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import TimeCardDetailView from '@/components/TimeCardDetailView';
+import EditTimeCardDialog from '@/components/EditTimeCardDialog';
 
 interface TimeCard {
   id: string;
@@ -56,6 +57,7 @@ export default function TimeSheets() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string>('');
   const [showDetailView, setShowDetailView] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const { profile, user } = useAuth();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
@@ -240,6 +242,11 @@ export default function TimeSheets() {
     setShowDetailView(true);
   };
 
+  const handleEditTimeCard = (timeCardId: string) => {
+    setSelectedTimeCardId(timeCardId);
+    setShowEditDialog(true);
+  };
+
   const formatWeekRange = (date: string) => {
     const d = new Date(date);
     const startOfWeek = new Date(d);
@@ -422,147 +429,258 @@ export default function TimeSheets() {
                 <p className="text-muted-foreground">Start tracking time to see your records here.</p>
               </div>
             ) : (
-              timeCards.map((timeCard) => (
-                <div key={timeCard.id} className="border rounded-xl p-6 hover-card">
-                   <div className="flex items-start justify-between mb-4">
-                     <div className="space-y-1">
-                       {isManager && (
-                         <div className="flex items-center gap-2">
-                           <h3 className="font-semibold text-lg">{getEmployeeName(timeCard)}</h3>
-                           {timeCard.distance_warning && (
-                             <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                               <AlertTriangle className="h-3 w-3" />
-                               Distance
-                             </Badge>
-                           )}
-                           {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
-                             <Badge variant="outline" className="text-xs">
-                               Auto-Approved
-                             </Badge>
-                           )}
+              <div className="space-y-4">
+                {/* Render different views based on viewMode */}
+                {viewMode === 'list' && timeCards.map((timeCard) => (
+                  <div key={timeCard.id} className="border rounded-xl p-6 hover-card">
+                     <div className="flex items-start justify-between mb-4">
+                       <div className="space-y-1">
+                         {isManager && (
+                           <div className="flex items-center gap-2">
+                             <h3 className="font-semibold text-lg">{getEmployeeName(timeCard)}</h3>
+                             {timeCard.distance_warning && (
+                               <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                                 <AlertTriangle className="h-3 w-3" />
+                                 Distance
+                               </Badge>
+                             )}
+                             {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
+                               <Badge variant="outline" className="text-xs">
+                                 Auto-Approved
+                               </Badge>
+                             )}
+                           </div>
+                         )}
+                         <div className="flex items-center gap-2 text-muted-foreground">
+                           <Calendar className="h-4 w-4" />
+                           <span className="text-sm">{formatWeekRange(timeCard.punch_in_time)}</span>
                          </div>
-                       )}
-                       <div className="flex items-center gap-2 text-muted-foreground">
-                         <Calendar className="h-4 w-4" />
-                         <span className="text-sm">{formatWeekRange(timeCard.punch_in_time)}</span>
+                         <div className="text-sm text-muted-foreground">
+                           {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
+                             weekday: 'long', 
+                             month: 'short', 
+                             day: 'numeric' 
+                           })}
+                         </div>
                        </div>
-                       <div className="text-sm text-muted-foreground">
-                         {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
-                           weekday: 'long', 
-                           month: 'short', 
-                           day: 'numeric' 
-                         })}
-                       </div>
-                     </div>
-                    <div className="text-right space-y-2">
-                      <div className="font-bold text-xl flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
-                        {timeCard.total_hours.toFixed(1)} hrs
-                      </div>
-                      {timeCard.overtime_hours > 0 && (
-                        <div className="text-sm text-warning font-medium">
-                          +{timeCard.overtime_hours.toFixed(1)} OT
+                      <div className="text-right space-y-2">
+                        <div className="font-bold text-xl flex items-center gap-2">
+                          <Clock className="h-5 w-5" />
+                          {timeCard.total_hours.toFixed(1)} hrs
                         </div>
-                      )}
-                      <Badge variant={getStatusColor(timeCard.status)} className="ml-auto">
-                        {timeCard.status.toUpperCase()}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground">Job Details</h4>
-                      <div className="bg-muted/50 rounded-lg p-3">
-                        <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
-                        </div>
+                        {timeCard.overtime_hours > 0 && (
+                          <div className="text-sm text-warning font-medium">
+                            +{timeCard.overtime_hours.toFixed(1)} OT
+                          </div>
+                        )}
+                        <Badge variant={getStatusColor(timeCard.status)} className="ml-auto">
+                          {timeCard.status.toUpperCase()}
+                        </Badge>
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-muted-foreground">Time Details</h4>
-                      <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                        <div className="text-sm">
-                          In: {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', { 
-                            hour: 'numeric', 
-                            minute: '2-digit' 
-                          })}
-                        </div>
-                        <div className="text-sm">
-                          Out: {new Date(timeCard.punch_out_time).toLocaleTimeString('en-US', { 
-                            hour: 'numeric', 
-                            minute: '2-digit' 
-                          })}
-                        </div>
-                        {timeCard.break_minutes > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">Job Details</h4>
+                        <div className="bg-muted/50 rounded-lg p-3">
+                          <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
                           <div className="text-sm text-muted-foreground">
-                            Break: {timeCard.break_minutes} min
+                            {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
                           </div>
-                        )}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">Time Details</h4>
+                        <div className="bg-muted/50 rounded-lg p-3 space-y-1">
+                          <div className="text-sm">
+                            In: {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', { 
+                              hour: 'numeric', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                          <div className="text-sm">
+                            Out: {new Date(timeCard.punch_out_time).toLocaleTimeString('en-US', { 
+                              hour: 'numeric', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                          {timeCard.break_minutes > 0 && (
+                            <div className="text-sm text-muted-foreground">
+                              Break: {timeCard.break_minutes} min
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {timeCard.notes && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
-                      <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                        {timeCard.notes}
+                    {timeCard.notes && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
+                        <div className="bg-muted/30 rounded-lg p-3 text-sm">
+                          {timeCard.notes}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                    <div className="flex gap-3">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="rounded-lg"
-                        onClick={() => handleViewDetails(timeCard.id)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View Details
-                      </Button>
-                      {(user?.id === timeCard.user_id || isManager) && (
+                      <div className="flex gap-3">
                         <Button 
                           variant="outline" 
                           size="sm" 
                           className="rounded-lg"
-                          onClick={() => {
-                            // TODO: Open edit time card dialog
-                            console.log('Edit time card:', timeCard.id);
-                          }}
+                          onClick={() => handleViewDetails(timeCard.id)}
                         >
-                          Edit
+                          <Eye className="h-4 w-4 mr-1" />
+                          View Details
                         </Button>
-                      )}
-                     {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
-                       <>
-                         <Button 
-                           size="sm" 
-                           onClick={() => handleApproval(timeCard.id, true)}
-                           className="rounded-lg"
-                         >
-                           Approve
-                         </Button>
-                         <Button 
-                           size="sm" 
-                           variant="destructive"
-                           onClick={() => handleApproval(timeCard.id, false)}
-                           className="rounded-lg"
-                         >
-                           Reject
-                         </Button>
-                       </>
-                     )}
-                     <Button variant="outline" size="sm" className="rounded-lg">
-                       <Download className="h-4 w-4 mr-1" />
-                       PDF
-                     </Button>
-                   </div>
-                </div>
-              ))
+                        {(user?.id === timeCard.user_id || isManager) && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="rounded-lg"
+                            onClick={() => handleEditTimeCard(timeCard.id)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )}
+                       {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
+                         <>
+                           <Button 
+                             size="sm" 
+                             onClick={() => handleApproval(timeCard.id, true)}
+                             className="rounded-lg"
+                           >
+                             Approve
+                           </Button>
+                           <Button 
+                             size="sm" 
+                             variant="destructive"
+                             onClick={() => handleApproval(timeCard.id, false)}
+                             className="rounded-lg"
+                           >
+                             Reject
+                           </Button>
+                         </>
+                       )}
+                       <Button variant="outline" size="sm" className="rounded-lg">
+                         <Download className="h-4 w-4 mr-1" />
+                         PDF
+                       </Button>
+                     </div>
+                  </div>
+                ))}
+
+                {/* Compact View */}
+                {viewMode === 'compact' && timeCards.map((timeCard) => (
+                  <div key={timeCard.id} className="border rounded-lg p-4 hover-card">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        {isManager && (
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{getEmployeeName(timeCard)}</div>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(timeCard.punch_in_time).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getStatusColor(timeCard.status)} className="text-xs">
+                            {timeCard.status.toUpperCase()}
+                          </Badge>
+                          {timeCard.distance_warning && (
+                            <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                              <AlertTriangle className="h-3 w-3" />
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-semibold">{timeCard.total_hours.toFixed(1)} hrs</div>
+                          {timeCard.overtime_hours > 0 && (
+                            <div className="text-xs text-warning">+{timeCard.overtime_hours.toFixed(1)} OT</div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDetails(timeCard.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {(user?.id === timeCard.user_id || isManager) && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                console.log('Edit time card:', timeCard.id);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Super Compact View */}
+                {viewMode === 'super-compact' && (
+                  <div className="space-y-1">
+                    {timeCards.map((timeCard) => (
+                      <div key={timeCard.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {isManager && (
+                            <div className="min-w-0 w-32">
+                              <div className="text-sm font-medium truncate">{getEmployeeName(timeCard)}</div>
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm truncate">{timeCard.jobs?.name || 'Unknown Job'}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </div>
+                          <div className="font-medium whitespace-nowrap">
+                            {timeCard.total_hours.toFixed(1)}h
+                          </div>
+                          <Badge variant={getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
+                            {timeCard.status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => handleViewDetails(timeCard.id)}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          {(user?.id === timeCard.user_id || isManager) && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={() => {
+                                console.log('Edit time card:', timeCard.id);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
@@ -572,6 +690,16 @@ export default function TimeSheets() {
         open={showDetailView}
         onOpenChange={setShowDetailView}
         timeCardId={selectedTimeCardId}
+      />
+
+      <EditTimeCardDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        timeCardId={selectedTimeCardId}
+        onSave={() => {
+          setShowEditDialog(false);
+          loadTimeCards();
+        }}
       />
     </div>
   );

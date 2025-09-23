@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Upload, FileText, AlertTriangle, Calendar, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ComplianceDocument {
+  id?: string;
   type: 'insurance' | 'w9' | 'license';
   required: boolean;
   uploaded: boolean;
@@ -17,6 +20,7 @@ interface ComplianceDocument {
   uploadDate?: string;
   expirationDate?: string;
   url?: string;
+  status?: 'missing' | 'uploaded' | 'expired';
 }
 
 interface ComplianceDocumentManagerProps {
@@ -30,9 +34,11 @@ export default function ComplianceDocumentManager({
   documents,
   onDocumentsChange
 }: ComplianceDocumentManagerProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [editingDoc, setEditingDoc] = useState<ComplianceDocument | null>(null);
   const [expirationDate, setExpirationDate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
 
@@ -50,23 +56,98 @@ export default function ComplianceDocumentManager({
     };
   };
 
-  const updateDocument = (type: string, updates: Partial<ComplianceDocument>) => {
-    const updatedDocs = documents.map(doc => 
-      doc.type === type ? { ...doc, ...updates } : doc
-    );
+  const updateDocument = async (type: string, updates: Partial<ComplianceDocument>) => {
+    if (!user) return;
     
-    // If document doesn't exist, add it
-    if (!documents.find(doc => doc.type === type)) {
-      updatedDocs.push({
-        type: type as any,
-        required: false,
-        uploaded: false,
-        ...updates
+    setLoading(true);
+    try {
+      // Check if document exists
+      const existingDoc = documents.find(doc => doc.type === type);
+      
+      if (existingDoc?.id) {
+        // Update existing document
+        const { error } = await supabase
+          .from('vendor_compliance_documents')
+          .update({
+            is_required: updates.required,
+            file_name: updates.fileName,
+            file_url: updates.url,
+            uploaded_at: updates.uploadDate,
+            expiration_date: updates.expirationDate,
+            is_uploaded: updates.uploaded || false
+          })
+          .eq('id', existingDoc.id);
+          
+        if (error) throw error;
+      } else {
+        // Create new document
+        const { error } = await supabase
+          .from('vendor_compliance_documents')
+          .insert({
+            vendor_id: vendorId,
+            type: type,
+            is_required: updates.required || false,
+            file_name: updates.fileName,
+            file_url: updates.url,
+            uploaded_at: updates.uploadDate,
+            expiration_date: updates.expirationDate,
+            is_uploaded: updates.uploaded || false
+          });
+          
+        if (error) throw error;
+      }
+      
+      // Refresh documents
+      await fetchComplianceDocuments();
+      
+      toast({
+        title: "Success",
+        description: "Compliance document updated successfully",
       });
+    } catch (error) {
+      console.error('Error updating compliance document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update compliance document",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-    
-    onDocumentsChange(updatedDocs);
   };
+
+  const fetchComplianceDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vendor_compliance_documents')
+        .select('*')
+        .eq('vendor_id', vendorId);
+        
+      if (error) throw error;
+      
+      const transformedDocs: ComplianceDocument[] = (data || []).map(doc => ({
+        id: doc.id,
+        type: doc.type as any,
+        required: doc.is_required,
+        uploaded: doc.is_uploaded,
+        fileName: doc.file_name || undefined,
+        uploadDate: doc.uploaded_at || undefined,
+        expirationDate: doc.expiration_date || undefined,
+        url: doc.file_url || undefined,
+        status: doc.is_uploaded ? 'uploaded' : 'missing'
+      }));
+      
+      onDocumentsChange(transformedDocs);
+    } catch (error) {
+      console.error('Error fetching compliance documents:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (vendorId) {
+      fetchComplianceDocuments();
+    }
+  }, [vendorId]);
 
   const handleFileUpload = (type: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -81,12 +162,12 @@ export default function ComplianceDocumentManager({
     }
   };
 
-  const handleRequiredToggle = (type: string, required: boolean) => {
-    updateDocument(type, { required });
+  const handleRequiredToggle = async (type: string, required: boolean) => {
+    await updateDocument(type, { required });
   };
 
-  const handleExpirationDateSave = (type: string) => {
-    updateDocument(type, { expirationDate });
+  const handleExpirationDateSave = async (type: string) => {
+    await updateDocument(type, { expirationDate });
     setEditingDoc(null);
     setExpirationDate('');
   };

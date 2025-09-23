@@ -1,7 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Building, Phone, Mail, Receipt } from "lucide-react";
+import { Building, Phone, Mail, Receipt, AlertTriangle } from "lucide-react";
+import { useComplianceWarnings } from "@/hooks/useComplianceWarnings";
 
 interface Vendor {
   id: string;
@@ -29,6 +30,8 @@ const categoryColors = {
 } as const;
 
 export default function VendorCompactView({ vendors, onVendorClick }: VendorCompactViewProps) {
+  const { warnings } = useComplianceWarnings(vendors.map(v => v.id));
+  
   return (
     <div className="space-y-2">
       {vendors.map((vendor) => (
@@ -47,6 +50,12 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
                     <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]} className="text-xs">
                       {vendor.category}
                     </Badge>
+                    {warnings[vendor.id] && (
+                      <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                        <AlertTriangle className="h-3 w-3" />
+                        {warnings[vendor.id]} Missing
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">

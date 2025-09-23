@@ -1,7 +1,8 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Building } from "lucide-react";
+import { Building, AlertTriangle } from "lucide-react";
+import { useComplianceWarnings } from "@/hooks/useComplianceWarnings";
 
 interface Vendor {
   id: string;
@@ -29,6 +30,8 @@ const categoryColors = {
 } as const;
 
 export default function VendorListView({ vendors, onVendorClick }: VendorListViewProps) {
+  const { warnings } = useComplianceWarnings(vendors.map(v => v.id));
+  
   return (
     <div className="border border-border rounded-md">
       <Table>
@@ -58,9 +61,17 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
                 </div>
               </TableCell>
               <TableCell>
-                <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
-                  {vendor.category}
-                </Badge>
+                <div className="flex gap-2">
+                  <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
+                    {vendor.category}
+                  </Badge>
+                  {warnings[vendor.id] && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {warnings[vendor.id]} Missing
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{vendor.contact !== "N/A" ? vendor.contact : "-"}</TableCell>
               <TableCell>{vendor.phone}</TableCell>

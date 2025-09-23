@@ -7,6 +7,7 @@ import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon,
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -474,59 +475,14 @@ export default function VendorDetails() {
           </div>
         )}
 
-        {/* Compliance Documents Section - Only show if there are required documents */}
-        {complianceDocuments.filter(d => d.is_required).length > 0 && (
-          <div id="compliance-documents">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <FileIcon className="h-5 w-5" />
-                  Compliance Documents
-                </CardTitle>
-                <Badge variant="outline" className="text-xs">View Only</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {['Insurance', 'W-9 Form', 'License'].map((docType) => {
-                    const docTypeKey = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    const doc = complianceDocuments.find(d => d.type === docTypeKey);
-                    const isUploaded = doc?.is_uploaded || false;
-                    const isRequired = doc?.is_required || false;
-                    
-                    // Only show if required
-                    if (!isRequired) return null;
-                    
-                    return (
-                      <Card key={docType} className="border-dashed">
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FileText className="h-8 w-8 p-1.5 bg-muted rounded text-muted-foreground" />
-                              <div>
-                                <h4 className="font-medium">{docType}</h4>
-                                <p className="text-sm text-muted-foreground">
-                                  Required • {isUploaded ? 'Uploaded' : 'Missing'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {!isUploaded && (
-                                <Badge variant="destructive" className="text-xs">Missing</Badge>
-                              )}
-                              <Badge variant={isUploaded ? "default" : "secondary"} className="text-xs">
-                                {isUploaded ? "Uploaded" : "Not Uploaded"}
-                              </Badge>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  }).filter(Boolean)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* Compliance Documents Section */}
+        <div id="compliance-documents">
+          <ComplianceDocumentManager
+            vendorId={vendor.id}
+            documents={complianceDocuments}
+            onDocumentsChange={setComplianceDocuments}
+          />
+        </div>
 
         {/* Jobs Section */}
         <Card>
@@ -581,22 +537,23 @@ export default function VendorDetails() {
           </CardContent>
         </Card>
 
-        {/* Subcontracts Section */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Subcontracts
-            </CardTitle>
-            <Button 
-              onClick={() => navigate(`/subcontracts/add?vendorId=${vendor.id}`)}
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subcontract
-            </Button>
-          </CardHeader>
-          <CardContent>
+        {/* Subcontracts Section - Only show for contractors and design professionals */}
+        {(vendor.vendor_type === 'contractor' || vendor.vendor_type === 'design_professional') && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Subcontracts
+              </CardTitle>
+              <Button 
+                onClick={() => navigate(`/subcontracts/add?vendorId=${vendor.id}`)}
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Subcontract
+              </Button>
+            </CardHeader>
+            <CardContent>
             {subcontracts.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -678,6 +635,30 @@ export default function VendorDetails() {
             )}
           </CardContent>
         </Card>
+        )}
+
+        {/* Purchase Orders Section - Only show for suppliers */}
+        {vendor.vendor_type === 'supplier' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Purchase Orders
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">No Purchase Orders</h3>
+                <p className="text-sm mb-4">This vendor has no purchase orders on record.</p>
+                <Button variant="outline" disabled>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Purchase Order
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
