@@ -622,7 +622,7 @@ export default function TimeTracking() {
   };
   return <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/10 relative">
         {/* Mobile-first container with 9:16 aspect ratio constraints */}
-        <div className="w-full max-w-xs min-h-screen flex flex-col bg-background/95 backdrop-blur-sm px-4 mx-0">
+        <div className="w-full max-w-xs min-h-screen flex flex-col bg-background/95 backdrop-blur-sm my-0 px-0 mx-[5px] py-0">
           {/* Welcome Header */}
           <div className="py-4">
             <Card className="shadow-elevation-md border-border/50 bg-card/95 backdrop-blur-sm rounded-2xl">
