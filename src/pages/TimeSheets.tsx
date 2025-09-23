@@ -514,16 +514,29 @@ export default function TimeSheets() {
                     </div>
                   )}
 
-                   <div className="flex gap-3">
-                     <Button 
-                       variant="outline" 
-                       size="sm" 
-                       className="rounded-lg"
-                       onClick={() => handleViewDetails(timeCard.id)}
-                     >
-                       <Eye className="h-4 w-4 mr-1" />
-                       View Details
-                     </Button>
+                    <div className="flex gap-3">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="rounded-lg"
+                        onClick={() => handleViewDetails(timeCard.id)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View Details
+                      </Button>
+                      {(user?.id === timeCard.user_id || isManager) && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="rounded-lg"
+                          onClick={() => {
+                            // TODO: Open edit time card dialog
+                            console.log('Edit time card:', timeCard.id);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      )}
                      {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
                        <>
                          <Button 

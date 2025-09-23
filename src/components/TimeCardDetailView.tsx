@@ -102,10 +102,21 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const initializeMap = async () => {
     if (!mapContainer.current || !timeCard) return;
 
-    // Use hardcoded Mapbox token for now
-    const mapboxToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbGJjM3JqdncwYnBiM29tc2NveWg2YnB1In0.DSvP8_hurZYK67HlqMVJOA';
+    try {
+      // Get Mapbox token from Supabase secrets
+      const { data: { MAPBOX_PUBLIC_TOKEN } } = await supabase.functions.invoke('get-mapbox-token');
+      
+      if (!MAPBOX_PUBLIC_TOKEN) {
+        console.error('Mapbox token not found');
+        return;
+      }
 
-    mapboxgl.accessToken = mapboxToken;
+      mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
+    } catch (error) {
+      console.error('Error getting Mapbox token:', error);
+      // Fallback token
+      mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbGJjM3JqdncwYnBiM29tc2NveWg2YnB1In0.DSvP8_hurZYK67HlqMVJOA';
+    }
 
     // Center map on job location or punch locations
     let centerLat = timeCard.jobs?.latitude || timeCard.punch_in_location_lat || 0;
@@ -435,7 +446,20 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-between gap-2 pt-4 border-t">
+          <div className="flex gap-2">
+            {(user?.id === timeCard.user_id || isManager) && (
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open edit time card dialog
+                  console.log('Edit time card:', timeCard.id);
+                }}
+              >
+                Edit Time Card
+              </Button>
+            )}
+          </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>

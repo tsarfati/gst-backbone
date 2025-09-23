@@ -162,16 +162,16 @@ export default function PunchClockDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="w-full max-w-xs mx-auto px-4 py-4 space-y-6">
-        <div className="text-center">
+    <div className="min-h-screen bg-background p-4">
+      <div className="w-full max-w-full mx-auto space-y-6">
+        <div className="text-left">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
           <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Punched In */}
-          <Card>
+        <div className="space-y-6">
+          {/* Currently Punched In */}
+          <Card className="w-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -210,8 +210,8 @@ export default function PunchClockDashboard() {
             </CardContent>
           </Card>
 
-          {/* Punched Out */}
-          <Card>
+          {/* Recently Punched Out */}
+          <Card className="w-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
