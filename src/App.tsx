@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
@@ -89,6 +89,12 @@ const queryClient = new QueryClient();
 // Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  
+  // Publicly accessible punch clock routes
+  if (location.pathname.startsWith('/punch-clock')) {
+    return <>{children}</>;
+  }
   
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
