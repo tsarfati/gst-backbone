@@ -91,13 +91,6 @@ const queryClient = new QueryClient();
 // Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const location = useLocation();
-  
-  // Publicly accessible punch clock routes
-  const publicPaths = ['/punch-clock', '/punch-clock-login', '/punch-clock-app'];
-  if (publicPaths.some(p => location.pathname.startsWith(p))) {
-    return <>{children}</>;
-  }
   
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
@@ -114,6 +107,7 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes - No authentication required */}
         <Route path="/auth" element={<Auth />} />
         <Route path="/punch-clock-login" element={<PunchClockLogin />} />
         <Route path="/punch-clock" element={<PunchClockLogin />} />
@@ -122,6 +116,8 @@ function AppRoutes() {
             <PunchClockApp />
           </PunchClockAuthProvider>
         } />
+        
+        {/* Protected routes - Authentication required */}
         <Route path="/profile-completion" element={
           <ProtectedRoute>
             <ProfileCompletion />
