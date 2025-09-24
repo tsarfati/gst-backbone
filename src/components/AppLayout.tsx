@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, FolderOpen, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,7 +46,6 @@ const navigationCategories = [
     items: [
       { name: "All Jobs", href: "/jobs", icon: FolderOpen, menuKey: "jobs" },
       { name: "Add Job", href: "/jobs/add", icon: Building, menuKey: "jobs" },
-      { name: "Cost Codes", href: "/jobs/cost-codes", icon: FileText, menuKey: "jobs" },
       { name: "Job Reports", href: "/jobs/reports", icon: BarChart3, menuKey: "reports" },
       { name: "Delivery Tickets", href: "/delivery-tickets", icon: Package, menuKey: "delivery-tickets" },
     ],
@@ -120,6 +119,7 @@ const navigationCategories = [
     items: [
       { name: "Bank Accounts", href: "/banking/accounts", icon: Building, menuKey: "settings" },
       { name: "Credit Cards", href: "/banking/credit-cards", icon: CreditCard, menuKey: "settings" },
+      { name: "Chart of Accounts", href: "/jobs/cost-codes", icon: FileText, menuKey: "settings" },
       { name: "Reporting", href: "/banking/reports", icon: BarChart3, menuKey: "reports" },
       { name: "Journal Entries", href: "/banking/journal-entries", icon: FileText, menuKey: "settings" },
       { name: "Deposits", href: "/banking/deposits", icon: DollarSign, menuKey: "settings" },
@@ -135,6 +135,7 @@ const navigationCategories = [
       { name: "Theme & Appearance", href: "/settings/theme", icon: Settings, menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", icon: Building, menuKey: "settings" },
       { name: "Company Management", href: "/settings/company-management", icon: Building2, menuKey: "settings" },
+      { name: "Search Index", href: "/settings/search-index", icon: Search, menuKey: "settings" },
       { name: "Notifications & Email", href: "/settings/notifications", icon: Bell, menuKey: "settings" },
       { name: "Data & Security", href: "/settings/security", icon: Shield, menuKey: "settings" },
       { name: "User Management", href: "/settings/users", icon: UserCog, menuKey: "settings" },

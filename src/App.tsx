@@ -76,6 +76,7 @@ import PayablesDashboard from "./pages/PayablesDashboard";
 import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
+import SearchIndexSettings from "./pages/SearchIndexSettings";
 
 const queryClient = new QueryClient();
 
@@ -140,6 +141,7 @@ function AppRoutes() {
                       <Route path="settings/notifications" element={<NotificationSettings />} />
                       <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
                       <Route path="settings/security" element={<SecuritySettings />} />
+                      <Route path="settings/search-index" element={<SearchIndexSettings />} />
                       <Route path="profile-settings" element={<ProfileSettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
