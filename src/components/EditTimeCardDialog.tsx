@@ -53,7 +53,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [correctionReason, setCorrectionReason] = useState('');
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
-  const canEdit = user?.id === timeCard?.user_id || isManager;
+  const canEdit = isManager;
 
   useEffect(() => {
     if (open && timeCardId) {

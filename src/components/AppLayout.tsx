@@ -396,21 +396,26 @@ export function AppSidebar() {
 }
 
 export default function Layout() {
+  const location = useLocation();
+  const isPunchClockPage = location.pathname === '/time-tracking';
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
-              <GlobalSearch />
-            </div>
-            <div className="flex items-center gap-4">
-              <CompanySwitcher />
-              <DateTimeDisplay />
-            </div>
-          </header>
+          {!isPunchClockPage && (
+            <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger className="-ml-1" />
+                <GlobalSearch />
+              </div>
+              <div className="flex items-center gap-4">
+                <CompanySwitcher />
+                <DateTimeDisplay />
+              </div>
+            </header>
+          )}
           <div className="flex-1 overflow-auto">
             <Outlet />
           </div>

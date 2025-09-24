@@ -12,7 +12,14 @@ export function Toaster() {
       action,
       ...props
     }) {
-      return;
+      return (
+        <Toast key={id} {...props}>
+          {title && <ToastTitle>{title}</ToastTitle>}
+          {description && <ToastDescription>{description}</ToastDescription>}
+          {action}
+          <ToastClose />
+        </Toast>
+      );
     })}
       <ToastViewport />
     </ToastProvider>;

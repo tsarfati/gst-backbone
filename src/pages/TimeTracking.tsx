@@ -686,10 +686,26 @@ export default function TimeTracking() {
                        </div>
                      </div>}
                   
-                  {/* Punch Out Button - only show if not showing camera */}
-                  {!showCamera && <div className="w-full">
-                      
-                    </div>}
+                   {/* Punch Out Button - only show if not showing camera */}
+                   {!showCamera && !photoPreview && (
+                     <Button 
+                       onClick={handlePunchOut} 
+                       disabled={isLoading} 
+                       className="w-full h-16 text-xl font-bold rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg"
+                     >
+                       {isLoading ? (
+                         <>
+                           <Loader2 className="h-6 w-6 mr-3 animate-spin" />
+                           {loadingStatus}
+                         </>
+                       ) : (
+                         <>
+                           <Camera className="h-6 w-6 mr-3" />
+                           Punch Out
+                         </>
+                       )}
+                     </Button>
+                   )}
                   
                   {/* Photo Preview and Final Punch Out Button */}
                   {photoPreview && <div className="space-y-4">

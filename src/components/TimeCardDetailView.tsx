@@ -264,17 +264,30 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         </DialogHeader>
 
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="audit">
-              <History className="h-4 w-4 mr-1" />
-              Audit Trail
-            </TabsTrigger>
-            <TabsTrigger value="map">
-              <MapPin className="h-4 w-4 mr-1" />
-              Location Map
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex justify-between items-center mb-4">
+            <TabsList className="grid w-full grid-cols-3 max-w-md">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="audit">
+                <History className="h-4 w-4 mr-1" />
+                Audit Trail
+              </TabsTrigger>
+              <TabsTrigger value="map">
+                <MapPin className="h-4 w-4 mr-1" />
+                Location Map
+              </TabsTrigger>
+            </TabsList>
+            
+            {isManager && (
+              <Button 
+                variant="outline" 
+                onClick={() => setEditDialogOpen(true)}
+                className="gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Edit Time Card
+              </Button>
+            )}
+          </div>
           
           <TabsContent value="details" className="space-y-4 mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -533,7 +533,7 @@ export default function TimeSheets() {
                           <Eye className="h-4 w-4 mr-1" />
                           View Details
                         </Button>
-                        {(user?.id === timeCard.user_id || isManager) && (
+                        {isManager && (
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -613,15 +613,13 @@ export default function TimeSheets() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {(user?.id === timeCard.user_id || isManager) && (
+                          {isManager && (
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => {
-                                console.log('Edit time card:', timeCard.id);
-                              }}
+                              onClick={() => handleEditTimeCard(timeCard.id)}
                             >
-                              Edit
+                              <Edit className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
@@ -663,16 +661,14 @@ export default function TimeSheets() {
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
-                          {(user?.id === timeCard.user_id || isManager) && (
+                          {isManager && (
                             <Button 
                               variant="ghost" 
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => {
-                                console.log('Edit time card:', timeCard.id);
-                              }}
+                              onClick={() => handleEditTimeCard(timeCard.id)}
                             >
-                              Edit
+                              <Edit className="h-3 w-3" />
                             </Button>
                           )}
                         </div>
@@ -686,21 +682,25 @@ export default function TimeSheets() {
         </CardContent>
       </Card>
 
-      <TimeCardDetailView
-        open={showDetailView}
-        onOpenChange={setShowDetailView}
-        timeCardId={selectedTimeCardId}
-      />
+      {selectedTimeCardId && (
+        <TimeCardDetailView
+          open={showDetailView}
+          onOpenChange={setShowDetailView}
+          timeCardId={selectedTimeCardId}
+        />
+      )}
 
-      <EditTimeCardDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        timeCardId={selectedTimeCardId}
-        onSave={() => {
-          setShowEditDialog(false);
-          loadTimeCards();
-        }}
-      />
+      {selectedTimeCardId && (
+        <EditTimeCardDialog
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          timeCardId={selectedTimeCardId}
+          onSave={() => {
+            setShowEditDialog(false);
+            loadTimeCards();
+          }}
+        />
+      )}
     </div>
   );
 }
