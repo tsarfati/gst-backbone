@@ -34,10 +34,8 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // Wait for profile to load to avoid false redirects
-    if (profile === null) {
-      return;
-    }
+    // Proceed even if profile is null to avoid blocking the app on errors
+    // Only redirect to profile completion when profile is known and incomplete
 
     // Handle profile completion route
     if (location.pathname === '/profile-completion') {
@@ -49,8 +47,8 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // If profile is not completed, redirect to profile completion
-    if (!profile?.profile_completed) {
+    // If profile is known and not completed, redirect to profile completion
+    if (profile && profile.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
       return;
     }
