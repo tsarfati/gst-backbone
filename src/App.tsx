@@ -79,6 +79,7 @@ import NewJournalEntry from "./pages/NewJournalEntry";
 import SearchIndexSettings from "./pages/SearchIndexSettings";
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
+import PunchClockApp from "./pages/PunchClockApp";
 
 const queryClient = new QueryClient();
 
@@ -102,6 +103,11 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/punch-clock-app" element={
+          <ProtectedRoute>
+            <PunchClockApp />
+          </ProtectedRoute>
+        } />
         <Route path="/profile-completion" element={
           <ProtectedRoute>
             <ProfileCompletion />

@@ -632,7 +632,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="bg-success/10 p-4 rounded-lg">
                 <h4 className="font-semibold text-success">Currently Punched In</h4>
                 <p className="text-2xl font-bold">0</p>
@@ -643,6 +643,16 @@ export default function Dashboard() {
                 <p className="text-2xl font-bold">0.0</p>
                 <p className="text-sm text-muted-foreground">Company-wide</p>
               </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button onClick={() => navigate("/punch-clock-app")} variant="outline" className="flex-1">
+                <Clock className="h-4 w-4 mr-2" />
+                Mobile Punch Clock
+              </Button>
+              <Button onClick={() => navigate("/punch-clock")} className="flex-1">
+                <Clock className="h-4 w-4 mr-2" />
+                Desktop Punch Clock
+              </Button>
             </div>
           </CardContent>
         </Card>
