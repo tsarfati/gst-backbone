@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Upload, FileText, AlertTriangle, Calendar, Eye } from "lucide-react";
+import { Upload, FileText, AlertTriangle, Calendar, Eye, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import DragDropUpload from "./DragDropUpload";
+import DocumentPreviewModal from "./DocumentPreviewModal";
 
 interface ComplianceDocument {
   id?: string;
@@ -38,6 +40,8 @@ export default function ComplianceDocumentManager({
   const [editingDoc, setEditingDoc] = useState<ComplianceDocument | null>(null);
   const [expirationDate, setExpirationDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<{fileName: string; url: string; type: string} | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
   const { toast } = useToast();
 
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
@@ -149,16 +153,55 @@ export default function ComplianceDocumentManager({
     }
   }, [vendorId]);
 
-  const handleFileUpload = (type: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // In a real app, you'd upload this to Supabase storage
-      updateDocument(type, {
+  const handleFileUpload = async (type: string, file: File) => {
+    if (!file || !user) return;
+    
+    setUploading(type);
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${vendorId}/${type}/${Date.now()}.${fileExt}`;
+      
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('compliance-documents')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('compliance-documents')
+        .getPublicUrl(fileName);
+
+      // Update document record
+      await updateDocument(type, {
         uploaded: true,
         fileName: file.name,
         uploadDate: new Date().toISOString(),
-        url: `uploads/compliance/${vendorId}/${file.name}`
+        url: publicUrl
       });
+
+      toast({
+        title: "Success",
+        description: "Document uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload document",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleLegacyFileUpload = (type: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(type, file);
     }
   };
 
@@ -229,30 +272,97 @@ export default function ComplianceDocumentManager({
                 {doc.required && (
                   <div className="space-y-3">
                     {!doc.uploaded ? (
-                      <div className="flex items-center gap-2">
+                      <div className="space-y-3">
+                        <DragDropUpload
+                          onFileSelect={(file) => handleFileUpload(type, file)}
+                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                          maxSize={10}
+                          disabled={uploading === type}
+                        />
+                        <div className="text-center text-xs text-muted-foreground">
+                          or
+                        </div>
                         <Input
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                          onChange={(e) => handleFileUpload(type, e)}
+                          onChange={(e) => handleLegacyFileUpload(type, e)}
+                          disabled={uploading === type}
                           className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                         />
+                        {uploading === type && (
+                          <div className="text-center text-sm text-muted-foreground">
+                            Uploading document...
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div 
+                            className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                            onClick={() => {
+                              if (doc.url && canViewSensitiveData) {
+                                setPreviewDocument({
+                                  fileName: doc.fileName || 'Document',
+                                  url: doc.url,
+                                  type: doc.type
+                                });
+                              }
+                            }}
+                          >
                             <FileText className="h-4 w-4" />
-                            <span>{doc.fileName}</span>
+                            <span className="hover:underline">{doc.fileName}</span>
                             {doc.uploadDate && (
                               <span className="text-xs">
                                 • Uploaded {new Date(doc.uploadDate).toLocaleDateString()}
                               </span>
                             )}
                           </div>
-                          {canViewSensitiveData && (
-                            <Button variant="ghost" size="sm" className="h-6 px-2">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                          {canViewSensitiveData && doc.url && (
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 px-2"
+                                onClick={() => setPreviewDocument({
+                                  fileName: doc.fileName || 'Document',
+                                  url: doc.url,
+                                  type: doc.type
+                                })}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 px-2"
+                                onClick={async () => {
+                                  if (doc.url) {
+                                    try {
+                                      const response = await fetch(doc.url);
+                                      const blob = await response.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = doc.fileName || 'document';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (error) {
+                                      console.error('Download failed:', error);
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to download document",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </div>
                           )}
                         </div>
 
@@ -328,6 +438,12 @@ export default function ComplianceDocumentManager({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DocumentPreviewModal
+        isOpen={!!previewDocument}
+        onClose={() => setPreviewDocument(null)}
+        document={previewDocument}
+      />
     </div>
   );
 }
