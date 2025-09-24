@@ -335,27 +335,31 @@ export default function TimeTracking() {
     try {
       setPunchType('punched_in');
 
-      // Auto-start camera and location simultaneously
       const promises = [];
+      
+      // Start camera if required
       if (employeeSettings?.require_photo !== false) {
         promises.push(startCamera());
       }
+      
+      // Get location if required
       if (employeeSettings?.require_location !== false) {
+        setLoadingStatus('Getting location...');
         promises.push(getCurrentLocation().then(setLocation).catch((error: any) => {
           console.warn('Location unavailable:', error?.message || error);
-          toast({
-            title: 'Location Unavailable',
-            description: 'Proceeding without location.',
-            variant: 'default'
-          });
+          throw new Error('Location is required but unavailable. Please enable location permissions and try again.');
         }));
       }
-      await Promise.allSettled(promises);
+      
+      // Wait for all required setup to complete
+      await Promise.all(promises);
+
+      setShowPunchDialog(true);
     } catch (error: any) {
       console.error('Error during punch in preparation:', error);
       toast({
         title: 'Setup Error',
-        description: error.message || 'Could not start camera or location.',
+        description: error.message || 'Could not prepare punch in. Please check your browser permissions.',
         variant: 'destructive'
       });
     } finally {
@@ -370,27 +374,34 @@ export default function TimeTracking() {
     try {
       setPunchType('punched_out');
 
-      // Start camera immediately
+      const promises = [];
+
+      // Start camera if required
       if (employeeSettings?.require_photo !== false) {
-        await startCamera();
+        promises.push(startCamera());
       }
 
-      // Try to fetch location in the background (non-blocking)
-      getCurrentLocation().then(currentLocation => {
-        console.log('Location obtained:', currentLocation);
-        setLocation(currentLocation);
-      }).catch((error: any) => {
-        console.warn('Location unavailable:', error?.message || error);
-        toast({
-          title: 'Location Unavailable',
-          description: 'Proceeding without location. Please enable location permissions for future punches.'
-        });
-      });
+      // Get location if required
+      if (employeeSettings?.require_location !== false) {
+        setLoadingStatus('Getting location...');
+        promises.push(getCurrentLocation().then(currentLocation => {
+          console.log('Location obtained:', currentLocation);
+          setLocation(currentLocation);
+        }).catch((error: any) => {
+          console.warn('Location unavailable:', error?.message || error);
+          throw new Error('Location is required but unavailable. Please enable location permissions and try again.');
+        }));
+      }
+
+      // Wait for all required setup to complete
+      await Promise.all(promises);
+
+      setShowPunchDialog(true);
     } catch (error: any) {
       console.error('Error during punch out preparation:', error);
       toast({
         title: 'Setup Error',
-        description: error.message || 'Could not start camera. Please check your browser permissions.',
+        description: error.message || 'Could not prepare punch out. Please check your browser permissions.',
         variant: 'destructive'
       });
     } finally {
