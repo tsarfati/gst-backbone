@@ -430,41 +430,59 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                   </CardContent>
                 </Card>
 
-                {/* Photos */}
-                {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Camera className="h-4 w-4" />
-                        Punch Photos
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
+                {/* Photos - Always show this section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Camera className="h-4 w-4" />
+                      Punch Photos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {timeCard.punch_in_photo_url && (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-2">Punch In</p>
-                            <img 
-                              src={timeCard.punch_in_photo_url} 
-                              alt="Punch in photo" 
-                              className="w-full rounded-lg border"
-                            />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-muted-foreground">Punch In Photo</p>
+                            <div className="aspect-square relative overflow-hidden rounded-lg border bg-muted">
+                              <img 
+                                src={timeCard.punch_in_photo_url} 
+                                alt="Punch in photo" 
+                                className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                                onClick={() => window.open(timeCard.punch_in_photo_url, '_blank')}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Taken at {formatTime(timeCard.punch_in_time)}
+                            </p>
                           </div>
                         )}
                         {timeCard.punch_out_photo_url && (
-                          <div>
-                            <p className="text-sm text-muted-foreground mb-2">Punch Out</p>
-                            <img 
-                              src={timeCard.punch_out_photo_url} 
-                              alt="Punch out photo" 
-                              className="w-full rounded-lg border"
-                            />
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-muted-foreground">Punch Out Photo</p>
+                            <div className="aspect-square relative overflow-hidden rounded-lg border bg-muted">
+                              <img 
+                                src={timeCard.punch_out_photo_url} 
+                                alt="Punch out photo" 
+                                className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                                onClick={() => window.open(timeCard.punch_out_photo_url, '_blank')}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Taken at {formatTime(timeCard.punch_out_time)}
+                            </p>
                           </div>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p>No punch photos available for this time card</p>
+                        <p className="text-xs mt-1">Photos are required for punch clock entries when enabled in settings</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </TabsContent>
