@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CostCodeManager from "@/components/CostCodeManager";
 import JobBudgetManager from "@/components/JobBudgetManager";
+import { geocodeAddress } from "@/utils/geocoding";
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -61,10 +62,24 @@ export default function AddJob() {
 
     const budgetNumber = formData.budget ? Number(String(formData.budget).replace(/[^0-9.]/g, '')) : null;
 
+    // Geocode the address to get coordinates
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    
+    if (formData.address) {
+      const geocodeResult = await geocodeAddress(formData.address);
+      if (geocodeResult) {
+        latitude = geocodeResult.latitude;
+        longitude = geocodeResult.longitude;
+      }
+    }
+
     const { error } = await supabase.from('jobs').insert({
       name: formData.jobName,
       client: formData.client,
       address: formData.address,
+      latitude,
+      longitude,
       job_type: formData.jobType as any,
       status: formData.status as any,
       start_date: formData.startDate || null,

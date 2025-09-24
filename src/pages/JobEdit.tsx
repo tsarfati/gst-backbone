@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
+import { geocodeAddress } from "@/utils/geocoding";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -210,6 +211,18 @@ export default function JobEdit() {
     if (!id || !job) return;
 
     try {
+      // Geocode the address to get coordinates if address changed
+      let latitude: number | null = job.latitude;
+      let longitude: number | null = job.longitude;
+      
+      if (formData.address && formData.address !== job.address) {
+        const geocodeResult = await geocodeAddress(formData.address);
+        if (geocodeResult) {
+          latitude = geocodeResult.latitude;
+          longitude = geocodeResult.longitude;
+        }
+      }
+
       // Update job details
       const { error } = await supabase
         .from('jobs')
@@ -221,6 +234,8 @@ export default function JobEdit() {
           status: formData.status,
           description: formData.description,
           address: formData.address,
+          latitude,
+          longitude,
           client: formData.client,
           job_type: formData.job_type,
           project_manager_user_id: formData.project_manager_user_id || null
