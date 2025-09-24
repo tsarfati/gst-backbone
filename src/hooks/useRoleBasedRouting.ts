@@ -39,7 +39,8 @@ export function useRoleBasedRouting() {
         
         if (initialPaths.includes(location.pathname)) {
           if (data?.default_page && hasAccess(data.default_page.replace('/', ''))) {
-            navigate(data.default_page, { replace: true });
+            const target = data.default_page === '/dashboard' ? '/' : data.default_page;
+            navigate(target, { replace: true });
           } else {
             // Find a fallback page the user has access to
             const fallbackPages = [

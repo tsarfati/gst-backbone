@@ -113,6 +113,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/punch-clock-login" element={<PunchClockLogin />} />
+        <Route path="/punch-clock" element={<Navigate to="/punch-clock-login" replace />} />
         <Route path="/punch-clock-app" element={
           <PunchClockAuthProvider>
             <PunchClockApp />
@@ -138,6 +139,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }>
                       <Route index element={<Dashboard />} />
+                      <Route path="dashboard" element={<Navigate to="/" replace />} />
                       <Route path="upload" element={<UploadReceipts />} />
                       <Route path="uncoded" element={<UncodedReceipts />} />
                       <Route path="receipts" element={<CodedReceipts />} />
