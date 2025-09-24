@@ -94,27 +94,32 @@ export default function PunchClockDashboard() {
         setJobs(prev => ({ ...prev, ...jobMap }));
       }
 
-      // Load recent punch outs (last 24h), dedupe by user
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: outsData } = await supabase
+      // Load recent punch outs - get all employees who are NOT currently punched in
+      // First get the most recent punch record for each user
+      const { data: allPunchData } = await supabase
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
-        .eq('punch_type', 'punched_out')
-        .gte('punch_time', since)
-        .order('punch_time', { ascending: false })
-        .limit(200);
+        .order('punch_time', { ascending: false });
 
+      // Get the most recent punch for each user
       const activeUserIds = new Set((activeData || []).map(a => a.user_id));
-      const deduped: Record<string, PunchRecord> = {};
-      (outsData || []).forEach((r) => {
-        if (activeUserIds.has(r.user_id)) return; // skip if currently punched in
-        if (!deduped[r.user_id]) deduped[r.user_id] = r;
+      const lastPunchPerUser: Record<string, PunchRecord> = {};
+      
+      (allPunchData || []).forEach((punch) => {
+        if (!activeUserIds.has(punch.user_id) && !lastPunchPerUser[punch.user_id]) {
+          lastPunchPerUser[punch.user_id] = punch;
+        }
       });
 
-      setRecentOuts(Object.values(deduped));
+      // Only include users whose last punch was a punch_out
+      const recentOuts = Object.values(lastPunchPerUser).filter(punch => 
+        punch.punch_type === 'punched_out'
+      );
 
-      // Preload profiles for outs
-      const outUserIds = Object.keys(deduped);
+      setRecentOuts(recentOuts);
+
+      // Preload profiles for recently punched out users
+      const outUserIds = recentOuts.map(r => r.user_id);
       if (outUserIds.length) {
         const { data: outProfs } = await supabase
           .from('profiles')
@@ -242,11 +247,11 @@ export default function PunchClockDashboard() {
 
       if (punchError) throw punchError;
 
-      // Clear current punch status by deleting the record
+      // Clear current punch status by deleting the specific record
       const { error: clearError } = await supabase
         .from('current_punch_status')
         .delete()
-        .eq('user_id', employeeToPunchOut.user_id);
+        .eq('id', employeeToPunchOut.id);
 
       if (clearError) throw clearError;
 
