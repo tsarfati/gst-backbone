@@ -18,13 +18,17 @@ import RolePermissionsManager from '@/components/RolePermissionsManager';
 
 interface Employee {
   id: string;
-  user_id: string;
+  user_id?: string; // Optional for PIN employees
   first_name: string;
   last_name: string;
   display_name: string;
   role: string;
   avatar_url?: string;
   created_at: string;
+  is_pin_employee?: boolean;
+  pin_code?: string;
+  department?: string;
+  phone?: string;
 }
 
 const roleColors = {
@@ -51,13 +55,45 @@ export default function AllEmployees() {
 
   const fetchEmployees = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch regular employees from profiles
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setEmployees(data || []);
+      if (profileError) throw profileError;
+
+      // Fetch PIN-only employees
+      const { data: pinEmployeeData, error: pinError } = await supabase
+        .from('pin_employees')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (pinError) throw pinError;
+
+      // Combine both datasets
+      const allEmployees: Employee[] = [
+        ...(profileData || []).map(profile => ({
+          ...profile,
+          is_pin_employee: false
+        })),
+        ...(pinEmployeeData || []).map(pinEmployee => ({
+          id: pinEmployee.id,
+          user_id: pinEmployee.id, // Use PIN employee ID as user_id
+          first_name: pinEmployee.first_name,
+          last_name: pinEmployee.last_name,
+          display_name: pinEmployee.display_name,
+          role: 'employee', // PIN employees are always regular employees
+          created_at: pinEmployee.created_at,
+          is_pin_employee: true,
+          pin_code: pinEmployee.pin_code,
+          department: pinEmployee.department,
+          phone: pinEmployee.phone
+        }))
+      ];
+
+      setEmployees(allEmployees);
     } catch (error) {
       console.error('Error fetching employees:', error);
       toast({
@@ -70,11 +106,16 @@ export default function AllEmployees() {
     }
   };
 
-  const filteredEmployees = employees.filter(employee =>
-    `${employee.first_name} ${employee.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.display_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.role.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(employee => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      `${employee.first_name} ${employee.last_name}`.toLowerCase().includes(searchLower) ||
+      employee.display_name?.toLowerCase().includes(searchLower) ||
+      employee.role.toLowerCase().includes(searchLower) ||
+      employee.department?.toLowerCase().includes(searchLower) ||
+      (employee.is_pin_employee && employee.pin_code?.includes(searchTerm))
+    );
+  });
 
   return (
     <div className="p-6">

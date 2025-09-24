@@ -2,19 +2,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, Building, Users } from "lucide-react";
+import { Mail, Building, Users, Key, Phone } from "lucide-react";
 import { UnifiedViewType } from "@/components/ui/unified-view-selector";
 import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
-  user_id: string;
+  user_id?: string; // Optional for PIN employees
   first_name: string;
   last_name: string;
   display_name: string;
   role: string;
   avatar_url?: string;
   created_at: string;
+  is_pin_employee?: boolean;
+  pin_code?: string;
+  department?: string;
+  phone?: string;
 }
 
 interface EmployeeViewsProps {
@@ -70,6 +74,12 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     <Badge variant={roleColors[employee.role as keyof typeof roleColors]}>
                       {employee.role.replace('_', ' ').toUpperCase()}
                     </Badge>
+                    {employee.is_pin_employee && (
+                      <Badge variant="secondary" className="flex items-center gap-1">
+                        <Key className="h-3 w-3" />
+                        PIN Only
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -80,16 +90,45 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Email available in profile</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    Member since {new Date(employee.created_at).toLocaleDateString()}
-                  </span>
-                </div>
+                {employee.is_pin_employee ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Key className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">PIN: {employee.pin_code}</span>
+                    </div>
+                    {employee.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">{employee.phone}</span>
+                      </div>
+                    )}
+                    {employee.department && (
+                      <div className="flex items-center gap-2">
+                        <Building className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">{employee.department}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        Added {new Date(employee.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Email available in profile</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        Member since {new Date(employee.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -111,7 +150,8 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {employee.role.replace('_', ' ')} • Member since {new Date(employee.created_at).toLocaleDateString()}
+                    {employee.role.replace('_', ' ')} 
+                    {employee.is_pin_employee ? ' • PIN Only' : ` • Member since ${new Date(employee.created_at).toLocaleDateString()}`}
                   </p>
                 </div>
               </div>
@@ -119,6 +159,12 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                   {employee.role.replace('_', ' ').toUpperCase()}
                 </Badge>
+                {employee.is_pin_employee && (
+                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                    <Key className="h-3 w-3" />
+                    PIN
+                  </Badge>
+                )}
                 <Button variant="outline" size="sm" onClick={() => window.open(`/profile-settings`, '_blank')}>View</Button>
               </div>
             </div>
@@ -140,10 +186,14 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{employee.role.replace('_', ' ')}</span>
+              <span className="text-xs text-muted-foreground">
+                {employee.role.replace('_', ' ')}
+                {employee.is_pin_employee && ' • PIN Only'}
+              </span>
               <div className={cn("w-2 h-2 rounded-full", 
                 employee.role === 'admin' ? 'bg-red-500' : 
-                employee.role === 'controller' ? 'bg-blue-500' : 'bg-green-500'
+                employee.role === 'controller' ? 'bg-blue-500' : 
+                employee.is_pin_employee ? 'bg-orange-500' : 'bg-green-500'
               )} />
             </div>
           </div>
@@ -163,9 +213,17 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <h3 className="font-medium text-sm">
                   {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                 </h3>
-                <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs mt-1">
-                  {employee.role.replace('_', ' ').toUpperCase()}
-                </Badge>
+                <div className="flex flex-col items-center gap-1 mt-1">
+                  <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
+                    {employee.role.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                  {employee.is_pin_employee && (
+                    <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                      <Key className="h-3 w-3" />
+                      PIN Only
+                    </Badge>
+                  )}
+                </div>
               </div>
               <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(`/profile-settings`, '_blank')}>
                 View Profile
