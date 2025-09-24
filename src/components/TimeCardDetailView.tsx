@@ -118,10 +118,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .order('punch_time', { ascending: true })
       ]);
 
+      console.log('Time card data:', timeCardData);
+      console.log('Punch records found:', punchData.data);
+
       // Backfill missing location and photo data from punch records
       const punchRecords = punchData.data || [];
       const punchIn = punchRecords.find(p => p.punch_type === 'punched_in');
       const punchOut = punchRecords.find(p => p.punch_type === 'punched_out');
+
+      console.log('Punch in record:', punchIn);
+      console.log('Punch out record:', punchOut);
 
       const data = {
         ...timeCardData,
@@ -137,6 +143,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         punch_out_photo_url: timeCardData.punch_out_photo_url || punchOut?.photo_url || null,
       };
 
+      console.log('Final time card data:', data);
       setTimeCard(data as any);
     } catch (error) {
       console.error('Error loading time card details:', error);
@@ -150,6 +157,14 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
     try {
       console.log('Initializing map for timeCard:', timeCard);
+      console.log('Location data:', {
+        jobLat: timeCard.jobs?.latitude,
+        jobLng: timeCard.jobs?.longitude,
+        punchInLat: timeCard.punch_in_location_lat,
+        punchInLng: timeCard.punch_in_location_lng,
+        punchOutLat: timeCard.punch_out_location_lat,
+        punchOutLng: timeCard.punch_out_location_lng
+      });
       
       // Get Mapbox token from Supabase secrets
       const { data, error } = await supabase.functions.invoke('get-mapbox-token');
@@ -158,12 +173,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       if (data?.MAPBOX_PUBLIC_TOKEN) {
         mapboxgl.accessToken = data.MAPBOX_PUBLIC_TOKEN;
       } else {
-        console.error('Mapbox token not found, using your token');
+        console.error('Mapbox token not found, using fallback token');
         mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
       }
     } catch (error) {
       console.error('Error getting Mapbox token:', error);
-      // Use your actual token
+      // Use fallback token
       mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
     }
 
