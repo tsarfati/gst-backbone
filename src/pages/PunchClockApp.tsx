@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,7 +32,7 @@ interface PunchStatus {
 }
 
 export default function PunchClockApp() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
   const { toast } = useToast();
   
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -98,11 +98,13 @@ export default function PunchClockApp() {
   const loadCurrentPunchStatus = async () => {
     if (!user) return;
 
+    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+
     try {
       const { data, error } = await supabase
         .from('current_punch_status')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('is_active', true)
         .maybeSingle();
 
@@ -188,9 +190,11 @@ export default function PunchClockApp() {
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
 
+    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+
     try {
       const fileName = `${Date.now()}-punch.jpg`;
-      const filePath = `${user.id}/${fileName}`;
+      const filePath = `${userId}/${fileName}`;
 
       const { error } = await supabase.storage
         .from('punch-photos')
@@ -256,11 +260,13 @@ export default function PunchClockApp() {
   const punchIn = async (photoUrl: string | null) => {
     if (!user) return;
 
+    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+
     // Create punch record
     const { error: punchError } = await supabase
       .from('punch_records')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         job_id: selectedJob,
         cost_code_id: selectedCostCode,
         punch_type: 'punched_in',
@@ -276,7 +282,7 @@ export default function PunchClockApp() {
     const { error: statusError } = await supabase
       .from('current_punch_status')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         job_id: selectedJob,
         cost_code_id: selectedCostCode,
         punch_in_time: new Date().toISOString(),
@@ -296,11 +302,13 @@ export default function PunchClockApp() {
   const punchOut = async (photoUrl: string | null) => {
     if (!user || !currentPunch) return;
 
+    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+
     // Create punch out record
     const { error: punchError } = await supabase
       .from('punch_records')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         job_id: currentPunch.job_id,
         cost_code_id: currentPunch.cost_code_id,
         punch_type: 'punched_out',

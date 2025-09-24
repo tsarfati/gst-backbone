@@ -7,6 +7,7 @@ import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PunchClockAuthProvider } from "@/contexts/PunchClockAuthContext";
 import { AccessControl } from "@/components/AccessControl";
 import { RoleGuard } from "@/components/RoleGuard";
 import Layout from "@/components/AppLayout";
@@ -107,9 +108,9 @@ function AppRoutes() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/punch-clock-login" element={<PunchClockLogin />} />
         <Route path="/punch-clock-app" element={
-          <ProtectedRoute>
+          <PunchClockAuthProvider>
             <PunchClockApp />
-          </ProtectedRoute>
+          </PunchClockAuthProvider>
         } />
         <Route path="/profile-completion" element={
           <ProtectedRoute>
