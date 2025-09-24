@@ -312,6 +312,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     });
   };
 
+  if (loading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -325,6 +326,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         </DialogContent>
       </Dialog>
     );
+  }
 
   if (!timeCard) return null;
 

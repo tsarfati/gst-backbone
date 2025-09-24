@@ -103,21 +103,27 @@ export function PunchClockLoginSettings() {
     setLoading(true);
 
     try {
-      // Use user_id as company_id for now, or get the first company from user_company_access
+      // Use user_id as company_id as fallback, or get the first company from user_company_access
       let companyId = profile.current_company_id;
       
       if (!companyId) {
-        // Try to get company from user_company_access table
-        const { data: companyAccess } = await supabase
+        // Try to get company from user_company_access table  
+        const { data: companyAccess, error: accessError } = await supabase
           .from('user_company_access')
           .select('company_id')
           .eq('user_id', profile.user_id)
           .eq('is_active', true)
           .limit(1)
-          .single();
+          .maybeSingle();
+        
+        if (accessError && accessError.code !== 'PGRST116') {
+          console.error('Error fetching company access:', accessError);
+        }
         
         companyId = companyAccess?.company_id || profile.user_id; // fallback to user_id
       }
+
+      console.log('Saving punch clock settings with company_id:', companyId);
 
       const { error } = await supabase
         .from('punch_clock_login_settings')
@@ -129,7 +135,10 @@ export function PunchClockLoginSettings() {
           onConflict: 'company_id'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
       toast({
         title: "Settings saved",
@@ -139,7 +148,7 @@ export function PunchClockLoginSettings() {
       console.error('Error saving settings:', error);
       toast({
         title: "Save failed",
-        description: "Failed to save settings",
+        description: error instanceof Error ? error.message : "Failed to save settings",
         variant: "destructive",
       });
     } finally {
