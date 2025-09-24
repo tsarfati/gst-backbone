@@ -332,13 +332,16 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
 
   const updateSettings = async (updatedTiles: DashboardTile[]) => {
     const settings = updatedTiles.reduce((acc, tile) => {
-      // Convert tile IDs to settings properties
-      const settingKey = `show_${tile.id}`;
-      acc[settingKey] = tile.enabled;
+      // Convert tile IDs to settings properties correctly
+      acc[`show_${tile.id}`] = tile.enabled;
       return acc;
     }, {} as any);
 
-    onSettingsChange(settings);
+    try {
+      await onSettingsChange(settings);
+    } catch (error) {
+      console.error('Failed to update dashboard settings:', error);
+    }
   };
 
   const enabledCount = allTiles.filter(tile => tile.enabled).length;

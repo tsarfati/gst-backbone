@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Clock, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import PunchDetailView from '@/components/PunchDetailView';
 
 interface CurrentStatus {
@@ -49,6 +51,11 @@ export default function PunchClockDashboard() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
+  
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
+  
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
     const load = async () => {
@@ -161,6 +168,87 @@ export default function PunchClockDashboard() {
     setDetailOpen(true);
   };
 
+  const handleAdminPunchOut = async (row: CurrentStatus) => {
+    if (!isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only admins can punch out employees.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Create punch out record
+      const { error: punchError } = await supabase.from('punch_records').insert({
+        user_id: row.user_id,
+        job_id: row.job_id,
+        cost_code_id: row.cost_code_id,
+        punch_type: 'punched_out',
+        punch_time: new Date().toISOString(),
+        latitude: null,
+        longitude: null,
+        photo_url: null,
+        notes: 'Admin punch-out'
+      });
+
+      if (punchError) throw punchError;
+
+      // Clear current punch status
+      const { error: clearError } = await supabase
+        .from('current_punch_status')
+        .update({ is_active: false })
+        .eq('user_id', row.user_id);
+
+      if (clearError) throw clearError;
+
+      // Create time card entry
+      const punchInTime = new Date(row.punch_in_time);
+      const punchOutTime = new Date();
+      const totalHours = Math.max(0, (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60));
+
+      const { error: timeCardError } = await supabase.from('time_cards').insert({
+        user_id: row.user_id,
+        job_id: row.job_id,
+        cost_code_id: row.cost_code_id,
+        punch_in_time: row.punch_in_time,
+        punch_out_time: punchOutTime.toISOString(),
+        total_hours: totalHours,
+        overtime_hours: Math.max(0, totalHours - 8),
+        status: 'approved', // Admin punch-outs are auto-approved
+        break_minutes: totalHours > 6 ? 30 : 0, // Auto break deduction
+        notes: 'Admin punch-out',
+        punch_in_location_lat: row.punch_in_location_lat,
+        punch_in_location_lng: row.punch_in_location_lng,
+        punch_out_location_lat: null,
+        punch_out_location_lng: null,
+        punch_in_photo_url: row.punch_in_photo_url,
+        punch_out_photo_url: null,
+        created_via_punch_clock: false,
+        requires_approval: false,
+        distance_warning: false
+      });
+
+      if (timeCardError) throw timeCardError;
+
+      toast({
+        title: "Success",
+        description: `Successfully punched out ${profiles[row.user_id]?.display_name || 'employee'}.`,
+      });
+
+      // Refresh the data
+      setActive(prev => prev.filter(a => a.id !== row.id));
+
+    } catch (error: any) {
+      console.error('Error punching out employee:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to punch out employee.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="w-full space-y-0">
@@ -210,9 +298,24 @@ export default function PunchClockDashboard() {
                          </div>
                        </div>
                      </div>
-                     <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
-                       View Details
-                     </Button>
+                      {isAdmin ? (
+                        <div className="flex gap-2">
+                          <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
+                            View Details
+                          </Button>
+                          <Button 
+                            size="lg" 
+                            variant="destructive" 
+                            onClick={() => handleAdminPunchOut(row)}
+                          >
+                            Punch Out
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
+                          View Details
+                        </Button>
+                      )}
                    </div>
                 );
               })}
