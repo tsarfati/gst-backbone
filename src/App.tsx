@@ -8,6 +8,7 @@ import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AccessControl } from "@/components/AccessControl";
+import { RoleGuard } from "@/components/RoleGuard";
 import Layout from "@/components/AppLayout";
 import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
@@ -121,7 +122,9 @@ function AppRoutes() {
         <Route path="/" element={
           <ProtectedRoute>
             <AccessControl>
-              <Layout />
+              <RoleGuard>
+                <Layout />
+              </RoleGuard>
             </AccessControl>
           </ProtectedRoute>
         }>
