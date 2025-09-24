@@ -23,7 +23,8 @@ export function AccessControl({ children }: AccessControlProps) {
     setChecking(true);
 
     // Allow public access to punch clock routes
-    if (location.pathname.startsWith('/punch-clock')) {
+    const publicPaths = ['/punch-clock', '/punch-clock-login', '/punch-clock-app'];
+    if (publicPaths.some(p => location.pathname.startsWith(p))) {
       setChecking(false);
       return;
     }

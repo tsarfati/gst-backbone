@@ -92,7 +92,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   
   // Publicly accessible punch clock routes
-  if (location.pathname.startsWith('/punch-clock')) {
+  const publicPaths = ['/punch-clock', '/punch-clock-login', '/punch-clock-app'];
+  if (publicPaths.some(p => location.pathname.startsWith(p))) {
     return <>{children}</>;
   }
   
