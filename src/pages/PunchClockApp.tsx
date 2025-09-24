@@ -58,12 +58,17 @@ export default function PunchClockApp() {
   // Load initial data
   useEffect(() => {
     if (user) {
-      loadJobs();
-      loadCostCodes();
-      loadCurrentPunchStatus();
-      getCurrentLocation();
+      if (isPinAuthenticated) {
+        loadFromEdge();
+        getCurrentLocation();
+      } else {
+        loadJobs();
+        loadCostCodes();
+        loadCurrentPunchStatus();
+        getCurrentLocation();
+      }
     }
-  }, [user]);
+  }, [user, isPinAuthenticated]);
 
   const loadJobs = async () => {
     try {
@@ -113,6 +118,30 @@ export default function PunchClockApp() {
     } catch (error) {
       console.error('Error loading punch status:', error);
     }
+  };
+
+  // Edge function helpers for PIN-authenticated mode
+  const FUNCTION_BASE = 'https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock';
+  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q';
+
+  const getPin = () => {
+    try { const data = localStorage.getItem('punch_clock_user'); return data ? JSON.parse(data).pin : null; } catch { return null; }
+  };
+
+  const loadFromEdge = async () => {
+    const pin = getPin();
+    if (!pin) return;
+    try {
+      const res = await fetch(`${FUNCTION_BASE}/init?pin=${pin}`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } });
+      const json = await res.json();
+      if (res.ok) {
+        setJobs(json.jobs || []);
+        setCostCodes(json.cost_codes || []);
+        setCurrentPunch(json.current_punch || null);
+      } else {
+        console.error('Edge init error:', json);
+      }
+    } catch (e) { console.error('Edge init exception', e); }
   };
 
   const getCurrentLocation = () => {
@@ -189,8 +218,9 @@ export default function PunchClockApp() {
 
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
+    if (isPinAuthenticated) return null;
 
-    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+    const userId = (user as any).id;
 
     try {
       const fileName = `${Date.now()}-punch.jpg`;
@@ -219,18 +249,10 @@ export default function PunchClockApp() {
     try {
       setIsLoading(true);
 
-      // Upload photo if available
-      let photoUrl = null;
-      if (photoBlob) {
-        photoUrl = await uploadPhoto(photoBlob);
-      }
-
-      if (currentPunch) {
-        // Punch out
-        await punchOut(photoUrl);
-      } else {
-        // Punch in
-        if (!selectedJob || !selectedCostCode) {
+      if (isPinAuthenticated) {
+        const pin = getPin();
+        const action = currentPunch ? 'out' : 'in';
+        if (action === 'in' && (!selectedJob || !selectedCostCode)) {
           toast({
             title: 'Missing Information',
             description: 'Please select both a job and cost code before punching in.',
@@ -238,20 +260,51 @@ export default function PunchClockApp() {
           });
           return;
         }
+        const res = await fetch(`${FUNCTION_BASE}/punch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+          body: JSON.stringify({
+            pin,
+            action,
+            job_id: action === 'in' ? selectedJob : undefined,
+            cost_code_id: action === 'in' ? selectedCostCode : undefined,
+            latitude: location?.lat,
+            longitude: location?.lng,
+            photo_url: null,
+          })
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error || 'Edge punch failed');
+        }
+        setPhotoBlob(null);
+        await loadFromEdge();
+        toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
+        return;
+      }
+
+      // Upload photo if available (regular auth only)
+      let photoUrl: string | null = null;
+      if (photoBlob) {
+        photoUrl = await uploadPhoto(photoBlob);
+      }
+
+      if (currentPunch) {
+        await punchOut(photoUrl);
+      } else {
+        if (!selectedJob || !selectedCostCode) {
+          toast({ title: 'Missing Information', description: 'Please select both a job and cost code before punching in.', variant: 'destructive' });
+          return;
+        }
         await punchIn(photoUrl);
       }
 
-      // Reset form
       setPhotoBlob(null);
       loadCurrentPunchStatus();
-      
+
     } catch (error) {
       console.error('Error with punch:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to record punch. Please try again.',
-        variant: 'destructive'
-      });
+      toast({ title: 'Error', description: 'Failed to record punch. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }

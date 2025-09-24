@@ -7,6 +7,7 @@ interface PunchClockUser {
   name: string;
   role: string;
   pin_authenticated?: boolean;
+  pin?: string;
 }
 
 interface PunchClockAuthContextType {

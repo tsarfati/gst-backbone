@@ -99,7 +99,8 @@ export default function PunchClockLogin() {
         user_id: profiles.user_id,
         name: `${profiles.first_name} ${profiles.last_name}`,
         role: profiles.role,
-        pin_authenticated: true
+        pin_authenticated: true,
+        pin
       }));
 
       toast({

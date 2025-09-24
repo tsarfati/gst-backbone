@@ -25,6 +25,7 @@ import DeliveryTickets from "./pages/DeliveryTickets";
 import Vendors from "./pages/Vendors";
 import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
+import VendorReports from "./pages/VendorReports";
 import AppSettings from "./pages/AppSettings";
 import UserSettings from "./pages/UserSettings";
 import Bills from "./pages/Bills";
@@ -155,6 +156,7 @@ function AppRoutes() {
                       <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
                       <Route path="vendors" element={<Vendors />} />
                       <Route path="vendors/add" element={<VendorEdit />} />
+                      <Route path="vendors/reports" element={<VendorReports />} />
                       <Route path="vendors/:id" element={<VendorDetails />} />
                       <Route path="vendors/:id/edit" element={<VendorEdit />} />
                       <Route path="settings" element={<AppSettings />} />
