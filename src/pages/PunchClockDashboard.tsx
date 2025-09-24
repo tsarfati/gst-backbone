@@ -126,9 +126,47 @@ export default function PunchClockDashboard() {
       }
     };
 
+    
     load();
-    const interval = setInterval(load, 5_000);
-    return () => clearInterval(interval);
+    
+    // Set up real-time subscription for punch status changes
+    const channel = supabase
+      .channel('punch-status-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'current_punch_status'
+        },
+        (payload) => {
+          console.log('Punch status change:', payload);
+          // Reload data when punch status changes
+          load();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'punch_records'
+        },
+        (payload) => {
+          console.log('Punch record change:', payload);
+          // Reload data when punch records change
+          load();
+        }
+      )
+      .subscribe();
+    
+    // Keep polling as backup, but with longer interval
+    const interval = setInterval(load, 30_000);
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const openDetailForActive = (row: CurrentStatus) => {
@@ -246,8 +284,13 @@ export default function PunchClockDashboard() {
         description: `Successfully punched out ${profiles[employeeToPunchOut.user_id]?.display_name || 'employee'}.`,
       });
 
-      // Refresh the data
-      setActive(prev => prev.filter(a => a.id !== employeeToPunchOut.id));
+      // Immediately remove from local state to prevent re-appearance
+      setActive(prev => prev.filter(a => a.user_id !== employeeToPunchOut.user_id));
+
+      // Refresh the data after a short delay to get updated state
+      setTimeout(() => {
+        setActive(prev => prev.filter(a => a.user_id !== employeeToPunchOut.user_id));
+      }, 1000);
 
     } catch (error: any) {
       console.error('Error punching out employee:', error);
