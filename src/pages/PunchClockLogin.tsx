@@ -73,12 +73,17 @@ export default function PunchClockLogin() {
     setLoading(true);
 
     try {
+      console.log('Attempting PIN login with:', pin);
+      
       // Validate PIN via secure RPC to avoid RLS issues
       const { data: pinRows, error: pinError } = await supabase.rpc('validate_pin', { p_pin: pin });
+
+      console.log('PIN validation result:', pinRows, 'error:', pinError);
 
       const profiles = pinRows?.[0];
 
       if (pinError || !profiles) {
+        console.log('PIN validation failed');
         toast({
           title: "Invalid PIN",
           description: "PIN not found or invalid",

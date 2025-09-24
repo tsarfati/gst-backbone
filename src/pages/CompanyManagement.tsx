@@ -73,6 +73,8 @@ export default function CompanyManagement() {
     if (!currentCompany) return;
 
     try {
+      console.log('Fetching users for company:', currentCompany.id);
+      
       // Use a manual approach to join user_company_access with profiles
       const { data: userAccessData, error: accessError } = await supabase
         .from('user_company_access')
@@ -80,20 +82,26 @@ export default function CompanyManagement() {
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
 
+      console.log('User access data:', userAccessData, 'error:', accessError);
+
       if (accessError) throw accessError;
 
       if (!userAccessData || userAccessData.length === 0) {
+        console.log('No user access data found');
         setUsers([]);
         return;
       }
 
       // Get user IDs to fetch profiles
       const userIds = userAccessData.map(access => access.user_id);
+      console.log('User IDs to fetch:', userIds);
       
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, display_name, first_name, last_name')
         .in('user_id', userIds);
+
+      console.log('Profiles data:', profilesData, 'error:', profilesError);
 
       if (profilesError) throw profilesError;
 
@@ -103,6 +111,7 @@ export default function CompanyManagement() {
         profile: profilesData?.find(profile => profile.user_id === access.user_id)
       }));
 
+      console.log('Combined data:', combinedData);
       setUsers(combinedData);
     } catch (error) {
       console.error('Error fetching company users:', error);
