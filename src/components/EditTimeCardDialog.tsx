@@ -52,8 +52,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
-  const canEdit = isManager;
+  const canEdit = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
     if (open && timeCardId) {
@@ -192,7 +191,19 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
     );
   }
 
-  if (!timeCard || !canEdit) {
+  if (!timeCard) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl">
+          <div className="flex items-center justify-center p-8">
+            <div>Time card not found.</div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (!canEdit) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
