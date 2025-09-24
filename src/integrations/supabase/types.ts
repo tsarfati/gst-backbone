@@ -2162,6 +2162,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_company_admin_or_controller: {
+        Args: { _company: string; _user: string }
+        Returns: boolean
+      }
       set_role_permission: {
         Args: {
           p_can_access: boolean
