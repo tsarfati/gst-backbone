@@ -29,6 +29,8 @@ export default function PunchClockLogin() {
 
   const loadLoginSettings = async () => {
     try {
+      console.log('Loading punch clock login settings...');
+      
       // Load settings for the first available company
       // In most cases, there will be only one company
       const { data, error } = await supabase
@@ -37,6 +39,8 @@ export default function PunchClockLogin() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      console.log('Login settings response:', { data, error });
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error loading login settings:', error);
