@@ -28,14 +28,14 @@ export function useRoleBasedRouting() {
 
         // For employees, redirect to punch clock app only
         if (profile.role === 'employee') {
-          if (location.pathname === '/auth' || location.pathname === '/' || location.pathname === '/dashboard') {
+          if (location.pathname === '/auth' || location.pathname === '/') {
             navigate('/punch-clock-app', { replace: true });
           }
           return;
         }
 
         // Only redirect if we're on one of the initial/generic pages
-        const initialPaths = ['/', '/auth', '/dashboard'];
+        const initialPaths = ['/', '/auth'];
         
         if (initialPaths.includes(location.pathname)) {
           if (data?.default_page && hasAccess(data.default_page.replace('/', ''))) {
@@ -44,9 +44,9 @@ export function useRoleBasedRouting() {
             // Find a fallback page the user has access to
             const fallbackPages = [
               { path: '/time-tracking', menu: 'time-tracking' },
-              { path: '/punch-clock-dashboard', menu: 'punch-clock-dashboard' },
+              { path: '/punch-clock/dashboard', menu: 'punch-clock-dashboard' },
               { path: '/jobs', menu: 'jobs' },
-              { path: '/timesheets', menu: 'timesheets' }
+              { path: '/time-sheets', menu: 'timesheets' }
             ];
             
             const accessiblePage = fallbackPages.find(page => hasAccess(page.menu));
@@ -54,8 +54,8 @@ export function useRoleBasedRouting() {
             if (accessiblePage) {
               navigate(accessiblePage.path, { replace: true });
             } else {
-              // If no specific access, go to a safe default
-              navigate('/profile-settings', { replace: true });
+              // If no specific access, go to root dashboard
+              navigate('/', { replace: true });
             }
           }
         }
