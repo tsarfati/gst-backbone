@@ -92,7 +92,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       if (error) throw error;
 
       // Fetch related data separately
-      const [profileData, jobData, costCodeData] = await Promise.all([
+      const [profileData, jobData, costCodeData, punchData] = await Promise.all([
         supabase
           .from('profiles')
           .select('first_name, last_name, display_name')
@@ -107,17 +107,35 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .from('cost_codes')
           .select('code, description')
           .eq('id', timeCardData.cost_code_id)
-          .single() : Promise.resolve({ data: null })
+          .single() : Promise.resolve({ data: null }),
+        // Fetch punch records to backfill missing location/photo data
+        supabase
+          .from('punch_records')
+          .select('punch_type, latitude, longitude, photo_url, punch_time')
+          .eq('user_id', timeCardData.user_id)
+          .gte('punch_time', timeCardData.punch_in_time)
+          .lte('punch_time', timeCardData.punch_out_time)
+          .order('punch_time', { ascending: true })
       ]);
+
+      // Backfill missing location and photo data from punch records
+      const punchRecords = punchData.data || [];
+      const punchIn = punchRecords.find(p => p.punch_type === 'punched_in');
+      const punchOut = punchRecords.find(p => p.punch_type === 'punched_out');
 
       const data = {
         ...timeCardData,
         profiles: profileData.data,
         jobs: jobData.data,
-        cost_codes: costCodeData.data
+        cost_codes: costCodeData.data,
+        // Ensure coordinates are numbers and backfill from punch records
+        punch_in_location_lat: Number(timeCardData.punch_in_location_lat) || Number(punchIn?.latitude) || null,
+        punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,
+        punch_out_location_lat: Number(timeCardData.punch_out_location_lat) || Number(punchOut?.latitude) || null,
+        punch_out_location_lng: Number(timeCardData.punch_out_location_lng) || Number(punchOut?.longitude) || null,
+        punch_in_photo_url: timeCardData.punch_in_photo_url || punchIn?.photo_url || null,
+        punch_out_photo_url: timeCardData.punch_out_photo_url || punchOut?.photo_url || null,
       };
-
-      if (error) throw error;
 
       setTimeCard(data as any);
     } catch (error) {

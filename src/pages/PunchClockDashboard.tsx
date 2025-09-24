@@ -204,10 +204,10 @@ export default function PunchClockDashboard() {
 
       if (punchError) throw punchError;
 
-      // Clear current punch status
+      // Clear current punch status by deleting the record
       const { error: clearError } = await supabase
         .from('current_punch_status')
-        .update({ is_active: false })
+        .delete()
         .eq('user_id', employeeToPunchOut.user_id);
 
       if (clearError) throw clearError;
