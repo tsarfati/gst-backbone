@@ -533,7 +533,7 @@ export default function TimeSheets() {
                           <Eye className="h-4 w-4 mr-1" />
                           View Details
                         </Button>
-                        {isManager && (
+                        {(isManager || timeCard.user_id === user?.id) && (
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -613,7 +613,7 @@ export default function TimeSheets() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {isManager && (
+                          {(isManager || timeCard.user_id === user?.id) && (
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -661,7 +661,7 @@ export default function TimeSheets() {
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
-                          {isManager && (
+                          {(isManager || timeCard.user_id === user?.id) && (
                             <Button 
                               variant="ghost" 
                               size="sm"

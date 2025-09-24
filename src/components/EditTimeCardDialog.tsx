@@ -52,7 +52,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
 
-  const canEdit = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const canEdit = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager' || timeCard?.user_id === user?.id;
 
   useEffect(() => {
     if (open && timeCardId) {
@@ -66,16 +66,39 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      const { data: timeCardData, error } = await supabase
         .from('time_cards')
-        .select(`
-          *,
-          profiles:user_id(display_name),
-          jobs:job_id(name),
-          cost_codes:cost_code_id(code, description)
-        `)
+        .select('*')
         .eq('id', timeCardId)
         .single();
+
+      if (error) throw error;
+
+      // Fetch related data separately
+      const [profileData, jobData, costCodeData] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('user_id', timeCardData.user_id)
+          .single(),
+        timeCardData.job_id ? supabase
+          .from('jobs')
+          .select('name')
+          .eq('id', timeCardData.job_id)
+          .single() : Promise.resolve({ data: null }),
+        timeCardData.cost_code_id ? supabase
+          .from('cost_codes')
+          .select('code, description')
+          .eq('id', timeCardData.cost_code_id)
+          .single() : Promise.resolve({ data: null })
+      ]);
+
+      const data = {
+        ...timeCardData,
+        profiles: profileData.data,
+        jobs: jobData.data,
+        cost_codes: costCodeData.data
+      };
 
       if (error) throw error;
 
