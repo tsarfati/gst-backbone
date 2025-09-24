@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
+import DeliveryTicketDetailView from '@/components/DeliveryTicketDetailView';
 
 interface Job {
   id: string;
@@ -43,6 +44,8 @@ export default function DeliveryTickets() {
   const [deliveryTickets, setDeliveryTickets] = useState<DeliveryTicket[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [showDetailView, setShowDetailView] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<DeliveryTicket | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -180,13 +183,13 @@ export default function DeliveryTickets() {
       const filePath = `${user.id}/${fileName}`;
 
       const { data, error } = await supabase.storage
-        .from('punch-photos') // Reuse existing bucket
+        .from('receipts') // Use receipts bucket which is public
         .upload(filePath, blob);
 
       if (error) throw error;
 
       const { data: urlData } = supabase.storage
-        .from('punch-photos')
+        .from('receipts')
         .getPublicUrl(filePath);
 
       return urlData.publicUrl;
@@ -260,6 +263,20 @@ export default function DeliveryTickets() {
     }
   };
 
+  const handleTicketClick = (ticket: DeliveryTicket) => {
+    setSelectedTicket(ticket);
+    setShowDetailView(true);
+  };
+
+  const handleCloseDetailView = () => {
+    setShowDetailView(false);
+    setSelectedTicket(null);
+  };
+
+  const handleTicketUpdated = () => {
+    loadDeliveryTickets();
+  };
+
   if (!isProjectManager) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -327,7 +344,11 @@ export default function DeliveryTickets() {
           ) : (
             <div className="grid gap-4">
               {deliveryTickets.map((ticket) => (
-                <Card key={ticket.id} className="hover-card">
+                <Card 
+                  key={ticket.id} 
+                  className="hover-card cursor-pointer transition-all hover:shadow-md"
+                  onClick={() => handleTicketClick(ticket)}
+                >
                   <CardContent className="p-4">
                     <div className="flex flex-col md:flex-row gap-4">
                       {/* Photo */}
@@ -547,6 +568,14 @@ export default function DeliveryTickets() {
             <canvas ref={canvasRef} style={{ display: 'none' }} />
           </DialogContent>
         </Dialog>
+
+        {/* Delivery Ticket Detail View */}
+        <DeliveryTicketDetailView
+          ticket={selectedTicket}
+          isOpen={showDetailView}
+          onClose={handleCloseDetailView}
+          onTicketUpdated={handleTicketUpdated}
+        />
       </div>
     </div>
   );
