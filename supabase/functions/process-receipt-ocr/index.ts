@@ -140,7 +140,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message || 'Failed to process receipt'
+        error: error instanceof Error ? error.message : 'Failed to process receipt'
       }),
       {
         status: 500,
