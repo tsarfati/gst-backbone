@@ -275,11 +275,59 @@ export default function TimecardReports() {
     });
   };
 
+  const checkForUnapprovedPunches = async (): Promise<boolean> => {
+    try {
+      let query = supabase
+        .from('time_cards')
+        .select('id, status')
+        .neq('status', 'approved');
+
+      // Apply date filters if they exist
+      if (filters.startDate) {
+        query = query.gte('punch_in_time', filters.startDate.toISOString());
+      }
+      if (filters.endDate) {
+        query = query.lte('punch_out_time', filters.endDate.toISOString());
+      }
+
+      // Apply employee filters if they exist
+      if (filters.employees.length > 0) {
+        query = query.in('user_id', filters.employees);
+      } else if (!isManager) {
+        query = query.eq('user_id', user?.id);
+      }
+
+      // Apply job filters if they exist
+      if (filters.jobs.length > 0) {
+        query = query.in('job_id', filters.jobs);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).length > 0;
+    } catch (error) {
+      console.error('Error checking for unapproved punches:', error);
+      return false;
+    }
+  };
+
   const handleExportPDF = async (reportType: string, data: any) => {
     if (!company) {
       toast({
         title: "Error",
         description: "Company information not available for PDF export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check for unapproved punches
+    const hasUnapprovedPunches = await checkForUnapprovedPunches();
+    if (hasUnapprovedPunches) {
+      toast({
+        title: "Cannot Generate Report",
+        description: "There are unapproved time cards in the selected date range. Please approve all time cards before generating reports.",
         variant: "destructive",
       });
       return;

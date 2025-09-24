@@ -288,6 +288,7 @@ export default function TimecardReportViews({
                       <TableHead>In Time</TableHead>
                       <TableHead>Out Time</TableHead>
                       <TableHead>Total Hours</TableHead>
+                      <TableHead>Break Time</TableHead>
                       <TableHead>Overtime</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Notes</TableHead>
@@ -304,6 +305,9 @@ export default function TimecardReportViews({
                         <TableCell>{format(new Date(record.punch_in_time), 'h:mm a')}</TableCell>
                         <TableCell>{format(new Date(record.punch_out_time), 'h:mm a')}</TableCell>
                         <TableCell>{formatDuration(record.total_hours)}</TableCell>
+                        <TableCell className="text-blue-600">
+                          {record.break_minutes > 0 ? `${record.break_minutes}m` : '-'}
+                        </TableCell>
                         <TableCell className={record.overtime_hours > 0 ? 'text-orange-600 font-medium' : ''}>
                           {record.overtime_hours > 0 ? formatDuration(record.overtime_hours) : '-'}
                         </TableCell>

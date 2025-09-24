@@ -137,7 +137,19 @@ export class PDFExporter {
 
     const firstRow = data[0];
     const columns = Object.keys(firstRow);
-    const columnWidth = (pageWidth - 2 * margin) / columns.length;
+    
+    // Define minimum column widths to prevent text overlap
+    const minColumnWidth = 25;
+    const availableWidth = pageWidth - 2 * margin;
+    const calculatedColumnWidth = availableWidth / columns.length;
+    const columnWidth = Math.max(minColumnWidth, calculatedColumnWidth);
+    
+    // If columns are too wide for the page, use landscape orientation or split the table
+    const totalRequiredWidth = columnWidth * columns.length;
+    if (totalRequiredWidth > availableWidth) {
+      // For wide tables, use smaller font and tighter spacing
+      pdf.setFontSize(8);
+    }
 
     // Table Headers
     pdf.setFontSize(10);
@@ -147,7 +159,10 @@ export class PDFExporter {
     columns.forEach((column, index) => {
       const x = margin + (index * columnWidth);
       pdf.rect(x, yPosition, columnWidth, 8, 'F');
-      pdf.text(this.formatColumnHeader(column), x + 2, yPosition + 5);
+      const headerText = this.formatColumnHeader(column);
+      // Truncate long headers to fit in column
+      const truncatedHeader = this.truncateText(pdf, headerText, columnWidth - 4);
+      pdf.text(truncatedHeader, x + 2, yPosition + 5);
     });
     yPosition += 8;
 
@@ -168,7 +183,9 @@ export class PDFExporter {
       columns.forEach((column, index) => {
         const x = margin + (index * columnWidth);
         const value = this.formatCellValue(row[column], column);
-        pdf.text(value, x + 2, yPosition + 5);
+        // Truncate cell values to fit in column
+        const truncatedValue = this.truncateText(pdf, value, columnWidth - 4);
+        pdf.text(truncatedValue, x + 2, yPosition + 5);
       });
       yPosition += 8;
     });
@@ -248,6 +265,9 @@ export class PDFExporter {
       if (column.includes('hours') || column.includes('time')) {
         return value.toFixed(2);
       }
+      if (column.includes('break_minutes')) {
+        return value > 0 ? `${value}m` : '-';
+      }
       return value.toString();
     }
     
@@ -261,6 +281,33 @@ export class PDFExporter {
     }
     
     return value.toString();
+  }
+
+  private truncateText(pdf: jsPDF, text: string, maxWidth: number): string {
+    const textWidth = pdf.getTextWidth(text);
+    if (textWidth <= maxWidth) {
+      return text;
+    }
+    
+    // Binary search to find the longest text that fits
+    let low = 0;
+    let high = text.length;
+    let bestFit = '';
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = text.substring(0, mid) + (mid < text.length ? '...' : '');
+      const candidateWidth = pdf.getTextWidth(candidate);
+      
+      if (candidateWidth <= maxWidth) {
+        bestFit = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    return bestFit || text.substring(0, 1) + '...';
   }
 }
 
