@@ -22,6 +22,12 @@ export function AccessControl({ children }: AccessControlProps) {
 
     setChecking(true);
 
+    // Allow public access to punch clock routes
+    if (location.pathname.startsWith('/punch-clock')) {
+      setChecking(false);
+      return;
+    }
+
     // If no user, redirect to auth
     if (!user) {
       if (location.pathname !== '/auth') navigate('/auth', { replace: true });
