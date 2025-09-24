@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MapPin, Clock, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,6 +52,8 @@ export default function PunchClockDashboard() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
+  const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
+  const [employeeToPunchOut, setEmployeeToPunchOut] = useState<CurrentStatus | null>(null);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -168,7 +171,7 @@ export default function PunchClockDashboard() {
     setDetailOpen(true);
   };
 
-  const handleAdminPunchOut = async (row: CurrentStatus) => {
+  const handleAdminPunchOut = (row: CurrentStatus) => {
     if (!isAdmin) {
       toast({
         title: "Access Denied",
@@ -178,12 +181,19 @@ export default function PunchClockDashboard() {
       return;
     }
 
+    setEmployeeToPunchOut(row);
+    setConfirmPunchOutOpen(true);
+  };
+
+  const confirmAdminPunchOut = async () => {
+    if (!employeeToPunchOut) return;
+
     try {
       // Create punch out record
       const { error: punchError } = await supabase.from('punch_records').insert({
-        user_id: row.user_id,
-        job_id: row.job_id,
-        cost_code_id: row.cost_code_id,
+        user_id: employeeToPunchOut.user_id,
+        job_id: employeeToPunchOut.job_id,
+        cost_code_id: employeeToPunchOut.cost_code_id,
         punch_type: 'punched_out',
         punch_time: new Date().toISOString(),
         latitude: null,
@@ -198,31 +208,31 @@ export default function PunchClockDashboard() {
       const { error: clearError } = await supabase
         .from('current_punch_status')
         .update({ is_active: false })
-        .eq('user_id', row.user_id);
+        .eq('user_id', employeeToPunchOut.user_id);
 
       if (clearError) throw clearError;
 
       // Create time card entry
-      const punchInTime = new Date(row.punch_in_time);
+      const punchInTime = new Date(employeeToPunchOut.punch_in_time);
       const punchOutTime = new Date();
       const totalHours = Math.max(0, (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60));
 
       const { error: timeCardError } = await supabase.from('time_cards').insert({
-        user_id: row.user_id,
-        job_id: row.job_id,
-        cost_code_id: row.cost_code_id,
-        punch_in_time: row.punch_in_time,
+        user_id: employeeToPunchOut.user_id,
+        job_id: employeeToPunchOut.job_id,
+        cost_code_id: employeeToPunchOut.cost_code_id,
+        punch_in_time: employeeToPunchOut.punch_in_time,
         punch_out_time: punchOutTime.toISOString(),
         total_hours: totalHours,
         overtime_hours: Math.max(0, totalHours - 8),
         status: 'approved', // Admin punch-outs are auto-approved
         break_minutes: totalHours > 6 ? 30 : 0, // Auto break deduction
         notes: 'Admin punch-out',
-        punch_in_location_lat: row.punch_in_location_lat,
-        punch_in_location_lng: row.punch_in_location_lng,
+        punch_in_location_lat: employeeToPunchOut.punch_in_location_lat,
+        punch_in_location_lng: employeeToPunchOut.punch_in_location_lng,
         punch_out_location_lat: null,
         punch_out_location_lng: null,
-        punch_in_photo_url: row.punch_in_photo_url,
+        punch_in_photo_url: employeeToPunchOut.punch_in_photo_url,
         punch_out_photo_url: null,
         created_via_punch_clock: false,
         requires_approval: false,
@@ -233,11 +243,11 @@ export default function PunchClockDashboard() {
 
       toast({
         title: "Success",
-        description: `Successfully punched out ${profiles[row.user_id]?.display_name || 'employee'}.`,
+        description: `Successfully punched out ${profiles[employeeToPunchOut.user_id]?.display_name || 'employee'}.`,
       });
 
       // Refresh the data
-      setActive(prev => prev.filter(a => a.id !== row.id));
+      setActive(prev => prev.filter(a => a.id !== employeeToPunchOut.id));
 
     } catch (error: any) {
       console.error('Error punching out employee:', error);
@@ -246,6 +256,9 @@ export default function PunchClockDashboard() {
         description: error.message || "Failed to punch out employee.",
         variant: "destructive",
       });
+    } finally {
+      setConfirmPunchOutOpen(false);
+      setEmployeeToPunchOut(null);
     }
   };
 
@@ -366,6 +379,24 @@ export default function PunchClockDashboard() {
       </div>
 
       <PunchDetailView open={detailOpen} onOpenChange={setDetailOpen} punch={selectedDetail} />
+
+      <AlertDialog open={confirmPunchOutOpen} onOpenChange={setConfirmPunchOutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Punch Out</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to punch out {employeeToPunchOut ? profiles[employeeToPunchOut.user_id]?.display_name || 'this employee' : 'this employee'}? 
+              This action will create a time card entry and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAdminPunchOut}>
+              Punch Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
