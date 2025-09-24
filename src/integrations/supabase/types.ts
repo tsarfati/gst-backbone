@@ -348,16 +348,63 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_ticket_audit: {
+        Row: {
+          change_type: string
+          changed_by: string
+          created_at: string
+          delivery_ticket_id: string
+          field_name: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string | null
+        }
+        Insert: {
+          change_type: string
+          changed_by: string
+          created_at?: string
+          delivery_ticket_id: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+        }
+        Update: {
+          change_type?: string
+          changed_by?: string
+          created_at?: string
+          delivery_ticket_id?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_ticket_audit_delivery_ticket_id_fkey"
+            columns: ["delivery_ticket_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_tickets: {
         Row: {
           created_at: string | null
           created_by: string
           delivery_date: string
+          delivery_slip_photo_url: string | null
           description: string | null
           id: string
           job_id: string
+          material_photo_url: string | null
           notes: string | null
           photo_url: string | null
+          received_by: string | null
           ticket_number: string | null
           updated_at: string | null
           vendor_name: string
@@ -366,11 +413,14 @@ export type Database = {
           created_at?: string | null
           created_by: string
           delivery_date?: string
+          delivery_slip_photo_url?: string | null
           description?: string | null
           id?: string
           job_id: string
+          material_photo_url?: string | null
           notes?: string | null
           photo_url?: string | null
+          received_by?: string | null
           ticket_number?: string | null
           updated_at?: string | null
           vendor_name: string
@@ -379,11 +429,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           delivery_date?: string
+          delivery_slip_photo_url?: string | null
           description?: string | null
           id?: string
           job_id?: string
+          material_photo_url?: string | null
           notes?: string | null
           photo_url?: string | null
+          received_by?: string | null
           ticket_number?: string | null
           updated_at?: string | null
           vendor_name?: string
@@ -967,8 +1020,10 @@ export type Database = {
           created_at: string
           from_user_id: string
           id: string
+          is_reply: boolean | null
           read: boolean
           subject: string | null
+          thread_id: string | null
           to_user_id: string
         }
         Insert: {
@@ -976,8 +1031,10 @@ export type Database = {
           created_at?: string
           from_user_id: string
           id?: string
+          is_reply?: boolean | null
           read?: boolean
           subject?: string | null
+          thread_id?: string | null
           to_user_id: string
         }
         Update: {
@@ -985,11 +1042,21 @@ export type Database = {
           created_at?: string
           from_user_id?: string
           id?: string
+          is_reply?: boolean | null
           read?: boolean
           subject?: string | null
+          thread_id?: string | null
           to_user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_settings: {
         Row: {

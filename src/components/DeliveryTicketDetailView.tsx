@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Calendar, Package, Building2, FileText, Camera, Edit, Save, X, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar, Package, Building2, FileText, Camera, Edit, Save, X, Loader2, User, History } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,9 +19,26 @@ interface DeliveryTicket {
   vendor_name: string;
   description?: string;
   photo_url?: string;
+  delivery_slip_photo_url?: string;
+  material_photo_url?: string;
   notes?: string;
   created_at: string;
   created_by: string;
+  received_by?: string;
+}
+
+interface AuditEntry {
+  id: string;
+  change_type: string;
+  field_name?: string;
+  old_value?: string;
+  new_value?: string;
+  reason?: string;
+  created_at: string;
+  changed_by: string;
+  user_profile?: {
+    display_name: string;
+  };
 }
 
 interface DeliveryTicketDetailViewProps {
@@ -39,6 +56,9 @@ export default function DeliveryTicketDetailView({
 }: DeliveryTicketDetailViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [auditTrail, setAuditTrail] = useState<AuditEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [receivedByProfile, setReceivedByProfile] = useState<{display_name: string} | null>(null);
   const { user, profile } = useAuth();
   const { toast } = useToast();
   
@@ -165,22 +185,62 @@ export default function DeliveryTicketDetailView({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Photo */}
-          {ticket.photo_url && (
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Camera className="h-4 w-4" />
-                  <span className="font-medium">Delivery Photo</span>
-                </div>
-                <img
-                  src={ticket.photo_url}
-                  alt="Delivery"
-                  className="w-full max-h-96 object-contain rounded-lg border"
-                />
-              </CardContent>
-            </Card>
-          )}
+          {/* Photos Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {ticket.photo_url && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    General Photo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <img
+                    src={ticket.photo_url}
+                    alt="General delivery"
+                    className="w-full h-32 object-cover rounded border"
+                  />
+                </CardContent>
+              </Card>
+            )}
+            
+            {ticket.delivery_slip_photo_url && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Delivery Slip
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <img
+                    src={ticket.delivery_slip_photo_url}
+                    alt="Delivery slip"
+                    className="w-full h-32 object-cover rounded border"
+                  />
+                </CardContent>
+              </Card>
+            )}
+            
+            {ticket.material_photo_url && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Materials
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <img
+                    src={ticket.material_photo_url}
+                    alt="Materials"
+                    className="w-full h-32 object-cover rounded border"
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {/* Details */}
           <div className="grid gap-4">
@@ -282,12 +342,71 @@ export default function DeliveryTicketDetailView({
             </div>
 
             {/* Metadata */}
-            <div className="pt-4 border-t">
+            <div className="pt-4 border-t space-y-2">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <FileText className="h-3 w-3" />
                 Created {new Date(ticket.created_at).toLocaleString()}
               </div>
+              {ticket.received_by && receivedByProfile && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <User className="h-3 w-3" />
+                  Received by: {receivedByProfile.display_name}
+                </div>
+              )}
             </div>
+
+            {/* Audit Trail */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <History className="h-5 w-5" />
+                  Audit Trail
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingAudit ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading audit trail...
+                  </div>
+                ) : auditTrail.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No audit trail entries found
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {auditTrail.map((entry) => (
+                      <div key={entry.id} className="border-l-2 border-primary/20 pl-4 py-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium capitalize">
+                            {entry.change_type}
+                            {entry.field_name && ` - ${entry.field_name}`}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(entry.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          By: {entry.user_profile?.display_name || 'Unknown User'}
+                        </div>
+                        {entry.old_value && entry.new_value && (
+                          <div className="text-xs mt-1">
+                            <span className="text-red-600">- {entry.old_value}</span>
+                            <br />
+                            <span className="text-green-600">+ {entry.new_value}</span>
+                          </div>
+                        )}
+                        {entry.reason && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {entry.reason}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </DialogContent>

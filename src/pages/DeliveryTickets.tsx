@@ -28,9 +28,12 @@ interface DeliveryTicket {
   vendor_name: string;
   description?: string;
   photo_url?: string;
+  delivery_slip_photo_url?: string;
+  material_photo_url?: string;
   notes?: string;
   created_at: string;
   created_by: string;
+  received_by?: string;
 }
 
 export default function DeliveryTickets() {
@@ -57,6 +60,12 @@ export default function DeliveryTickets() {
   const [notes, setNotes] = useState('');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [deliverySlipBlob, setDeliverySlipBlob] = useState<Blob | null>(null);
+  const [deliverySlipPreview, setDeliverySlipPreview] = useState<string | null>(null);
+  const [materialPhotoBlob, setMaterialPhotoBlob] = useState<Blob | null>(null);
+  const [materialPhotoPreview, setMaterialPhotoPreview] = useState<string | null>(null);
+  const [showDeliverySlipCamera, setShowDeliverySlipCamera] = useState(false);
+  const [showMaterialCamera, setShowMaterialCamera] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -144,6 +153,37 @@ export default function DeliveryTickets() {
     }
   };
 
+  const startCameraForType = async (type: 'delivery-slip' | 'material') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      
+      setCameraStream(stream);
+      
+      if (type === 'delivery-slip') {
+        setShowDeliverySlipCamera(true);
+      } else {
+        setShowMaterialCamera(true);
+      }
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error: any) {
+      console.error('Error starting camera:', error);
+      toast({
+        title: 'Camera Error',
+        description: 'Could not access camera. Please check permissions.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const stopCamera = () => {
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
@@ -153,6 +193,10 @@ export default function DeliveryTickets() {
   };
 
   const capturePhoto = () => {
+    capturePhotoType('general');
+  };
+
+  const capturePhotoType = (type: 'general' | 'delivery-slip' | 'material') => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -167,19 +211,33 @@ export default function DeliveryTickets() {
       
       canvas.toBlob((blob) => {
         if (blob) {
-          setPhotoBlob(blob);
-          setPhotoPreview(URL.createObjectURL(blob));
+          switch (type) {
+            case 'general':
+              setPhotoBlob(blob);
+              setPhotoPreview(URL.createObjectURL(blob));
+              break;
+            case 'delivery-slip':
+              setDeliverySlipBlob(blob);
+              setDeliverySlipPreview(URL.createObjectURL(blob));
+              setShowDeliverySlipCamera(false);
+              break;
+            case 'material':
+              setMaterialPhotoBlob(blob);
+              setMaterialPhotoPreview(URL.createObjectURL(blob));
+              setShowMaterialCamera(false);
+              break;
+          }
           stopCamera();
         }
       }, 'image/jpeg', 0.8);
     }
   };
 
-  const uploadPhoto = async (blob: Blob): Promise<string | null> => {
+  const uploadPhoto = async (blob: Blob, type: string = 'general'): Promise<string | null> => {
     if (!user) return null;
 
     try {
-      const fileName = `${Date.now()}-delivery-ticket.jpg`;
+      const fileName = `${Date.now()}-delivery-${type}.jpg`;
       const filePath = `${user.id}/${fileName}`;
 
       const { data, error } = await supabase.storage
@@ -213,8 +271,17 @@ export default function DeliveryTickets() {
       setIsSaving(true);
       
       let photoUrl = null;
+      let deliverySlipUrl = null;
+      let materialPhotoUrl = null;
+      
       if (photoBlob) {
-        photoUrl = await uploadPhoto(photoBlob);
+        photoUrl = await uploadPhoto(photoBlob, 'general');
+      }
+      if (deliverySlipBlob) {
+        deliverySlipUrl = await uploadPhoto(deliverySlipBlob, 'delivery-slip');
+      }
+      if (materialPhotoBlob) {
+        materialPhotoUrl = await uploadPhoto(materialPhotoBlob, 'material');
       }
 
       const ticketData = {
@@ -224,8 +291,11 @@ export default function DeliveryTickets() {
         vendor_name: vendorName.trim(),
         description: description.trim() || null,
         photo_url: photoUrl,
+        delivery_slip_photo_url: deliverySlipUrl,
+        material_photo_url: materialPhotoUrl,
         notes: notes.trim() || null,
-        created_by: user.id
+        created_by: user.id,
+        received_by: user.id
       };
 
       const { error } = await supabase
@@ -247,6 +317,10 @@ export default function DeliveryTickets() {
       setNotes('');
       setPhotoBlob(null);
       setPhotoPreview(null);
+      setDeliverySlipBlob(null);
+      setDeliverySlipPreview(null);
+      setMaterialPhotoBlob(null);
+      setMaterialPhotoPreview(null);
       setShowAddDialog(false);
       
       // Reload tickets
@@ -457,9 +531,9 @@ export default function DeliveryTickets() {
                 />
               </div>
               
-              {/* Photo */}
+              {/* General Photo */}
               <div className="space-y-2">
-                <Label>Delivery Photo</Label>
+                <Label>General Delivery Photo (Optional)</Label>
                 {!photoPreview ? (
                   <Button
                     type="button"
@@ -468,14 +542,14 @@ export default function DeliveryTickets() {
                     className="w-full"
                   >
                     <Camera className="h-4 w-4 mr-2" />
-                    Take Photo of Delivery
+                    Take General Photo
                   </Button>
                 ) : (
                   <div className="space-y-2">
                     <img
                       src={photoPreview}
-                      alt="Delivery"
-                      className="w-full max-h-64 object-cover rounded-lg"
+                      alt="General delivery"
+                      className="w-full max-h-48 object-cover rounded-lg"
                     />
                     <Button
                       type="button"
@@ -484,6 +558,78 @@ export default function DeliveryTickets() {
                         setPhotoPreview(null);
                         setPhotoBlob(null);
                         startCamera();
+                      }}
+                      size="sm"
+                    >
+                      Retake Photo
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Delivery Slip Photo */}
+              <div className="space-y-2">
+                <Label>Delivery Slip Photo</Label>
+                {!deliverySlipPreview ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowDeliverySlipCamera(true)}
+                    className="w-full"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Photo of Delivery Slip
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <img
+                      src={deliverySlipPreview}
+                      alt="Delivery slip"
+                      className="w-full max-h-48 object-cover rounded-lg"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setDeliverySlipPreview(null);
+                        setDeliverySlipBlob(null);
+                        startCameraForType('delivery-slip');
+                      }}
+                      size="sm"
+                    >
+                      Retake Photo
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Material Photo */}
+              <div className="space-y-2">
+                <Label>Material On-Site Photo</Label>
+                {!materialPhotoPreview ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowMaterialCamera(true)}
+                    className="w-full"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Photo of Materials
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <img
+                      src={materialPhotoPreview}
+                      alt="Materials"
+                      className="w-full max-h-48 object-cover rounded-lg"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setMaterialPhotoPreview(null);
+                        setMaterialPhotoBlob(null);
+                        setShowMaterialCamera(true);
                       }}
                       size="sm"
                     >
@@ -530,6 +676,10 @@ export default function DeliveryTickets() {
                     setShowAddDialog(false);
                     setPhotoPreview(null);
                     setPhotoBlob(null);
+                    setDeliverySlipPreview(null);
+                    setDeliverySlipBlob(null);
+                    setMaterialPhotoPreview(null);
+                    setMaterialPhotoBlob(null);
                     stopCamera();
                   }}
                 >
@@ -565,9 +715,73 @@ export default function DeliveryTickets() {
               </div>
             </div>
             
-            <canvas ref={canvasRef} style={{ display: 'none' }} />
-          </DialogContent>
-        </Dialog>
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delivery Slip Camera Dialog */}
+      <Dialog open={showDeliverySlipCamera} onOpenChange={setShowDeliverySlipCamera}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Photo of Delivery Slip</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full rounded-lg"
+            />
+            <div className="flex gap-2">
+              <Button onClick={() => capturePhotoType('delivery-slip')} className="flex-1">
+                <Camera className="h-4 w-4 mr-2" />
+                Capture
+              </Button>
+              <Button variant="outline" onClick={() => {
+                stopCamera();
+                setShowDeliverySlipCamera(false);
+              }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+          
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Material Camera Dialog */}
+      <Dialog open={showMaterialCamera} onOpenChange={setShowMaterialCamera}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Photo of Materials On Site</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full rounded-lg"
+            />
+            <div className="flex gap-2">
+              <Button onClick={() => capturePhotoType('material')} className="flex-1">
+                <Camera className="h-4 w-4 mr-2" />
+                Capture
+              </Button>
+              <Button variant="outline" onClick={() => {
+                stopCamera();
+                setShowMaterialCamera(false);
+              }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+          
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </DialogContent>
+      </Dialog>
 
         {/* Delivery Ticket Detail View */}
         <DeliveryTicketDetailView

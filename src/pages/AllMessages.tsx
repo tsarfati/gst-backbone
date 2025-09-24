@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MessageSquare, Plus, Search, Reply, Archive, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import ComposeMessageDialog from '@/components/ComposeMessageDialog';
+import MessageThreadView from '@/components/MessageThreadView';
 
 interface Message {
   id: string;
@@ -18,6 +19,8 @@ interface Message {
   content: string;
   read: boolean;
   created_at: string;
+  thread_id?: string;
+  is_reply: boolean;
   from_profile?: {
     display_name: string;
     avatar_url?: string;
@@ -30,6 +33,8 @@ export default function AllMessages() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'unread' | 'sent'>('all');
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [showThreadView, setShowThreadView] = useState(false);
   const { user, profile } = useAuth();
 
   useEffect(() => {
@@ -102,6 +107,23 @@ export default function AllMessages() {
     } catch (error) {
       console.error('Error marking message as read:', error);
     }
+  };
+
+  const openThreadView = (message: Message) => {
+    setSelectedMessage(message);
+    setShowThreadView(true);
+    if (!message.read && filter !== 'sent') {
+      markAsRead(message.id);
+    }
+  };
+
+  const closeThreadView = () => {
+    setShowThreadView(false);
+    setSelectedMessage(null);
+  };
+
+  const handleMessageSent = () => {
+    fetchMessages(); // Refresh messages list
   };
 
   const filteredMessages = messages.filter(message =>
@@ -200,7 +222,7 @@ export default function AllMessages() {
                   className={`p-4 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors ${
                     !message.read && filter !== 'sent' ? 'bg-accent/20 border-primary/20' : ''
                   }`}
-                  onClick={() => filter !== 'sent' && !message.read && markAsRead(message.id)}
+                  onClick={() => openThreadView(message)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
@@ -231,7 +253,14 @@ export default function AllMessages() {
                       </div>
                     </div>
                     <div className="flex gap-1 ml-2">
-                      <Button size="sm" variant="ghost">
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openThreadView(message);
+                        }}
+                      >
                         <Reply className="h-4 w-4" />
                       </Button>
                       <Button size="sm" variant="ghost">
@@ -248,6 +277,14 @@ export default function AllMessages() {
           )}
         </CardContent>
       </Card>
+
+      {/* Message Thread View */}
+      <MessageThreadView
+        message={selectedMessage}
+        isOpen={showThreadView}
+        onClose={closeThreadView}
+        onMessageSent={handleMessageSent}
+      />
     </div>
   );
 }
