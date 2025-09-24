@@ -78,7 +78,6 @@ export default function PunchClockLogin() {
         .from('profiles')
         .select('user_id, first_name, last_name, role')
         .eq('pin_code', pin)
-        .eq('role', 'employee')
         .maybeSingle();
 
       if (profileError || !profiles) {
