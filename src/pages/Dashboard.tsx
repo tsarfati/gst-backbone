@@ -452,9 +452,13 @@ export default function Dashboard() {
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`p-3 rounded-lg border ${
+                        className={`p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors ${
                           !message.read ? 'bg-accent' : 'bg-background'
                         }`}
+                        onClick={() => {
+                          markMessageAsRead(message.id);
+                          navigate(`/messages?thread=${message.id}`);
+                        }}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -473,7 +477,10 @@ export default function Dashboard() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => markMessageAsRead(message.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markMessageAsRead(message.id);
+                              }}
                             >
                               <X className="h-4 w-4" />
                             </Button>

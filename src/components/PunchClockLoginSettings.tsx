@@ -91,10 +91,10 @@ export function PunchClockLoginSettings() {
   };
 
   const handleSave = async () => {
-    if (!profile?.current_company_id) {
+    if (!profile?.user_id) {
       toast({
         title: "Error",
-        description: "No company selected",
+        description: "User not authenticated",
         variant: "destructive",
       });
       return;
@@ -103,10 +103,26 @@ export function PunchClockLoginSettings() {
     setLoading(true);
 
     try {
+      // Use user_id as company_id for now, or get the first company from user_company_access
+      let companyId = profile.current_company_id;
+      
+      if (!companyId) {
+        // Try to get company from user_company_access table
+        const { data: companyAccess } = await supabase
+          .from('user_company_access')
+          .select('company_id')
+          .eq('user_id', profile.user_id)
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        
+        companyId = companyAccess?.company_id || profile.user_id; // fallback to user_id
+      }
+
       const { error } = await supabase
         .from('punch_clock_login_settings')
         .upsert({
-          company_id: profile.current_company_id,
+          company_id: companyId,
           ...settings,
           created_by: profile.user_id
         }, {

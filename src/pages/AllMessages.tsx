@@ -8,6 +8,7 @@ import { MessageSquare, Plus, Search, Reply, Archive, Star } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useSearchParams } from 'react-router-dom';
 import ComposeMessageDialog from '@/components/ComposeMessageDialog';
 import MessageThreadView from '@/components/MessageThreadView';
 
@@ -29,6 +30,7 @@ interface Message {
 
 export default function AllMessages() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +44,32 @@ export default function AllMessages() {
       fetchMessages();
     }
   }, [user, filter]);
+
+  // Handle URL parameters for opening specific message threads
+  useEffect(() => {
+    const threadId = searchParams.get('thread');
+    if (threadId && messages.length > 0) {
+      const message = messages.find(m => m.id === threadId);
+      if (message) {
+        openThreadView(message);
+        // Clear the URL parameter after opening
+        setSearchParams({});
+      }
+    }
+  }, [messages, searchParams, setSearchParams]);
+
+  // Handle URL parameters for opening specific message threads
+  useEffect(() => {
+    const threadId = searchParams.get('thread');
+    if (threadId && messages.length > 0) {
+      const message = messages.find(m => m.id === threadId);
+      if (message) {
+        openThreadView(message);
+        // Clear the URL parameter after opening
+        setSearchParams({});
+      }
+    }
+  }, [messages, searchParams, setSearchParams]);
 
   const fetchMessages = async () => {
     if (!user) return;
