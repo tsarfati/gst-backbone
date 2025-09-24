@@ -77,6 +77,8 @@ import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
 import SearchIndexSettings from "./pages/SearchIndexSettings";
+import ManualPunchOut from "./pages/ManualPunchOut";
+import ManualTimeEntry from "./pages/ManualTimeEntry";
 
 const queryClient = new QueryClient();
 
@@ -146,6 +148,8 @@ function AppRoutes() {
                       <Route path="settings/users" element={<UserSettings />} />
                       <Route path="employees" element={<AllEmployees />} />
                       <Route path="employees/add" element={<AddEmployee />} />
+                      <Route path="manual-punch-out" element={<ManualPunchOut />} />
+                      <Route path="manual-time-entry" element={<ManualTimeEntry />} />
                       <Route path="add-employee" element={<AddEmployee />} />
                       <Route path="time-tracking" element={<TimeTracking />} />
                       <Route path="punch-clock" element={<TimeTracking />} />

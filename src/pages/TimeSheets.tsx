@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit } from 'lucide-react';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import TimeCardDetailView from '@/components/TimeCardDetailView';
 import EditTimeCardDialog from '@/components/EditTimeCardDialog';
 
@@ -58,7 +60,9 @@ export default function TimeSheets() {
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string>('');
   const [showDetailView, setShowDetailView] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [deleteTimeCardId, setDeleteTimeCardId] = useState<string>('');
   const { profile, user } = useAuth();
+  const navigate = useNavigate();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -247,6 +251,34 @@ export default function TimeSheets() {
     setShowEditDialog(true);
   };
 
+  const handleDeleteTimeCard = async () => {
+    if (!deleteTimeCardId || !isManager) return;
+
+    try {
+      const { error } = await supabase
+        .from('time_cards')
+        .delete()
+        .eq('id', deleteTimeCardId);
+
+      if (error) throw error;
+
+      setTimeCards(prev => prev.filter(tc => tc.id !== deleteTimeCardId));
+      setDeleteTimeCardId('');
+
+      toast({
+        title: 'Success',
+        description: 'Time card deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting time card:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete time card',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const formatWeekRange = (date: string) => {
     const d = new Date(date);
     const startOfWeek = new Date(d);
@@ -351,10 +383,23 @@ export default function TimeSheets() {
             Export
           </Button>
           {isManager && (
-            <Button className="h-11">
-              <Plus className="h-4 w-4 mr-2" />
-              New Time Sheet
-            </Button>
+            <>
+              <Button 
+                className="h-11 gap-2"
+                onClick={() => navigate('/manual-time-entry')}
+              >
+                <Plus className="h-4 w-4" />
+                New Time Sheet
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-11 gap-2"
+                onClick={() => navigate('/manual-punch-out')}
+              >
+                <LogOut className="h-4 w-4" />
+                Punch Out Employees
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -544,6 +589,17 @@ export default function TimeSheets() {
                             Edit
                           </Button>
                         )}
+                        {isManager && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="rounded-lg text-red-600 hover:text-red-700"
+                            onClick={() => setDeleteTimeCardId(timeCard.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                        {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
                          <>
                            <Button 
@@ -622,6 +678,16 @@ export default function TimeSheets() {
                               <Edit className="h-4 w-4" />
                             </Button>
                           )}
+                          {isManager && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setDeleteTimeCardId(timeCard.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -671,6 +737,16 @@ export default function TimeSheets() {
                               <Edit className="h-3 w-3" />
                             </Button>
                           )}
+                          {isManager && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                              onClick={() => setDeleteTimeCardId(timeCard.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -701,6 +777,26 @@ export default function TimeSheets() {
           }}
         />
       )}
+
+      <AlertDialog open={!!deleteTimeCardId} onOpenChange={() => setDeleteTimeCardId('')}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Time Card</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this time card? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteTimeCard}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
