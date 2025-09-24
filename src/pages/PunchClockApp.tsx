@@ -8,6 +8,7 @@ import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { pipeline, env } from '@huggingface/transformers';
 
 interface Job {
   id: string;
@@ -45,6 +46,8 @@ export default function PunchClockApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
+  const [faceDetectionResult, setFaceDetectionResult] = useState<{ hasFace: boolean; confidence?: number } | null>(null);
+  const [isDetectingFace, setIsDetectingFace] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -184,7 +187,37 @@ export default function PunchClockApp() {
     }
   };
 
-  const capturePhoto = () => {
+  const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
+    try {
+      // Configure transformers.js
+      env.allowLocalModels = false;
+      env.useBrowserCache = false;
+
+      // Initialize face detection pipeline
+      const detector = await pipeline('object-detection', 'Xenova/detr-resnet-50', {
+        device: 'webgpu',
+      });
+
+      // Run detection
+      const results = await detector(imageData);
+      
+      // Look for person/face detection
+      const faceDetections = results.filter((result: any) => 
+        result.label === 'person' && result.score > 0.5
+      );
+
+      return {
+        hasFace: faceDetections.length > 0,
+        confidence: faceDetections.length > 0 ? Math.max(...faceDetections.map((d: any) => d.score)) : 0
+      };
+    } catch (error) {
+      console.error('Face detection error:', error);
+      // Fallback to allow photo if detection fails
+      return { hasFace: true };
+    }
+  };
+
+  const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
@@ -196,6 +229,24 @@ export default function PunchClockApp() {
     const ctx = canvas.getContext('2d');
     if (ctx) {
       ctx.drawImage(video, 0, 0);
+      
+      // Get image data for face detection
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      
+      // Detect face
+      setIsDetectingFace(true);
+      const faceResult = await detectFace(imageData);
+      setFaceDetectionResult(faceResult);
+      setIsDetectingFace(false);
+
+      if (!faceResult.hasFace) {
+        toast({
+          title: 'No Face Detected',
+          description: 'Please make sure your face is visible in the photo and try again.',
+          variant: 'destructive'
+        });
+        return;
+      }
       
       canvas.toBlob((blob) => {
         if (blob) {
@@ -565,14 +616,40 @@ export default function PunchClockApp() {
                 className="w-full rounded-lg"
               />
               <div className="flex gap-2">
-                <Button onClick={capturePhoto} className="flex-1">
+                <Button 
+                  onClick={capturePhoto} 
+                  disabled={isDetectingFace}
+                  className="flex-1"
+                >
                   <Camera className="h-4 w-4 mr-2" />
-                  Capture
+                  {isDetectingFace ? 'Detecting Face...' : 'Capture'}
                 </Button>
                 <Button variant="outline" onClick={stopCamera}>
                   Cancel
                 </Button>
               </div>
+              
+              {faceDetectionResult && !faceDetectionResult.hasFace && (
+                <div className="text-center p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <AlertCircle className="h-5 w-5 mx-auto mb-2 text-destructive" />
+                  <p className="text-sm text-destructive font-medium">No face detected</p>
+                  <p className="text-xs text-destructive/80 mt-1">
+                    Make sure your face is clearly visible and try again
+                  </p>
+                </div>
+              )}
+              
+              {faceDetectionResult && faceDetectionResult.hasFace && (
+                <div className="text-center p-3 bg-green-100 border border-green-200 rounded-lg">
+                  <CheckCircle className="h-5 w-5 mx-auto mb-2 text-green-600" />
+                  <p className="text-sm text-green-700 font-medium">Face detected successfully</p>
+                  {faceDetectionResult.confidence && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Confidence: {Math.round(faceDetectionResult.confidence * 100)}%
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             
             <canvas ref={canvasRef} style={{ display: 'none' }} />
