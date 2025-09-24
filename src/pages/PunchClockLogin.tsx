@@ -120,7 +120,18 @@ export default function PunchClockLogin() {
   };
 
   const backgroundColor = loginSettings.background_color || '#f8fafc';
-  const primaryColor = loginSettings.primary_color || '#3b82f6';
+  
+  // Handle HSL color values from design system
+  const getPrimaryColor = (color: string) => {
+    if (!color) return '#3b82f6';
+    // If it's already a hex color, return as is
+    if (color.startsWith('#')) return color;
+    // If it's HSL values like "120 60% 45%", convert to hsl()
+    if (color.includes('%')) return `hsl(${color})`;
+    return color;
+  };
+  
+  const primaryColor = getPrimaryColor(loginSettings.primary_color || '#3b82f6');
 
   return (
     <div 
