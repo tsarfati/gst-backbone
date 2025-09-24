@@ -131,31 +131,35 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     if (!mapContainer.current || !timeCard) return;
 
     try {
+      console.log('Initializing map for timeCard:', timeCard);
+      
       // Get Mapbox token from Supabase secrets
-      const { data } = await supabase.functions.invoke('get-mapbox-token');
+      const { data, error } = await supabase.functions.invoke('get-mapbox-token');
+      console.log('Mapbox token response:', data, error);
       
       if (data?.MAPBOX_PUBLIC_TOKEN) {
         mapboxgl.accessToken = data.MAPBOX_PUBLIC_TOKEN;
       } else {
-        console.error('Mapbox token not found');
-        // Fallback token
-        mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbGJjM3JqdncwYnBiM29tc2NveWg2YnB1In0.DSvP8_hurZYK67HlqMVJOA';
+        console.error('Mapbox token not found, using your token');
+        mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
       }
     } catch (error) {
       console.error('Error getting Mapbox token:', error);
-      // Fallback token
-      mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbGJjM3JqdncwYnBiM29tc2NveWg2YnB1In0.DSvP8_hurZYK67HlqMVJOA';
+      // Use your actual token
+      mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
     }
 
-    // Center map on job location or punch locations
-    let centerLat = timeCard.jobs?.latitude || timeCard.punch_in_location_lat || 0;
-    let centerLng = timeCard.jobs?.longitude || timeCard.punch_in_location_lng || 0;
+    // Center map on job location or punch locations, with fallback to Philadelphia
+    let centerLat = timeCard.jobs?.latitude || timeCard.punch_in_location_lat || 39.9526;
+    let centerLng = timeCard.jobs?.longitude || timeCard.punch_in_location_lng || -75.1652;
+    
+    console.log('Map center:', { centerLat, centerLng });
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/light-v11',
       center: [centerLng, centerLat],
-      zoom: 15
+      zoom: centerLat === 39.9526 && centerLng === -75.1652 ? 10 : 15
     });
 
     map.current.on('load', () => {
