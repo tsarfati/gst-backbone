@@ -1232,6 +1232,51 @@ export type Database = {
           },
         ]
       }
+      pin_employees: {
+        Row: {
+          created_at: string
+          created_by: string
+          department: string | null
+          display_name: string
+          first_name: string
+          id: string
+          is_active: boolean
+          last_name: string
+          notes: string | null
+          phone: string | null
+          pin_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          department?: string | null
+          display_name: string
+          first_name: string
+          id?: string
+          is_active?: boolean
+          last_name: string
+          notes?: string | null
+          phone?: string | null
+          pin_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          department?: string | null
+          display_name?: string
+          first_name?: string
+          id?: string
+          is_active?: boolean
+          last_name?: string
+          notes?: string | null
+          phone?: string | null
+          pin_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approved_at: string | null
@@ -2181,6 +2226,15 @@ export type Database = {
           last_name: string
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
+        }[]
+      }
+      validate_pin_employee: {
+        Args: { p_pin: string }
+        Returns: {
+          display_name: string
+          employee_id: string
+          first_name: string
+          last_name: string
         }[]
       }
     }

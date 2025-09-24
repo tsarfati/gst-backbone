@@ -25,10 +25,44 @@ function errorResponse(message: string, status = 400) {
 }
 
 async function validatePin(supabaseAdmin: any, pin: string) {
-  if (!pin || pin.length !== 6) return null;
-  const { data, error } = await supabaseAdmin.rpc("validate_pin", { p_pin: pin });
-  if (error || !data || !data[0]) return null;
-  return data[0]; // { user_id, first_name, last_name, role }
+  if (!pin || pin.length < 4) return null;
+  
+  // First check regular profiles table
+  const { data: profileData, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('user_id, first_name, last_name, role')
+    .eq('pin_code', pin)
+    .maybeSingle();
+
+  if (profileData && !profileError) {
+    return {
+      user_id: profileData.user_id,
+      first_name: profileData.first_name,
+      last_name: profileData.last_name,
+      role: profileData.role,
+      is_pin_employee: false
+    };
+  }
+
+  // Then check PIN employees table
+  const { data: pinEmployeeData, error: pinError } = await supabaseAdmin
+    .from('pin_employees')
+    .select('id, first_name, last_name, display_name')
+    .eq('pin_code', pin)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (pinEmployeeData && !pinError) {
+    return {
+      user_id: pinEmployeeData.id,
+      first_name: pinEmployeeData.first_name,
+      last_name: pinEmployeeData.last_name,
+      role: 'employee',
+      is_pin_employee: true
+    };
+  }
+
+  return null;
 }
 
 serve(async (req) => {

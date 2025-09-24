@@ -67,17 +67,18 @@ export default function AddEmployee() {
 
     try {
       if (formData.punchClockOnly) {
-        // Create PIN-only employee directly in profiles table
+        // Create PIN-only employee in pin_employees table
         const { error } = await supabase
-          .from('profiles')
+          .from('pin_employees')
           .insert({
             first_name: formData.firstName,
             last_name: formData.lastName,
             display_name: formData.displayName || `${formData.firstName} ${formData.lastName}`,
-            role: 'employee',
             pin_code: formData.pinCode,
-            profile_completed: true,
-            status: 'approved'
+            department: formData.department,
+            phone: formData.phone,
+            notes: formData.notes,
+            created_by: profile?.user_id || ''
           });
 
         if (error) throw error;
