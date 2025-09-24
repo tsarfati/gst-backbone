@@ -10,9 +10,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
-import RolePermissionsManager from '@/components/RolePermissionsManager';
-import UserMenuPermissions from '@/components/UserMenuPermissions';
-import UserJobAccess from '@/components/UserJobAccess';
+import RolePermissionsManager from "@/components/RolePermissionsManager";
+import UserMenuPermissions from "@/components/UserMenuPermissions";
+import UserJobAccess from "@/components/UserJobAccess";
+import { UserPinSettings } from "@/components/UserPinSettings";
 
 interface UserProfile {
   id: string;
@@ -22,6 +23,7 @@ interface UserProfile {
   display_name: string;
   role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only';
   created_at: string;
+  pin_code?: string;
 }
 
 const roleColors = {
@@ -61,7 +63,7 @@ export default function UserSettings() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -214,7 +216,7 @@ export default function UserSettings() {
                               {roleLabels[user.role as keyof typeof roleLabels]}
                             </Badge>
                             {isAdmin && user.user_id !== profile?.user_id && (
-                              <>
+                              <div className="flex gap-2">
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -229,7 +231,16 @@ export default function UserSettings() {
                                 >
                                   Permissions
                                 </Button>
-                              </>
+                                {user.role === 'employee' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setEditingUser(user.user_id)}
+                                  >
+                                    Set PIN
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </>
                         )}
@@ -290,6 +301,35 @@ export default function UserSettings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* PIN Settings Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-background rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Set Employee PIN</h3>
+              <Button variant="ghost" size="sm" onClick={() => setEditingUser(null)}>
+                ×
+              </Button>
+            </div>
+            {(() => {
+              const user = users.find(u => u.user_id === editingUser);
+              return user ? (
+                <UserPinSettings
+                  userId={user.user_id}
+                  currentPin={user.pin_code}
+                  userName={user.display_name || `${user.first_name} ${user.last_name}`}
+                />
+              ) : null;
+            })()}
+            <div className="flex justify-end mt-4">
+              <Button variant="outline" onClick={() => setEditingUser(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

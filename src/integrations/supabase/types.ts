@@ -1246,6 +1246,7 @@ export type Database = {
           id: string
           last_name: string | null
           nickname: string | null
+          pin_code: string | null
           profile_completed: boolean | null
           profile_completed_at: string | null
           role: Database["public"]["Enums"]["user_role"]
@@ -1266,6 +1267,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           nickname?: string | null
+          pin_code?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
@@ -1286,6 +1288,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           nickname?: string | null
+          pin_code?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
@@ -1302,6 +1305,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      punch_clock_login_settings: {
+        Row: {
+          background_color: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          header_image_url: string | null
+          id: string
+          logo_url: string | null
+          primary_color: string | null
+          updated_at: string
+          welcome_message: string | null
+        }
+        Insert: {
+          background_color?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          header_image_url?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Update: {
+          background_color?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          header_image_url?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          updated_at?: string
+          welcome_message?: string | null
+        }
+        Relationships: []
       }
       punch_clock_settings: {
         Row: {

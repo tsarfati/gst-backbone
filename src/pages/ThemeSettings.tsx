@@ -8,10 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PunchClockLoginSettings } from '@/components/PunchClockLoginSettings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import ColorPicker from '@/components/ColorPicker';
+import { Palette, Smartphone } from 'lucide-react';
 
 export default function ThemeSettings() {
   const { settings, updateSettings } = useSettings();
@@ -114,194 +117,211 @@ export default function ThemeSettings() {
           </p>
         </div>
         
-        <div className="flex items-center justify-end">
-          <Button onClick={handleSaveSettings}>Save Changes</Button>
-        </div>
+        <Tabs defaultValue="general" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              General Theme
+            </TabsTrigger>
+            <TabsTrigger value="punch-clock" className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4" />
+              Punch Clock Login
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Theme Settings</CardTitle>
-              <CardDescription>
-                Choose your preferred color scheme
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="theme">Theme</Label>
-                <Select
-                  value={settings.theme}
-                  onValueChange={(value: 'light' | 'dark' | 'system') => 
-                    updateSettings({ theme: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <TabsContent value="general" className="space-y-6">
+            <div className="flex items-center justify-end">
+              <Button onClick={handleSaveSettings}>Save Changes</Button>
+            </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="compact-mode">Compact Mode</Label>
+            <Card>
+              <CardHeader>
+                <CardTitle>Theme Settings</CardTitle>
+                <CardDescription>
+                  Choose your preferred color scheme
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <Select
+                    value={settings.theme}
+                    onValueChange={(value: 'light' | 'dark' | 'system') => 
+                      updateSettings({ theme: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="compact-mode">Compact Mode</Label>
+                    <div className="text-sm text-muted-foreground">
+                      Use a more condensed interface layout
+                    </div>
+                  </div>
+                  <Switch
+                    id="compact-mode"
+                    checked={settings.compactMode}
+                    onCheckedChange={(checked) => 
+                      updateSettings({ compactMode: checked })
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Logo & Branding</CardTitle>
+                <CardDescription>
+                  Customize your company branding
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <Label>Logo Upload</Label>
+                  <div className="flex items-center gap-4">
+                    {settings.customLogo && (
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={settings.customLogo} 
+                          alt="Custom Logo" 
+                          className="h-8 w-8 object-contain border rounded"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateSettings({ customLogo: undefined })}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="w-auto"
+                      disabled={uploading}
+                    />
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    Use a more condensed interface layout
+                    Upload a logo to replace the default icon in the sidebar header
                   </div>
                 </div>
-                <Switch
-                  id="compact-mode"
-                  checked={settings.compactMode}
-                  onCheckedChange={(checked) => 
-                    updateSettings({ compactMode: checked })
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Logo & Branding</CardTitle>
-              <CardDescription>
-                Customize your company branding
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <Label>Logo Upload</Label>
-                <div className="flex items-center gap-4">
-                  {settings.customLogo && (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={settings.customLogo} 
-                        alt="Custom Logo" 
-                        className="h-8 w-8 object-contain border rounded"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateSettings({ customLogo: undefined })}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  )}
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="w-auto"
-                    disabled={uploading}
+                <Separator />
+
+                <div className="space-y-4">
+                  <Label>Dashboard Banner</Label>
+                  <div className="flex items-center gap-4">
+                    {settings.dashboardBanner && (
+                      <div className="flex items-center gap-2">
+                        <img 
+                          src={settings.dashboardBanner} 
+                          alt="Dashboard Banner" 
+                          className="h-16 w-32 object-cover border rounded"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateSettings({ dashboardBanner: undefined })}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBannerUpload}
+                      className="w-auto"
+                      disabled={uploading}
+                    />
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Upload a banner image to display at the top of your dashboard
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Color Customization</CardTitle>
+                <CardDescription>
+                  Customize the application color scheme
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ColorPicker
+                    label="Primary Color"
+                    value={settings.customColors.primary}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, primary: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Secondary Color"
+                    value={settings.customColors.secondary}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, secondary: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Accent Color"
+                    value={settings.customColors.accent}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, accent: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Success Color"
+                    value={settings.customColors.success}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, success: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Warning Color"
+                    value={settings.customColors.warning}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, warning: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Destructive Color"
+                    value={settings.customColors.destructive}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, destructive: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Button Hover Color"
+                    value={settings.customColors.buttonHover}
+                    onChange={(value) => updateSettings({ 
+                      customColors: { ...settings.customColors, buttonHover: value }
+                    })}
                   />
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  Upload a logo to replace the default icon in the sidebar header
-                </div>
-              </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <Label>Dashboard Banner</Label>
-                <div className="flex items-center gap-4">
-                  {settings.dashboardBanner && (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={settings.dashboardBanner} 
-                        alt="Dashboard Banner" 
-                        className="h-16 w-32 object-cover border rounded"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateSettings({ dashboardBanner: undefined })}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  )}
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleBannerUpload}
-                    className="w-auto"
-                    disabled={uploading}
-                  />
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Upload a banner image to display at the top of your dashboard
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Color Customization</CardTitle>
-              <CardDescription>
-                Customize the application color scheme
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ColorPicker
-                  label="Primary Color"
-                  value={settings.customColors.primary}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, primary: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Secondary Color"
-                  value={settings.customColors.secondary}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, secondary: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Accent Color"
-                  value={settings.customColors.accent}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, accent: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Success Color"
-                  value={settings.customColors.success}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, success: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Warning Color"
-                  value={settings.customColors.warning}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, warning: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Destructive Color"
-                  value={settings.customColors.destructive}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, destructive: value }
-                  })}
-                />
-                <ColorPicker
-                  label="Button Hover Color"
-                  value={settings.customColors.buttonHover}
-                  onChange={(value) => updateSettings({ 
-                    customColors: { ...settings.customColors, buttonHover: value }
-                  })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <TabsContent value="punch-clock">
+            <PunchClockLoginSettings />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

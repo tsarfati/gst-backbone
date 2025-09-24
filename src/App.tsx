@@ -81,6 +81,7 @@ import SearchIndexSettings from "./pages/SearchIndexSettings";
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
+import PunchClockLogin from "./pages/PunchClockLogin";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +105,7 @@ function AppRoutes() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<Auth />} />
+        <Route path="/punch-clock-login" element={<PunchClockLogin />} />
         <Route path="/punch-clock-app" element={
           <ProtectedRoute>
             <PunchClockApp />
