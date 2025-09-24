@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +12,8 @@ import { toast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import TimeCardDetailView from '@/components/TimeCardDetailView';
 import EditTimeCardDialog from '@/components/EditTimeCardDialog';
+import TimeSheetsViewSelector, { TimeSheetsViewType } from '@/components/TimeSheetsViewSelector';
+import { useTimeSheetsViewPreference } from '@/hooks/useTimeSheetsViewPreference';
 
 interface TimeCard {
   id: string;
@@ -27,12 +30,15 @@ interface TimeCard {
   requires_approval?: boolean;
   distance_warning?: boolean;
   created_via_punch_clock?: boolean;
+  punch_in_photo_url?: string;
+  punch_out_photo_url?: string;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
 }
 
-type ViewMode = 'list' | 'compact' | 'super-compact';
+type SortField = 'employee' | 'job' | 'date' | 'hours' | 'status' | 'overtime';
+type SortDirection = 'asc' | 'desc';
 
 type SupabaseTimeCard = {
   id: string;
@@ -46,6 +52,8 @@ type SupabaseTimeCard = {
   status: string;
   break_minutes: number;
   notes?: string | null;
+  punch_in_photo_url?: string | null;
+  punch_out_photo_url?: string | null;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
@@ -56,13 +64,18 @@ export default function TimeSheets() {
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Array<{id: string, name: string}>>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string>('');
   const [showDetailView, setShowDetailView] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [deleteTimeCardId, setDeleteTimeCardId] = useState<string>('');
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  
+  // Use view preference hook with local storage
+  const viewPreference = useTimeSheetsViewPreference('timesheet-view', 'list');
+  const currentView = viewPreference.currentView;
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -114,7 +127,11 @@ export default function TimeSheets() {
       
       let query = supabase
         .from('time_cards')
-        .select('*')
+        .select(`
+          *,
+          punch_in_photo_url,
+          punch_out_photo_url
+        `)
         .order('punch_in_time', { ascending: false })
         .limit(100);
 
@@ -171,6 +188,8 @@ export default function TimeSheets() {
 
         return {
           ...tc,
+          punch_in_photo_url: tc.punch_in_photo_url,
+          punch_out_photo_url: tc.punch_out_photo_url,
           jobs: job ? { name: job.name } : null,
           cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
           profiles: profile ? {
@@ -297,6 +316,91 @@ export default function TimeSheets() {
     return 'Unknown Employee';
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortedTimeCards = () => {
+    const sorted = [...timeCards].sort((a, b) => {
+      let aValue: any, bValue: any;
+      
+      switch (sortField) {
+        case 'employee':
+          aValue = getEmployeeName(a).toLowerCase();
+          bValue = getEmployeeName(b).toLowerCase();
+          break;
+        case 'job':
+          aValue = a.jobs?.name?.toLowerCase() || '';
+          bValue = b.jobs?.name?.toLowerCase() || '';
+          break;
+        case 'date':
+          aValue = new Date(a.punch_in_time).getTime();
+          bValue = new Date(b.punch_in_time).getTime();
+          break;
+        case 'hours':
+          aValue = a.total_hours;
+          bValue = b.total_hours;
+          break;
+        case 'overtime':
+          aValue = a.overtime_hours;
+          bValue = b.overtime_hours;
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          aValue = a.punch_in_time;
+          bValue = b.punch_in_time;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  };
+
+  const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+    <TableHead 
+      className="cursor-pointer hover:bg-muted/50 select-none"
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-2">
+        {children}
+        {sortField === field ? (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+        ) : (
+          <ArrowUpDown className="h-4 w-4 opacity-50" />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const PhotoDisplay = ({ url, type }: { url?: string; type: 'in' | 'out' }) => {
+    if (!url) return null;
+    
+    return (
+      <div className="relative">
+        <img 
+          src={url} 
+          alt={`Punch ${type} photo`}
+          className="h-8 w-8 rounded object-cover cursor-pointer hover:scale-110 transition-transform"
+          onClick={() => window.open(url, '_blank')}
+        />
+        <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
+          <Camera className="h-2 w-2" />
+        </div>
+      </div>
+    );
+  };
+
   // Calculate summary statistics
   const thisWeekCards = timeCards.filter(tc => {
     const cardDate = new Date(tc.punch_in_time);
@@ -353,31 +457,12 @@ export default function TimeSheets() {
               </SelectContent>
             </Select>
           )}
-          <Select value={viewMode} onValueChange={(value: ViewMode) => setViewMode(value)}>
-            <SelectTrigger className="w-48 h-11">
-              <SelectValue placeholder="View Mode" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="list">
-                <div className="flex items-center gap-2">
-                  <List className="h-4 w-4" />
-                  List View
-                </div>
-              </SelectItem>
-              <SelectItem value="compact">
-                <div className="flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4" />
-                  Compact List
-                </div>
-              </SelectItem>
-              <SelectItem value="super-compact">
-                <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  Super Compact
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <TimeSheetsViewSelector
+            currentView={currentView}
+            onViewChange={viewPreference.setCurrentView}
+            onSetDefault={viewPreference.setDefaultView}
+            isDefault={viewPreference.isDefault}
+          />
           <Button variant="outline" className="h-11">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -476,7 +561,132 @@ export default function TimeSheets() {
             ) : (
               <div className="space-y-4">
                 {/* Render different views based on viewMode */}
-                {viewMode === 'list' && timeCards.map((timeCard) => (
+                {currentView === 'table' && (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {isManager && (
+                          <SortableHeader field="employee">Employee</SortableHeader>
+                        )}
+                        <SortableHeader field="job">Job</SortableHeader>
+                        <SortableHeader field="date">Date</SortableHeader>
+                        <TableHead>Time In/Out</TableHead>
+                        <SortableHeader field="hours">Hours</SortableHeader>
+                        <SortableHeader field="overtime">Overtime</SortableHeader>
+                        <SortableHeader field="status">Status</SortableHeader>
+                        <TableHead>Photos</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {getSortedTimeCards().map((timeCard) => (
+                        <TableRow key={timeCard.id}>
+                          {isManager && (
+                            <TableCell className="font-medium">
+                              {getEmployeeName(timeCard)}
+                            </TableCell>
+                          )}
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
+                              weekday: 'short',
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>
+                                In: {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', { 
+                                  hour: 'numeric', 
+                                  minute: '2-digit' 
+                                })}
+                              </div>
+                              <div>
+                                Out: {new Date(timeCard.punch_out_time).toLocaleTimeString('en-US', { 
+                                  hour: 'numeric', 
+                                  minute: '2-digit' 
+                                })}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {timeCard.total_hours.toFixed(1)}h
+                          </TableCell>
+                          <TableCell>
+                            {timeCard.overtime_hours > 0 ? (
+                              <span className="text-warning font-medium">
+                                {timeCard.overtime_hours.toFixed(1)}h
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={getStatusColor(timeCard.status)}>
+                                {timeCard.status.toUpperCase()}
+                              </Badge>
+                              {timeCard.distance_warning && (
+                                <Badge variant="destructive" className="flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <PhotoDisplay url={timeCard.punch_in_photo_url} type="in" />
+                              <PhotoDisplay url={timeCard.punch_out_photo_url} type="out" />
+                              {!timeCard.punch_in_photo_url && !timeCard.punch_out_photo_url && (
+                                <span className="text-muted-foreground text-sm">No photos</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleViewDetails(timeCard.id)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              {(isManager || timeCard.user_id === user?.id) && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleEditTimeCard(timeCard.id)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {isManager && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => setDeleteTimeCardId(timeCard.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                
+                {currentView === 'list' && timeCards.map((timeCard) => (
                   <div key={timeCard.id} className="border rounded-xl p-6 hover-card">
                      <div className="flex items-start justify-between mb-4">
                        <div className="space-y-1">
@@ -559,14 +769,45 @@ export default function TimeSheets() {
                       </div>
                     </div>
 
-                    {timeCard.notes && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
-                        <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                          {timeCard.notes}
-                        </div>
-                      </div>
-                    )}
+                     {timeCard.notes && (
+                       <div className="mb-4">
+                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
+                         <div className="bg-muted/30 rounded-lg p-3 text-sm">
+                           {timeCard.notes}
+                         </div>
+                       </div>
+                     )}
+
+                     {/* Photo Display */}
+                     {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
+                       <div className="mb-4">
+                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Photos</h4>
+                         <div className="flex gap-4">
+                           {timeCard.punch_in_photo_url && (
+                             <div className="space-y-2">
+                               <div className="text-xs text-muted-foreground">Punch In</div>
+                               <img 
+                                 src={timeCard.punch_in_photo_url} 
+                                 alt="Punch in photo"
+                                 className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
+                                 onClick={() => window.open(timeCard.punch_in_photo_url, '_blank')}
+                               />
+                             </div>
+                           )}
+                           {timeCard.punch_out_photo_url && (
+                             <div className="space-y-2">
+                               <div className="text-xs text-muted-foreground">Punch Out</div>
+                               <img 
+                                 src={timeCard.punch_out_photo_url} 
+                                 alt="Punch out photo"
+                                 className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
+                                 onClick={() => window.open(timeCard.punch_out_photo_url, '_blank')}
+                               />
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                     )}
 
                       <div className="flex gap-3">
                         <Button 
@@ -628,7 +869,7 @@ export default function TimeSheets() {
                 ))}
 
                 {/* Compact View */}
-                {viewMode === 'compact' && timeCards.map((timeCard) => (
+                {currentView === 'compact' && timeCards.map((timeCard) => (
                   <div key={timeCard.id} className="border rounded-lg p-4 hover-card">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -695,7 +936,7 @@ export default function TimeSheets() {
                 ))}
 
                 {/* Super Compact View */}
-                {viewMode === 'super-compact' && (
+                {currentView === 'super-compact' && (
                   <div className="space-y-1">
                     {timeCards.map((timeCard) => (
                       <div key={timeCard.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded">
