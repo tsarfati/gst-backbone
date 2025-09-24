@@ -28,7 +28,7 @@ export function useRoleBasedRouting() {
 
         // For employees, redirect to punch clock app only
         if (profile.role === 'employee') {
-          if (location.pathname !== '/punch-clock-app') {
+          if (location.pathname === '/auth' || location.pathname === '/' || location.pathname === '/dashboard') {
             navigate('/punch-clock-app', { replace: true });
           }
           return;
