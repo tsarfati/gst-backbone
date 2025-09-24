@@ -108,14 +108,21 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .select('code, description')
           .eq('id', timeCardData.cost_code_id)
           .single() : Promise.resolve({ data: null }),
-        // Fetch punch records to backfill missing location/photo data
-        supabase
-          .from('punch_records')
-          .select('punch_type, latitude, longitude, photo_url, punch_time')
-          .eq('user_id', timeCardData.user_id)
-          .gte('punch_time', timeCardData.punch_in_time)
-          .lte('punch_time', timeCardData.punch_out_time)
-          .order('punch_time', { ascending: true })
+        // Fetch punch records with buffer time to capture actual punch records
+        (() => {
+          const punchInBuffer = new Date(new Date(timeCardData.punch_in_time).getTime() - 30000).toISOString();
+          const punchOutBuffer = timeCardData.punch_out_time 
+            ? new Date(new Date(timeCardData.punch_out_time).getTime() + 30000).toISOString()
+            : new Date().toISOString();
+          
+          return supabase
+            .from('punch_records')
+            .select('punch_type, latitude, longitude, photo_url, punch_time')
+            .eq('user_id', timeCardData.user_id)
+            .gte('punch_time', punchInBuffer)
+            .lte('punch_time', punchOutBuffer)
+            .order('punch_time', { ascending: true });
+        })()
       ]);
 
       console.log('Time card data:', timeCardData);
