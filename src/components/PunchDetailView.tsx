@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Clock, User, Camera, Globe, Monitor } from 'lucide-react';
@@ -120,6 +120,9 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
             <Clock className="h-5 w-5" />
             Punch Record Details
           </DialogTitle>
+          <DialogDescription>
+            {format(new Date(punch.punch_time), 'PPpp')} • {punch.punch_type === 'punched_in' ? 'Punch In' : 'Punch Out'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">

@@ -136,6 +136,14 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       console.log('Punch in record:', punchIn);
       console.log('Punch out record:', punchOut);
 
+      const normalizePhotoUrl = (url?: string | null) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        // Treat as a path inside the 'punch-photos' bucket
+        const { data: publicData } = supabase.storage.from('punch-photos').getPublicUrl(url);
+        return publicData?.publicUrl || null;
+      };
+
       const data = {
         ...timeCardData,
         profiles: profileData.data,
@@ -146,8 +154,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,
         punch_out_location_lat: Number(timeCardData.punch_out_location_lat) || Number(punchOut?.latitude) || null,
         punch_out_location_lng: Number(timeCardData.punch_out_location_lng) || Number(punchOut?.longitude) || null,
-        punch_in_photo_url: timeCardData.punch_in_photo_url || punchIn?.photo_url || null,
-        punch_out_photo_url: timeCardData.punch_out_photo_url || punchOut?.photo_url || null,
+        punch_in_photo_url: normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
+        punch_out_photo_url: normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
       };
 
       console.log('Final time card data:', data);
@@ -304,17 +312,19 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     });
   };
 
-  if (loading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Loading time card details</DialogTitle>
+            <DialogDescription>Fetching the latest data…</DialogDescription>
+          </DialogHeader>
           <div className="flex items-center justify-center p-8">
             <div className="text-center">Loading time card details...</div>
           </div>
         </DialogContent>
       </Dialog>
     );
-  }
 
   if (!timeCard) return null;
 

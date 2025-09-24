@@ -580,7 +580,7 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id}>
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-muted/30">
                           {isManager && (
                             <TableCell className="font-medium">
                               {getEmployeeName(timeCard)}
@@ -655,7 +655,7 @@ export default function TimeSheets() {
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                onClick={() => handleViewDetails(timeCard.id)}
+                                onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -663,7 +663,7 @@ export default function TimeSheets() {
                                 <Button 
                                   variant="outline" 
                                   size="sm"
-                                  onClick={() => handleEditTimeCard(timeCard.id)}
+                                  onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -673,7 +673,7 @@ export default function TimeSheets() {
                                   variant="outline" 
                                   size="sm"
                                   className="text-red-600 hover:text-red-700"
-                                  onClick={() => setDeleteTimeCardId(timeCard.id)}
+                                  onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -687,7 +687,7 @@ export default function TimeSheets() {
                 )}
                 
                 {currentView === 'list' && timeCards.map((timeCard) => (
-                  <div key={timeCard.id} className="border rounded-xl p-6 hover-card">
+                  <div key={timeCard.id} className="border rounded-xl p-6 hover-card cursor-pointer" onClick={() => handleViewDetails(timeCard.id)}>
                      <div className="flex items-start justify-between mb-4">
                        <div className="space-y-1">
                          {isManager && (
@@ -814,7 +814,7 @@ export default function TimeSheets() {
                           variant="outline" 
                           size="sm" 
                           className="rounded-lg"
-                          onClick={() => handleViewDetails(timeCard.id)}
+                           onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           View Details
@@ -824,7 +824,7 @@ export default function TimeSheets() {
                             variant="outline" 
                             size="sm" 
                             className="rounded-lg"
-                            onClick={() => handleEditTimeCard(timeCard.id)}
+                             onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
                           >
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
@@ -835,7 +835,7 @@ export default function TimeSheets() {
                             variant="outline" 
                             size="sm" 
                             className="rounded-lg text-red-600 hover:text-red-700"
-                            onClick={() => setDeleteTimeCardId(timeCard.id)}
+                             onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
                           >
                             <Trash2 className="h-4 w-4 mr-1" />
                             Delete
@@ -906,7 +906,7 @@ export default function TimeSheets() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            onClick={() => handleViewDetails(timeCard.id)}
+                             onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -914,7 +914,7 @@ export default function TimeSheets() {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => handleEditTimeCard(timeCard.id)}
+                               onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -924,7 +924,7 @@ export default function TimeSheets() {
                               variant="outline" 
                               size="sm"
                               className="text-red-600 hover:text-red-700"
-                              onClick={() => setDeleteTimeCardId(timeCard.id)}
+                               onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -964,7 +964,7 @@ export default function TimeSheets() {
                             variant="ghost" 
                             size="sm"
                             className="h-6 w-6 p-0"
-                            onClick={() => handleViewDetails(timeCard.id)}
+                             onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
@@ -973,7 +973,7 @@ export default function TimeSheets() {
                               variant="ghost" 
                               size="sm"
                               className="h-6 w-6 p-0"
-                              onClick={() => handleEditTimeCard(timeCard.id)}
+                              onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
@@ -983,7 +983,7 @@ export default function TimeSheets() {
                               variant="ghost" 
                               size="sm"
                               className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                              onClick={() => setDeleteTimeCardId(timeCard.id)}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
