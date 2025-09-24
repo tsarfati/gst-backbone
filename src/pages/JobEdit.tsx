@@ -298,12 +298,14 @@ export default function JobEdit() {
     if (!id) return;
 
     try {
+      const { data: user } = await supabase.auth.getUser();
+      
       const { error } = await supabase
         .from('job_assistant_managers')
         .insert({
           job_id: id,
           user_id: userId,
-          assigned_by: (await supabase.auth.getUser()).data.user?.id
+          assigned_by: user.user?.id
         });
 
       if (error) {

@@ -70,9 +70,17 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
         .from('time_cards')
         .select('*')
         .eq('id', timeCardId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!timeCardData) {
+        toast({
+          title: 'Time Card Not Found',
+          description: 'The requested time card could not be found.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // Fetch related data separately
       const [profileData, jobData, costCodeData] = await Promise.all([
@@ -80,17 +88,17 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           .from('profiles')
           .select('display_name')
           .eq('user_id', timeCardData.user_id)
-          .single(),
+          .maybeSingle(),
         timeCardData.job_id ? supabase
           .from('jobs')
           .select('name')
           .eq('id', timeCardData.job_id)
-          .single() : Promise.resolve({ data: null }),
+          .maybeSingle() : Promise.resolve({ data: null }),
         timeCardData.cost_code_id ? supabase
           .from('cost_codes')
           .select('code, description')
           .eq('id', timeCardData.cost_code_id)
-          .single() : Promise.resolve({ data: null })
+          .maybeSingle() : Promise.resolve({ data: null })
       ]);
 
       const data = {
@@ -99,8 +107,6 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
         jobs: jobData.data,
         cost_codes: costCodeData.data
       };
-
-      if (error) throw error;
 
       setTimeCard(data as any);
       
