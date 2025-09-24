@@ -25,7 +25,7 @@ function errorResponse(message: string, status = 400) {
 }
 
 async function validatePin(supabaseAdmin: any, pin: string) {
-  if (!pin || pin.length < 4) return null;
+  if (!pin || pin.length !== 6) return null;
   
   // First check regular profiles table
   const { data: profileData, error: profileError } = await supabaseAdmin

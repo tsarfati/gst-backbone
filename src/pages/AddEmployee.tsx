@@ -49,15 +49,15 @@ export default function AddEmployee() {
     setFormData(prev => ({ 
       ...prev, 
       [field]: value,
-      // Auto-generate PIN when enabling punch clock only mode
+      // Auto-generate 6-digit PIN when enabling punch clock only mode
       ...(field === 'punchClockOnly' && value === true && !prev.pinCode ? 
-        { pinCode: Math.floor(1000 + Math.random() * 9000).toString() } : {}
+        { pinCode: Math.floor(100000 + Math.random() * 900000).toString() } : {}
       )
     }));
   };
 
   const generateNewPin = () => {
-    const newPin = Math.floor(1000 + Math.random() * 9000).toString();
+    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
     setFormData(prev => ({ ...prev, pinCode: newPin }));
   };
 
@@ -158,9 +158,9 @@ export default function AddEmployee() {
                     id="pinCode"
                     value={formData.pinCode}
                     onChange={(e) => handleInputChange('pinCode', e.target.value)}
-                    placeholder="4-digit PIN"
-                    maxLength={4}
-                    pattern="[0-9]{4}"
+                    placeholder="6-digit PIN"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
                     required
                   />
                   <Button type="button" variant="outline" onClick={generateNewPin}>
@@ -168,7 +168,7 @@ export default function AddEmployee() {
                   </Button>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Employee will use this PIN to access the punch clock
+                  Employee will use this 6-digit PIN to access the punch clock
                 </p>
               </div>
             )}
@@ -274,7 +274,7 @@ export default function AddEmployee() {
             <div className="flex gap-3">
               <Button 
                 type="submit" 
-                disabled={loading || (formData.punchClockOnly && !formData.pinCode)}
+                disabled={loading || (formData.punchClockOnly && (!formData.pinCode || formData.pinCode.length !== 6))}
               >
                 {loading ? 
                   (formData.punchClockOnly ? 'Creating Employee...' : 'Sending Invitation...') : 
