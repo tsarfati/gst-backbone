@@ -2174,6 +2174,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      validate_pin: {
+        Args: { p_pin: string }
+        Returns: {
+          first_name: string
+          last_name: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       job_status: "planning" | "active" | "on-hold" | "completed"

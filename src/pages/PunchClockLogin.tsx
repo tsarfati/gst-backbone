@@ -73,14 +73,12 @@ export default function PunchClockLogin() {
     setLoading(true);
 
     try {
-      // Find user with matching PIN
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, role')
-        .eq('pin_code', pin)
-        .maybeSingle();
+      // Validate PIN via secure RPC to avoid RLS issues
+      const { data: pinRows, error: pinError } = await supabase.rpc('validate_pin', { p_pin: pin });
 
-      if (profileError || !profiles) {
+      const profiles = pinRows?.[0];
+
+      if (pinError || !profiles) {
         toast({
           title: "Invalid PIN",
           description: "PIN not found or invalid",
