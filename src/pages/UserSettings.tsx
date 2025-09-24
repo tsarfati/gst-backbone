@@ -21,7 +21,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only';
+  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
   created_at: string;
   pin_code?: string;
 }
@@ -31,7 +31,8 @@ const roleColors = {
   controller: 'secondary',
   project_manager: 'default',
   employee: 'outline',
-  view_only: 'outline'
+  view_only: 'outline',
+  company_admin: 'destructive'
 } as const;
 
 const roleLabels = {
@@ -39,7 +40,8 @@ const roleLabels = {
   controller: 'Controller',
   project_manager: 'Project Manager',
   employee: 'Employee',
-  view_only: 'View Only'
+  view_only: 'View Only',
+  company_admin: 'Company Admin'
 };
 
 export default function UserSettings() {
@@ -80,7 +82,7 @@ export default function UserSettings() {
     }
   };
 
-  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only') => {
+  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin') => {
     try {
       const { error } = await supabase
         .from('profiles')
@@ -196,11 +198,12 @@ export default function UserSettings() {
                                 <SelectItem value="project_manager">Project Manager</SelectItem>
                                 <SelectItem value="employee">Employee</SelectItem>
                                 <SelectItem value="view_only">View Only</SelectItem>
+                                <SelectItem value="company_admin">Company Admin</SelectItem>
                               </SelectContent>
                             </Select>
                             <Button
                               size="sm"
-                              onClick={() => updateUserRole(user.user_id, editRole as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only')}
+                              onClick={() => updateUserRole(user.user_id, editRole as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin')}
                             >
                               Save
                             </Button>
