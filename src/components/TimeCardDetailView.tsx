@@ -52,6 +52,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [timeCard, setTimeCard] = useState<TimeCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'audit' | 'map'>('details');
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -64,7 +65,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   }, [open, timeCardId]);
 
   useEffect(() => {
-    if (open && timeCard && mapContainer.current && !map.current) {
+    if (open && activeTab === 'map' && timeCard && mapContainer.current && !map.current) {
       initializeMap();
     }
 
@@ -74,7 +75,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         map.current = null;
       }
     };
-  }, [open, timeCard]);
+  }, [open, timeCard, activeTab]);
 
   const loadTimeCardDetails = async () => {
     if (!timeCardId) return;
@@ -286,7 +287,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'audit' | 'map')} className="w-full">
           <div className="flex justify-between items-center mb-4">
             <TabsList className="grid w-full grid-cols-3 max-w-md">
               <TabsTrigger value="details">Details</TabsTrigger>
