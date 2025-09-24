@@ -134,7 +134,9 @@ function AuthenticatedRoutes() {
               } />
               <Route path="/company-request" element={
                 <ProtectedRoute>
-                  <CompanyRequest />
+                  <AccessControl>
+                    <CompanyRequest />
+                  </AccessControl>
                 </ProtectedRoute>
               } />
               <Route path="/" element={
