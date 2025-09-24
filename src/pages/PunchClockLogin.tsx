@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 interface LoginSettings {
   header_image_url?: string;
   background_color?: string;
+  background_image_url?: string;
   primary_color?: string;
   logo_url?: string;
   welcome_message?: string;
@@ -133,10 +134,20 @@ export default function PunchClockLogin() {
   
   const primaryColor = getPrimaryColor(loginSettings.primary_color || '#3b82f6');
 
+  // Create background style - prefer image over color
+  const backgroundStyle = loginSettings.background_image_url
+    ? {
+        backgroundImage: `url(${loginSettings.background_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }
+    : { backgroundColor };
+
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4"
-      style={{ backgroundColor }}
+      style={backgroundStyle}
     >
       <div className="w-full max-w-md space-y-6">
         {/* Header Image */}

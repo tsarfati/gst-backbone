@@ -1309,6 +1309,7 @@ export type Database = {
       punch_clock_login_settings: {
         Row: {
           background_color: string | null
+          background_image_url: string | null
           company_id: string
           created_at: string
           created_by: string
@@ -1321,6 +1322,7 @@ export type Database = {
         }
         Insert: {
           background_color?: string | null
+          background_image_url?: string | null
           company_id: string
           created_at?: string
           created_by: string
@@ -1333,6 +1335,7 @@ export type Database = {
         }
         Update: {
           background_color?: string | null
+          background_image_url?: string | null
           company_id?: string
           created_at?: string
           created_by?: string

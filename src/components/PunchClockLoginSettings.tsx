@@ -14,6 +14,7 @@ export function PunchClockLoginSettings() {
   const [settings, setSettings] = useState({
     header_image_url: '',
     background_color: '#f8fafc',
+    background_image_url: '',
     primary_color: '#3b82f6',
     logo_url: '',
     welcome_message: 'Welcome to Punch Clock'
@@ -42,6 +43,7 @@ export function PunchClockLoginSettings() {
         setSettings({
           header_image_url: data.header_image_url || '',
           background_color: data.background_color || '#f8fafc',
+          background_image_url: data.background_image_url || '',
           primary_color: data.primary_color || '#3b82f6',
           logo_url: data.logo_url || '',
           welcome_message: data.welcome_message || 'Welcome to Punch Clock'
@@ -52,7 +54,7 @@ export function PunchClockLoginSettings() {
     }
   };
 
-  const handleImageUpload = async (file: File, type: 'header' | 'logo') => {
+  const handleImageUpload = async (file: File, type: 'header' | 'logo' | 'background') => {
     if (!file) return;
 
     const fileExt = file.name.split('.').pop();
@@ -70,7 +72,8 @@ export function PunchClockLoginSettings() {
         .from('company-logos')
         .getPublicUrl(filePath);
 
-      const fieldName = type === 'header' ? 'header_image_url' : 'logo_url';
+      const fieldName = type === 'header' ? 'header_image_url' : 
+                        type === 'logo' ? 'logo_url' : 'background_image_url';
       setSettings(prev => ({
         ...prev,
         [fieldName]: urlData.publicUrl
@@ -78,7 +81,7 @@ export function PunchClockLoginSettings() {
 
       toast({
         title: "Image uploaded",
-        description: `${type === 'header' ? 'Header' : 'Logo'} image uploaded successfully`,
+        description: `${type === 'header' ? 'Header' : type === 'logo' ? 'Logo' : 'Background'} image uploaded successfully`,
       });
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -247,10 +250,42 @@ export function PunchClockLoginSettings() {
           />
         </div>
 
+        {/* Background Image Upload */}
+        <div className="space-y-2">
+          <Label>Background Image</Label>
+          <div className="flex items-center gap-4">
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file, 'background');
+              }}
+              className="flex-1"
+            />
+            {settings.background_image_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSettings(prev => ({ ...prev, background_image_url: '' }))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          {settings.background_image_url && (
+            <img 
+              src={settings.background_image_url} 
+              alt="Background preview" 
+              className="max-h-20 object-cover w-full rounded"
+            />
+          )}
+        </div>
+
         {/* Background Color */}
         <div className="space-y-2">
           <ColorPicker
-            label="Background Color"
+            label="Background Color (fallback when no image)"
             value={settings.background_color}
             onChange={(color) => setSettings(prev => ({ ...prev, background_color: color }))}
           />
