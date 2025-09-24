@@ -48,6 +48,7 @@ export default function PunchClockApp() {
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [faceDetectionResult, setFaceDetectionResult] = useState<{ hasFace: boolean; confidence?: number } | null>(null);
   const [isDetectingFace, setIsDetectingFace] = useState(false);
+  const [loginSettings, setLoginSettings] = useState<any>({});
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -56,6 +57,11 @@ export default function PunchClockApp() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Load login settings for background styling
+  useEffect(() => {
+    loadLoginSettings();
   }, []);
 
   // Load initial data
@@ -72,6 +78,28 @@ export default function PunchClockApp() {
       }
     }
   }, [user, isPinAuthenticated]);
+
+  const loadLoginSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('punch_clock_login_settings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading login settings:', error);
+        return;
+      }
+
+      if (data) {
+        setLoginSettings(data);
+      }
+    } catch (error) {
+      console.error('Error loading login settings:', error);
+    }
+  };
 
   const loadJobs = async () => {
     try {
@@ -443,9 +471,23 @@ export default function PunchClockApp() {
   const currentJobData = currentPunch ? jobs.find(j => j.id === currentPunch.job_id) : null;
   const currentCostCodeData = currentPunch ? costCodes.find(c => c.id === currentPunch.cost_code_id) : null;
 
+  // Background styling to match login screen
+  const backgroundColor = loginSettings.background_color || '#f8fafc';
+  const backgroundStyle = loginSettings.background_image_url
+    ? {
+        backgroundImage: `url(${loginSettings.background_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }
+    : { backgroundColor };
+
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div 
+        className="min-h-screen flex items-center justify-center p-4"
+        style={backgroundStyle}
+      >
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center space-y-4">
             <Clock className="h-12 w-12 mx-auto mb-2 text-primary" />
@@ -466,7 +508,10 @@ export default function PunchClockApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div 
+      className="min-h-screen p-4"
+      style={backgroundStyle}
+    >
       <div className="max-w-md mx-auto space-y-6">
         {/* Header */}
         <Card>

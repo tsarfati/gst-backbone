@@ -17,7 +17,8 @@ export function PunchClockLoginSettings() {
     background_image_url: '',
     primary_color: '#3b82f6',
     logo_url: '',
-    welcome_message: 'Welcome to Punch Clock'
+    welcome_message: 'Welcome to Punch Clock',
+    bottom_text: ''
   });
   const [loading, setLoading] = useState(false);
   const { profile } = useAuth();
@@ -46,7 +47,8 @@ export function PunchClockLoginSettings() {
           background_image_url: data.background_image_url || '',
           primary_color: data.primary_color || '#3b82f6',
           logo_url: data.logo_url || '',
-          welcome_message: data.welcome_message || 'Welcome to Punch Clock'
+          welcome_message: data.welcome_message || 'Welcome to Punch Clock',
+          bottom_text: data.bottom_text || ''
         });
       }
     } catch (error) {
@@ -248,6 +250,21 @@ export function PunchClockLoginSettings() {
             onChange={(e) => setSettings(prev => ({ ...prev, welcome_message: e.target.value }))}
             placeholder="Welcome to Punch Clock"
           />
+        </div>
+
+        {/* Bottom Text */}
+        <div className="space-y-2">
+          <Label htmlFor="bottom-text">Bottom Text (Optional)</Label>
+          <Textarea
+            id="bottom-text"
+            value={settings.bottom_text}
+            onChange={(e) => setSettings(prev => ({ ...prev, bottom_text: e.target.value }))}
+            placeholder="Custom message to display at the bottom of the login screen"
+            rows={2}
+          />
+          <p className="text-xs text-muted-foreground">
+            This text will replace the default "Need regular access? Sign in here" link
+          </p>
         </div>
 
         {/* Background Image Upload */}

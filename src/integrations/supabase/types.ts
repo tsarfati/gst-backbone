@@ -1355,6 +1355,7 @@ export type Database = {
         Row: {
           background_color: string | null
           background_image_url: string | null
+          bottom_text: string | null
           company_id: string
           created_at: string
           created_by: string
@@ -1368,6 +1369,7 @@ export type Database = {
         Insert: {
           background_color?: string | null
           background_image_url?: string | null
+          bottom_text?: string | null
           company_id: string
           created_at?: string
           created_by: string
@@ -1381,6 +1383,7 @@ export type Database = {
         Update: {
           background_color?: string | null
           background_image_url?: string | null
+          bottom_text?: string | null
           company_id?: string
           created_at?: string
           created_by?: string

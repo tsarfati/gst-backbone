@@ -14,6 +14,7 @@ interface LoginSettings {
   primary_color?: string;
   logo_url?: string;
   welcome_message?: string;
+  bottom_text?: string;
 }
 
 export default function PunchClockLogin() {
@@ -218,15 +219,14 @@ export default function PunchClockLogin() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
-              <Button
-                variant="link"
-                onClick={() => navigate('/auth')}
-                className="text-sm text-muted-foreground"
-              >
-                Need regular access? Sign in here
-              </Button>
-            </div>
+            {/* Customizable bottom text */}
+            {loginSettings.bottom_text && (
+              <div className="mt-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {loginSettings.bottom_text}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
