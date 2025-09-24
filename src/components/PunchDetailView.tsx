@@ -37,8 +37,8 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
   useEffect(() => {
     if (!open || !punch || !punch.latitude || !punch.longitude || !mapContainer.current) return;
 
-    // Initialize map
-    mapboxgl.accessToken = 'pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbTF1YzljdXUwMGpiMmtxdGN6djN5cWdiIn0.lYxhHgXLT5Wop4t7ZaQBrg';
+    // Initialize map with Mapbox token
+    mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
     
     if (!map.current) {
       map.current = new mapboxgl.Map({

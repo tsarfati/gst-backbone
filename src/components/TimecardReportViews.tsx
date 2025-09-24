@@ -72,23 +72,10 @@ export default function TimecardReportViews({
 
   const handleViewPunchDetails = async (record: TimeCardRecord) => {
     try {
-      // Fetch detailed punch records for this timecard
+      // Fetch punch records for this timecard without join hints to avoid schema cache errors
       const { data: punchRecords, error } = await supabase
         .from('punch_records')
-        .select(`
-          id,
-          punch_time,
-          punch_type,
-          latitude,
-          longitude,
-          photo_url,
-          ip_address,
-          user_agent,
-          notes,
-          profiles!punch_records_user_id_fkey(display_name),
-          jobs!punch_records_job_id_fkey(name),
-          cost_codes!punch_records_cost_code_id_fkey(code)
-        `)
+        .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
         .eq('user_id', record.user_id)
         .gte('punch_time', record.punch_in_time)
         .lte('punch_time', record.punch_out_time)
@@ -97,20 +84,21 @@ export default function TimecardReportViews({
       if (error) throw error;
 
       if (punchRecords && punchRecords.length > 0) {
-        // Show the first punch record (punch in) - you could modify this to show both in/out
+        // Compose data using already-known names from the record
+        const first = punchRecords[0];
         const punchData = {
-          id: punchRecords[0].id,
-          punch_time: punchRecords[0].punch_time,
-          punch_type: punchRecords[0].punch_type,
+          id: first.id,
+          punch_time: first.punch_time,
+          punch_type: first.punch_type,
           employee_name: record.employee_name,
           job_name: record.job_name,
           cost_code: record.cost_code,
-          latitude: punchRecords[0].latitude,
-          longitude: punchRecords[0].longitude,
-          photo_url: punchRecords[0].photo_url,
-          ip_address: punchRecords[0].ip_address,
-          user_agent: punchRecords[0].user_agent,
-          notes: punchRecords[0].notes
+          latitude: first.latitude,
+          longitude: first.longitude,
+          photo_url: first.photo_url,
+          ip_address: first.ip_address,
+          user_agent: first.user_agent,
+          notes: first.notes
         };
 
         setSelectedPunch(punchData);
