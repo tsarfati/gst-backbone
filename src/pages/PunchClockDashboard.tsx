@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import PunchDetailView from '@/components/PunchDetailView';
+import TimeCardDetailModal from '@/components/TimeCardDetailModal';
 
 interface CurrentStatus {
   id: string;
@@ -54,6 +55,8 @@ export default function PunchClockDashboard() {
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
   const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const [employeeToPunchOut, setEmployeeToPunchOut] = useState<CurrentStatus | null>(null);
+  const [timeCardModalOpen, setTimeCardModalOpen] = useState(false);
+  const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -118,8 +121,10 @@ export default function PunchClockDashboard() {
 
       setRecentOuts(recentOuts);
 
-      // Preload profiles for recently punched out users
+      // Preload profiles for recently punched out users and load jobs for punch outs
       const outUserIds = recentOuts.map(r => r.user_id);
+      const outJobIds = Array.from(new Set(recentOuts.map(r => r.job_id).filter(Boolean))) as string[];
+      
       if (outUserIds.length) {
         const { data: outProfs } = await supabase
           .from('profiles')
@@ -128,6 +133,16 @@ export default function PunchClockDashboard() {
         const profMap: Record<string, Profile> = {};
         (outProfs || []).forEach(p => { profMap[p.user_id] = p; });
         setProfiles(prev => ({ ...prev, ...profMap }));
+      }
+
+      if (outJobIds.length) {
+        const { data: outJobsData } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', outJobIds);
+        const jobMap: Record<string, Job> = {};
+        (outJobsData || []).forEach(j => { jobMap[j.id] = j; });
+        setJobs(prev => ({ ...prev, ...jobMap }));
       }
     };
 
@@ -260,7 +275,7 @@ export default function PunchClockDashboard() {
       const punchOutTime = new Date();
       const totalHours = Math.max(0, (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60));
 
-      const { error: timeCardError } = await supabase.from('time_cards').insert({
+      const { data: timeCardData, error: timeCardError } = await supabase.from('time_cards').insert({
         user_id: employeeToPunchOut.user_id,
         job_id: employeeToPunchOut.job_id,
         cost_code_id: employeeToPunchOut.cost_code_id,
@@ -280,13 +295,25 @@ export default function PunchClockDashboard() {
         created_via_punch_clock: false,
         requires_approval: false,
         distance_warning: false
-      });
+      }).select().single();
 
       if (timeCardError) throw timeCardError;
 
       toast({
         title: "Success",
         description: `Successfully punched out ${profiles[employeeToPunchOut.user_id]?.display_name || 'employee'}.`,
+        action: timeCardData ? (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              setSelectedTimeCardId(timeCardData.id);
+              setTimeCardModalOpen(true);
+            }}
+          >
+            View Time Card
+          </Button>
+        ) : undefined
       });
 
       // Immediately remove from local state to prevent re-appearance
@@ -427,6 +454,12 @@ export default function PunchClockDashboard() {
       </div>
 
       <PunchDetailView open={detailOpen} onOpenChange={setDetailOpen} punch={selectedDetail} />
+      
+      <TimeCardDetailModal 
+        open={timeCardModalOpen} 
+        onOpenChange={setTimeCardModalOpen} 
+        timeCardId={selectedTimeCardId || undefined} 
+      />
 
       <AlertDialog open={confirmPunchOutOpen} onOpenChange={setConfirmPunchOutOpen}>
         <AlertDialogContent>

@@ -26,6 +26,7 @@ import Vendors from "./pages/Vendors";
 import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
 import VendorReports from "./pages/VendorReports";
+import UserEdit from "./pages/UserEdit";
 import AppSettings from "./pages/AppSettings";
 import UserSettings from "./pages/UserSettings";
 import Bills from "./pages/Bills";
@@ -115,7 +116,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/auth" element={<Auth />} />
         <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-        <Route path="/punch-clock" element={<Navigate to="/punch-clock-login" replace />} />
+        <Route path="/punch-clock" element={<PunchClockLogin />} />
         <Route path="/punch-clock-app" element={
           <PunchClockAuthProvider>
             <PunchClockApp />
@@ -169,6 +170,7 @@ function AppRoutes() {
                       <Route path="settings/search-index" element={<SearchIndexSettings />} />
                       <Route path="profile-settings" element={<ProfileSettings />} />
                       <Route path="settings/users" element={<UserSettings />} />
+                      <Route path="settings/users/:userId/edit" element={<UserEdit />} />
                       <Route path="employees" element={<AllEmployees />} />
                       <Route path="employees/add" element={<AddEmployee />} />
                       <Route path="manual-punch-out" element={<ManualPunchOut />} />

@@ -195,7 +195,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       console.error('Error getting Mapbox token:', error);
       // Use fallback token
       mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-    }
 
     // Center map on job location or punch locations, with fallback to Philadelphia
     let centerLat = timeCard.jobs?.latitude || timeCard.punch_in_location_lat || 39.9526;
@@ -607,6 +606,19 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             setEditDialogOpen(false);
           }}
         />
+
+        {/* Edit Dialog */}
+        {isManager && (
+          <EditTimeCardDialog
+            open={editDialogOpen}
+            onOpenChange={setEditDialogOpen}
+            timeCardId={timeCard.id}
+            onSave={() => {
+              loadTimeCardDetails();
+              setEditDialogOpen(false);
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

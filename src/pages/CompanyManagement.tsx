@@ -92,24 +92,28 @@ export default function CompanyManagement() {
         return;
       }
 
-      // Get user IDs to fetch profiles
+      // Get user IDs to fetch profiles with role
       const userIds = userAccessData.map(access => access.user_id);
       console.log('User IDs to fetch:', userIds);
       
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, display_name, first_name, last_name')
+        .select('user_id, display_name, first_name, last_name, role')
         .in('user_id', userIds);
 
       console.log('Profiles data:', profilesData, 'error:', profilesError);
 
       if (profilesError) throw profilesError;
 
-      // Combine the data
-      const combinedData = userAccessData.map(access => ({
-        ...access,
-        profile: profilesData?.find(profile => profile.user_id === access.user_id)
-      }));
+      // Combine the data, using the role from profiles (not user_company_access)
+      const combinedData = userAccessData.map(access => {
+        const profile = profilesData?.find(profile => profile.user_id === access.user_id);
+        return {
+          ...access,
+          role: profile?.role || access.role, // Use profile role as primary source
+          profile
+        };
+      });
 
       console.log('Combined data:', combinedData);
       setUsers(combinedData);
@@ -566,7 +570,11 @@ export default function CompanyManagement() {
                 </TableRow>
               ) : (
                 users.map((companyUser) => (
-                  <TableRow key={companyUser.id}>
+                  <TableRow 
+                    key={companyUser.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => window.location.href = `/settings/users/${companyUser.user_id}/edit`}
+                  >
                     <TableCell>
                       <div>
                         <p className="font-medium">
@@ -574,27 +582,57 @@ export default function CompanyManagement() {
                            `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
                            'Unknown User'}
                         </p>
+                        <p className="text-sm text-muted-foreground">
+                          User ID: {companyUser.user_id.substring(0, 8)}...
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {companyUser.user_id === user?.id && '(You)'}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={companyUser.role === 'admin' ? 'default' : 'outline'} className="capitalize">
-                        {companyUser.role}
+                      <Badge 
+                        variant={
+                          companyUser.role === 'admin' ? 'destructive' :
+                          companyUser.role === 'controller' ? 'secondary' :
+                          companyUser.role === 'project_manager' ? 'default' :
+                          'outline'
+                        }
+                      >
+                        {companyUser.role === 'admin' ? 'Administrator' :
+                         companyUser.role === 'controller' ? 'Controller' :
+                         companyUser.role === 'project_manager' ? 'Project Manager' :
+                         companyUser.role === 'view_only' ? 'View Only' :
+                         companyUser.role === 'company_admin' ? 'Company Admin' :
+                         'Employee'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(companyUser.granted_at).toLocaleDateString()}
+                      <p className="text-sm">
+                        {new Date(companyUser.granted_at).toLocaleDateString()}
+                      </p>
                     </TableCell>
                     {isCompanyAdmin && (
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           {companyUser.user_id !== user?.id && (
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => handleRemoveUser(companyUser.user_id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveUser(companyUser.user_id);
+                              }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

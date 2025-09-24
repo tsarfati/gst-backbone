@@ -223,7 +223,7 @@ export default function UserSettings() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => startEdit(user)}
+                                  onClick={() => window.location.href = `/settings/users/${user.user_id}/edit`}
                                 >
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
