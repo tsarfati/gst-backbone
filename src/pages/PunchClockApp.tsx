@@ -396,13 +396,18 @@ export default function PunchClockApp() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <Clock className="h-12 w-12 mx-auto mb-4 text-primary" />
-            <h2 className="text-xl font-semibold mb-2">GST Punch Clock</h2>
-            <p className="text-muted-foreground mb-4">Please sign in to use the punch clock</p>
-            <Button onClick={() => window.location.href = '/auth'} className="w-full">
-              Sign In
-            </Button>
+          <CardContent className="p-6 text-center space-y-4">
+            <Clock className="h-12 w-12 mx-auto mb-2 text-primary" />
+            <h2 className="text-xl font-semibold">GST Punch Clock</h2>
+            <p className="text-muted-foreground">This punch clock supports public PIN login.</p>
+            <div className="space-y-2">
+              <Button onClick={() => (window.location.href = '/punch-clock-login')} className="w-full">
+                Continue with PIN Login
+              </Button>
+              <Button variant="outline" onClick={() => (window.location.href = '/auth')} className="w-full">
+                Sign In (Full Access)
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
