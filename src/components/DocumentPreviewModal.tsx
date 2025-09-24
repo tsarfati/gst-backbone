@@ -63,7 +63,7 @@ export default function DocumentPreviewModal({
     if (isPdf(document.fileName)) {
       return (
         <div className="w-full h-[600px]">
-          <PdfPreview fileUrl={document.url} />
+          <PdfPreview url={document.url} />
         </div>
       );
     } else if (isImage(document.fileName)) {
