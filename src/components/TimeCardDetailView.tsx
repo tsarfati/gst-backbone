@@ -233,6 +233,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       zoom: centerLat === 39.9526 && centerLng === -75.1652 ? 10 : 15
     });
 
+    // Handle sizing and errors
+    map.current.on('error', (e) => console.error('Mapbox error:', e));
+    setTimeout(() => map.current?.resize(), 300);
+
     map.current.on('load', () => {
       if (!map.current || !timeCard) return;
 

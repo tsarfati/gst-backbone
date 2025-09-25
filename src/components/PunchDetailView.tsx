@@ -40,6 +40,8 @@ const mapContainer = useRef<HTMLDivElement>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
   const jobMarker = useRef<mapboxgl.Marker | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapToken, setMapToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !punch) return;
@@ -75,6 +77,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
 
       (async () => {
         // Initialize Mapbox
+        setMapReady(false);
         try {
           const { data, error } = await supabase.functions.invoke('get-mapbox-token');
           if (error) {
@@ -82,10 +85,13 @@ const mapContainer = useRef<HTMLDivElement>(null);
           }
           const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
           mapboxgl.accessToken = token;
+          setMapToken(token);
           console.log('Mapbox token set successfully');
         } catch (e) {
           console.warn('Failed to fetch Mapbox token, using fallback:', e);
-          mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+          const fallback = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+          mapboxgl.accessToken = fallback;
+          setMapToken(fallback);
         }
 
       // Determine job site coordinates first (from coords or by geocoding address)
@@ -97,7 +103,10 @@ const mapContainer = useRef<HTMLDivElement>(null);
         if (geo) jobLngLat = [geo.longitude, geo.latitude];
       }
 
-      const hasPunchCoords = typeof punch.latitude === 'number' && typeof punch.longitude === 'number';
+      const hasPunchCoords =
+        punch.latitude !== undefined && punch.latitude !== null &&
+        punch.longitude !== undefined && punch.longitude !== null &&
+        !Number.isNaN(Number(punch.latitude)) && !Number.isNaN(Number(punch.longitude));
       const punchLngLat: [number, number] | null = hasPunchCoords
         ? [Number(punch.longitude), Number(punch.latitude)]
         : null;
@@ -127,6 +136,9 @@ const mapContainer = useRef<HTMLDivElement>(null);
         
         map.current.on('load', () => {
           console.log('Map loaded successfully');
+          setMapReady(true);
+          // Ensure proper sizing after dialog animation
+          setTimeout(() => map.current?.resize(), 300);
         });
       }
 
@@ -389,6 +401,15 @@ const mapContainer = useRef<HTMLDivElement>(null);
                   ref={mapContainer} 
                   className="w-full h-64 rounded-md border"
                 />
+
+                {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
+                  <img
+                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${(punch.longitude ?? punch.job_longitude)},${(punch.latitude ?? punch.job_latitude)},15,0/600x256?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
+                    alt="Map preview of punch location"
+                    className="w-full h-64 rounded-md border object-cover"
+                    loading="lazy"
+                  />
+                )}
               </CardContent>
             </Card>
           )}
