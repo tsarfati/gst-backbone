@@ -68,7 +68,10 @@ export default function BillEdit() {
       // Load bill data
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*')
+        .select(`
+          *,
+          is_reimbursement
+        `)
         .eq('id', id)
         .single();
 
@@ -106,7 +109,7 @@ export default function BillEdit() {
         description: billData.description || '',
         payment_terms: billData.payment_terms || '',
         is_subcontract_invoice: billData.is_subcontract_invoice || false,
-        is_reimbursement: (billData as any).is_reimbursement || false
+        is_reimbursement: billData.is_reimbursement || false
       });
     } catch (error) {
       console.error('Error loading bill:', error);
