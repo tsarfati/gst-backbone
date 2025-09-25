@@ -203,7 +203,7 @@ export default function JobPunchClockSettings() {
               <SelectValue placeholder="Select a job to configure overrides" />
             </SelectTrigger>
             <SelectContent>
-              {jobs.map((j) => (
+              {jobs.filter((j) => j.id && j.id.trim()).map((j) => (
                 <SelectItem key={j.id} value={j.id}>{j.name}</SelectItem>
               ))}
             </SelectContent>

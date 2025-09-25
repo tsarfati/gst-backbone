@@ -65,6 +65,7 @@ export default function PunchClockDashboard() {
 
   useEffect(() => {
     const load = async () => {
+      console.log('PunchClockDashboard: loading data');
       // Load active punches
       const { data: activeData } = await supabase
         .from('current_punch_status')
@@ -73,6 +74,7 @@ export default function PunchClockDashboard() {
         .order('punch_in_time', { ascending: false });
 
       setActive(activeData || []);
+      console.log('PunchClockDashboard: active count', (activeData || []).length);
 
       const userIds = Array.from(new Set((activeData || []).map(a => a.user_id)));
       const jobIds = Array.from(new Set((activeData || []).map(a => a.job_id).filter(Boolean))) as string[];

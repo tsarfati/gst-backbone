@@ -246,6 +246,7 @@ export default function TimecardReports() {
       });
 
       setRecords(transformedRecords);
+      console.log('TimecardReports: loaded', transformedRecords.length, 'records');
     } catch (error) {
       console.error('Error loading timecard records:', error);
       toast({

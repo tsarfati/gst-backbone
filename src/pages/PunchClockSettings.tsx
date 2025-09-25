@@ -116,6 +116,7 @@ export default function PunchClockSettings() {
           enable_distance_warnings: data.enable_distance_warnings !== false,
           max_distance_from_job_meters: data.max_distance_from_job_meters || 200
         });
+        console.log('PunchClockSettings: loaded settings', data);
       }
       
       setLoading(false);
