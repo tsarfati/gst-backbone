@@ -76,11 +76,15 @@ const mapContainer = useRef<HTMLDivElement>(null);
       (async () => {
         // Initialize Mapbox
         try {
-          const { data } = await supabase.functions.invoke('get-mapbox-token');
-          const token = data?.token || data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+          const { data, error } = await supabase.functions.invoke('get-mapbox-token');
+          if (error) {
+            console.warn('Error fetching Mapbox token:', error);
+          }
+          const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
           mapboxgl.accessToken = token;
+          console.log('Mapbox token set successfully');
         } catch (e) {
-          console.warn('Failed to fetch Mapbox token, using fallback');
+          console.warn('Failed to fetch Mapbox token, using fallback:', e);
           mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
         }
 
@@ -104,6 +108,8 @@ const mapContainer = useRef<HTMLDivElement>(null);
       // Create map if needed using the best available center
       if (!map.current) {
         const center = (punchLngLat || jobLngLat)!;
+        console.log('Creating map with center:', center);
+        
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/streets-v12',
@@ -111,7 +117,17 @@ const mapContainer = useRef<HTMLDivElement>(null);
           zoom: 15,
           projection: 'mercator'
         });
+        
         map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        
+        // Add error handling
+        map.current.on('error', (e) => {
+          console.error('Mapbox error:', e);
+        });
+        
+        map.current.on('load', () => {
+          console.log('Map loaded successfully');
+        });
       }
 
       // Clear old markers
