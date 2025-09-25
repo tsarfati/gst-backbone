@@ -295,7 +295,7 @@ function PunchClockApp() {
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
 
-    if (faceResult.hasFace && faceResult.confidence && faceResult.confidence > 0.7) {
+    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.6)) {
       // Face detected with good confidence - automatically capture
       setIsCapturing(true);
       
@@ -320,20 +320,19 @@ function PunchClockApp() {
     try {
       // Configure transformers.js
       env.allowLocalModels = false;
-      env.useBrowserCache = false;
+      env.useBrowserCache = true;
 
-      // Initialize face detection pipeline
-      const detector = await pipeline('object-detection', 'Xenova/detr-resnet-50', {
-        device: 'webgpu',
-      });
+      // Lazy-init and cache detector (avoid reloading model each frame)
+      if (!(window as any).__cachedFaceDetector__) {
+        (window as any).__cachedFaceDetector__ = pipeline('object-detection', 'Xenova/detr-resnet-50');
+      }
+      const detector = await (window as any).__cachedFaceDetector__;
 
       // Run detection
       const results = await detector(imageData);
       
       // Look for person/face detection
-      const faceDetections = results.filter((result: any) => 
-        result.label === 'person' && result.score > 0.5
-      );
+      const faceDetections = results.filter((result: any) => result.label === 'person');
 
       return {
         hasFace: faceDetections.length > 0,
@@ -342,7 +341,7 @@ function PunchClockApp() {
     } catch (error) {
       console.error('Face detection error:', error);
       // Fallback to allow photo if detection fails
-      return { hasFace: true };
+      return { hasFace: true, confidence: 1 };
     }
   };
 
