@@ -500,6 +500,39 @@ function PunchClockApp() {
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
 
     try {
+      // In PIN-authenticated mode, upload via Edge Function (uses service role)
+      if (isPinAuthenticated) {
+        const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const res = reader.result as string;
+            // Strip data URL prefix if present
+            const base64 = res.includes(',') ? res.split(',')[1] : res;
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(b);
+        });
+        const base64 = await toBase64(blob);
+        const pin = getPin();
+        const res = await fetch(`${FUNCTION_BASE}/upload-photo`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: ANON_KEY,
+            Authorization: `Bearer ${ANON_KEY}`,
+          },
+          body: JSON.stringify({ pin, image: base64, user_id: userId }),
+        });
+        if (!res.ok) {
+          console.error('Edge upload failed', await res.text());
+          return null;
+        }
+        const json = await res.json();
+        return json.publicUrl || null;
+      }
+
+      // Default (authenticated) upload via client SDK
       const fileName = `${userId}-${Date.now()}.jpg`;
       const filePath = `punch-photos/${fileName}`;
 
