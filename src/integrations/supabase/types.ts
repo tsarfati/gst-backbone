@@ -592,6 +592,50 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_audit_trail: {
+        Row: {
+          change_type: string
+          changed_by: string
+          created_at: string
+          field_name: string | null
+          id: string
+          invoice_id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string | null
+        }
+        Insert: {
+          change_type: string
+          changed_by: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          invoice_id: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+        }
+        Update: {
+          change_type?: string
+          changed_by?: string
+          created_at?: string
+          field_name?: string | null
+          id?: string
+          invoice_id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_audit_trail_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount: number

@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import VendorAvatar from "@/components/VendorAvatar";
 import BillApprovalActions from "@/components/BillApprovalActions";
 import BillCommunications from "@/components/BillCommunications";
+import BillAuditTrail from "@/components/BillAuditTrail";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -166,10 +167,6 @@ export default function BillDetails() {
               Download
             </Button>
           )}
-          <Button variant="outline">
-            <Eye className="h-4 w-4 mr-2" />
-            Print
-          </Button>
         </div>
       </div>
 
@@ -327,6 +324,11 @@ export default function BillDetails() {
           billId={bill?.id || ''}
           vendorId={bill?.vendor_id || ''}
         />
+      </div>
+
+      {/* Audit Trail Section */}
+      <div className="mt-6">
+        <BillAuditTrail billId={bill?.id || ''} />
       </div>
     </div>
   );
