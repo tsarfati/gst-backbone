@@ -377,14 +377,14 @@ export default function PinEmployeeEdit() {
                 <div>
                   <Label htmlFor="group_id">Employee Group</Label>
                   <Select 
-                    value={employee.group_id || ''} 
-                    onValueChange={(value) => setEmployee(prev => prev ? { ...prev, group_id: value || null } : null)}
+                    value={employee.group_id || 'no-group'} 
+                    onValueChange={(value) => setEmployee(prev => prev ? { ...prev, group_id: value === 'no-group' ? null : value } : null)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Group</SelectItem>
+                      <SelectItem value="no-group">No Group</SelectItem>
                       {groups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
