@@ -84,8 +84,22 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => window.open(`/profile-settings`, '_blank')}>View Profile</Button>
-                  {canManageEmployees && <Button variant="outline" size="sm">Edit</Button>}
+                  <Button variant="outline" size="sm" onClick={() => {
+                    if (employee.user_id) {
+                      window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                    } else {
+                      window.open(`/employees`, '_blank')
+                    }
+                  }}>View Profile</Button>
+                  {canManageEmployees && (
+                    <Button variant="outline" size="sm" onClick={() => {
+                      if (employee.user_id) {
+                        window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                      } else {
+                        window.open(`/employees`, '_blank')
+                      }
+                    }}>Edit</Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -166,7 +180,13 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     PIN
                   </Badge>
                 )}
-                <Button variant="outline" size="sm" onClick={() => window.open(`/profile-settings`, '_blank')}>View</Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  if (employee.user_id) {
+                    window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                  } else {
+                    window.open(`/employees`, '_blank')
+                  }
+                }}>View</Button>
               </div>
             </div>
           </Card>
@@ -226,7 +246,13 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   )}
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(`/profile-settings`, '_blank')}>
+              <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                if (employee.user_id) {
+                  window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                } else {
+                  window.open(`/employees`, '_blank')
+                }
+              }}>
                 View Profile
               </Button>
             </div>
@@ -238,13 +264,13 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
     }
   };
 
-  const gridClasses = currentView === 'icons' 
+  const gridClasses = currentView === 'icons'
     ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
-    : currentView === 'super-compact'
-    ? "space-y-1"
+    : currentView === 'list'
+    ? "space-y-4"
     : currentView === 'compact'
     ? "space-y-2"
-    : "grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3";
+    : "space-y-1";
 
   return (
     <div className={gridClasses}>

@@ -50,6 +50,7 @@ export default function PunchClockDashboard() {
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [jobs, setJobs] = useState<Record<string, Job>>({});
   const [recentOuts, setRecentOuts] = useState<PunchRecord[]>([]);
+  const [costCodes, setCostCodes] = useState<Record<string, { code: string; description: string }>>({});
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
@@ -179,6 +180,22 @@ export default function PunchClockDashboard() {
         (outJobsData || []).forEach(j => { jobMap[j.id] = j; });
         setJobs(prev => ({ ...prev, ...jobMap }));
       }
+
+      // Load cost codes for both active and recently punched out records
+      const allCostCodeIds = Array.from(new Set([
+        ...(((activeData || []).map(a => a.cost_code_id).filter(Boolean)) as string[]),
+        ...((recentOuts.map(r => r.cost_code_id).filter(Boolean)) as string[])
+      ]));
+
+      if (allCostCodeIds.length) {
+        const { data: costCodesData } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .in('id', allCostCodeIds);
+        const ccMap: Record<string, { code: string; description: string }> = {};
+        (costCodesData || []).forEach(cc => { ccMap[cc.id] = { code: cc.code, description: cc.description }; });
+        setCostCodes(prev => ({ ...prev, ...ccMap }));
+      }
     };
 
     
@@ -233,7 +250,9 @@ export default function PunchClockDashboard() {
       punch_type: 'punched_in',
       employee_name: prof?.display_name || 'Employee',
       job_name: job?.name || 'Job',
-      cost_code: row.cost_code_id || '',
+      cost_code: row.cost_code_id && costCodes[row.cost_code_id]
+        ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
+        : '',
       latitude: row.punch_in_location_lat || undefined,
       longitude: row.punch_in_location_lng || undefined,
       photo_url: row.punch_in_photo_url || undefined,
@@ -253,7 +272,9 @@ export default function PunchClockDashboard() {
       punch_type: row.punch_type,
       employee_name: prof?.display_name || 'Employee',
       job_name: job?.name || 'Job',
-      cost_code: row.cost_code_id || '',
+      cost_code: row.cost_code_id && costCodes[row.cost_code_id]
+        ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
+        : '',
       latitude: row.latitude || undefined,
       longitude: row.longitude || undefined,
       photo_url: row.photo_url || undefined,
