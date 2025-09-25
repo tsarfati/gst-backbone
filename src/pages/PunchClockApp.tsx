@@ -315,6 +315,8 @@ function PunchClockApp() {
       }, 'image/jpeg', 0.8);
     }
   };
+
+  const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
     try {
       // Configure transformers.js
       env.allowLocalModels = false;
