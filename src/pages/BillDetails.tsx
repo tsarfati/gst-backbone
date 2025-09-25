@@ -106,6 +106,14 @@ export default function BillDetails() {
       } else {
         setBill(data || null);
         
+        // Debug logging for bill status
+        console.log('Bill data loaded:', {
+          id: data?.id,
+          status: data?.status,
+          vendor_name: data?.vendors?.name,
+          amount: data?.amount
+        });
+        
         // Check vendor compliance warnings if vendor exists
         if (data?.vendor_id) {
           await checkVendorCompliance(data.vendor_id);
@@ -251,6 +259,13 @@ export default function BillDetails() {
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>
+          
+          {/* Debug information for admin */}
+          {bill?.status && (
+            <div className="text-xs text-muted-foreground">
+              Status: "{bill.status}" | ID: {bill.id}
+            </div>
+          )}
           
           {bill?.status === 'pending_approval' && (
             <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
