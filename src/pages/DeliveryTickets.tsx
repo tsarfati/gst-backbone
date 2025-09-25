@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, MapPin, Save, ArrowLeft, Loader2, Package, Calendar, Building2, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +44,8 @@ export default function DeliveryTickets() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [job, setJob] = useState<Job | null>(null);
   const [deliveryTickets, setDeliveryTickets] = useState<DeliveryTicket[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -74,11 +77,39 @@ export default function DeliveryTickets() {
   const isProjectManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
+    loadJobs();
     if (jobId) {
+      setSelectedJobId(jobId);
       loadJob();
       loadDeliveryTickets();
     }
   }, [jobId]);
+
+  useEffect(() => {
+    if (selectedJobId && !jobId) {
+      loadDeliveryTickets();
+    }
+  }, [selectedJobId]);
+
+  const loadJobs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, name, address')
+        .eq('status', 'active')
+        .order('name');
+
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load jobs',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const loadJob = async () => {
     if (!jobId) return;
@@ -103,14 +134,15 @@ export default function DeliveryTickets() {
   };
 
   const loadDeliveryTickets = async () => {
-    if (!jobId) return;
+    const targetJobId = jobId || selectedJobId;
+    if (!targetJobId) return;
     
     try {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('delivery_tickets')
         .select('*')
-        .eq('job_id', jobId)
+        .eq('job_id', targetJobId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -258,7 +290,8 @@ export default function DeliveryTickets() {
   };
 
   const saveDeliveryTicket = async () => {
-    if (!user || !jobId || !vendorName.trim()) {
+    const targetJobId = jobId || selectedJobId;
+    if (!user || !targetJobId || !vendorName.trim()) {
       toast({
         title: 'Missing Information',
         description: 'Please fill in required fields (vendor name).',
@@ -285,7 +318,7 @@ export default function DeliveryTickets() {
       }
 
       const ticketData = {
-        job_id: jobId,
+        job_id: targetJobId,
         ticket_number: ticketNumber.trim() || null,
         delivery_date: deliveryDate,
         vendor_name: vendorName.trim(),
@@ -372,14 +405,34 @@ export default function DeliveryTickets() {
       <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/jobs/${jobId}`)}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Job
-          </Button>
+          {jobId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/jobs/${jobId}`)}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Job
+            </Button>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="min-w-0 flex-1">
+                <Label htmlFor="job-select">Select Job</Label>
+                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                  <SelectTrigger className="w-64">
+                    <SelectValue placeholder="Choose a job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           <div className="flex-1">
             <h1 className="text-2xl md:text-3xl font-bold">Delivery Tickets</h1>
             {job && (
@@ -387,8 +440,16 @@ export default function DeliveryTickets() {
                 {job.name} {job.address && `• ${job.address}`}
               </p>
             )}
+            {!jobId && selectedJobId && (
+              <p className="text-muted-foreground">
+                {jobs.find(j => j.id === selectedJobId)?.name}
+              </p>
+            )}
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
+          <Button 
+            onClick={() => setShowAddDialog(true)}
+            disabled={!selectedJobId && !jobId}
+          >
             <Package className="h-4 w-4 mr-2" />
             Add Ticket
           </Button>

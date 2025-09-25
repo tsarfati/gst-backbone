@@ -159,6 +159,7 @@ function AuthenticatedRoutes() {
                 <Route path="jobs/:id" element={<JobDetails />} />
                 <Route path="jobs/:id/edit" element={<JobEdit />} />
                 <Route path="jobs/:id/budget" element={<JobBudget />} />
+                <Route path="delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="vendors" element={<Vendors />} />
                 <Route path="vendors/add" element={<VendorEdit />} />
