@@ -217,7 +217,6 @@ export default function Bills() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Bill ID</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Job</TableHead>
                 <TableHead>Amount</TableHead>
@@ -230,7 +229,7 @@ export default function Bills() {
             <TableBody>
               {filteredBills.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium">No bills found</p>
@@ -245,9 +244,8 @@ export default function Bills() {
                     className={`cursor-pointer hover:bg-muted/50 ${
                       bill.status === 'overdue' ? 'animate-pulse-red' : ''
                     }`}
-                    onClick={() => navigate(`/invoices/${bill.id}`)}
+                    onClick={() => navigate(`/bills/${bill.id}`)}
                   >
-                    <TableCell className="font-medium">{bill.id}</TableCell>
                      <TableCell>
                        <div className="flex items-center">
                          <Building className="h-4 w-4 mr-2 text-muted-foreground" />

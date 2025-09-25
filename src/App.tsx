@@ -212,7 +212,11 @@ function AuthenticatedRoutes() {
                 <Route path="tasks/deadlines" element={<TaskDeadlines />} />
                 <Route path="bills" element={<Bills />} />
                 <Route path="bills/add" element={<AddBill />} />
-                <Route path="bills/:id" element={<BillDetails />} />
+                <Route path="bills/:id" element={
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <BillDetails />
+                  </RoleGuard>
+                } />
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
                 <Route path="payables/make-payment" element={<MakePayment />} />
                 <Route path="bill-status" element={<BillDashboard />} />
@@ -224,7 +228,11 @@ function AuthenticatedRoutes() {
                 {/* Legacy routes for backwards compatibility */}
                 <Route path="invoices" element={<Bills />} />
                 <Route path="invoices/add" element={<AddBill />} />
-                <Route path="invoices/:id" element={<BillDetails />} />
+                <Route path="invoices/:id" element={
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <BillDetails />
+                  </RoleGuard>
+                } />
                 <Route path="invoice-status" element={<BillDashboard />} />
                 <Route path="invoices/payments" element={<PaymentHistory />} />
                 <Route path="invoices/payment-reports" element={<PaymentReports />} />
