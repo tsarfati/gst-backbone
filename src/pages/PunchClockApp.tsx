@@ -296,7 +296,7 @@ function PunchClockApp() {
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
 
-    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.5) && !isPunching) {
+    if (faceResult.hasFace && !isPunching) {
       // Face detected with good confidence - automatically capture
       setIsCapturing(true);
       setIsPunching(true); // Prevent concurrent punch attempts
@@ -465,6 +465,27 @@ function PunchClockApp() {
     setFaceDetectionResult(null);
   };
 
+  const captureNow = () => {
+    if (!videoRef.current || !canvasRef.current || isCapturing) return;
+    setIsCapturing(true);
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { setIsCapturing(false); return; }
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        setPhotoBlob(blob);
+        stopCamera();
+        handlePunch();
+      } else {
+        setIsCapturing(false);
+      }
+    }, 'image/jpeg', 0.8);
+  };
+
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
 
@@ -612,7 +633,7 @@ function PunchClockApp() {
 
     } catch (error) {
       console.error('Error with punch:', error);
-      toast({ title: 'Error', description: 'Failed to record punch. Please try again.', variant: 'destructive' });
+      toast({ title: 'Error', description: (error instanceof Error ? error.message : 'Failed to record punch. Please try again.'), variant: 'destructive' });
     } finally {
       setIsLoading(false);
       setIsPunching(false);
@@ -970,10 +991,9 @@ function PunchClockApp() {
                 </div>
               </div>
               
-              <div className="flex justify-center">
-                <Button variant="outline" onClick={stopCamera}>
-                  Cancel
-                </Button>
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={stopCamera}>Cancel</Button>
+                <Button onClick={captureNow} disabled={isCapturing}>Capture Now</Button>
               </div>
             </div>
             
