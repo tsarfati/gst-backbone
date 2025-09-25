@@ -16,35 +16,47 @@ export type Database = {
     Tables: {
       chart_of_accounts: {
         Row: {
+          account_category: string | null
           account_name: string
           account_number: string
           account_type: string
           created_at: string
           created_by: string
+          current_balance: number | null
           id: string
           is_active: boolean
+          is_system_account: boolean | null
+          normal_balance: string | null
           parent_account_id: string | null
           updated_at: string
         }
         Insert: {
+          account_category?: string | null
           account_name: string
           account_number: string
           account_type: string
           created_at?: string
           created_by: string
+          current_balance?: number | null
           id?: string
           is_active?: boolean
+          is_system_account?: boolean | null
+          normal_balance?: string | null
           parent_account_id?: string | null
           updated_at?: string
         }
         Update: {
+          account_category?: string | null
           account_name?: string
           account_number?: string
           account_type?: string
           created_at?: string
           created_by?: string
+          current_balance?: number | null
           id?: string
           is_active?: boolean
+          is_system_account?: boolean | null
+          normal_balance?: string | null
           parent_account_id?: string | null
           updated_at?: string
         }
@@ -214,6 +226,13 @@ export type Database = {
             foreignKeyName: "cost_codes_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "cost_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -266,6 +285,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cost_codes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "current_punch_status_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "current_punch_status_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "current_punch_status_job_id_fkey"
@@ -442,6 +475,13 @@ export type Database = {
           vendor_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "delivery_tickets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "delivery_tickets_job_id_fkey"
             columns: ["job_id"]
@@ -706,6 +746,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
             foreignKeyName: "invoices_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
@@ -793,6 +847,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cost_codes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_budgets_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "job_budgets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "job_budgets_job_id_fkey"
@@ -883,6 +951,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_punch_clock_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "job_punch_clock_settings_job_id_fkey"
             columns: ["job_id"]
@@ -1102,6 +1177,13 @@ export type Database = {
             foreignKeyName: "journal_entries_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -1110,6 +1192,8 @@ export type Database = {
       journal_entry_lines: {
         Row: {
           account_id: string
+          billable: boolean | null
+          billable_amount: number | null
           cost_code_id: string | null
           created_at: string
           credit_amount: number | null
@@ -1119,9 +1203,12 @@ export type Database = {
           job_id: string | null
           journal_entry_id: string
           line_order: number
+          markup_percentage: number | null
         }
         Insert: {
           account_id: string
+          billable?: boolean | null
+          billable_amount?: number | null
           cost_code_id?: string | null
           created_at?: string
           credit_amount?: number | null
@@ -1131,9 +1218,12 @@ export type Database = {
           job_id?: string | null
           journal_entry_id: string
           line_order?: number
+          markup_percentage?: number | null
         }
         Update: {
           account_id?: string
+          billable?: boolean | null
+          billable_amount?: number | null
           cost_code_id?: string | null
           created_at?: string
           credit_amount?: number | null
@@ -1143,6 +1233,7 @@ export type Database = {
           job_id?: string | null
           journal_entry_id?: string
           line_order?: number
+          markup_percentage?: number | null
         }
         Relationships: [
           {
@@ -1158,6 +1249,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cost_codes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "journal_entry_lines_job_id_fkey"
@@ -1789,6 +1894,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "punch_records_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "punch_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
             foreignKeyName: "punch_records_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
@@ -1844,6 +1963,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "purchase_orders_job_id_fkey"
             columns: ["job_id"]
@@ -1961,6 +2087,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subcontracts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
           {
             foreignKeyName: "subcontracts_job_id_fkey"
             columns: ["job_id"]
@@ -2254,6 +2387,13 @@ export type Database = {
             foreignKeyName: "user_job_access_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "user_job_access_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
@@ -2433,7 +2573,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      job_cost_summary: {
+        Row: {
+          cost_code: string | null
+          cost_code_description: string | null
+          cost_code_id: string | null
+          job_id: string | null
+          job_name: string | null
+          total_billable: number | null
+          total_cost: number | null
+          transaction_count: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       activate_company_access: {
