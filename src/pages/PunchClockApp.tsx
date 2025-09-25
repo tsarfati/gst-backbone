@@ -498,6 +498,17 @@ function PunchClockApp() {
       setIsLoading(true);
       setIsPunching(true);
 
+      // Upload photo if available (for all authentication types)
+      let photoUrl: string | null = null;
+      if (photoBlob) {
+        photoUrl = await uploadPhoto(photoBlob);
+        
+        // If this is a PIN employee's first punch, set their avatar
+        if (isPinAuthenticated && photoUrl) {
+          await updatePinEmployeeAvatar(photoUrl);
+        }
+      }
+
       if (isPinAuthenticated) {
         const pin = getPin();
         const action = currentPunch ? 'out' : 'in';
@@ -509,63 +520,80 @@ function PunchClockApp() {
           });
           return;
         }
-        const res = await fetch(`${FUNCTION_BASE}/punch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
-          body: JSON.stringify({
-            pin,
-            action,
-            job_id: action === 'in' ? selectedJob : undefined,
-            cost_code_id: action === 'in' ? selectedCostCode : undefined,
-            latitude: location?.lat,
-            longitude: location?.lng,
-            photo_url: null,
-            notes: currentPunch ? punchOutNote : undefined,
-          })
-        });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          const errorMessage = j.error || 'Failed to record punch';
-          
-          // Handle specific error cases
-          if (errorMessage.includes('already punched in')) {
-            toast({
-              title: 'Already Punched In',
-              description: 'You are already punched in. Please punch out first.',
-              variant: 'destructive'
+
+        // Add retry logic for edge function calls
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            const res = await fetch(`${FUNCTION_BASE}/punch`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json', 
+                'apikey': ANON_KEY, 
+                'Authorization': `Bearer ${ANON_KEY}` 
+              },
+              body: JSON.stringify({
+                pin,
+                action,
+                job_id: action === 'in' ? selectedJob : undefined,
+                cost_code_id: action === 'in' ? selectedCostCode : undefined,
+                latitude: location?.lat,
+                longitude: location?.lng,
+                photo_url: photoUrl,
+                notes: currentPunch ? punchOutNote : undefined,
+              })
             });
-            // Refresh the data to sync state
-            await loadFromEdge();
-            return;
-          } else if (errorMessage.includes('not currently punched in')) {
-            toast({
-              title: 'Not Punched In',
-              description: 'You are not currently punched in. Please punch in first.',
-              variant: 'destructive'
-            });
-            // Refresh the data to sync state
-            await loadFromEdge();
-            return;
+
+            if (!res.ok) {
+              const j = await res.json().catch(() => ({}));
+              const errorMessage = j.error || 'Failed to record punch';
+              
+              // Handle specific error cases
+              if (errorMessage.includes('already punched in')) {
+                toast({
+                  title: 'Already Punched In',
+                  description: 'You are already punched in. Please punch out first.',
+                  variant: 'destructive'
+                });
+                // Refresh the data to sync state
+                await loadFromEdge();
+                return;
+              } else if (errorMessage.includes('not currently punched in')) {
+                toast({
+                  title: 'Not Punched In',
+                  description: 'You are not currently punched in. Please punch in first.',
+                  variant: 'destructive'
+                });
+                // Refresh the data to sync state
+                await loadFromEdge();
+                return;
+              }
+              
+              throw new Error(errorMessage);
+            }
+
+            // Success - break out of retry loop
+            break;
+          } catch (fetchError) {
+            retryCount++;
+            console.error(`Punch attempt ${retryCount} failed:`, fetchError);
+            
+            if (retryCount >= maxRetries) {
+              throw new Error(`Failed to record punch after ${maxRetries} attempts. Please try again.`);
+            }
+            
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           }
-          
-          throw new Error(errorMessage);
         }
+
         setPhotoBlob(null);
         setPunchOutNote('');
         await loadFromEdge();
         toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
         return;
-      }
-
-      // Upload photo if available
-      let photoUrl: string | null = null;
-      if (photoBlob) {
-        photoUrl = await uploadPhoto(photoBlob);
-        
-        // If this is a PIN employee's first punch, set their avatar
-        if (isPinAuthenticated && photoUrl) {
-          await updatePinEmployeeAvatar(photoUrl);
-        }
       }
 
       if (currentPunch) {

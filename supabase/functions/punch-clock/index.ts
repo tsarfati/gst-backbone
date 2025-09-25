@@ -157,6 +157,8 @@ serve(async (req) => {
       }
 
       if (action === "out") {
+        console.log(`Punch out attempt for user ${userRow.user_id}`);
+        
         // Load current status
         const { data: currentPunch, error: curErr } = await supabaseAdmin
           .from("current_punch_status")
@@ -164,9 +166,19 @@ serve(async (req) => {
           .eq("user_id", userRow.user_id)
           .eq("is_active", true)
           .maybeSingle();
-        if (curErr) return errorResponse(curErr.message, 500);
-        if (!currentPunch) return errorResponse("User is not currently punched in", 400);
+          
+        if (curErr) {
+          console.error("Error loading current punch status:", curErr);
+          return errorResponse(curErr.message, 500);
+        }
+        if (!currentPunch) {
+          console.log(`No active punch found for user ${userRow.user_id}`);
+          return errorResponse("User is not currently punched in", 400);
+        }
 
+        console.log(`Found active punch for user ${userRow.user_id}, job: ${currentPunch.job_id}`);
+
+        // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
           job_id: currentPunch?.job_id ?? null,
@@ -177,15 +189,27 @@ serve(async (req) => {
           longitude,
           photo_url,
         });
-        if (punchErr) return errorResponse(punchErr.message, 500);
+        
+        if (punchErr) {
+          console.error("Error inserting punch out record:", punchErr);
+          return errorResponse(punchErr.message, 500);
+        }
 
+        console.log(`Punch out record created for user ${userRow.user_id}`);
+
+        // Update current status to inactive
         const { error: statusErr } = await supabaseAdmin
           .from("current_punch_status")
           .update({ is_active: false })
           .eq("user_id", userRow.user_id)
           .eq("is_active", true);
-        if (statusErr) return errorResponse(statusErr.message, 500);
+          
+        if (statusErr) {
+          console.error("Error updating punch status:", statusErr);
+          return errorResponse(statusErr.message, 500);
+        }
 
+        console.log(`Punch out completed successfully for user ${userRow.user_id}`);
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
