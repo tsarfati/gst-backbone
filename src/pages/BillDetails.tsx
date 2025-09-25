@@ -314,89 +314,92 @@ export default function BillDetails() {
       </div>
 
       {/* Bill Information */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-6">
+        <Card className="lg:col-span-7">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="h-5 w-5" />
-              Vendor Information
+              Bill Information
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <VendorAvatar 
-                name={bill?.vendors?.name || 'Unknown Vendor'}
-                logoUrl={bill?.vendors?.logo_url}
-                size="md"
-              />
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">Vendor Name</p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto font-medium text-left"
-                    onClick={() => navigate(`/vendors/${bill?.vendor_id}`)}
-                  >
-                    {bill?.vendors?.name}
-                    <ExternalLink className="h-3 w-3 ml-1" />
-                  </Button>
-                  {vendorHasWarnings && (
-                    <Badge variant="destructive" className="flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Compliance Warning
-                    </Badge>
-                  )}
+          <CardContent className="space-y-6">
+            {/* Vendor Section */}
+            <div>
+              <h4 className="font-medium mb-3 text-sm text-muted-foreground">Vendor</h4>
+              <div className="flex items-center gap-3">
+                <VendorAvatar 
+                  name={bill?.vendors?.name || 'Unknown Vendor'}
+                  logoUrl={bill?.vendors?.logo_url}
+                  size="md"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto font-medium text-left"
+                      onClick={() => navigate(`/vendors/${bill?.vendor_id}`)}
+                    >
+                      {bill?.vendors?.name}
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </Button>
+                    {vendorHasWarnings && (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Compliance Warning
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Invoice Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Amount</p>
-                <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Issue Date</p>
-                <p className="font-medium">
-                  {bill?.issue_date ? new Date(bill.issue_date).toLocaleDateString() : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Due Date</p>
-                <p className="font-medium">
-                  {bill?.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Job</p>
-                <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
-              </div>
-              {bill?.cost_codes && (
+            <Separator />
+
+            {/* Invoice Details */}
+            <div>
+              <h4 className="font-medium mb-3 text-sm text-muted-foreground">Invoice Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Cost Code</p>
+                  <p className="text-sm text-muted-foreground">Amount</p>
+                  <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Issue Date</p>
                   <p className="font-medium">
-                    {bill.cost_codes.code} - {bill.cost_codes.description}
+                    {bill?.issue_date ? new Date(bill.issue_date).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
-              )}
-              {bill?.payment_terms && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Payment Terms</p>
-                  <p className="font-medium">{bill.payment_terms} days</p>
+                  <p className="text-sm text-muted-foreground">Due Date</p>
+                  <p className="font-medium">
+                    {bill?.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A'}
+                  </p>
                 </div>
-              )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Job</p>
+                  <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
+                </div>
+                {bill?.cost_codes && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cost Code</p>
+                    <p className="font-medium">
+                      {bill.cost_codes.code} - {bill.cost_codes.description}
+                    </p>
+                  </div>
+                )}
+                {bill?.payment_terms && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Payment Terms</p>
+                    <p className="font-medium">{bill.payment_terms} days</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="border-t pt-4">
+
+            <Separator />
+
+            {/* Approval Actions */}
+            <div>
               <BillApprovalActions
                 billId={bill?.id || ''}
                 currentStatus={bill?.status || 'pending_approval'}
@@ -405,6 +408,13 @@ export default function BillDetails() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="lg:col-span-3">
+          <BillCommunications 
+            billId={bill?.id || ''}
+            vendorId={bill?.vendor_id || ''}
+          />
+        </div>
       </div>
 
       {/* Receipt Suggestions */}
@@ -430,54 +440,47 @@ export default function BillDetails() {
       )}
 
       {/* File Preview Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Bill Document
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {bill?.file_url ? (
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    <span className="font-medium">Bill Document</span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => window.open(bill.file_url, '_blank')}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Full Document
-                  </Button>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Bill Document
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {bill?.file_url ? (
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  <span className="font-medium">Bill Document</span>
                 </div>
-                <iframe 
-                  src={bill.file_url} 
-                  className="w-full h-96 border rounded"
-                  title="Bill Document"
-                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open(bill.file_url, '_blank')}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Full Document
+                </Button>
               </div>
-            ) : (
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
-                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-lg font-medium mb-2">No Document Available</h3>
-                <p className="text-muted-foreground">
-                  No bill document has been uploaded for this bill
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <BillCommunications 
-          billId={bill?.id || ''}
-          vendorId={bill?.vendor_id || ''}
-        />
-      </div>
+              <iframe 
+                src={bill.file_url} 
+                className="w-full h-96 border rounded"
+                title="Bill Document"
+              />
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
+              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-medium mb-2">No Document Available</h3>
+              <p className="text-muted-foreground">
+                No bill document has been uploaded for this bill
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Audit Trail Section */}
       <div className="mt-6">
