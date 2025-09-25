@@ -58,6 +58,7 @@ const navigationCategories = [
       { name: "Bill Dashboard", href: "/bill-status", icon: BarChart3, menuKey: "reports" },
       { name: "All Bills", href: "/bills", icon: FileText, menuKey: "vendors" },
       { name: "Add Bill", href: "/bills/add", icon: FileCheck, menuKey: "vendors" },
+      { name: "Make Payment", href: "/payables/make-payment", icon: DollarSign, menuKey: "make-payment" },
       { name: "Add Sub Contract", href: "/subcontracts/add", icon: FileKey, menuKey: "vendors" },
       { name: "Add PO", href: "/purchase-orders/add", icon: FileText, menuKey: "vendors" },
       { name: "Payment History", href: "/bills/payments", icon: CreditCard, menuKey: "reports" },

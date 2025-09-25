@@ -214,6 +214,7 @@ function AuthenticatedRoutes() {
                 <Route path="bills/add" element={<AddBill />} />
                 <Route path="bills/:id" element={<BillDetails />} />
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
+                <Route path="payables/make-payment" element={<MakePayment />} />
                 <Route path="bill-status" element={<BillDashboard />} />
                 <Route path="bills/payments" element={<PaymentHistory />} />
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
