@@ -125,19 +125,31 @@ export default function JobEdit() {
             setAssistantManagers(assistants);
           }
 
-          // Fetch selected cost codes for this job
+          // Fetch selected cost codes for this job via the job_cost_codes junction table
           console.log('Loading cost codes for job:', id);
-          const { data: codes, error: codesError } = await supabase
-            .from('cost_codes')
-            .select('*')
-            .eq('job_id', id)
-            .eq('is_active', true);
+          const { data: jobCostCodes, error: jobCostCodesError } = await supabase
+            .from('job_cost_codes')
+            .select(`
+              cost_code_id,
+              cost_codes (
+                id,
+                code,
+                description,
+                is_active
+              )
+            `)
+            .eq('job_id', id);
 
-          if (!codesError && codes) {
-            console.log('Loaded cost codes:', codes.map(c => ({ id: c.id, code: c.code })));
-            setSelectedCostCodes(codes);
-          } else if (codesError) {
-            console.error('Error loading cost codes:', codesError);
+          if (!jobCostCodesError && jobCostCodes) {
+            const linkedCostCodes = jobCostCodes
+              .map(jcc => jcc.cost_codes)
+              .filter(cc => cc && cc.is_active) as any[];
+            
+            console.log('Loaded linked cost codes:', linkedCostCodes.map(c => ({ id: c.id, code: c.code })));
+            setSelectedCostCodes(linkedCostCodes);
+          } else if (jobCostCodesError) {
+            console.error('Error loading job cost codes:', jobCostCodesError);
+            setSelectedCostCodes([]);
           } else {
             console.log('No cost codes found for job');
             setSelectedCostCodes([]);
@@ -265,53 +277,38 @@ export default function JobEdit() {
         selectedCostCodes: selectedCostCodes.map(c => ({ id: c.id, code: c.code }))
       });
       
+      // First, remove all existing job-cost code relationships
+      console.log('Removing existing job cost code links for job:', id);
+      const { error: deleteError } = await supabase
+        .from('job_cost_codes')
+        .delete()
+        .eq('job_id', id);
+
+      if (deleteError) {
+        console.error('Error deleting existing job cost code links:', deleteError);
+      }
+
+      // Then create new job-cost code relationships (links, not copies)
       if (selectedCostCodes.length > 0) {
-        // Delete existing job-cost code relationships
-        console.log('Deleting existing job cost codes for job:', id);
-        const { error: deleteError } = await supabase
-          .from('cost_codes')
-          .delete()
-          .eq('job_id', id);
-
-        if (deleteError) {
-          console.error('Error deleting existing cost codes:', deleteError);
-        }
-
-        // Create job-specific copies of selected cost codes
-        const costCodeInserts = selectedCostCodes.map(code => ({
+        const jobCostCodeLinks = selectedCostCodes.map(code => ({
           job_id: id,
-          code: code.code,
-          description: code.description,
-          is_active: true
+          cost_code_id: code.id
         }));
 
-        console.log('Inserting cost codes:', costCodeInserts);
-        const { error: costCodeError } = await supabase
-          .from('cost_codes')
-          .insert(costCodeInserts);
+        console.log('Creating job cost code links:', jobCostCodeLinks);
+        const { error: linkError } = await supabase
+          .from('job_cost_codes')
+          .insert(jobCostCodeLinks);
 
-        if (costCodeError) {
-          console.error('Error saving cost codes:', costCodeError);
+        if (linkError) {
+          console.error('Error creating job cost code links:', linkError);
           toast({
             title: "Warning",
             description: "Job saved but cost codes may not have been updated properly.",
             variant: "destructive",
           });
         } else {
-          console.log('Cost codes saved successfully for job:', id);
-        }
-      } else {
-        // Remove all job cost codes if none selected
-        console.log('Removing all job cost codes for job:', id);
-        const { error: deleteError } = await supabase
-          .from('cost_codes')
-          .delete()
-          .eq('job_id', id);
-          
-        if (deleteError) {
-          console.error('Error removing job cost codes:', deleteError);
-        } else {
-          console.log('All job cost codes removed successfully');
+          console.log('Job cost code links created successfully');
         }
       }
 
