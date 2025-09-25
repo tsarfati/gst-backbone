@@ -91,16 +91,21 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       if (error) throw error;
 
-      // Fetch related data separately
-      const [profileData, jobData, costCodeData, punchData] = await Promise.all([
+      // Fetch related data separately - check both profiles and pin_employees
+      const [profileData, pinEmployeeData, jobData, costCodeData, punchData] = await Promise.all([
         supabase
           .from('profiles')
           .select('first_name, last_name, display_name')
           .eq('user_id', timeCardData.user_id)
           .single(),
+        supabase
+          .from('pin_employees')
+          .select('first_name, last_name, display_name')
+          .eq('id', timeCardData.user_id)
+          .single(),
         timeCardData.job_id ? supabase
           .from('jobs')
-          .select('name, latitude, longitude')
+          .select('name, latitude, longitude, address')
           .eq('id', timeCardData.job_id)
           .single() : Promise.resolve({ data: null }),
         timeCardData.cost_code_id ? supabase
@@ -144,9 +149,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         return publicData?.publicUrl || null;
       };
 
+      // Use profile data from either profiles or pin_employees
+      const employeeProfile = profileData.data || pinEmployeeData.data;
+
       const data = {
         ...timeCardData,
-        profiles: profileData.data,
+        profiles: employeeProfile,
         jobs: jobData.data,
         cost_codes: costCodeData.data,
         // Ensure coordinates are numbers and backfill from punch records

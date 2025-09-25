@@ -56,13 +56,33 @@ export default function UserManagement() {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fetch both regular profiles and PIN employees
+      const [profilesResult, pinEmployeesResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('pin_employees')
+          .select('id as user_id, first_name, last_name, display_name, created_at, is_active, phone, department, notes')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+      ]);
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (profilesResult.error) throw profilesResult.error;
+      
+      const profiles = profilesResult.data || [];
+      const pinEmployees = (pinEmployeesResult.data || []).map((emp: any) => ({
+        ...emp,
+        role: 'employee',
+        status: 'approved',
+        has_global_job_access: false,
+        isPinEmployee: true
+      }));
+
+      // Combine both types of users
+      const allUsers = [...profiles, ...pinEmployees];
+      setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
