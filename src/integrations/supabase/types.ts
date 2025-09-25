@@ -201,6 +201,7 @@ export type Database = {
           id: string
           is_active: boolean
           job_id: string | null
+          type: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at: string
         }
         Insert: {
@@ -210,6 +211,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }
         Update: {
@@ -219,6 +221,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }
         Relationships: [
@@ -2664,6 +2667,7 @@ export type Database = {
       }
     }
     Enums: {
+      cost_code_type: "material" | "labor" | "sub" | "equipment" | "other"
       job_status: "planning" | "active" | "on-hold" | "completed"
       job_type:
         | "residential"
@@ -2807,6 +2811,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      cost_code_type: ["material", "labor", "sub", "equipment", "other"],
       job_status: ["planning", "active", "on-hold", "completed"],
       job_type: [
         "residential",

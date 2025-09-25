@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileText, Plus, Trash2, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +14,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   is_active: boolean;
   job_id?: string | null;
 }
@@ -20,10 +23,23 @@ export default function CostCodes() {
   const { toast } = useToast();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newCode, setNewCode] = useState({
+  const [newCode, setNewCode] = useState<{
+    code: string;
+    description: string;
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+  }>({
     code: "",
-    description: ""
+    description: "",
+    type: "other"
   });
+
+  const costTypeOptions = [
+    { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
+    { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
+    { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
+    { value: 'equipment', label: 'Equipment', icon: Truck, color: 'bg-orange-100 text-orange-800' },
+    { value: 'other', label: 'Other', icon: Wrench, color: 'bg-gray-100 text-gray-800' }
+  ];
 
   useEffect(() => {
     loadCostCodes();
@@ -68,6 +84,7 @@ export default function CostCodes() {
         .insert({
           code: newCode.code,
           description: newCode.description,
+          type: newCode.type,
           is_active: true,
           job_id: null // Company-wide cost code
         })
@@ -77,7 +94,7 @@ export default function CostCodes() {
       if (error) throw error;
 
       setCostCodes(prev => [...prev, data]);
-      setNewCode({ code: "", description: "" });
+      setNewCode({ code: "", description: "", type: "other" });
       
       toast({
         title: "Cost code added",
@@ -91,6 +108,10 @@ export default function CostCodes() {
         variant: "destructive",
       });
     }
+  };
+
+  const getTypeInfo = (type: string) => {
+    return costTypeOptions.find(option => option.value === type) || costTypeOptions[4];
   };
 
   const handleDeleteCode = async (id: string) => {
@@ -135,7 +156,7 @@ export default function CostCodes() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="space-y-2">
               <Label htmlFor="newCode">Code *</Label>
               <Input
@@ -153,6 +174,32 @@ export default function CostCodes() {
                 onChange={(e) => setNewCode(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="e.g., General Labor"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newType">Type *</Label>
+              <Select 
+                value={newCode.type} 
+                onValueChange={(value: 'material' | 'labor' | 'sub' | 'equipment' | 'other') => 
+                  setNewCode(prev => ({ ...prev, type: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {costTypeOptions.map(option => {
+                    const Icon = option.icon;
+                    return (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button onClick={handleAddCode}>
@@ -187,27 +234,38 @@ export default function CostCodes() {
                 <TableRow>
                   <TableHead>Code</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {costCodes.map((code) => (
-                  <TableRow key={code.id}>
-                    <TableCell className="font-medium">{code.code}</TableCell>
-                    <TableCell>{code.description}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteCode(code.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {costCodes.map((code) => {
+                  const typeInfo = getTypeInfo(code.type);
+                  const Icon = typeInfo.icon;
+                  return (
+                    <TableRow key={code.id}>
+                      <TableCell className="font-medium">{code.code}</TableCell>
+                      <TableCell>{code.description}</TableCell>
+                      <TableCell>
+                        <Badge className={typeInfo.color}>
+                          <Icon className="h-3 w-3 mr-1" />
+                          {typeInfo.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleDeleteCode(code.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
