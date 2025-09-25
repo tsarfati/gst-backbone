@@ -51,32 +51,35 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
     // Fall back to regular Supabase authentication
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsPinAuthenticated(false);
-        
-        if (session?.user) {
-          setTimeout(async () => {
-            try {
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .single();
-              setProfile(profileData);
-            } catch (error) {
-              console.error('Error fetching profile:', error);
-              setProfile(null);
-            }
-          }, 0);
-        } else {
-          setProfile(null);
+        // Only handle Supabase auth if not using PIN authentication
+        if (!localStorage.getItem('punch_clock_user')) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setIsPinAuthenticated(false);
+          
+          if (session?.user) {
+            setTimeout(async () => {
+              try {
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('user_id', session.user.id)
+                  .single();
+                setProfile(profileData);
+              } catch (error) {
+                console.error('Error fetching profile:', error);
+                setProfile(null);
+              }
+            }, 0);
+          } else {
+            setProfile(null);
+          }
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
-    // Check for existing session
+    // Check for existing session only if not using PIN auth
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!punchClockUserData) {
         setSession(session);

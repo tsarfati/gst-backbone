@@ -66,10 +66,10 @@ export default function PunchClockApp() {
 
   // Redirect unauthenticated users directly to PIN login
   useEffect(() => {
-    if (!user) {
+    if (!user && !isPinAuthenticated) {
       window.location.replace('/punch-clock-login');
     }
-  }, [user]);
+  }, [user, isPinAuthenticated]);
 
   // Load initial data
   useEffect(() => {
