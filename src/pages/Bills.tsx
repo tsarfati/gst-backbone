@@ -261,23 +261,17 @@ export default function Bills() {
                         {bill.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                    <Button 
-                      size="sm"
-                      onClick={() => navigate(`/bills/${bill.id}`)}
-                    >
-                      View Details
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => navigate('/banking/make-payment')}
-                    >
-                      Create Payment
-                    </Button>
-                      </div>
-                    </TableCell>
+                     <TableCell>
+                       <Button 
+                         size="sm"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           navigate(`/bills/${bill.id}`);
+                         }}
+                       >
+                         View Details
+                       </Button>
+                     </TableCell>
                   </TableRow>
                 ))
               )}
