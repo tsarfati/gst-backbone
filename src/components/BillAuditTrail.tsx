@@ -50,27 +50,50 @@ export default function BillAuditTrail({ billId }: BillAuditTrailProps) {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      // First, get the audit trail entries
+      const { data: auditData, error: auditError } = await supabase
         .from('invoice_audit_trail')
-        .select(`
-          *,
-          profiles:changed_by (
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .eq('invoice_id', billId)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading bill audit trail:', error);
+      if (auditError) {
+        console.error('Error loading bill audit trail:', auditError);
         return;
       }
 
-      const entriesWithProfiles = data?.map(entry => ({
+      if (!auditData || auditData.length === 0) {
+        setAuditEntries([]);
+        return;
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(auditData.map(entry => entry.changed_by).filter(Boolean))];
+      
+      // Fetch user profiles separately
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', userIds);
+
+      if (profileError) {
+        console.error('Error loading user profiles:', profileError);
+        // Still show audit trail without names if profile fetch fails
+        setAuditEntries(auditData);
+        return;
+      }
+
+      // Create a map of user profiles
+      const profileMap = new Map();
+      profileData?.forEach(profile => {
+        profileMap.set(profile.user_id, profile);
+      });
+
+      // Combine audit entries with profile data
+      const entriesWithProfiles = auditData.map(entry => ({
         ...entry,
-        user_profile: entry.profiles as any
-      })) || [];
+        user_profile: entry.changed_by ? profileMap.get(entry.changed_by) : null
+      }));
 
       setAuditEntries(entriesWithProfiles);
     } catch (error) {
