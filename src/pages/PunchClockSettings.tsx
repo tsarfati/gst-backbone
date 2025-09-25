@@ -94,27 +94,27 @@ export default function PunchClockSettings() {
 
       if (data) {
         setSettings({
-          require_location: data.require_location,
-          require_photo: data.require_photo,
-          allow_manual_entry: data.allow_manual_entry,
-          auto_break_duration: data.auto_break_duration,
-          overtime_threshold: parseFloat(data.overtime_threshold.toString()),
-          location_accuracy_meters: data.location_accuracy_meters,
-          photo_required_for_corrections: data.photo_required_for_corrections,
-          notification_enabled: data.notification_enabled,
-          manager_approval_required: data.manager_approval_required,
-          grace_period_minutes: data.grace_period_minutes,
+          require_location: data.require_location !== false,
+          require_photo: data.require_photo !== false,
+          allow_manual_entry: data.allow_manual_entry === true,
+          auto_break_duration: data.auto_break_duration ?? 30,
+          overtime_threshold: parseFloat((data.overtime_threshold ?? 8).toString()),
+          location_accuracy_meters: data.location_accuracy_meters ?? 100,
+          photo_required_for_corrections: data.photo_required_for_corrections !== false,
+          notification_enabled: data.notification_enabled !== false,
+          manager_approval_required: data.manager_approval_required === true,
+          grace_period_minutes: data.grace_period_minutes ?? 5,
           allowed_job_sites: [],
-          break_reminder_minutes: data.break_reminder_minutes,
+          break_reminder_minutes: data.break_reminder_minutes ?? 240,
           punch_time_window_start: data.punch_time_window_start || '06:00',
           punch_time_window_end: data.punch_time_window_end || '22:00',
-          enable_punch_rounding: data.enable_punch_rounding || false,
-          punch_rounding_minutes: data.punch_rounding_minutes || 15,
+          enable_punch_rounding: data.enable_punch_rounding === true,
+          punch_rounding_minutes: data.punch_rounding_minutes ?? 15,
           punch_rounding_direction: (data.punch_rounding_direction as 'up' | 'down' | 'nearest') || 'nearest',
-          auto_break_wait_hours: parseFloat(data.auto_break_wait_hours?.toString() || '6'),
+          auto_break_wait_hours: parseFloat((data.auto_break_wait_hours ?? 6).toString()),
           calculate_overtime: data.calculate_overtime !== false,
           enable_distance_warnings: data.enable_distance_warnings !== false,
-          max_distance_from_job_meters: data.max_distance_from_job_meters || 200
+          max_distance_from_job_meters: data.max_distance_from_job_meters ?? 200
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
