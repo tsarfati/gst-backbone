@@ -25,6 +25,7 @@ interface VendorOption { id: string; name: string }
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+  const [uncodedBills, setUncodedBills] = useState<any[]>([]);
   const [selectedJob, setSelectedJob] = useState("");
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
@@ -107,9 +108,55 @@ export default function UncodedReceipts() {
         console.error('Error loading vendors:', err);
       }
     };
+
+    const loadUncodedBills = async () => {
+      if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+      try {
+        const { data, error } = await supabase
+          .from('invoices')
+          .select(`
+            *,
+            vendors (id, name),
+            jobs (id, name),
+            cost_codes (id, code, description)
+          `)
+          .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
+          .or('job_id.is.null,cost_code_id.is.null')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        setUncodedBills(data || []);
+      } catch (err) {
+        console.error('Error loading uncoded bills:', err);
+      }
+    };
+
     loadVendors();
+    loadUncodedBills();
   }, [user, currentCompany, profile?.current_company_id]);
-  const handleCodeReceipt = () => {
+
+  const loadUncodedBills = async () => {
+    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          vendors (id, name),
+          jobs (id, name),
+          cost_codes (id, code, description)
+        `)
+        .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
+        .or('job_id.is.null,cost_code_id.is.null')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setUncodedBills(data || []);
+    } catch (err) {
+      console.error('Error loading uncoded bills:', err);
+    }
+  };
+  const handleCodeReceipt = async () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
       toast({
         title: "Missing information",
@@ -122,17 +169,60 @@ export default function UncodedReceipts() {
     // Get user's display name from profiles
     const userName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User";
     
-    // Code the receipt using context (vendor is optional)
-    codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, userName, selectedVendor || undefined, selectedAmount || undefined);
+    if (selectedReceipt.type === 'bill') {
+      // Handle bill coding by updating the invoice directly
+      try {
+        const jobObj = jobs.find(j => j.name === selectedJob);
+        const costCodeObj = costCodes.find(c => `${c.code} - ${c.description}` === selectedCostCode);
+        
+        if (!jobObj || !costCodeObj) {
+          toast({
+            title: "Error",
+            description: "Invalid job or cost code selection",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { error } = await supabase
+          .from('invoices')
+          .update({
+            job_id: jobObj.id,
+            cost_code_id: costCodeObj.id
+          })
+          .eq('id', selectedReceipt.billData.id);
+
+        if (error) throw error;
+
+        // Refresh the uncoded bills list
+        await loadUncodedBills();
+        setSelectedReceipt(null);
+        
+        toast({
+          title: "Bill coded successfully",
+          description: `Bill assigned to ${selectedJob} - ${selectedCostCode}`,
+        });
+      } catch (error) {
+        console.error('Error coding bill:', error);
+        toast({
+          title: "Error",
+          description: "Failed to code bill",
+          variant: "destructive",
+        });
+      }
+    } else {
+      // Code the receipt using context (vendor is optional)
+      codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, userName, selectedVendor || undefined, selectedAmount || undefined);
+      
+      toast({
+        title: "Receipt coded successfully",
+        description: `Receipt assigned to ${selectedJob} - ${selectedCostCode}`,
+      });
+    }
     
     setSelectedJob("");
     setSelectedCostCode("");
     setSelectedVendor("");
-    
-    toast({
-      title: "Receipt coded successfully",
-      description: `Receipt assigned to ${selectedJob} - ${selectedCostCode}`,
-    });
   };
 
   const handleAssignUser = (userId: string, userName: string, userRole: string) => {
@@ -198,15 +288,15 @@ export default function UncodedReceipts() {
               />
             </div>
             <p className="text-muted-foreground">
-              Select a receipt to code it to a job and cost code
+              Select a receipt or bill to code it to a job and cost code
             </p>
           </div>
 
-          {uncodedReceipts.length === 0 ? (
+          {uncodedReceipts.length === 0 && uncodedBills.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">All receipts have been coded!</h3>
-              <p className="text-muted-foreground">Upload new receipts to get started.</p>
+              <h3 className="text-lg font-medium mb-2">All receipts and bills have been coded!</h3>
+              <p className="text-muted-foreground">Upload new receipts or create bills to get started.</p>
             </div>
           ) : (
             <div className={
@@ -216,7 +306,17 @@ export default function UncodedReceipts() {
                 ? "space-y-4"
                 : "space-y-2"
             }>
-              {uncodedReceipts.map((receipt) => (
+              {[...uncodedReceipts, ...uncodedBills.map(bill => ({
+                id: bill.id,
+                filename: bill.invoice_number || `Bill ${bill.id.slice(0, 8)}`,
+                amount: `$${bill.amount?.toFixed(2) || '0.00'}`,
+                date: bill.issue_date || bill.created_at?.split('T')[0] || 'Unknown',
+                vendor: bill.vendors?.name || 'Unknown Vendor',
+                type: 'bill',
+                billData: bill,
+                assignedUser: null,
+                previewUrl: null
+              }))].map((receipt) => (
                 currentView === 'grid' ? (
                   // Tile View
                   <Card
@@ -227,7 +327,9 @@ export default function UncodedReceipts() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center space-x-2">
-                        {receipt.type === 'pdf' ? (
+                        {receipt.type === 'bill' ? (
+                          <FileText className="h-5 w-5 text-green-500" />
+                        ) : receipt.type === 'pdf' ? (
                           <FileText className="h-5 w-5 text-red-500" />
                         ) : (
                           <FileImage className="h-5 w-5 text-blue-500" />
@@ -235,6 +337,9 @@ export default function UncodedReceipts() {
                         <span className="font-medium text-sm truncate max-w-[150px]" title={receipt.filename}>
                           {receipt.filename}
                         </span>
+                        {receipt.type === 'bill' && (
+                          <Badge variant="outline" className="text-xs">Bill</Badge>
+                        )}
                       </div>
                       <div className="flex flex-col gap-1">
                         {receipt.assignedUser && (

@@ -135,6 +135,9 @@ export default function MakePayment() {
         `)
         .eq('vendor_id', selectedVendor)
         .eq('status', 'pending')
+        .not('file_url', 'is', null)
+        .not('job_id', 'is', null)
+        .not('cost_code_id', 'is', null)
         .order('due_date');
 
       if (invoicesError) throw invoicesError;
@@ -428,7 +431,8 @@ export default function MakePayment() {
                     </div>
                   ) : invoices.length === 0 ? (
                     <div className="text-center text-muted-foreground py-8">
-                      No pending invoices for this vendor
+                      <div className="mb-2">No payable invoices for this vendor</div>
+                      <div className="text-sm">Invoices must have a receipt document and be coded with a job and cost code before payment can be made.</div>
                     </div>
                   ) : (
                     <Table>
