@@ -669,10 +669,7 @@ function PunchClockApp() {
 
     if (statusError) throw statusError;
 
-    toast({
-      title: 'Punched In',
-      description: `Successfully punched in at ${new Date().toLocaleTimeString()}`,
-    });
+    // Don't show individual success toast here as it's handled by the main function
   };
 
   const punchOut = async (photoUrl: string | null) => {
@@ -705,10 +702,7 @@ function PunchClockApp() {
 
     if (statusError) throw statusError;
 
-    toast({
-      title: 'Punched Out',
-      description: `Successfully punched out at ${new Date().toLocaleTimeString()}`,
-    });
+    // Don't show individual success toast here as it's handled by the main function
   };
 
   const updatePinEmployeeAvatar = async (photoUrl: string) => {
