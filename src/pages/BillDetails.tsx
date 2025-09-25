@@ -358,10 +358,20 @@ export default function BillDetails() {
             {/* Invoice Details */}
             <div>
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Invoice Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Amount</p>
                   <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <Badge variant={getStatusVariant(bill?.status)} className="w-fit">
+                    {bill?.status?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Invoice Number</p>
+                  <p className="font-medium">{bill?.invoice_number || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Issue Date</p>
@@ -376,6 +386,10 @@ export default function BillDetails() {
                   </p>
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">Payment Terms</p>
+                  <p className="font-medium">{bill?.payment_terms ? `${bill.payment_terms} days` : 'N/A'}</p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Job</p>
                   <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
                 </div>
@@ -387,13 +401,38 @@ export default function BillDetails() {
                     </p>
                   </div>
                 )}
-                {bill?.payment_terms && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Bill Category</p>
+                  <p className="font-medium">
+                    {bill?.bill_category?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'One Time'}
+                  </p>
+                </div>
+                {bill?.subcontract_id && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Payment Terms</p>
-                    <p className="font-medium">{bill.payment_terms} days</p>
+                    <p className="text-sm text-muted-foreground">Subcontract ID</p>
+                    <p className="font-medium">{bill.subcontract_id}</p>
                   </div>
                 )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Created Date</p>
+                  <p className="font-medium">
+                    {bill?.created_at ? new Date(bill.created_at).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Last Updated</p>
+                  <p className="font-medium">
+                    {bill?.updated_at ? new Date(bill.updated_at).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
               </div>
+              
+              {bill?.description && (
+                <div className="mt-4">
+                  <p className="text-sm text-muted-foreground mb-2">Description</p>
+                  <p className="text-sm bg-muted/50 p-3 rounded-md">{bill.description}</p>
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -425,18 +464,6 @@ export default function BillDetails() {
           billAmount={bill?.amount}
           onReceiptAttached={fetchBillDetails}
         />
-      )}
-
-      {/* Description */}
-      {bill?.description && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Description</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">{bill.description}</p>
-          </CardContent>
-        </Card>
       )}
 
       {/* File Preview Section */}
