@@ -197,6 +197,7 @@ export default function TimeSheets() {
           punch_out_location_lat,
           punch_out_location_lng
         `)
+        .neq('status', 'deleted')
         .order('punch_in_time', { ascending: false })
         .limit(100);
 
@@ -296,7 +297,7 @@ export default function TimeSheets() {
         const punchIn = (punches || []).find(p => p.punch_type === 'punched_in');
         const punchOut = (punches || []).find(p => p.punch_type === 'punched_out');
 
-        return {
+        const updated: TimeCard = {
           ...tc,
           punch_in_photo_url: tc.punch_in_photo_url || punchIn?.photo_url || null,
           punch_out_photo_url: tc.punch_out_photo_url || punchOut?.photo_url || null,
@@ -305,6 +306,28 @@ export default function TimeSheets() {
           punch_out_location_lat: tc.punch_out_location_lat ?? (punchOut?.latitude ?? null),
           punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
         };
+
+        // Persist backfilled fields so photos/maps stay linked next load
+        if (
+          (needsInPhoto && updated.punch_in_photo_url) ||
+          (needsOutPhoto && updated.punch_out_photo_url) ||
+          (needsInLoc && (updated.punch_in_location_lat || updated.punch_in_location_lng)) ||
+          (needsOutLoc && (updated.punch_out_location_lat || updated.punch_out_location_lng))
+        ) {
+          await supabase
+            .from('time_cards')
+            .update({
+              punch_in_photo_url: updated.punch_in_photo_url,
+              punch_out_photo_url: updated.punch_out_photo_url,
+              punch_in_location_lat: updated.punch_in_location_lat,
+              punch_in_location_lng: updated.punch_in_location_lng,
+              punch_out_location_lat: updated.punch_out_location_lat,
+              punch_out_location_lng: updated.punch_out_location_lng,
+            })
+            .eq('id', tc.id);
+        }
+
+        return updated;
       }));
 
       setTimeCards(enrichedData);
@@ -381,24 +404,10 @@ export default function TimeSheets() {
     if (!deleteTimeCardId || !isManager) return;
 
     try {
-      // 1) Delete dependent rows that reference this time card
-      await Promise.all([
-        // Audit trail entries (FK: time_card_audit_trail.time_card_id -> time_cards.id)
-        supabase.from('time_card_audit_trail').delete().eq('time_card_id', deleteTimeCardId),
-        // Corrections table if present (FK to time_cards.id)
-        supabase.from('time_card_corrections').delete().eq('time_card_id', deleteTimeCardId),
-      ]);
-
-      // 2) Nullify self-references from other time cards (e.g., corrections linking back)
-      await supabase
-        .from('time_cards')
-        .update({ original_time_card_id: null })
-        .eq('original_time_card_id', deleteTimeCardId);
-
-      // 3) Now delete the time card itself
+      // Soft delete: keep audit trail, mark as deleted
       const { error } = await supabase
         .from('time_cards')
-        .delete()
+        .update({ status: 'deleted' })
         .eq('id', deleteTimeCardId);
 
       if (error) throw error;
@@ -407,8 +416,8 @@ export default function TimeSheets() {
       setDeleteTimeCardId('');
 
       toast({
-        title: 'Success',
-        description: 'Time card deleted successfully',
+        title: 'Removed',
+        description: 'Time card moved to trash',
       });
     } catch (error: any) {
       console.error('Error deleting time card:', error);
