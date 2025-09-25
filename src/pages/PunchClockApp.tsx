@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +50,7 @@ export default function PunchClockApp() {
   const [faceDetectionResult, setFaceDetectionResult] = useState<{ hasFace: boolean; confidence?: number } | null>(null);
   const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [loginSettings, setLoginSettings] = useState<any>({});
+  const [punchOutNote, setPunchOutNote] = useState('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -377,6 +379,7 @@ export default function PunchClockApp() {
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: null,
+            notes: currentPunch ? punchOutNote : undefined,
           })
         });
         if (!res.ok) {
@@ -384,6 +387,7 @@ export default function PunchClockApp() {
           throw new Error(j.error || 'Edge punch failed');
         }
         setPhotoBlob(null);
+        setPunchOutNote('');
         await loadFromEdge();
         toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
         return;
@@ -411,6 +415,7 @@ export default function PunchClockApp() {
       }
 
       setPhotoBlob(null);
+      setPunchOutNote('');
       loadCurrentPunchStatus();
 
     } catch (error) {
@@ -479,7 +484,8 @@ export default function PunchClockApp() {
         punch_time: new Date().toISOString(),
         latitude: location?.lat,
         longitude: location?.lng,
-        photo_url: photoUrl
+        photo_url: photoUrl,
+        notes: punchOutNote
       });
 
     if (punchError) throw punchError;
@@ -670,6 +676,23 @@ export default function PunchClockApp() {
           </Card>
         )}
 
+        {/* Add Note Section for Punch Out */}
+        {currentPunch && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Add Note (Optional)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="Add any notes about your work today..."
+                value={punchOutNote}
+                onChange={(e) => setPunchOutNote(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Punch Button */}
         <div className="space-y-4">
           <Button
@@ -686,7 +709,7 @@ export default function PunchClockApp() {
             }`}
           >
             <Camera className="h-6 w-6 mr-2" />
-            {isLoading ? 'Processing...' : currentPunch ? 'Take Selfie to Punch Out' : 'Take Selfie to Punch In'}
+            {isLoading ? 'Processing...' : currentPunch ? 'Punch Out' : 'Punch In'}
           </Button>
           
           {location && (
@@ -699,18 +722,28 @@ export default function PunchClockApp() {
 
         {/* Camera Dialog */}
         <Dialog open={showCamera} onOpenChange={setShowCamera}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Take Photo</DialogTitle>
             </DialogHeader>
             
             <div className="space-y-4">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full rounded-lg"
-              />
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-80 rounded-lg object-cover"
+                />
+                {/* Face positioning guide */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-48 h-64 border-2 border-white border-dashed rounded-full opacity-50 flex items-center justify-center">
+                    <div className="text-white text-xs text-center">
+                      Position your face<br />within this oval
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div className="flex gap-2">
                 <Button 
                   onClick={capturePhoto} 
