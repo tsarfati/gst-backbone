@@ -274,7 +274,40 @@ export default function TimeSheets() {
         };
       });
 
-      setTimeCards(transformedData);
+      // Backfill missing photos/locations from punch_records for PIN employees and others
+      const enrichedData: TimeCard[] = await Promise.all(transformedData.map(async (tc) => {
+        const needsInPhoto = !tc.punch_in_photo_url;
+        const needsOutPhoto = !tc.punch_out_photo_url && tc.punch_out_time;
+        const needsInLoc = (!tc.punch_in_location_lat || !tc.punch_in_location_lng);
+        const needsOutLoc = tc.punch_out_time && (!tc.punch_out_location_lat || !tc.punch_out_location_lng);
+        
+        if (!needsInPhoto && !needsOutPhoto && !needsInLoc && !needsOutLoc) return tc;
+
+        const from = new Date(new Date(tc.punch_in_time).getTime() - 60_000).toISOString();
+        const to = new Date(new Date(tc.punch_out_time || tc.punch_in_time).getTime() + 60_000).toISOString();
+        const { data: punches } = await supabase
+          .from('punch_records')
+          .select('punch_type, photo_url, latitude, longitude, punch_time')
+          .eq('user_id', tc.user_id)
+          .gte('punch_time', from)
+          .lte('punch_time', to)
+          .order('punch_time', { ascending: true });
+
+        const punchIn = (punches || []).find(p => p.punch_type === 'punched_in');
+        const punchOut = (punches || []).find(p => p.punch_type === 'punched_out');
+
+        return {
+          ...tc,
+          punch_in_photo_url: tc.punch_in_photo_url || punchIn?.photo_url || null,
+          punch_out_photo_url: tc.punch_out_photo_url || punchOut?.photo_url || null,
+          punch_in_location_lat: tc.punch_in_location_lat ?? (punchIn?.latitude ?? null),
+          punch_in_location_lng: tc.punch_in_location_lng ?? (punchIn?.longitude ?? null),
+          punch_out_location_lat: tc.punch_out_location_lat ?? (punchOut?.latitude ?? null),
+          punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
+        };
+      }));
+
+      setTimeCards(enrichedData);
     } catch (error) {
       console.error('Error:', error);
       toast({

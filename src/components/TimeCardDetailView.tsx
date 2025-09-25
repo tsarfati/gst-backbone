@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { geocodeAddress } from '@/utils/geocoding';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
 
@@ -208,6 +209,20 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     // Center map on job location or punch locations, with fallback to Philadelphia
     let centerLat = timeCard.jobs?.latitude || timeCard.punch_in_location_lat || 39.9526;
     let centerLng = timeCard.jobs?.longitude || timeCard.punch_in_location_lng || -75.1652;
+
+    // If job coords missing but address available, geocode as fallback
+    try {
+      const jobAddress = (timeCard as any)?.jobs?.address as string | undefined;
+      if ((!timeCard.jobs?.latitude || !timeCard.jobs?.longitude) && jobAddress) {
+        const geo = await geocodeAddress(jobAddress);
+        if (geo) {
+          centerLat = geo.latitude;
+          centerLng = geo.longitude;
+        }
+      }
+    } catch (e) {
+      console.warn('Geocode fallback failed:', e);
+    }
     
     console.log('Map center:', { centerLat, centerLng });
 
