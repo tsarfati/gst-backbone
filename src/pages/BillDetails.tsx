@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { 
   ArrowLeft, 
   Download, 
@@ -58,6 +61,9 @@ export default function BillDetails() {
   
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [approvingBill, setApprovingBill] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -100,6 +106,51 @@ export default function BillDetails() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveBill = async () => {
+    if (!id) return;
+    
+    setApprovingBill(true);
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ status: 'approved' })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Create audit trail entry
+      await supabase
+        .from('invoice_audit_trail')
+        .insert({
+          invoice_id: id,
+          change_type: 'status_change',
+          field_name: 'status',
+          old_value: bill?.status || 'pending',
+          new_value: 'approved',
+          reason: approvalNotes || 'Bill approved',
+          changed_by: (await supabase.auth.getUser()).data.user?.id || ''
+        });
+
+      toast({
+        title: "Success",
+        description: "Bill has been approved successfully",
+      });
+
+      setApprovalDialogOpen(false);
+      setApprovalNotes("");
+      fetchBillDetails();
+    } catch (error) {
+      console.error('Error approving bill:', error);
+      toast({
+        title: "Error",
+        description: "Failed to approve bill",
+        variant: "destructive",
+      });
+    } finally {
+      setApprovingBill(false);
     }
   };
 
@@ -161,6 +212,63 @@ export default function BillDetails() {
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>
+          
+          {bill?.status !== 'approved' && bill?.status !== 'paid' && (
+            <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="default">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Approve Bill
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Approve Bill</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to approve this bill for ${bill?.amount?.toLocaleString()} from {bill?.vendors?.name}?
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
+                    <Textarea
+                      id="approval-notes"
+                      placeholder="Add any notes about this approval..."
+                      value={approvalNotes}
+                      onChange={(e) => setApprovalNotes(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setApprovalDialogOpen(false)}
+                    disabled={approvingBill}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleApproveBill}
+                    disabled={approvingBill}
+                  >
+                    {approvingBill ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Approving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve Bill
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
           {bill?.file_url && (
             <Button variant="outline" onClick={() => window.open(bill.file_url, '_blank')}>
               <Download className="h-4 w-4 mr-2" />
