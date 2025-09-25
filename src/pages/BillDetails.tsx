@@ -67,14 +67,7 @@ export default function BillDetails() {
         .from('invoices')
         .select(`
           *,
-          vendors (
-            id,
-            name,
-            company_name,
-            email,
-            phone,
-            address
-          ),
+          vendors (name),
           jobs (
             id,
             name
@@ -187,24 +180,6 @@ export default function BillDetails() {
               <p className="text-sm text-muted-foreground">Vendor Name</p>
               <p className="font-medium">{bill?.vendors?.name}</p>
             </div>
-            {bill?.vendors?.company_name && (
-              <div>
-                <p className="text-sm text-muted-foreground">Company</p>
-                <p className="font-medium">{bill.vendors.company_name}</p>
-              </div>
-            )}
-            {bill?.vendors?.email && (
-              <div>
-                <p className="text-sm text-muted-foreground">Email</p>
-                <p className="font-medium">{bill.vendors.email}</p>
-              </div>
-            )}
-            {bill?.vendors?.phone && (
-              <div>
-                <p className="text-sm text-muted-foreground">Phone</p>
-                <p className="font-medium">{bill.vendors.phone}</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 

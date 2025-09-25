@@ -65,9 +65,9 @@ export default function Bills() {
           due_date,
           description,
           payment_terms,
-          vendors!inner(name),
-          jobs!inner(name),
-          cost_codes!inner(description)
+          vendors(name),
+          jobs(name),
+          cost_codes(description)
         `)
         .order('created_at', { ascending: false });
 
