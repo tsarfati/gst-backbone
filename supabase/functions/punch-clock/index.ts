@@ -50,7 +50,7 @@ async function validatePin(supabaseAdmin: any, pin: string) {
   // Then check PIN employees table
   const { data: pinEmployeeData, error: pinError } = await supabaseAdmin
     .from('pin_employees')
-    .select('id, first_name, last_name, display_name')
+    .select('id, first_name, last_name, display_name, avatar_url')
     .eq('pin_code', pin)
     .eq('is_active', true)
     .maybeSingle();
@@ -61,7 +61,8 @@ async function validatePin(supabaseAdmin: any, pin: string) {
       first_name: pinEmployeeData.first_name,
       last_name: pinEmployeeData.last_name,
       role: 'employee',
-      is_pin_employee: true
+      is_pin_employee: true,
+      existing_avatar: pinEmployeeData.avatar_url
     };
   }
 
@@ -151,6 +152,14 @@ serve(async (req) => {
             punch_in_photo_url: photo_url,
             is_active: true,
           }, { onConflict: 'user_id' });
+          
+        // Update PIN employee avatar if they don't have one but took a photo
+        if (userRow.is_pin_employee && photo_url && !userRow.existing_avatar) {
+          await supabaseAdmin
+            .from('pin_employees')
+            .update({ avatar_url: photo_url })
+            .eq('id', userRow.user_id);
+        }
         if (statusErr) return errorResponse(statusErr.message, 500);
 
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });

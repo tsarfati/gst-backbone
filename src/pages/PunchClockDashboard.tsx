@@ -80,12 +80,29 @@ export default function PunchClockDashboard() {
       const jobIds = Array.from(new Set((activeData || []).map(a => a.job_id).filter(Boolean))) as string[];
 
       if (userIds.length) {
-        const { data: profs } = await supabase
-          .from('profiles')
-          .select('user_id, display_name, avatar_url')
-          .in('user_id', userIds);
+        // Load both regular profiles and PIN employees
+        const [profilesResponse, pinEmployeesResponse] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('user_id, display_name, avatar_url')
+            .in('user_id', userIds),
+          supabase
+            .from('pin_employees')
+            .select('id, first_name, last_name, display_name, avatar_url')
+            .in('id', userIds)
+        ]);
+        
         const profMap: Record<string, Profile> = {};
-        (profs || []).forEach(p => { profMap[p.user_id] = p; });
+        // Regular profiles
+        (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
+        // PIN employees
+        (pinEmployeesResponse.data || []).forEach(p => { 
+          profMap[p.id] = {
+            user_id: p.id,
+            display_name: p.display_name || `${p.first_name} ${p.last_name}`,
+            avatar_url: p.avatar_url
+          };
+        });
         setProfiles(prev => ({ ...prev, ...profMap }));
       }
 
@@ -128,12 +145,28 @@ export default function PunchClockDashboard() {
       const outJobIds = Array.from(new Set(recentOuts.map(r => r.job_id).filter(Boolean))) as string[];
       
       if (outUserIds.length) {
-        const { data: outProfs } = await supabase
-          .from('profiles')
-          .select('user_id, display_name, avatar_url')
-          .in('user_id', outUserIds);
+        const [profilesResponse, pinEmployeesResponse] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('user_id, display_name, avatar_url')
+            .in('user_id', outUserIds),
+          supabase
+            .from('pin_employees')
+            .select('id, first_name, last_name, display_name, avatar_url')
+            .in('id', outUserIds)
+        ]);
+        
         const profMap: Record<string, Profile> = {};
-        (outProfs || []).forEach(p => { profMap[p.user_id] = p; });
+        // Regular profiles
+        (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
+        // PIN employees
+        (pinEmployeesResponse.data || []).forEach(p => { 
+          profMap[p.id] = {
+            user_id: p.id,
+            display_name: p.display_name || `${p.first_name} ${p.last_name}`,
+            avatar_url: p.avatar_url
+          };
+        });
         setProfiles(prev => ({ ...prev, ...profMap }));
       }
 
