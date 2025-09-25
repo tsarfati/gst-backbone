@@ -139,15 +139,18 @@ serve(async (req) => {
         });
         if (punchErr) return errorResponse(punchErr.message, 500);
 
-        const { error: statusErr } = await supabaseAdmin.from("current_punch_status").insert({
-          user_id: userRow.user_id,
-          job_id,
-          cost_code_id,
-          punch_in_time: now,
-          punch_in_location_lat: latitude,
-          punch_in_location_lng: longitude,
-          punch_in_photo_url: photo_url,
-        });
+        const { error: statusErr } = await supabaseAdmin
+          .from("current_punch_status")
+          .upsert({
+            user_id: userRow.user_id,
+            job_id,
+            cost_code_id,
+            punch_in_time: now,
+            punch_in_location_lat: latitude,
+            punch_in_location_lng: longitude,
+            punch_in_photo_url: photo_url,
+            is_active: true,
+          }, { onConflict: 'user_id' });
         if (statusErr) return errorResponse(statusErr.message, 500);
 
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
