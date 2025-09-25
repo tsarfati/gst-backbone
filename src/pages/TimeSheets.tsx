@@ -348,12 +348,21 @@ export default function TimeSheets() {
     if (!deleteTimeCardId || !isManager) return;
 
     try {
-      // Delete related audit trail entries first to avoid FK constraint issues
-      await supabase
-        .from('time_card_audit_trail')
-        .delete()
-        .eq('time_card_id', deleteTimeCardId);
+      // 1) Delete dependent rows that reference this time card
+      await Promise.all([
+        // Audit trail entries (FK: time_card_audit_trail.time_card_id -> time_cards.id)
+        supabase.from('time_card_audit_trail').delete().eq('time_card_id', deleteTimeCardId),
+        // Corrections table if present (FK to time_cards.id)
+        supabase.from('time_card_corrections').delete().eq('time_card_id', deleteTimeCardId),
+      ]);
 
+      // 2) Nullify self-references from other time cards (e.g., corrections linking back)
+      await supabase
+        .from('time_cards')
+        .update({ original_time_card_id: null })
+        .eq('original_time_card_id', deleteTimeCardId);
+
+      // 3) Now delete the time card itself
       const { error } = await supabase
         .from('time_cards')
         .delete()
