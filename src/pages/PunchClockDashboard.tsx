@@ -429,7 +429,7 @@ export default function PunchClockDashboard() {
                    <div key={row.id} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50">
                      <div className="flex items-center gap-4 min-w-0 flex-1">
                        <Avatar className="h-12 w-12">
-                         <AvatarImage src={prof?.avatar_url || undefined} />
+                         <AvatarImage src={(prof?.avatar_url || row.punch_in_photo_url || undefined) as string | undefined} />
                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                        </Avatar>
                        <div className="min-w-0 flex-1">
@@ -492,10 +492,10 @@ export default function PunchClockDashboard() {
                 return (
                    <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
                      <div className="flex items-center gap-4 min-w-0 flex-1">
-                       <Avatar className="h-12 w-12">
-                         <AvatarImage src={prof?.avatar_url || undefined} />
-                         <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                       </Avatar>
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={(prof?.avatar_url || row.photo_url || undefined) as string | undefined} />
+                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
                        <div className="min-w-0 flex-1">
                          <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
                          <div className="text-sm text-muted-foreground truncate">{job?.name || 'Unknown Job'}</div>
