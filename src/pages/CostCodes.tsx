@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -23,6 +25,9 @@ export default function CostCodes() {
   const { toast } = useToast();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvDialogOpen, setCsvDialogOpen] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [newCode, setNewCode] = useState<{
     code: string;
     description: string;
@@ -112,6 +117,136 @@ export default function CostCodes() {
 
   const getTypeInfo = (type: string) => {
     return costTypeOptions.find(option => option.value === type) || costTypeOptions[4];
+  };
+
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        toast({
+          title: "Invalid CSV",
+          description: "CSV must have at least a header row and one data row",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Parse CSV (expecting: code, description, type)
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const preview = lines.slice(1, 6).map((line, index) => { // Show first 5 rows for preview
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        return {
+          rowIndex: index + 2, // +2 because we skip header and array is 0-indexed
+          code: values[0] || '',
+          description: values[1] || '',
+          type: values[2]?.toLowerCase() || 'other'
+        };
+      });
+
+      setCsvPreview(preview);
+      setCsvDialogOpen(true);
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleCsvImport = async () => {
+    setCsvUploading(true);
+    try {
+      // Get full CSV data from the file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const file = fileInput?.files?.[0];
+      
+      if (!file) {
+        toast({
+          title: "Error",
+          description: "No file selected",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        const dataRows = lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+          return {
+            code: values[0] || '',
+            description: values[1] || '',
+            type: (['material', 'labor', 'sub', 'equipment', 'other'].includes(values[2]?.toLowerCase())) 
+              ? values[2].toLowerCase() as 'material' | 'labor' | 'sub' | 'equipment' | 'other'
+              : 'other' as const
+          };
+        }).filter(row => row.code && row.description); // Only include rows with code and description
+
+        if (dataRows.length === 0) {
+          toast({
+            title: "No valid data",
+            description: "No valid cost codes found in CSV",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Insert all cost codes
+        const { error } = await supabase
+          .from('cost_codes')
+          .insert(dataRows.map(row => ({
+            code: row.code,
+            description: row.description,
+            type: row.type,
+            is_active: true,
+            job_id: null
+          })));
+
+        if (error) throw error;
+
+        toast({
+          title: "Import successful",
+          description: `Imported ${dataRows.length} cost codes successfully`,
+        });
+
+        setCsvDialogOpen(false);
+        setCsvPreview([]);
+        loadCostCodes();
+        
+        // Clear file input
+        if (fileInput) fileInput.value = '';
+      };
+
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      toast({
+        title: "Import failed",
+        description: "Failed to import cost codes from CSV",
+        variant: "destructive",
+      });
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const downloadCsvTemplate = () => {
+    const csvContent = "code,description,type\nLABOR-001,General Labor,labor\nMATERIAL-001,Construction Materials,material\nSUB-001,Electrical Subcontractor,sub\nEQUIP-001,Heavy Equipment,equipment\nOTHER-001,Miscellaneous,other";
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cost_codes_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const handleDeleteCode = async (id: string) => {
@@ -208,6 +343,95 @@ export default function CostCodes() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* CSV Upload Section */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Bulk Import from CSV
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="csvFile">Upload CSV File</Label>
+              <Input
+                id="csvFile"
+                type="file"
+                accept=".csv"
+                onChange={handleCsvUpload}
+                className="mt-1"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Expected format: code, description, type (material, labor, sub, equipment, or other)
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={downloadCsvTemplate}
+              className="mt-6"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Template
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CSV Preview Dialog */}
+      <Dialog open={csvDialogOpen} onOpenChange={setCsvDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Preview CSV Import</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Preview of the first 5 rows. Please review before importing:
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Type</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {csvPreview.map((row, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{row.code}</TableCell>
+                    <TableCell>{row.description}</TableCell>
+                    <TableCell>
+                      <Badge className={getTypeInfo(row.type).color}>
+                        {getTypeInfo(row.type).label}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCsvDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCsvImport} disabled={csvUploading}>
+                {csvUploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Import Cost Codes
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cost Codes Table */}
       <Card>

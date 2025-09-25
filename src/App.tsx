@@ -50,6 +50,7 @@ import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
+import BankingChartOfAccounts from "./pages/BankingChartOfAccounts";
 import CostCodes from "./pages/CostCodes";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
@@ -248,7 +249,7 @@ function AuthenticatedRoutes() {
                 <Route path="banking/accounts/add" element={<AddBankAccount />} />
                 <Route path="banking/credit-cards" element={<CreditCards />} />
                 <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
-                <Route path="banking/reports" element={<BankingReports />} />
+                <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
                 <Route path="banking/reports" element={<BankingReports />} />
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
