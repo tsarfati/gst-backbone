@@ -179,9 +179,23 @@ export default function TimeSheets() {
       let query = supabase
         .from('time_cards')
         .select(`
-          *,
+          id,
+          user_id,
+          job_id,
+          cost_code_id,
+          punch_in_time,
+          punch_out_time,
+          total_hours,
+          overtime_hours,
+          status,
+          break_minutes,
+          notes,
           punch_in_photo_url,
-          punch_out_photo_url
+          punch_out_photo_url,
+          punch_in_location_lat,
+          punch_in_location_lng,
+          punch_out_location_lat,
+          punch_out_location_lng
         `)
         .order('punch_in_time', { ascending: false })
         .limit(100);

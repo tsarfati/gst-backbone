@@ -254,9 +254,8 @@ function AuthenticatedRoutes() {
 function AppRoutes() {
   const location = useLocation();
   
-  // Check if current path is a public punch clock route
-  const publicPaths = ['/punch-clock-login', '/punch-clock', '/punch-clock-app', '/auth'];
-  const isPublicRoute = publicPaths.some(path => location.pathname.startsWith(path));
+  const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/punch-clock'];
+  const isPublicRoute = publicExactPaths.includes(location.pathname);
   
   if (isPublicRoute) {
     return <PublicRoutes />;
