@@ -249,11 +249,20 @@ export default function BillEdit() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="reimbursable">Reimbursable</SelectItem>
-                  <SelectItem value="subcontract">Subcontract Payment</SelectItem>
-                  <SelectItem value="purchase_order">Purchase Order</SelectItem>
-                  <SelectItem value="one_time">One Time</SelectItem>
                 </SelectContent>
               </Select>
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="sm" 
+                className="mt-2 text-xs"
+                onClick={() => {
+                  // TODO: Implement add type functionality
+                  console.log('Add type clicked');
+                }}
+              >
+                + Add Type
+              </Button>
             </div>
 
             <div>

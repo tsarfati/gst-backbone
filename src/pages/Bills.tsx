@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, MoreHorizontal } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import VendorAvatar from "@/components/VendorAvatar";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
@@ -124,36 +123,6 @@ export default function Bills() {
     }
   };
 
-  const updateBillStatus = async (billId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('invoices')
-        .update({ status: newStatus })
-        .eq('id', billId);
-
-      if (error) throw error;
-
-      // Update local state
-      setBills(bills.map(bill => 
-        bill.id === billId 
-          ? { ...bill, status: newStatus }
-          : bill
-      ));
-
-      toast({
-        title: "Success",
-        description: `Bill status updated to ${getStatusDisplayName(newStatus)}`,
-      });
-    } catch (error) {
-      console.error('Error updating bill status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update bill status",
-        variant: "destructive",
-      });
-    }
-  };
-
   const filteredBills = jobFilter === "all" 
     ? bills 
     : bills.filter(bill => bill.job_name === jobFilter);
@@ -243,14 +212,12 @@ export default function Bills() {
                 <TableHead>Issue Date</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-                
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredBills.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium">No bills found</p>
@@ -285,35 +252,6 @@ export default function Bills() {
                        <Badge variant={getStatusVariant(bill.status)}>
                          {getStatusDisplayName(bill.status)}
                        </Badge>
-                     </TableCell>
-                     <TableCell>
-                       <DropdownMenu>
-                         <DropdownMenuTrigger asChild>
-                           <Button variant="ghost" className="h-8 w-8 p-0">
-                             <MoreHorizontal className="h-4 w-4" />
-                           </Button>
-                         </DropdownMenuTrigger>
-                         <DropdownMenuContent align="end">
-                           <DropdownMenuItem onClick={(e) => {
-                             e.stopPropagation();
-                             updateBillStatus(bill.id, 'pending_approval');
-                           }}>
-                             Mark as Pending Approval
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={(e) => {
-                             e.stopPropagation();
-                             updateBillStatus(bill.id, 'pending_payment');
-                           }}>
-                             Mark as Pending Payment
-                           </DropdownMenuItem>
-                           <DropdownMenuItem onClick={(e) => {
-                             e.stopPropagation();
-                             updateBillStatus(bill.id, 'paid');
-                           }}>
-                             Mark as Paid
-                           </DropdownMenuItem>
-                         </DropdownMenuContent>
-                       </DropdownMenu>
                      </TableCell>
                   </TableRow>
                 ))
