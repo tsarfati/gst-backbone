@@ -16,6 +16,7 @@ import EmployeeViews from '@/components/EmployeeViews';
 import EmployeeGroupManager from '@/components/EmployeeGroupManager';
 import UserManagement from '@/components/UserManagement';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
+import EmployeeDetailDialog from '@/components/EmployeeDetailDialog';
 
 interface Employee {
   id: string;
@@ -45,6 +46,8 @@ export default function AllEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const { profile } = useAuth();
   const { toast } = useToast();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('employees-view');
@@ -129,6 +132,11 @@ export default function AllEmployees() {
     );
   });
 
+  const handleEmployeeClick = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeDetail(true);
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -194,6 +202,7 @@ export default function AllEmployees() {
               currentView={currentView}
               canManageEmployees={canManageEmployees}
               loading={loading}
+              onEmployeeClick={handleEmployeeClick}
             />
           )}
 
@@ -224,6 +233,12 @@ export default function AllEmployees() {
           </>
         )}
       </Tabs>
+
+      <EmployeeDetailDialog
+        open={showEmployeeDetail}
+        onOpenChange={setShowEmployeeDetail}
+        employee={selectedEmployee}
+      />
     </div>
   );
 }

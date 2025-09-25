@@ -27,6 +27,7 @@ interface EmployeeViewsProps {
   currentView: UnifiedViewType;
   canManageEmployees: boolean;
   loading: boolean;
+  onEmployeeClick: (employee: Employee) => void;
 }
 
 const roleColors = {
@@ -37,7 +38,7 @@ const roleColors = {
   view_only: 'outline'
 } as const;
 
-export default function EmployeeViews({ employees, currentView, canManageEmployees, loading }: EmployeeViewsProps) {
+export default function EmployeeViews({ employees, currentView, canManageEmployees, loading, onEmployeeClick }: EmployeeViewsProps) {
   if (loading) {
     return <div className="text-center py-8">Loading employees...</div>;
   }
@@ -58,7 +59,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
     switch (currentView) {
       case 'list':
         return (
-          <Card key={employee.id} className="hover:shadow-md transition-shadow">
+          <Card key={employee.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-4">
                 <Avatar className="h-12 w-12">
@@ -82,26 +83,6 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                       </Badge>
                     )}
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => {
-                    if (employee.user_id) {
-                      window.open(`/settings/users/${employee.user_id}/edit`, '_self')
-                    } else {
-                      // For PIN employees, show a basic info modal or navigate to PIN management
-                      alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
-                    }
-                  }}>View Profile</Button>
-                  {canManageEmployees && (
-                    <Button variant="outline" size="sm" onClick={() => {
-                      if (employee.user_id) {
-                        window.open(`/settings/users/${employee.user_id}/edit`, '_self')
-                      } else {
-                        // For PIN employees, could navigate to PIN employee management
-                        alert(`PIN Employee Edit: ${employee.display_name}`)
-                      }
-                    }}>Edit</Button>
-                  )}
                 </div>
               </div>
             </CardHeader>
@@ -153,7 +134,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
 
       case 'compact':
         return (
-          <Card key={employee.id} className="hover:shadow-md transition-shadow p-4">
+          <Card key={employee.id} className="hover:shadow-md transition-shadow p-4 cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
@@ -182,13 +163,6 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     PIN
                   </Badge>
                 )}
-                <Button variant="outline" size="sm" onClick={() => {
-                  if (employee.user_id) {
-                    window.open(`/settings/users/${employee.user_id}/edit`, '_self')
-                  } else {
-                    alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
-                  }
-                }}>View</Button>
               </div>
             </div>
           </Card>
@@ -196,7 +170,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
 
       case 'super-compact':
         return (
-          <div key={employee.id} className="flex items-center justify-between p-3 border rounded hover:bg-accent/50 transition-colors">
+          <div key={employee.id} className="flex items-center justify-between p-3 border rounded hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="flex items-center gap-2">
               <Avatar className="h-6 w-6">
                 <AvatarImage src={employee.avatar_url} />
@@ -224,7 +198,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
 
       case 'icons':
         return (
-          <Card key={employee.id} className="hover:shadow-md transition-shadow p-4 text-center">
+          <Card key={employee.id} className="hover:shadow-md transition-shadow p-4 text-center cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="space-y-3">
               <Avatar className="h-16 w-16 mx-auto">
                 <AvatarImage src={employee.avatar_url} />
@@ -248,15 +222,6 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   )}
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="w-full" onClick={() => {
-                if (employee.user_id) {
-                  window.open(`/settings/users/${employee.user_id}/edit`, '_self')
-                } else {
-                  alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
-                }
-              }}>
-                View Profile
-              </Button>
             </div>
           </Card>
         );
