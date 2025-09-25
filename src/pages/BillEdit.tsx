@@ -68,14 +68,14 @@ export default function BillEdit() {
       // Load bill data
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select(`
-          *,
-          is_reimbursement
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
       if (billError) throw billError;
+
+      // Ensure billData has the correct type with is_reimbursement field
+      const typedBillData = billData as typeof billData & { is_reimbursement?: boolean };
 
       // Load vendors, jobs, and cost codes
       const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
@@ -90,26 +90,26 @@ export default function BillEdit() {
         setAllCostCodes(allCostCodesData.data);
         // Filter cost codes for the current job
         const jobCostCodes = allCostCodesData.data.filter(cc => 
-          !cc.job_id || cc.job_id === billData.job_id
+          !cc.job_id || cc.job_id === typedBillData.job_id
         );
         setCostCodes(jobCostCodes);
       }
 
-      setBill(billData);
+      setBill(typedBillData);
 
       // Populate form data
       setFormData({
-        vendor_id: billData.vendor_id || '',
-        job_id: billData.job_id || '',
-        cost_code_id: billData.cost_code_id || '',
-        invoice_number: billData.invoice_number || '',
-        amount: billData.amount?.toString() || '',
-        issue_date: billData.issue_date || '',
-        due_date: billData.due_date || '',
-        description: billData.description || '',
-        payment_terms: billData.payment_terms || '',
-        is_subcontract_invoice: billData.is_subcontract_invoice || false,
-        is_reimbursement: billData.is_reimbursement || false
+        vendor_id: typedBillData.vendor_id || '',
+        job_id: typedBillData.job_id || '',
+        cost_code_id: typedBillData.cost_code_id || '',
+        invoice_number: typedBillData.invoice_number || '',
+        amount: typedBillData.amount?.toString() || '',
+        issue_date: typedBillData.issue_date || '',
+        due_date: typedBillData.due_date || '',
+        description: typedBillData.description || '',
+        payment_terms: typedBillData.payment_terms || '',
+        is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
+        is_reimbursement: typedBillData.is_reimbursement || false
       });
     } catch (error) {
       console.error('Error loading bill:', error);
