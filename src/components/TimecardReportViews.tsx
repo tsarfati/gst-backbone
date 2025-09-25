@@ -72,33 +72,67 @@ export default function TimecardReportViews({
 
   const handleViewPunchDetails = async (record: TimeCardRecord) => {
     try {
-      // Fetch punch records for this timecard without join hints to avoid schema cache errors
-      const { data: punchRecords, error } = await supabase
-        .from('punch_records')
-        .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
-        .eq('user_id', record.user_id)
-        .gte('punch_time', record.punch_in_time)
-        .lte('punch_time', record.punch_out_time)
-        .order('punch_time', { ascending: true });
+      // Fetch punch records and the time card (for job and photos)
+      const [{ data: punchRecords, error }, { data: timeCard, error: tcError }] = await Promise.all([
+        supabase
+          .from('punch_records')
+          .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
+          .eq('user_id', record.user_id)
+          .gte('punch_time', record.punch_in_time)
+          .lte('punch_time', record.punch_out_time)
+          .order('punch_time', { ascending: true }),
+        supabase
+          .from('time_cards')
+          .select('job_id, punch_in_photo_url, punch_out_photo_url')
+          .eq('id', record.id)
+          .maybeSingle()
+      ]);
 
       if (error) throw error;
+      if (tcError) console.warn('Timecard fetch warning:', tcError);
 
       if (punchRecords && punchRecords.length > 0) {
-        // Compose data using already-known names from the record
-        const first = punchRecords[0];
+        // Prefer a punch that has a photo; otherwise use the last punch in the range
+        const withPhoto = punchRecords.find(p => !!p.photo_url);
+        const selected = withPhoto || punchRecords[punchRecords.length - 1];
+
+        // Decide the best available photo URL (prefer time card photos if present)
+        const bestPhotoUrl = (timeCard?.punch_out_photo_url as string | null)
+          || (timeCard?.punch_in_photo_url as string | null)
+          || (selected.photo_url as string | null)
+          || undefined;
+
+        // Fetch job site details to link the job pin to the job address
+        let job_latitude: number | undefined;
+        let job_longitude: number | undefined;
+        let job_address: string | undefined;
+        if (timeCard?.job_id) {
+          const { data: job } = await supabase
+            .from('jobs')
+            .select('address, latitude, longitude, name')
+            .eq('id', timeCard.job_id)
+            .maybeSingle();
+          job_latitude = job?.latitude ?? undefined;
+          job_longitude = job?.longitude ?? undefined;
+          job_address = job?.address ?? undefined;
+        }
+
         const punchData = {
-          id: first.id,
-          punch_time: first.punch_time,
-          punch_type: first.punch_type,
+          id: selected.id,
+          punch_time: selected.punch_time,
+          punch_type: selected.punch_type,
           employee_name: record.employee_name,
           job_name: record.job_name,
           cost_code: record.cost_code,
-          latitude: first.latitude,
-          longitude: first.longitude,
-          photo_url: first.photo_url,
-          ip_address: first.ip_address,
-          user_agent: first.user_agent,
-          notes: first.notes
+          latitude: selected.latitude,
+          longitude: selected.longitude,
+          photo_url: bestPhotoUrl,
+          ip_address: selected.ip_address,
+          user_agent: selected.user_agent,
+          notes: selected.notes,
+          job_latitude,
+          job_longitude,
+          job_address,
         };
 
         setSelectedPunch(punchData);

@@ -174,7 +174,7 @@ export default function PunchClockDashboard() {
       if (outJobIds.length) {
         const { data: outJobsData } = await supabase
           .from('jobs')
-          .select('id, name')
+          .select('id, name, latitude, longitude, address')
           .in('id', outJobIds);
         const jobMap: Record<string, Job> = {};
         (outJobsData || []).forEach(j => { jobMap[j.id] = j; });
