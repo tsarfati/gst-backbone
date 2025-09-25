@@ -348,6 +348,12 @@ export default function TimeSheets() {
     if (!deleteTimeCardId || !isManager) return;
 
     try {
+      // Delete related audit trail entries first to avoid FK constraint issues
+      await supabase
+        .from('time_card_audit_trail')
+        .delete()
+        .eq('time_card_id', deleteTimeCardId);
+
       const { error } = await supabase
         .from('time_cards')
         .delete()
@@ -362,11 +368,11 @@ export default function TimeSheets() {
         title: 'Success',
         description: 'Time card deleted successfully',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting time card:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete time card',
+        description: error?.message || 'Failed to delete time card',
         variant: 'destructive',
       });
     }

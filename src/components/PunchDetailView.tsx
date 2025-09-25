@@ -74,47 +74,10 @@ const mapContainer = useRef<HTMLDivElement>(null);
     if (!open || !punch || !mapContainer.current) return;
 
     (async () => {
-      if (!punch.latitude || !punch.longitude) return;
-
-      // Initialize map with Mapbox token
+      // Initialize Mapbox
       mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-      
-      if (!map.current) {
-        map.current = new mapboxgl.Map({
-          container: mapContainer.current,
-          style: 'mapbox://styles/mapbox/streets-v12',
-          center: [Number(punch.longitude), Number(punch.latitude)],
-          zoom: 15,
-          projection: 'mercator'
-        });
 
-        // Add navigation controls
-        map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-      }
-
-      // Add or update punch marker
-      if (marker.current) {
-        marker.current.remove();
-      }
-
-      marker.current = new mapboxgl.Marker({
-        color: punch.punch_type === 'punched_in' ? '#10b981' : '#ef4444'
-      })
-        .setLngLat([Number(punch.longitude), Number(punch.latitude)])
-        .setPopup(
-          new mapboxgl.Popup({ offset: 25 })
-            .setHTML(`
-              <div>
-                <strong>${punch.employee_name}</strong><br/>
-                <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
-                ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
-                ${format(new Date(punch.punch_time), 'PPpp')}
-              </div>
-            `)
-        )
-        .addTo(map.current);
-
-      // Add/update job site pin from job coords or by geocoding address
+      // Determine job site coordinates first (from coords or by geocoding address)
       let jobLngLat: [number, number] | null = null;
       if (punch.job_latitude && punch.job_longitude) {
         jobLngLat = [Number(punch.job_longitude), Number(punch.job_latitude)];
@@ -123,19 +86,69 @@ const mapContainer = useRef<HTMLDivElement>(null);
         if (geo) jobLngLat = [geo.longitude, geo.latitude];
       }
 
+      const hasPunchCoords = typeof punch.latitude === 'number' && typeof punch.longitude === 'number';
+      const punchLngLat: [number, number] | null = hasPunchCoords
+        ? [Number(punch.longitude), Number(punch.latitude)]
+        : null;
+
+      // If we have neither punch nor job coords, do nothing
+      if (!punchLngLat && !jobLngLat) return;
+
+      // Create map if needed using the best available center
+      if (!map.current) {
+        const center = (punchLngLat || jobLngLat)!;
+        map.current = new mapboxgl.Map({
+          container: mapContainer.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center,
+          zoom: 15,
+          projection: 'mercator'
+        });
+        map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      }
+
+      // Clear old markers
+      if (marker.current) {
+        marker.current.remove();
+        marker.current = null;
+      }
       if (jobMarker.current) {
         jobMarker.current.remove();
         jobMarker.current = null;
       }
 
+      // Add punch marker if available
+      if (punchLngLat && map.current) {
+        marker.current = new mapboxgl.Marker({
+          color: punch.punch_type === 'punched_in' ? '#10b981' : '#ef4444'
+        })
+          .setLngLat(punchLngLat)
+          .setPopup(
+            new mapboxgl.Popup({ offset: 25 })
+              .setHTML(`
+                <div>
+                  <strong>${punch.employee_name}</strong><br/>
+                  <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
+                  ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
+                  ${format(new Date(punch.punch_time), 'PPpp')}
+                </div>
+              `)
+          )
+          .addTo(map.current);
+      }
+
+      // Add job marker if available
       if (jobLngLat && map.current) {
         jobMarker.current = new mapboxgl.Marker({ color: '#3b82f6' })
           .setLngLat(jobLngLat)
           .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<div><strong>${punch.job_name}</strong><br/>Job Site</div>`))
           .addTo(map.current);
+      }
 
+      // Fit bounds if we have both points
+      if (map.current && punchLngLat && jobLngLat) {
         const bounds = new mapboxgl.LngLatBounds();
-        bounds.extend([Number(punch.longitude), Number(punch.latitude)]);
+        bounds.extend(punchLngLat);
         bounds.extend(jobLngLat);
         map.current.fitBounds(bounds, { padding: 40, maxZoom: 16 });
       }
@@ -265,7 +278,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
           </Card>
 
           {/* Location Information */}
-          {punch.latitude && punch.longitude && (
+          {((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

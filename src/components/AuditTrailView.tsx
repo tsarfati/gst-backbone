@@ -54,28 +54,34 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
         return;
       }
 
-      // Manually fetch profile names for changed_by users
+      // Manually fetch display names for changed_by users from both profiles and PIN employees
       const changedByIds = Array.from(new Set(data?.map(entry => entry.changed_by).filter(Boolean))) as string[];
-      let profilesMap: Record<string, { display_name: string }> = {};
+      let nameMap: Record<string, { display_name: string }> = {};
 
       if (changedByIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('user_id, display_name')
-          .in('user_id', changedByIds);
+        const [profilesRes, pinRes] = await Promise.all([
+          supabase.from('profiles').select('user_id, display_name').in('user_id', changedByIds),
+          supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', changedByIds)
+        ]);
 
-        if (profilesData) {
-          profilesMap = profilesData.reduce((acc, profile) => {
-            acc[profile.user_id] = { display_name: profile.display_name || 'Unknown User' };
-            return acc;
-          }, {} as Record<string, { display_name: string }>);
+        if (profilesRes.data) {
+          profilesRes.data.forEach((p) => {
+            nameMap[p.user_id] = { display_name: p.display_name || 'Unknown User' };
+          });
+        }
+        if (pinRes.data) {
+          pinRes.data.forEach((p) => {
+            if (!nameMap[p.id]) {
+              nameMap[p.id] = { display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User' };
+            }
+          });
         }
       }
 
-      // Combine audit entries with profile data
+      // Combine audit entries with name data
       const entriesWithProfiles = (data || []).map(entry => ({
         ...entry,
-        profiles: profilesMap[entry.changed_by] || { display_name: 'Unknown User' }
+        profiles: nameMap[entry.changed_by] || { display_name: 'Unknown User' }
       }));
 
       setAuditEntries(entriesWithProfiles);
