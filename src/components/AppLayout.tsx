@@ -89,7 +89,7 @@ const navigationCategories = [
     title: "Time Tracking",
     items: [
       { name: "Punch Clock Dashboard", href: "/punch-clock/dashboard", icon: LayoutDashboard, menuKey: "punch-clock-dashboard" },
-      { name: "Punch Clock", href: "/time-tracking", icon: Timer, menuKey: "time-tracking" },
+      
       { name: "Timesheets", href: "/time-sheets", icon: Calendar, menuKey: "timesheets" },
       { name: "Time Card Reports", href: "/punch-clock/reports", icon: TrendingUp, menuKey: "timecard-reports" },
       { name: "Punch Clock Settings", href: "/punch-clock/settings", icon: Settings, menuKey: "punch-clock-settings" },

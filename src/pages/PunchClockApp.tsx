@@ -654,7 +654,6 @@ function PunchClockApp() {
 
       setPhotoBlob(null);
       setPunchOutNote('');
-      loadCurrentPunchStatus();
 
     } catch (error) {
       console.error('Error with punch:', error);
@@ -701,8 +700,6 @@ function PunchClockApp() {
       });
 
     if (statusError) throw statusError;
-
-    // Don't show individual success toast here as it's handled by the main function
   };
 
   const punchOut = async (photoUrl: string | null) => {
@@ -734,8 +731,6 @@ function PunchClockApp() {
       .eq('id', currentPunch.id);
 
     if (statusError) throw statusError;
-
-    // Don't show individual success toast here as it's handled by the main function
   };
 
   const updatePinEmployeeAvatar = async (photoUrl: string) => {

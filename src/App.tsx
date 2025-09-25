@@ -35,7 +35,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AllEmployees from "./pages/AllEmployees";
 import AddEmployee from "./pages/AddEmployee";
-import TimeTracking from "./pages/TimeTracking";
+
 import TimeSheets from "./pages/TimeSheets";
 import TimecardReports from "./pages/TimecardReports";
 import PunchClockSettings from "./pages/PunchClockSettings";
@@ -184,8 +184,8 @@ function AuthenticatedRoutes() {
                 <Route path="manual-punch-out" element={<ManualPunchOut />} />
                 <Route path="manual-time-entry" element={<ManualTimeEntry />} />
                 <Route path="add-employee" element={<AddEmployee />} />
-                <Route path="time-tracking" element={<TimeTracking />} />
-                <Route path="punch-clock" element={<TimeTracking />} />
+                <Route path="time-tracking" element={<PunchClockApp />} />
+                <Route path="punch-clock" element={<PunchClockApp />} />
                 <Route path="time-sheets" element={<TimeSheets />} />
                 <Route path="punch-clock/timesheets" element={<TimeSheets />} />
                 <Route path="punch-clock/dashboard" element={
