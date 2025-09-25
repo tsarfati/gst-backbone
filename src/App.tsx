@@ -46,6 +46,7 @@ import AllTasks from "./pages/AllTasks";
 import ProjectTasks from "./pages/ProjectTasks";
 import TaskDeadlines from "./pages/TaskDeadlines";
 import BillDetails from "./pages/BillDetails";
+import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentReports from "./pages/PaymentReports";
 import AddBill from "./pages/AddBill";
@@ -215,6 +216,11 @@ function AuthenticatedRoutes() {
                 <Route path="bills/:id" element={
                   <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                     <BillDetails />
+                  </RoleGuard>
+                } />
+                <Route path="bills/:id/edit" element={
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <BillEdit />
                   </RoleGuard>
                 } />
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
