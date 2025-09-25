@@ -320,9 +320,11 @@ export default function AddEmployee() {
 
             <div className="space-y-2">
               <Label htmlFor="groupId">Employee Group</Label>
-              <Select value={formData.groupId} onValueChange={(value) => {
+              <Select value={formData.groupId || "no_group"} onValueChange={(value) => {
                 if (value === 'create_new') {
                   setShowCreateGroup(true);
+                } else if (value === 'no_group') {
+                  handleInputChange('groupId', '');
                 } else {
                   handleInputChange('groupId', value);
                 }
@@ -331,7 +333,7 @@ export default function AddEmployee() {
                   <SelectValue placeholder="Select a group (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Group</SelectItem>
+                  <SelectItem value="no_group">No Group</SelectItem>
                   {groups.map((group) => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name}
