@@ -48,7 +48,7 @@ export default function BillEdit() {
     due_date: '',
     description: '',
     payment_terms: '',
-    status: ''
+    bill_category: 'one_time'
   });
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function BillEdit() {
         due_date: billData.due_date || '',
         description: billData.description || '',
         payment_terms: billData.payment_terms || '',
-        status: billData.status || 'pending_approval'
+        bill_category: billData.bill_category || 'one_time'
       });
       
     } catch (error) {
@@ -242,16 +242,16 @@ export default function BillEdit() {
             </div>
 
             <div>
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+              <Label htmlFor="bill_category">Bill Category</Label>
+              <Select value={formData.bill_category} onValueChange={(value) => setFormData({...formData, bill_category: value})}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Select bill category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending_approval">Pending Approval</SelectItem>
-                  <SelectItem value="pending_payment">Pending Payment</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
+                  <SelectItem value="reimbursable">Reimbursable</SelectItem>
+                  <SelectItem value="subcontract">Subcontract Payment</SelectItem>
+                  <SelectItem value="purchase_order">Purchase Order</SelectItem>
+                  <SelectItem value="one_time">One Time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
