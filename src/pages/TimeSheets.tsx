@@ -96,22 +96,43 @@ export default function TimeSheets() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, display_name')
-        .order('first_name');
+      // Load both regular users and PIN employees
+      const [profilesResponse, pinEmployeesResponse] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, display_name')
+          .order('first_name'),
+        supabase
+          .from('pin_employees')
+          .select('id, first_name, last_name, display_name')
+          .eq('is_active', true)
+          .order('first_name')
+      ]);
 
-      if (error) {
-        console.error('Error loading employees:', error);
-        return;
+      const employeeOptions = [];
+
+      // Add regular users
+      if (profilesResponse.data) {
+        employeeOptions.push(...profilesResponse.data.map(emp => ({
+          id: emp.user_id,
+          name: emp.display_name || 
+                (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
+                 emp.first_name || emp.last_name || 'Unknown Employee')
+        })));
       }
 
-      const employeeOptions = (data || []).map(emp => ({
-        id: emp.user_id,
-        name: emp.display_name || 
-              (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
-               emp.first_name || emp.last_name || 'Unknown Employee')
-      }));
+      // Add PIN employees
+      if (pinEmployeesResponse.data) {
+        employeeOptions.push(...pinEmployeesResponse.data.map(emp => ({
+          id: emp.id,
+          name: emp.display_name || 
+                (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
+                 emp.first_name || emp.last_name || 'Unknown Employee')
+        })));
+      }
+
+      // Sort combined list by name
+      employeeOptions.sort((a, b) => a.name.localeCompare(b.name));
 
       setEmployees(employeeOptions);
     } catch (error) {
@@ -160,11 +181,15 @@ export default function TimeSheets() {
       const costCodeIds = [...new Set((timeCardData || []).map(tc => tc.cost_code_id).filter(Boolean))];
 
       // Fetch related data separately
-      const [profilesData, jobsData, costCodesData] = await Promise.all([
+      const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase
           .from('profiles')
           .select('user_id, first_name, last_name, display_name')
           .in('user_id', userIds) : Promise.resolve({ data: [] }),
+        userIds.length > 0 ? supabase
+          .from('pin_employees')
+          .select('id, first_name, last_name, display_name')
+          .in('id', userIds) : Promise.resolve({ data: [] }),
         jobIds.length > 0 ? supabase
           .from('jobs')
           .select('id, name')
@@ -177,14 +202,19 @@ export default function TimeSheets() {
 
       // Create lookup maps
       const profilesMap = new Map((profilesData.data || []).map(p => [p.user_id, p]));
+      const pinEmployeesMap = new Map((pinEmployeesData.data || []).map(p => [p.id, p]));
       const jobsMap = new Map((jobsData.data || []).map(j => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
 
       // Transform data with relationships
       const transformedData: TimeCard[] = (timeCardData || []).map(tc => {
         const profile = profilesMap.get(tc.user_id);
+        const pinEmployee = pinEmployeesMap.get(tc.user_id);
         const job = jobsMap.get(tc.job_id);
         const costCode = costCodesMap.get(tc.cost_code_id);
+
+        // Use either profile or PIN employee data
+        const employeeData = profile || pinEmployee;
 
         return {
           ...tc,
@@ -192,10 +222,10 @@ export default function TimeSheets() {
           punch_out_photo_url: tc.punch_out_photo_url,
           jobs: job ? { name: job.name } : null,
           cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
-          profiles: profile ? {
-            first_name: profile.first_name,
-            last_name: profile.last_name,
-            display_name: profile.display_name
+          profiles: employeeData ? {
+            first_name: employeeData.first_name,
+            last_name: employeeData.last_name,
+            display_name: employeeData.display_name
           } : null
         };
       });
