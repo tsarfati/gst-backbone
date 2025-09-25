@@ -150,15 +150,47 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         return publicData?.publicUrl || null;
       };
 
+      // Helper: find closest photo in 'punch-photos' storage for a user and target time
+      const findPhotoInStorage = async (userId: string, targetIso: string) => {
+        try {
+          // Many files are under a folder also called 'punch-photos'
+          const { data: listA } = await supabase.storage
+            .from('punch-photos')
+            .list('punch-photos', { limit: 1000, search: userId });
+
+          const candidates = (listA || []).filter((f: any) => f.name?.startsWith(`${userId}-`));
+          if (candidates.length === 0) return null;
+
+          const target = new Date(targetIso).getTime();
+          let best: any = null;
+          let bestDelta = Number.POSITIVE_INFINITY;
+          for (const f of candidates) {
+            const m = f.name.match(/-(\d+)\./);
+            const ts = m ? parseInt(m[1], 10) : NaN;
+            if (!isNaN(ts)) {
+              const delta = Math.abs(ts - target);
+              if (delta < bestDelta) {
+                best = f;
+                bestDelta = delta;
+              }
+            }
+          }
+          return best ? `punch-photos/${best.name}` : null;
+        } catch (e) {
+          console.warn('Storage fallback failed:', e);
+          return null;
+        }
+      };
+
       // Use profile data from either profiles or pin_employees
       const employeeProfile = profileData.data || pinEmployeeData.data;
 
-      const data = {
+      // Build initial object with any punch_record links
+      let data: any = {
         ...timeCardData,
         profiles: employeeProfile,
         jobs: jobData.data,
         cost_codes: costCodeData.data,
-        // Ensure coordinates are numbers and backfill from punch records
         punch_in_location_lat: Number(timeCardData.punch_in_location_lat) || Number(punchIn?.latitude) || null,
         punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,
         punch_out_location_lat: Number(timeCardData.punch_out_location_lat) || Number(punchOut?.latitude) || null,
@@ -166,6 +198,30 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         punch_in_photo_url: normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
         punch_out_photo_url: normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
       };
+
+      // If photos still missing, try storage fallback by matching userId + nearest timestamp
+      if (!data.punch_in_photo_url) {
+        const path = await findPhotoInStorage(timeCardData.user_id, timeCardData.punch_in_time);
+        if (path) data.punch_in_photo_url = normalizePhotoUrl(path);
+      }
+      if (!data.punch_out_photo_url && timeCardData.punch_out_time) {
+        const path = await findPhotoInStorage(timeCardData.user_id, timeCardData.punch_out_time);
+        if (path) data.punch_out_photo_url = normalizePhotoUrl(path);
+      }
+
+      // Persist backfilled links so future loads are instant
+      if (
+        data.punch_in_photo_url !== (timeCardData.punch_in_photo_url || null) ||
+        data.punch_out_photo_url !== (timeCardData.punch_out_photo_url || null)
+      ) {
+        await supabase
+          .from('time_cards')
+          .update({
+            punch_in_photo_url: data.punch_in_photo_url,
+            punch_out_photo_url: data.punch_out_photo_url,
+          })
+          .eq('id', timeCardId);
+      }
 
       console.log('Final time card data:', data);
       setTimeCard(data as any);

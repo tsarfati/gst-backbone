@@ -307,6 +307,44 @@ export default function TimeSheets() {
           punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
         };
 
+        // Storage fallback if photos are still missing
+        const normalize = (path?: string | null) => {
+          if (!path) return null;
+          if (path.startsWith('http')) return path;
+          const { data: pub } = supabase.storage.from('punch-photos').getPublicUrl(path);
+          return pub?.publicUrl || null;
+        };
+        const findClosestInStorage = async (userId: string, targetIso: string) => {
+          try {
+            const { data: files } = await supabase.storage.from('punch-photos').list('punch-photos', { limit: 1000, search: userId });
+            const list = (files || []).filter((f: any) => f.name?.startsWith(`${userId}-`));
+            if (list.length === 0) return null;
+            const target = new Date(targetIso).getTime();
+            let best: any = null, bestDelta = Number.POSITIVE_INFINITY;
+            for (const f of list) {
+              const m = f.name.match(/-(\d+)\./);
+              const ts = m ? parseInt(m[1], 10) : NaN;
+              if (!isNaN(ts)) {
+                const d = Math.abs(ts - target);
+                if (d < bestDelta) { best = f; bestDelta = d; }
+              }
+            }
+            return best ? `punch-photos/${best.name}` : null;
+          } catch (e) {
+            console.warn('Storage fallback failed:', e);
+            return null;
+          }
+        };
+
+        if (!updated.punch_in_photo_url) {
+          const path = await findClosestInStorage(tc.user_id, tc.punch_in_time);
+          if (path) updated.punch_in_photo_url = normalize(path);
+        }
+        if (!updated.punch_out_photo_url && tc.punch_out_time) {
+          const path = await findClosestInStorage(tc.user_id, tc.punch_out_time);
+          if (path) updated.punch_out_photo_url = normalize(path);
+        }
+
         // Persist backfilled fields so photos/maps stay linked next load
         if (
           (needsInPhoto && updated.punch_in_photo_url) ||
