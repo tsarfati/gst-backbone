@@ -30,29 +30,33 @@ import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case "paid":
-      return "success";
-    case "pending_approval": 
-      return "warning";
-    case "pending_payment":
-      return "default";
-    case "overdue":
-      return "destructive";
-    default:
-      return "default";
-  }
-};
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'approved':
+      case 'paid':
+        return 'default';
+      case 'pending_approval':
+        return 'warning';
+      case 'pending':
+        return 'secondary';
+      case 'rejected':
+        return 'destructive';
+      default:
+        return 'outline';
+    }
+  };
 
 const getStatusIcon = (status: string) => {
   switch (status) {
+    case "approved":
     case "paid":
       return CheckCircle;
+    case "pending_approval":
+      return AlertTriangle;
     case "pending":
       return Clock;
-    case "overdue":
-      return AlertTriangle;
+    case "rejected":
+      return Clock;
     default:
       return FileText;
   }
@@ -243,7 +247,7 @@ export default function BillDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate(`/bills/${id}/edit`)}>
+          <Button onClick={() => navigate(`/bills/${id}/edit`)} variant="secondary">
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>
@@ -402,9 +406,9 @@ export default function BillDetails() {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-muted-foreground">Bill Category</p>
+                  <p className="text-sm text-muted-foreground">Reimbursement Payment</p>
                   <p className="font-medium">
-                    {bill?.bill_category?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'One Time'}
+                    {bill?.is_reimbursement ? 'Yes' : 'No'}
                   </p>
                 </div>
                 {bill?.subcontract_id && (

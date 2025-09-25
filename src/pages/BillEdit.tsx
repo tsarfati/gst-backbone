@@ -6,36 +6,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
 interface Vendor {
   id: string;
   name: string;
 }
+
 interface Job {
   id: string;
   name: string;
 }
+
 interface CostCode {
   id: string;
   code: string;
   description: string;
+  job_id?: string;
 }
+
 export default function BillEdit() {
-  const {
-    id
-  } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+  
   const [bill, setBill] = useState<any>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
+  const [allCostCodes, setAllCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
   const [formData, setFormData] = useState({
     vendor_id: '',
     job_id: '',
@@ -46,33 +51,48 @@ export default function BillEdit() {
     due_date: '',
     description: '',
     payment_terms: '',
-    bill_category: 'one_time'
+    is_subcontract_invoice: false,
+    is_reimbursement: false
   });
+
   useEffect(() => {
     if (id) {
       loadBillAndOptions();
     }
   }, [id]);
+
   const loadBillAndOptions = async () => {
     try {
       setLoading(true);
 
       // Load bill data
-      const {
-        data: billData,
-        error: billError
-      } = await supabase.from('invoices').select('*').eq('id', id).single();
+      const { data: billData, error: billError } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('id', id)
+        .single();
+
       if (billError) throw billError;
 
       // Load vendors, jobs, and cost codes
-      const [vendorsRes, jobsRes, costCodesRes] = await Promise.all([supabase.from('vendors').select('id, name, logo_url').eq('is_active', true), supabase.from('jobs').select('id, name'), supabase.from('cost_codes').select('id, code, description').eq('is_active', true)]);
-      if (vendorsRes.error) throw vendorsRes.error;
-      if (jobsRes.error) throw jobsRes.error;
-      if (costCodesRes.error) throw costCodesRes.error;
+      const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
+        supabase.from('vendors').select('id, name').order('name'),
+        supabase.from('jobs').select('id, name').order('name'),
+        supabase.from('cost_codes').select('id, code, description, job_id').eq('is_active', true).order('code')
+      ]);
+
+      if (vendorsData.data) setVendors(vendorsData.data);
+      if (jobsData.data) setJobs(jobsData.data);
+      if (allCostCodesData.data) {
+        setAllCostCodes(allCostCodesData.data);
+        // Filter cost codes for the current job
+        const jobCostCodes = allCostCodesData.data.filter(cc => 
+          !cc.job_id || cc.job_id === billData.job_id
+        );
+        setCostCodes(jobCostCodes);
+      }
+
       setBill(billData);
-      setVendors(vendorsRes.data || []);
-      setJobs(jobsRes.data || []);
-      setCostCodes(costCodesRes.data || []);
 
       // Populate form data
       setFormData({
@@ -85,56 +105,91 @@ export default function BillEdit() {
         due_date: billData.due_date || '',
         description: billData.description || '',
         payment_terms: billData.payment_terms || '',
-        bill_category: billData.bill_category || 'one_time'
+        is_subcontract_invoice: billData.is_subcontract_invoice || false,
+        is_reimbursement: billData.is_reimbursement || false
       });
     } catch (error) {
       console.error('Error loading bill:', error);
       toast({
         title: "Error",
         description: "Failed to load bill details",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  const handleInputChange = (field: string, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Update cost codes when job changes
+    if (field === 'job_id') {
+      const jobCostCodes = allCostCodes.filter(cc => 
+        !cc.job_id || cc.job_id === value
+      );
+      setCostCodes(jobCostCodes);
+      // Clear cost code selection if it's no longer valid
+      if (formData.cost_code_id && !jobCostCodes.find(cc => cc.id === formData.cost_code_id)) {
+        setFormData(prev => ({ ...prev, cost_code_id: '' }));
+      }
+    }
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
+      
       const updateData = {
-        ...formData,
-        amount: parseFloat(formData.amount) || 0,
         vendor_id: formData.vendor_id || null,
         job_id: formData.job_id || null,
-        cost_code_id: formData.cost_code_id || null
+        cost_code_id: formData.cost_code_id || null,
+        invoice_number: formData.invoice_number,
+        amount: parseFloat(formData.amount) || 0,
+        issue_date: formData.issue_date,
+        due_date: formData.due_date,
+        description: formData.description,
+        payment_terms: formData.payment_terms,
+        is_subcontract_invoice: formData.is_subcontract_invoice,
+        is_reimbursement: formData.is_reimbursement
       };
-      const {
-        error
-      } = await supabase.from('invoices').update(updateData).eq('id', id);
+
+      const { error } = await supabase
+        .from('invoices')
+        .update(updateData)
+        .eq('id', id);
+
       if (error) throw error;
+
       toast({
         title: "Success",
-        description: "Bill updated successfully"
+        description: "Bill updated successfully",
       });
+      
       navigate(`/bills/${id}`);
     } catch (error) {
       console.error('Error saving bill:', error);
       toast({
         title: "Error",
         description: "Failed to save bill",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setSaving(false);
     }
   };
+
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">
+    return (
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
-      </div>;
+      </div>
+    );
   }
+
   if (!bill) {
-    return <div className="p-6 max-w-4xl mx-auto">
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/bills")}>
             <ArrowLeft className="h-4 w-4" />
@@ -144,9 +199,12 @@ export default function BillEdit() {
             <p className="text-muted-foreground">The requested bill could not be found</p>
           </div>
         </div>
-      </div>;
+      </div>
+    );
   }
-  return <div className="p-6 max-w-4xl mx-auto">
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -161,7 +219,11 @@ export default function BillEdit() {
           </div>
         </div>
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          {saving ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4 mr-2" />
+          )}
           Save Changes
         </Button>
       </div>
@@ -172,115 +234,128 @@ export default function BillEdit() {
           <CardHeader>
             <CardTitle>Bill Information</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="vendor">Vendor</Label>
-              <Select value={formData.vendor_id} onValueChange={value => setFormData({
-              ...formData,
-              vendor_id: value
-            })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map(vendor => <SelectItem key={vendor.id} value={vendor.id}>{vendor.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="invoice_number">Invoice Number</Label>
-              <Input id="invoice_number" value={formData.invoice_number} onChange={e => setFormData({
-              ...formData,
-              invoice_number: e.target.value
-            })} placeholder="Enter invoice number" />
-            </div>
-
-            <div>
-              <Label htmlFor="amount">Amount</Label>
-              <Input id="amount" type="number" step="0.01" value={formData.amount} onChange={e => setFormData({
-              ...formData,
-              amount: e.target.value
-            })} placeholder="0.00" />
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vendor">Vendor</Label>
+                <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a vendor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  value={formData.amount}
+                  onChange={(e) => handleInputChange("amount", e.target.value)}
+                  placeholder="0.00"
+                  type="number"
+                  step="0.01"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="bill_category">Bill Category</Label>
-              <Select value={formData.bill_category} onValueChange={value => setFormData({
-              ...formData,
-              bill_category: value
-            })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select bill category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="reimbursable">Reimbursable</SelectItem>
-                </SelectContent>
-              </Select>
-              
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="job">Job</Label>
+                <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cost_code">Cost Code</Label>
+                <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select cost code (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {costCodes.map((code) => (
+                      <SelectItem key={code.id} value={code.id}>
+                        {code.code} - {code.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="issue_date">Issue Date</Label>
-              <Input id="issue_date" type="date" value={formData.issue_date} onChange={e => setFormData({
-              ...formData,
-              issue_date: e.target.value
-            })} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoice_number">Invoice Number</Label>
+                <Input
+                  id="invoice_number"
+                  value={formData.invoice_number}
+                  onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                  placeholder="Enter invoice number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="payment_terms">Payment Terms (days)</Label>
+                <Input
+                  id="payment_terms"
+                  value={formData.payment_terms}
+                  onChange={(e) => handleInputChange("payment_terms", e.target.value)}
+                  placeholder="30"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="due_date">Due Date</Label>
-              <Input id="due_date" type="date" value={formData.due_date} onChange={e => setFormData({
-              ...formData,
-              due_date: e.target.value
-            })} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="issue_date">Issue Date</Label>
+                <Input
+                  id="issue_date"
+                  type="date"
+                  value={formData.issue_date}
+                  onChange={(e) => handleInputChange("issue_date", e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="due_date">Due Date</Label>
+                <Input
+                  id="due_date"
+                  type="date"
+                  value={formData.due_date}
+                  onChange={(e) => handleInputChange("due_date", e.target.value)}
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="payment_terms">Payment Terms (days)</Label>
-              <Input id="payment_terms" value={formData.payment_terms} onChange={e => setFormData({
-              ...formData,
-              payment_terms: e.target.value
-            })} placeholder="30" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Project Information</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="job">Job</Label>
-              <Select value={formData.job_id} onValueChange={value => setFormData({
-              ...formData,
-              job_id: value
-            })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select job" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jobs.map(job => <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="cost_code">Cost Code</Label>
-              <Select value={formData.cost_code_id} onValueChange={value => setFormData({
-              ...formData,
-              cost_code_id: value
-            })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select cost code" />
-                </SelectTrigger>
-                <SelectContent>
-                  {costCodes.map(costCode => <SelectItem key={costCode.id} value={costCode.id}>
-                      {costCode.code} - {costCode.description}
-                    </SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_subcontract_invoice"
+                  checked={formData.is_subcontract_invoice}
+                  onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
+                />
+                <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_reimbursement"
+                  checked={formData.is_reimbursement}
+                  onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                />
+                <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -290,12 +365,15 @@ export default function BillEdit() {
             <CardTitle>Description</CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea value={formData.description} onChange={e => setFormData({
-            ...formData,
-            description: e.target.value
-          })} placeholder="Enter bill description" rows={4} />
+            <Textarea
+              value={formData.description}
+              onChange={(e) => handleInputChange("description", e.target.value)}
+              placeholder="Enter bill description"
+              rows={4}
+            />
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 }

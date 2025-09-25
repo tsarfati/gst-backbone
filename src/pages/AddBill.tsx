@@ -32,6 +32,7 @@ export default function AddBill() {
     payment_terms: "",
     description: "",
     is_subcontract_invoice: false,
+    is_reimbursement: false,
     use_terms: true // toggle between due date and terms
   });
   
@@ -221,6 +222,7 @@ export default function AddBill() {
           payment_terms: formData.use_terms ? formData.payment_terms : null,
           description: formData.description,
           is_subcontract_invoice: formData.is_subcontract_invoice,
+          is_reimbursement: formData.is_reimbursement,
           created_by: user.data.user.id
         });
 
@@ -483,6 +485,14 @@ export default function AddBill() {
                   onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
                 />
                 <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_reimbursement"
+                  checked={formData.is_reimbursement}
+                  onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                />
+                <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
               </div>
 
               {formData.is_subcontract_invoice && (
