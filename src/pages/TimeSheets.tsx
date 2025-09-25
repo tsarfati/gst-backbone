@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera } from 'lucide-react';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -30,8 +30,12 @@ interface TimeCard {
   requires_approval?: boolean;
   distance_warning?: boolean;
   created_via_punch_clock?: boolean;
-  punch_in_photo_url?: string;
-  punch_out_photo_url?: string;
+  punch_in_photo_url?: string | null;
+  punch_out_photo_url?: string | null;
+  punch_in_location_lat?: number | null;
+  punch_in_location_lng?: number | null;
+  punch_out_location_lat?: number | null;
+  punch_out_location_lng?: number | null;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
@@ -54,6 +58,10 @@ type SupabaseTimeCard = {
   notes?: string | null;
   punch_in_photo_url?: string | null;
   punch_out_photo_url?: string | null;
+  punch_in_location_lat?: number | null;
+  punch_in_location_lng?: number | null;
+  punch_out_location_lat?: number | null;
+  punch_out_location_lng?: number | null;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
@@ -627,6 +635,7 @@ export default function TimeSheets() {
                         <SortableHeader field="overtime">Overtime</SortableHeader>
                         <SortableHeader field="status">Status</SortableHeader>
                         <TableHead>Photos</TableHead>
+                        <TableHead>Location</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -695,10 +704,40 @@ export default function TimeSheets() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <PhotoDisplay url={timeCard.punch_in_photo_url} type="in" />
-                              <PhotoDisplay url={timeCard.punch_out_photo_url} type="out" />
+                              <PhotoDisplay url={timeCard.punch_in_photo_url || undefined} type="in" />
+                              <PhotoDisplay url={timeCard.punch_out_photo_url || undefined} type="out" />
                               {!timeCard.punch_in_photo_url && !timeCard.punch_out_photo_url && (
                                 <span className="text-muted-foreground text-sm">No photos</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
+                                <a
+                                  href={`https://maps.google.com/?q=${timeCard.punch_in_location_lat},${timeCard.punch_in_location_lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline text-primary"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  In
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                              {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
+                                <a
+                                  href={`https://maps.google.com/?q=${timeCard.punch_out_location_lat},${timeCard.punch_out_location_lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline text-primary"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Out
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
                               )}
                             </div>
                           </TableCell>
@@ -820,6 +859,31 @@ export default function TimeSheets() {
                         </div>
                       </div>
                     </div>
+
+                     {/* Locations */}
+                     {(timeCard.punch_in_location_lat && timeCard.punch_in_location_lng) || (timeCard.punch_out_location_lat && timeCard.punch_out_location_lng) ? (
+                       <div className="mb-4">
+                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Locations</h4>
+                         <div className="flex gap-4 text-sm">
+                           <div className="flex items-center gap-1">
+                             <MapPin className="h-4 w-4" />
+                             {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
+                               <a href={`https://maps.google.com/?q=${timeCard.punch_in_location_lat},${timeCard.punch_in_location_lng}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">In</a>
+                             ) : (
+                               <span className="text-muted-foreground">In: -</span>
+                             )}
+                           </div>
+                           <div className="flex items-center gap-1">
+                             <MapPin className="h-4 w-4" />
+                             {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
+                               <a href={`https://maps.google.com/?q=${timeCard.punch_out_location_lat},${timeCard.punch_out_location_lng}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">Out</a>
+                             ) : (
+                               <span className="text-muted-foreground">Out: -</span>
+                             )}
+                           </div>
+                         </div>
+                       </div>
+                     ) : null}
 
                      {timeCard.notes && (
                        <div className="mb-4">
