@@ -845,6 +845,87 @@ export type Database = {
           },
         ]
       }
+      job_settings: {
+        Row: {
+          allow_status_change_roles: string[]
+          auto_assign_pm_role: string | null
+          auto_create_default_cost_codes: boolean
+          budget_approval_roles: string[]
+          budget_approval_threshold: number
+          budget_change_approval_percentage: number | null
+          budget_require_approval: boolean
+          company_id: string
+          created_at: string
+          created_by: string
+          default_cost_codes: string[] | null
+          default_job_status: string | null
+          id: string
+          overtime_approval_required: boolean
+          overtime_approval_threshold: number | null
+          require_budget: boolean
+          require_completion_approval: boolean
+          require_cost_codes: boolean
+          require_job_description: boolean
+          require_project_manager: boolean
+          require_start_date: boolean
+          require_timecard_approval: boolean
+          timecard_approval_roles: string[]
+          updated_at: string
+        }
+        Insert: {
+          allow_status_change_roles?: string[]
+          auto_assign_pm_role?: string | null
+          auto_create_default_cost_codes?: boolean
+          budget_approval_roles?: string[]
+          budget_approval_threshold?: number
+          budget_change_approval_percentage?: number | null
+          budget_require_approval?: boolean
+          company_id: string
+          created_at?: string
+          created_by: string
+          default_cost_codes?: string[] | null
+          default_job_status?: string | null
+          id?: string
+          overtime_approval_required?: boolean
+          overtime_approval_threshold?: number | null
+          require_budget?: boolean
+          require_completion_approval?: boolean
+          require_cost_codes?: boolean
+          require_job_description?: boolean
+          require_project_manager?: boolean
+          require_start_date?: boolean
+          require_timecard_approval?: boolean
+          timecard_approval_roles?: string[]
+          updated_at?: string
+        }
+        Update: {
+          allow_status_change_roles?: string[]
+          auto_assign_pm_role?: string | null
+          auto_create_default_cost_codes?: boolean
+          budget_approval_roles?: string[]
+          budget_approval_threshold?: number
+          budget_change_approval_percentage?: number | null
+          budget_require_approval?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          default_cost_codes?: string[] | null
+          default_job_status?: string | null
+          id?: string
+          overtime_approval_required?: boolean
+          overtime_approval_threshold?: number | null
+          require_budget?: boolean
+          require_completion_approval?: boolean
+          require_cost_codes?: boolean
+          require_job_description?: boolean
+          require_project_manager?: boolean
+          require_start_date?: boolean
+          require_timecard_approval?: boolean
+          timecard_approval_roles?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           address: string | null
@@ -1160,6 +1241,78 @@ export type Database = {
           title?: string
           type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      payables_settings: {
+        Row: {
+          bills_approval_roles: string[]
+          bills_auto_approve_roles: string[]
+          bills_max_auto_approve_amount: number | null
+          bills_require_approval: boolean
+          company_id: string
+          created_at: string
+          created_by: string
+          default_payment_method: string | null
+          default_payment_terms: string | null
+          id: string
+          notify_on_bill_submission: boolean
+          notify_on_payment_approval: boolean
+          payment_approval_roles: string[]
+          payment_approval_threshold: number
+          payment_auto_approve_roles: string[]
+          payment_dual_approval_roles: string[]
+          payment_dual_approval_threshold: number | null
+          payments_require_approval: boolean
+          require_receipt_attachment: boolean
+          send_payment_confirmations: boolean
+          updated_at: string
+        }
+        Insert: {
+          bills_approval_roles?: string[]
+          bills_auto_approve_roles?: string[]
+          bills_max_auto_approve_amount?: number | null
+          bills_require_approval?: boolean
+          company_id: string
+          created_at?: string
+          created_by: string
+          default_payment_method?: string | null
+          default_payment_terms?: string | null
+          id?: string
+          notify_on_bill_submission?: boolean
+          notify_on_payment_approval?: boolean
+          payment_approval_roles?: string[]
+          payment_approval_threshold?: number
+          payment_auto_approve_roles?: string[]
+          payment_dual_approval_roles?: string[]
+          payment_dual_approval_threshold?: number | null
+          payments_require_approval?: boolean
+          require_receipt_attachment?: boolean
+          send_payment_confirmations?: boolean
+          updated_at?: string
+        }
+        Update: {
+          bills_approval_roles?: string[]
+          bills_auto_approve_roles?: string[]
+          bills_max_auto_approve_amount?: number | null
+          bills_require_approval?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          default_payment_method?: string | null
+          default_payment_terms?: string | null
+          id?: string
+          notify_on_bill_submission?: boolean
+          notify_on_payment_approval?: boolean
+          payment_approval_roles?: string[]
+          payment_approval_threshold?: number
+          payment_auto_approve_roles?: string[]
+          payment_dual_approval_roles?: string[]
+          payment_dual_approval_threshold?: number | null
+          payments_require_approval?: boolean
+          require_receipt_attachment?: boolean
+          send_payment_confirmations?: boolean
+          updated_at?: string
         }
         Relationships: []
       }
