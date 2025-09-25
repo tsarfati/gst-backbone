@@ -686,7 +686,7 @@ function PunchClockApp() {
                     <SelectValue placeholder="Choose a job" />
                   </SelectTrigger>
                   <SelectContent>
-                    {jobs.map((job) => (
+                    {jobs.filter(job => job.id && job.id.trim()).map((job) => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name}
                       </SelectItem>
@@ -702,7 +702,7 @@ function PunchClockApp() {
                     <SelectValue placeholder="Choose a cost code" />
                   </SelectTrigger>
                   <SelectContent>
-                    {costCodes.map((code) => (
+                    {costCodes.filter(code => code.id && code.id.trim()).map((code) => (
                       <SelectItem key={code.id} value={code.id}>
                         {code.code} - {code.description}
                       </SelectItem>
