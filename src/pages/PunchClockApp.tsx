@@ -64,11 +64,15 @@ export default function PunchClockApp() {
     loadLoginSettings();
   }, []);
 
-  // Redirect unauthenticated users directly to PIN login
+  // Redirect unauthenticated users directly to PIN login (with delay to allow auth context to initialize)
   useEffect(() => {
-    if (!user && !isPinAuthenticated) {
-      window.location.replace('/punch-clock-login');
-    }
+    const timer = setTimeout(() => {
+      if (!user && !isPinAuthenticated && !localStorage.getItem('punch_clock_user')) {
+        window.location.replace('/punch-clock-login');
+      }
+    }, 100); // Small delay to allow auth context to process
+
+    return () => clearTimeout(timer);
   }, [user, isPinAuthenticated]);
 
   // Load initial data

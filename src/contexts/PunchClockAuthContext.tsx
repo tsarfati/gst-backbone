@@ -32,9 +32,12 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     // Check for PIN authentication first
     const punchClockUserData = localStorage.getItem('punch_clock_user');
+    console.log('PunchClockAuth: Checking localStorage for punch_clock_user:', punchClockUserData);
+    
     if (punchClockUserData) {
       try {
         const punchUser = JSON.parse(punchClockUserData);
+        console.log('PunchClockAuth: Setting PIN user:', punchUser);
         setUser(punchUser);
         setIsPinAuthenticated(true);
         
