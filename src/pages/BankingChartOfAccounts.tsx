@@ -58,7 +58,7 @@ export default function BankingChartOfAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -112,7 +112,7 @@ export default function BankingChartOfAccounts() {
       );
     }
 
-    if (selectedType) {
+    if (selectedType && selectedType !== 'all') {
       filtered = filtered.filter(account => account.account_type === selectedType);
     }
 
@@ -392,7 +392,7 @@ export default function BankingChartOfAccounts() {
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   {accountTypes.map(type => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
