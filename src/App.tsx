@@ -30,7 +30,6 @@ import UserEdit from "./pages/UserEdit";
 import AppSettings from "./pages/AppSettings";
 import UserSettings from "./pages/UserSettings";
 import Bills from "./pages/Bills";
-import BillDashboard from "./pages/BillDashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AllEmployees from "./pages/AllEmployees";
@@ -227,10 +226,8 @@ function AuthenticatedRoutes() {
                 <Route path="payables/make-payment" element={<MakePayment />} />
                 <Route path="payables/payment-reports" element={<PaymentReports />} />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
-                <Route path="bill-status" element={<BillDashboard />} />
                 <Route path="bills/payments" element={<PaymentHistory />} />
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
-                <Route path="bills/status" element={<BillDashboard />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />
                 <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
                 {/* Legacy routes for backwards compatibility */}
@@ -241,10 +238,8 @@ function AuthenticatedRoutes() {
                     <BillDetails />
                   </RoleGuard>
                 } />
-                <Route path="invoice-status" element={<BillDashboard />} />
                 <Route path="invoices/payments" element={<PaymentHistory />} />
                 <Route path="invoices/payment-reports" element={<PaymentReports />} />
-                <Route path="invoices/status" element={<BillDashboard />} />
                 <Route path="company-files" element={<CompanyFiles />} />
                 <Route path="company-files/contracts" element={<CompanyContracts />} />
                 <Route path="company-files/permits" element={<CompanyPermits />} />

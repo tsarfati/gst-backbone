@@ -253,10 +253,9 @@ All colors MUST be HSL.
     box-shadow: var(--menu-hover-subtle);
   }
 
-  /* Focus States */
-  .focus-ring:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-focus);
+  /* Red Pulse Animation for Overdue Bills */
+  .animate-pulse-red {
+    animation: pulseRed 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 
@@ -307,5 +306,16 @@ All colors MUST be HSL.
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes pulseRed {
+  0%, 100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.7);
+  }
+  50% {
+    background-color: hsl(var(--destructive) / 0.1);
+    box-shadow: 0 0 0 10px hsl(var(--destructive) / 0);
   }
 }

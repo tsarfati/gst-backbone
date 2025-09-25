@@ -55,12 +55,11 @@ const navigationCategories = [
     title: "Payables",
     items: [
       { name: "Payables Dashboard", href: "/payables-dashboard", icon: BarChart3, menuKey: "payables-dashboard" },
-      { name: "Bill Dashboard", href: "/bill-status", icon: BarChart3, menuKey: "reports" },
       { name: "All Bills", href: "/bills", icon: FileText, menuKey: "vendors" },
       { name: "Add Bill", href: "/bills/add", icon: FileCheck, menuKey: "vendors" },
-      { name: "Make Payment", href: "/payables/make-payment", icon: DollarSign, menuKey: "make-payment" },
       { name: "Add Sub Contract", href: "/subcontracts/add", icon: FileKey, menuKey: "vendors" },
       { name: "Add PO", href: "/purchase-orders/add", icon: FileText, menuKey: "vendors" },
+      { name: "Make Payment", href: "/payables/make-payment", icon: DollarSign, menuKey: "make-payment" },
       { name: "Payment History", href: "/bills/payments", icon: CreditCard, menuKey: "reports" },
       { name: "Bill Reports", href: "/bills/payment-reports", icon: DollarSign, menuKey: "reports" },
     ],

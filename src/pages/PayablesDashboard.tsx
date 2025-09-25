@@ -115,17 +115,8 @@ export default function PayablesDashboard() {
         totalVendors: (vendorsData || []).length
       });
 
-      // Mock recent activity for now
-      setRecentActivity([
-        {
-          id: '1',
-          type: 'payment',
-          description: 'Payment processed',
-          amount: 2500,
-          vendor: 'ABC Supplies',
-          date: new Date().toISOString()
-        }
-      ]);
+      // Remove mock data - just set empty array
+      setRecentActivity([]);
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
