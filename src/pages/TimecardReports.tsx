@@ -88,13 +88,46 @@ export default function TimecardReports() {
 
   const loadEmployees = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, display_name, first_name, last_name')
-        .order('display_name');
+      const [profilesRes, pinRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('user_id, display_name, first_name, last_name')
+          .order('display_name'),
+        supabase
+          .from('pin_employees')
+          .select('id, display_name, first_name, last_name')
+          .eq('is_active', true)
+          .order('display_name')
+      ]);
 
-      if (error) throw error;
-      setEmployees(data || []);
+      const list: Employee[] = [];
+
+      (profilesRes.data || []).forEach(p => {
+        list.push({
+          id: p.user_id,
+          user_id: p.user_id,
+          display_name: p.display_name,
+          first_name: p.first_name,
+          last_name: p.last_name,
+        });
+      });
+
+      (pinRes.data || []).forEach(p => {
+        list.push({
+          id: p.id,
+          user_id: p.id, // use PIN employee id as user identifier in reports
+          display_name: p.display_name,
+          first_name: p.first_name,
+          last_name: p.last_name,
+        });
+      });
+
+      // Sort by display name for nicer UX
+      list.sort((a, b) => (a.display_name || `${a.first_name} ${a.last_name || ''}`).localeCompare(
+        b.display_name || `${b.first_name} ${b.last_name || ''}`
+      ));
+
+      setEmployees(list);
     } catch (error) {
       console.error('Error loading employees:', error);
     }
@@ -207,26 +240,32 @@ export default function TimecardReports() {
       const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
       const userIds = [...new Set((data || []).map(r => r.user_id))];
 
-      const [jobsData, costCodesData, profilesData] = await Promise.all([
+      const [jobsData, costCodesData, profilesData, pinEmployeesData] = await Promise.all([
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds) : { data: [] },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
-        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] }
+        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
+        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [] }
       ]);
 
       const jobsMap = new Map((jobsData.data || []).map(job => [job.id, job]));
       const costCodesMap = new Map((costCodesData.data || []).map(code => [code.id, code]));
       const profilesMap = new Map((profilesData.data || []).map(profile => [profile.user_id, profile]));
+      const pinMap = new Map((pinEmployeesData.data || []).map(emp => [emp.id, emp]));
 
       // Transform the data
       const transformedRecords: TimeCardRecord[] = (data || []).map(record => {
         const job = jobsMap.get(record.job_id);
         const costCode = costCodesMap.get(record.cost_code_id);
         const profile = profilesMap.get(record.user_id);
+        const pinEmp = pinMap.get(record.user_id);
+        const displayName = profile?.display_name || pinEmp?.display_name ||
+          ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
+           (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
         
         return {
           id: record.id,
           user_id: record.user_id,
-          employee_name: profile?.display_name || `${profile?.first_name} ${profile?.last_name}` || 'Unknown Employee',
+          employee_name: displayName,
           job_name: job?.name || 'Unknown Job',
           cost_code: costCode ? `${costCode.code} - ${costCode.description}` : 'Unknown Code',
           punch_in_time: record.punch_in_time,
