@@ -440,21 +440,26 @@ export default function PunchClockDashboard() {
                           )()} />
                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                        </Avatar>
-                       <div className="min-w-0 flex-1">
-                         <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
-                         <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                         <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
-                           <span className="inline-flex items-center gap-1">
-                             <Clock className="h-4 w-4" /> {format(new Date(row.punch_in_time), 'MMM d, h:mm a')}
-                           </span>
-                           {row.punch_in_location_lat && row.punch_in_location_lng && (
-                             <span className="inline-flex items-center gap-1">
-                               <MapPin className="h-4 w-4" />
-                               Location Available
-                             </span>
-                           )}
-                         </div>
-                       </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
+                          <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
+                          {row.cost_code_id && costCodes[row.cost_code_id] && (
+                            <div className="text-sm font-medium text-primary mt-1">
+                              {costCodes[row.cost_code_id].code} - {costCodes[row.cost_code_id].description}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock className="h-4 w-4" /> {format(new Date(row.punch_in_time), 'MMM d, h:mm a')}
+                            </span>
+                            {row.punch_in_location_lat && row.punch_in_location_lng && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                Location Available
+                              </span>
+                            )}
+                          </div>
+                        </div>
                      </div>
                       {isAdmin ? (
                         <div className="flex gap-2">
