@@ -471,8 +471,8 @@ function PunchClockApp() {
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
 
     try {
-      const fileName = `${Date.now()}-punch.jpg`;
-      const filePath = `${userId}/${fileName}`;
+      const fileName = `${userId}-${Date.now()}.jpg`;
+      const filePath = `punch-photos/${fileName}`;
 
       const { error } = await supabase.storage
         .from('punch-photos')
@@ -708,9 +708,15 @@ function PunchClockApp() {
         .eq('id', (user as any).user_id)
         .is('avatar_url', null); // Only update if no avatar exists yet
         
-      if (error) {
-        console.error('Error updating PIN employee avatar:', error);
-      }
+      if (error) throw error;
+      
+      // Also try to update regular profile if it exists
+      await supabase
+        .from('profiles')
+        .update({ avatar_url: photoUrl })
+        .eq('user_id', (user as any).user_id);
+        
+      console.log('Avatar updated successfully');
     } catch (error) {
       console.error('Error updating PIN employee avatar:', error);
     }
