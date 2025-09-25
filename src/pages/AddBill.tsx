@@ -26,6 +26,7 @@ export default function AddBill() {
     cost_code_id: "",
     subcontract_id: "",
     amount: "",
+    invoice_number: "",
     dueDate: "",
     issueDate: "",
     payment_terms: "",
@@ -214,6 +215,7 @@ export default function AddBill() {
           cost_code_id: formData.cost_code_id || null,
           subcontract_id: formData.subcontract_id || null,
           amount: parseFloat(formData.amount),
+          invoice_number: formData.invoice_number || null,
           issue_date: formData.issueDate,
           due_date: dueDate,
           payment_terms: formData.use_terms ? formData.payment_terms : null,
@@ -393,6 +395,18 @@ export default function AddBill() {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="invoice_number">Invoice #</Label>
+                <Input
+                  id="invoice_number"
+                  value={formData.invoice_number}
+                  onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                  placeholder="Enter invoice number (optional)"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cost_code">Cost Code</Label>
                 <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
