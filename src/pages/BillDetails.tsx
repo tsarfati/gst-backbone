@@ -19,7 +19,8 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ export default function BillDetails() {
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [approvingBill, setApprovingBill] = useState(false);
+  const [vendorHasWarnings, setVendorHasWarnings] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -98,6 +100,11 @@ export default function BillDetails() {
         setBill(null);
       } else {
         setBill(data || null);
+        
+        // Check vendor compliance warnings if vendor exists
+        if (data?.vendor_id) {
+          await checkVendorCompliance(data.vendor_id);
+        }
       }
     } catch (error) {
       console.error('Error fetching bill details:', error);
@@ -108,6 +115,31 @@ export default function BillDetails() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkVendorCompliance = async (vendorId: string) => {
+    try {
+      const { data: complianceData, error } = await supabase
+        .from('vendor_compliance_documents')
+        .select('*')
+        .eq('vendor_id', vendorId)
+        .eq('is_required', true);
+
+      if (error) {
+        console.error('Error checking vendor compliance:', error);
+        return;
+      }
+
+      const hasWarnings = complianceData?.some(doc => {
+        const isExpired = doc.expiration_date && new Date(doc.expiration_date) < new Date();
+        const isMissing = !doc.is_uploaded;
+        return isExpired || isMissing;
+      }) || false;
+
+      setVendorHasWarnings(hasWarnings);
+    } catch (error) {
+      console.error('Error checking vendor compliance:', error);
     }
   };
 
@@ -296,9 +328,24 @@ export default function BillDetails() {
                 logoUrl={bill?.vendors?.logo_url}
                 size="md"
               />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Vendor Name</p>
-                <p className="font-medium">{bill?.vendors?.name}</p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-medium text-left"
+                    onClick={() => navigate(`/vendors/${bill?.vendor_id}`)}
+                  >
+                    {bill?.vendors?.name}
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                  {vendorHasWarnings && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Compliance Warning
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -308,7 +355,7 @@ export default function BillDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Bill Details & Project Information
+              Invoice Information
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -316,12 +363,6 @@ export default function BillDetails() {
               <div>
                 <p className="text-sm text-muted-foreground">Amount</p>
                 <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <Badge variant={getStatusVariant(bill?.status)}>
-                  {bill?.status}
-                </Badge>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Issue Date</p>
