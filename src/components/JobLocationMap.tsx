@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
 
 interface JobLocationMapProps {
   address?: string;
@@ -17,15 +18,16 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Mapbox public token
-  const MAPBOX_TOKEN = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+  // Mapbox token will be fetched from Supabase Edge Function
 
   // Geocode address to coordinates
   const geocodeAddress = async (addressString: string): Promise<{ lat: number; lng: number } | null> => {
     try {
+      const { data: tokenResp } = await supabase.functions.invoke('get-mapbox-token');
+      const token = tokenResp?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
       const encodedAddress = encodeURIComponent(addressString);
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedAddress}.json?access_token=${token}&limit=1`
       );
       
       if (!response.ok) {
@@ -51,7 +53,8 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
     if (!mapContainer.current) return;
 
     try {
-      mapboxgl.accessToken = MAPBOX_TOKEN;
+      const { data: tokenResp } = await supabase.functions.invoke('get-mapbox-token');
+      mapboxgl.accessToken = tokenResp?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
       
       // Default center (will be updated if address is geocoded)
       let center: [number, number] = [-98.5795, 39.8283]; // Center of US

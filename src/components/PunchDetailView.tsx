@@ -75,7 +75,14 @@ const mapContainer = useRef<HTMLDivElement>(null);
 
     (async () => {
       // Initialize Mapbox
-      mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+      try {
+        const { data } = await supabase.functions.invoke('get-mapbox-token');
+        const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+        mapboxgl.accessToken = token;
+      } catch (e) {
+        console.warn('Failed to fetch Mapbox token, using fallback');
+        mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+      }
 
       // Determine job site coordinates first (from coords or by geocoding address)
       let jobLngLat: [number, number] | null = null;

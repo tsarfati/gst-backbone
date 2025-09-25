@@ -106,7 +106,45 @@ serve(async (req) => {
       });
     }
 
-    if (req.method === "POST" && url.pathname.endsWith("/punch")) {
+    if (req.method === "POST" && url.pathname.endsWith("/upload-photo")) {
+      try {
+        const body = await req.json();
+        const { pin, image } = body || {};
+        if (!pin || !image) return errorResponse("Missing pin or image", 400);
+
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+
+        // Decode base64 image (no data URL prefix expected; strip if present)
+        const base64 = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
+        let bytes: Uint8Array;
+        try {
+          const binary = atob(base64);
+          bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } catch (_e) {
+          return errorResponse("Invalid image encoding", 400);
+        }
+
+        const fileName = `${userRow.user_id}-${Date.now()}.jpg`;
+        const filePath = `punch-photos/${fileName}`;
+
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from('punch-photos')
+          .upload(filePath, bytes, { contentType: 'image/jpeg', upsert: false });
+        if (uploadErr) return errorResponse(uploadErr.message, 500);
+
+        const { data: pub } = await supabaseAdmin.storage
+          .from('punch-photos')
+          .getPublicUrl(filePath);
+
+        return new Response(JSON.stringify({ publicUrl: pub.publicUrl, path: filePath }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (e) {
+        return errorResponse((e as Error).message || 'Upload failed', 500);
+      }
+    } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
       const body = await req.json();
       const { pin, action, job_id, cost_code_id, latitude, longitude, photo_url } = body || {};
       const userRow = await validatePin(supabaseAdmin, pin);
