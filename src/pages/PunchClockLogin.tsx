@@ -76,8 +76,8 @@ export default function PunchClockLogin() {
     try {
       console.log('Attempting PIN login with:', pin);
       
-      // Validate PIN via secure RPC to avoid RLS issues
-      const { data: pinRows, error: pinError } = await supabase.rpc('validate_pin', { p_pin: pin });
+      // Validate PIN via secure RPC to avoid RLS issues - check both regular profiles and PIN employees
+      const { data: pinRows, error: pinError } = await supabase.rpc('validate_pin_for_login', { p_pin: pin });
 
       console.log('PIN validation result:', pinRows, 'error:', pinError);
 

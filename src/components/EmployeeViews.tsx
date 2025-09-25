@@ -19,6 +19,7 @@ interface Employee {
   pin_code?: string;
   department?: string;
   phone?: string;
+  group_id?: string;
 }
 
 interface EmployeeViewsProps {

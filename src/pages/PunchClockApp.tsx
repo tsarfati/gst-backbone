@@ -297,9 +297,8 @@ export default function PunchClockApp() {
 
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
     if (!user) return null;
-    if (isPinAuthenticated) return null;
 
-    const userId = (user as any).id;
+    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
 
     try {
       const fileName = `${Date.now()}-punch.jpg`;
@@ -362,10 +361,15 @@ export default function PunchClockApp() {
         return;
       }
 
-      // Upload photo if available (regular auth only)
+      // Upload photo if available
       let photoUrl: string | null = null;
       if (photoBlob) {
         photoUrl = await uploadPhoto(photoBlob);
+        
+        // If this is a PIN employee's first punch, set their avatar
+        if (isPinAuthenticated && photoUrl) {
+          await updatePinEmployeeAvatar(photoUrl);
+        }
       }
 
       if (currentPunch) {
@@ -464,6 +468,24 @@ export default function PunchClockApp() {
       title: 'Punched Out',
       description: `Successfully punched out at ${new Date().toLocaleTimeString()}`,
     });
+  };
+
+  const updatePinEmployeeAvatar = async (photoUrl: string) => {
+    if (!isPinAuthenticated || !user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('pin_employees')
+        .update({ avatar_url: photoUrl })
+        .eq('id', (user as any).user_id)
+        .is('avatar_url', null); // Only update if no avatar exists yet
+        
+      if (error) {
+        console.error('Error updating PIN employee avatar:', error);
+      }
+    } catch (error) {
+      console.error('Error updating PIN employee avatar:', error);
+    }
   };
 
   const selectedJobData = jobs.find(j => j.id === selectedJob);

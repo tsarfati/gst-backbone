@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 import EmployeeViews from '@/components/EmployeeViews';
+import EmployeeGroupManager from '@/components/EmployeeGroupManager';
 import UserManagement from '@/components/UserManagement';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
 
@@ -29,6 +30,7 @@ interface Employee {
   pin_code?: string;
   department?: string;
   phone?: string;
+  group_id?: string;
 }
 
 const roleColors = {
@@ -75,21 +77,31 @@ export default function AllEmployees() {
       // Combine both datasets
       const allEmployees: Employee[] = [
         ...(profileData || []).map(profile => ({
-          ...profile,
-          is_pin_employee: false
+          id: profile.id,
+          user_id: profile.user_id,
+          first_name: profile.first_name || '',
+          last_name: profile.last_name || '',
+          display_name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`,
+          role: profile.role,
+          avatar_url: profile.avatar_url,
+          created_at: profile.created_at,
+          is_pin_employee: false,
+          group_id: profile.group_id
         })),
         ...(pinEmployeeData || []).map(pinEmployee => ({
           id: pinEmployee.id,
-          user_id: pinEmployee.id, // Use PIN employee ID as user_id
+          user_id: undefined,
           first_name: pinEmployee.first_name,
           last_name: pinEmployee.last_name,
           display_name: pinEmployee.display_name,
-          role: 'employee', // PIN employees are always regular employees
+          role: 'employee' as const,
+          avatar_url: pinEmployee.avatar_url,
           created_at: pinEmployee.created_at,
           is_pin_employee: true,
           pin_code: pinEmployee.pin_code,
           department: pinEmployee.department,
-          phone: pinEmployee.phone
+          phone: pinEmployee.phone,
+          group_id: pinEmployee.group_id
         }))
       ];
 
@@ -140,8 +152,9 @@ export default function AllEmployees() {
       </div>
 
       <Tabs defaultValue="employees" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="employees">All Employees</TabsTrigger>
+          <TabsTrigger value="groups">Groups</TabsTrigger>
           {canManageEmployees && (
             <>
               <TabsTrigger value="management">User Management</TabsTrigger>
@@ -193,6 +206,10 @@ export default function AllEmployees() {
               </p>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="groups" className="space-y-6">
+          <EmployeeGroupManager onGroupChange={fetchEmployees} />
         </TabsContent>
 
         {canManageEmployees && (

@@ -490,6 +490,39 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_groups: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       employee_timecard_settings: {
         Row: {
           allow_early_punch_in_minutes: number | null
@@ -1234,11 +1267,13 @@ export type Database = {
       }
       pin_employees: {
         Row: {
+          avatar_url: string | null
           created_at: string
           created_by: string
           department: string | null
           display_name: string
           first_name: string
+          group_id: string | null
           id: string
           is_active: boolean
           last_name: string
@@ -1248,11 +1283,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           created_by: string
           department?: string | null
           display_name: string
           first_name: string
+          group_id?: string | null
           id?: string
           is_active?: boolean
           last_name: string
@@ -1262,11 +1299,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           created_by?: string
           department?: string | null
           display_name?: string
           first_name?: string
+          group_id?: string | null
           id?: string
           is_active?: boolean
           last_name?: string
@@ -1275,7 +1314,15 @@ export type Database = {
           pin_code?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pin_employees_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "employee_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1287,6 +1334,7 @@ export type Database = {
           current_company_id: string | null
           display_name: string | null
           first_name: string | null
+          group_id: string | null
           has_global_job_access: boolean | null
           id: string
           last_name: string | null
@@ -1308,6 +1356,7 @@ export type Database = {
           current_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
+          group_id?: string | null
           has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
@@ -1329,6 +1378,7 @@ export type Database = {
           current_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
+          group_id?: string | null
           has_global_job_access?: boolean | null
           id?: string
           last_name?: string | null
@@ -1347,6 +1397,13 @@ export type Database = {
             columns: ["current_company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "employee_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -2238,6 +2295,16 @@ export type Database = {
           employee_id: string
           first_name: string
           last_name: string
+        }[]
+      }
+      validate_pin_for_login: {
+        Args: { p_pin: string }
+        Returns: {
+          first_name: string
+          is_pin_employee: boolean
+          last_name: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
         }[]
       }
     }

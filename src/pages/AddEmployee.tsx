@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,14 +23,71 @@ export default function AddEmployee() {
     phone: '',
     notes: '',
     punchClockOnly: false,
-    pinCode: ''
+    pinCode: '',
+    groupId: ''
   });
+  const [groups, setGroups] = useState<Array<{id: string, name: string}>>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
   const [loading, setLoading] = useState(false);
   const { profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const loadGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('employee_groups')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setGroups(data || []);
+    } catch (error) {
+      console.error('Error loading groups:', error);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('employee_groups')
+        .insert({
+          name: newGroupName,
+          company_id: profile?.current_company_id || profile?.user_id || '',
+          created_by: profile?.user_id || '',
+        })
+        .select('id, name')
+        .single();
+
+      if (error) throw error;
+
+      setGroups(prev => [...prev, data]);
+      setFormData(prev => ({ ...prev, groupId: data.id }));
+      setNewGroupName('');
+      setShowCreateGroup(false);
+      
+      toast({
+        title: 'Success',
+        description: 'Group created successfully',
+      });
+    } catch (error) {
+      console.error('Error creating group:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create group',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (!canManageEmployees) {
     return (
@@ -78,6 +135,7 @@ export default function AddEmployee() {
             department: formData.department,
             phone: formData.phone,
             notes: formData.notes,
+            group_id: formData.groupId || null,
             created_by: profile?.user_id || ''
           });
 
@@ -261,6 +319,32 @@ export default function AddEmployee() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="groupId">Employee Group</Label>
+              <Select value={formData.groupId} onValueChange={(value) => {
+                if (value === 'create_new') {
+                  setShowCreateGroup(true);
+                } else {
+                  handleInputChange('groupId', value);
+                }
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a group (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Group</SelectItem>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="create_new" className="text-primary">
+                    + Create New Group
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
@@ -270,6 +354,35 @@ export default function AddEmployee() {
                 rows={3}
               />
             </div>
+
+            {/* Create New Group Dialog */}
+            {showCreateGroup && (
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <h4 className="font-medium">Create New Group</h4>
+                <div className="flex gap-2">
+                  <Input
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="Enter group name"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateGroup();
+                      }
+                    }}
+                  />
+                  <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
+                    Create
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    setShowCreateGroup(false);
+                    setNewGroupName('');
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button 
