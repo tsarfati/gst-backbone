@@ -36,9 +36,9 @@ import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
       case 'paid':
         return 'default';
       case 'pending_approval':
-        return 'warning';
+        return 'secondary'; // Orange-like variant
       case 'pending':
-        return 'secondary';
+        return 'outline';
       case 'rejected':
         return 'destructive';
       default:
@@ -369,9 +369,16 @@ export default function BillDetails() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant={getStatusVariant(bill?.status)} className="w-fit">
-                    {bill?.status?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <StatusIcon className="h-4 w-4" />
+                    <Badge 
+                      variant={getStatusVariant(bill?.status)} 
+                      className={`w-fit ${bill?.status === 'pending_approval' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800' : ''}`}
+                    >
+                      {bill?.status === 'pending_approval' ? 'Pending Approval' : 
+                       bill?.status?.replace(/_/g, ' ')?.replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
+                    </Badge>
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Invoice Number</p>
@@ -395,16 +402,14 @@ export default function BillDetails() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Job</p>
-                  <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
+                  <p className="font-medium">{bill?.jobs?.name || 'Not set'}</p>
                 </div>
-                {bill?.cost_codes && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cost Code</p>
-                    <p className="font-medium">
-                      {bill.cost_codes.code} - {bill.cost_codes.description}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Cost Code</p>
+                  <p className="font-medium">
+                    {bill?.cost_codes ? `${bill.cost_codes.code} - ${bill.cost_codes.description}` : 'Not set'}
+                  </p>
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Reimbursement Payment</p>
                   <p className="font-medium">
