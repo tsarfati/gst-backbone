@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useRef } from 'react';
+import { geocodeAddress } from '@/utils/geocoding';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PunchDetailData {
   id: string;
@@ -21,6 +23,9 @@ interface PunchDetailData {
   ip_address?: string;
   user_agent?: string;
   notes?: string;
+  job_latitude?: number;
+  job_longitude?: number;
+  job_address?: string;
 }
 
 interface PunchDetailViewProps {
@@ -30,56 +35,92 @@ interface PunchDetailViewProps {
 }
 
 export default function PunchDetailView({ punch, open, onOpenChange }: PunchDetailViewProps) {
-  const mapContainer = useRef<HTMLDivElement>(null);
+const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
+  const jobMarker = useRef<mapboxgl.Marker | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!open || !punch || !punch.latitude || !punch.longitude || !mapContainer.current) return;
+    if (!open || !punch || !mapContainer.current) return;
 
-    // Initialize map with Mapbox token
-    mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-    
-    if (!map.current) {
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [Number(punch.longitude), Number(punch.latitude)],
-        zoom: 15,
-        projection: 'mercator'
-      });
+    (async () => {
+      if (!punch.latitude || !punch.longitude) return;
 
-      // Add navigation controls
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    }
+      // Initialize map with Mapbox token
+      mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+      
+      if (!map.current) {
+        map.current = new mapboxgl.Map({
+          container: mapContainer.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: [Number(punch.longitude), Number(punch.latitude)],
+          zoom: 15,
+          projection: 'mercator'
+        });
 
-    // Add or update marker
-    if (marker.current) {
-      marker.current.remove();
-    }
+        // Add navigation controls
+        map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+      }
 
-    marker.current = new mapboxgl.Marker({
-      color: punch.punch_type === 'punched_in' ? '#10b981' : '#ef4444'
-    })
-      .setLngLat([Number(punch.longitude), Number(punch.latitude)])
-      .setPopup(
-        new mapboxgl.Popup({ offset: 25 })
-          .setHTML(`
-            <div>
-              <strong>${punch.employee_name}</strong><br/>
-              <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
-              ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
-              ${format(new Date(punch.punch_time), 'PPpp')}
-            </div>
-          `)
-      )
-      .addTo(map.current);
+      // Add or update punch marker
+      if (marker.current) {
+        marker.current.remove();
+      }
+
+      marker.current = new mapboxgl.Marker({
+        color: punch.punch_type === 'punched_in' ? '#10b981' : '#ef4444'
+      })
+        .setLngLat([Number(punch.longitude), Number(punch.latitude)])
+        .setPopup(
+          new mapboxgl.Popup({ offset: 25 })
+            .setHTML(`
+              <div>
+                <strong>${punch.employee_name}</strong><br/>
+                <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
+                ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
+                ${format(new Date(punch.punch_time), 'PPpp')}
+              </div>
+            `)
+        )
+        .addTo(map.current);
+
+      // Add/update job site pin from job coords or by geocoding address
+      let jobLngLat: [number, number] | null = null;
+      if (punch.job_latitude && punch.job_longitude) {
+        jobLngLat = [Number(punch.job_longitude), Number(punch.job_latitude)];
+      } else if (punch.job_address) {
+        const geo = await geocodeAddress(punch.job_address);
+        if (geo) jobLngLat = [geo.longitude, geo.latitude];
+      }
+
+      if (jobMarker.current) {
+        jobMarker.current.remove();
+        jobMarker.current = null;
+      }
+
+      if (jobLngLat && map.current) {
+        jobMarker.current = new mapboxgl.Marker({ color: '#3b82f6' })
+          .setLngLat(jobLngLat)
+          .setPopup(new mapboxgl.Popup({ offset: 25 }).setHTML(`<div><strong>${punch.job_name}</strong><br/>Job Site</div>`))
+          .addTo(map.current);
+
+        const bounds = new mapboxgl.LngLatBounds();
+        bounds.extend([Number(punch.longitude), Number(punch.latitude)]);
+        bounds.extend(jobLngLat);
+        map.current.fitBounds(bounds, { padding: 40, maxZoom: 16 });
+      }
+    })();
 
     // Cleanup on close
     return () => {
       if (marker.current) {
         marker.current.remove();
         marker.current = null;
+      }
+      if (jobMarker.current) {
+        jobMarker.current.remove();
+        jobMarker.current = null;
       }
       if (map.current) {
         map.current.remove();

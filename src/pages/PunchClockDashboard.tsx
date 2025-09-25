@@ -29,7 +29,7 @@ interface Profile {
   avatar_url: string | null;
 }
 
-interface Job { id: string; name: string }
+interface Job { id: string; name: string; latitude?: number | null; longitude?: number | null; address?: string | null }
 
 interface PunchRecord {
   id: string;
@@ -110,7 +110,7 @@ export default function PunchClockDashboard() {
       if (jobIds.length) {
         const { data: jobsData } = await supabase
           .from('jobs')
-          .select('id, name')
+          .select('id, name, latitude, longitude, address')
           .in('id', jobIds);
         const jobMap: Record<string, Job> = {};
         (jobsData || []).forEach(j => { jobMap[j.id] = j; });
