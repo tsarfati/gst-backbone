@@ -86,13 +86,13 @@ export default function BillDetails() {
           )
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching bill:', error);
         setBill(null);
       } else {
-        setBill(data);
+        setBill(data || null);
       }
     } catch (error) {
       console.error('Error fetching bill details:', error);

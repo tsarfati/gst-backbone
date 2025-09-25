@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Eye } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
@@ -223,13 +223,13 @@ export default function Bills() {
                 <TableHead>Issue Date</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+                
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredBills.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium">No bills found</p>
@@ -261,17 +261,6 @@ export default function Bills() {
                         {bill.status}
                       </Badge>
                     </TableCell>
-                     <TableCell>
-                       <Button 
-                         size="sm"
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           navigate(`/bills/${bill.id}`);
-                         }}
-                       >
-                         View Details
-                       </Button>
-                     </TableCell>
                   </TableRow>
                 ))
               )}
