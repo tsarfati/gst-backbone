@@ -532,8 +532,8 @@ function PunchClockApp() {
       if (photoBlob) {
         photoUrl = await uploadPhoto(photoBlob);
         
-        // If this is a PIN employee's first punch, set their avatar
-        if (isPinAuthenticated && photoUrl) {
+        // If this is a PIN employee's first punch with face detected, set their avatar
+        if (isPinAuthenticated && photoUrl && faceDetectionResult?.hasFace) {
           await updatePinEmployeeAvatar(photoUrl);
         }
       }

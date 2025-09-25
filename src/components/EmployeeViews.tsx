@@ -86,17 +86,19 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => {
                     if (employee.user_id) {
-                      window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                      window.open(`/settings/users/${employee.user_id}/edit`, '_self')
                     } else {
-                      window.open(`/employees`, '_blank')
+                      // For PIN employees, show a basic info modal or navigate to PIN management
+                      alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
                     }
                   }}>View Profile</Button>
                   {canManageEmployees && (
                     <Button variant="outline" size="sm" onClick={() => {
                       if (employee.user_id) {
-                        window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                        window.open(`/settings/users/${employee.user_id}/edit`, '_self')
                       } else {
-                        window.open(`/employees`, '_blank')
+                        // For PIN employees, could navigate to PIN employee management
+                        alert(`PIN Employee Edit: ${employee.display_name}`)
                       }
                     }}>Edit</Button>
                   )}
@@ -182,9 +184,9 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 )}
                 <Button variant="outline" size="sm" onClick={() => {
                   if (employee.user_id) {
-                    window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                    window.open(`/settings/users/${employee.user_id}/edit`, '_self')
                   } else {
-                    window.open(`/employees`, '_blank')
+                    alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
                   }
                 }}>View</Button>
               </div>
@@ -248,9 +250,9 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
               </div>
               <Button variant="outline" size="sm" className="w-full" onClick={() => {
                 if (employee.user_id) {
-                  window.open(`/settings/users/${employee.user_id}/edit`, '_blank')
+                  window.open(`/settings/users/${employee.user_id}/edit`, '_self')
                 } else {
-                  window.open(`/employees`, '_blank')
+                  alert(`PIN Employee: ${employee.display_name}\nPIN: ${employee.pin_code || 'N/A'}\nDepartment: ${employee.department || 'N/A'}`)
                 }
               }}>
                 View Profile

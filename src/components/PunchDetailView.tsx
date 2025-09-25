@@ -42,6 +42,35 @@ const mapContainer = useRef<HTMLDivElement>(null);
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
+    if (!open || !punch) return;
+    
+    // Get proper photo URL with signed URL if needed
+    const loadPhotoUrl = async () => {
+      if (punch.photo_url) {
+        try {
+          // If the URL is already a full HTTP URL, use it directly
+          if (punch.photo_url.startsWith('http')) {
+            setPhotoUrl(punch.photo_url);
+          } else {
+            // Get signed URL from Supabase storage
+            const { data } = await supabase.storage
+              .from('punch-photos')
+              .createSignedUrl(punch.photo_url, 3600); // 1 hour expiry
+            setPhotoUrl(data?.signedUrl || punch.photo_url);
+          }
+        } catch (error) {
+          console.error('Error loading photo URL:', error);
+          setPhotoUrl(punch.photo_url);
+        }
+      } else {
+        setPhotoUrl(undefined);
+      }
+    };
+    
+    loadPhotoUrl();
+  }, [open, punch]);
+
+  useEffect(() => {
     if (!open || !punch || !mapContainer.current) return;
 
     (async () => {
@@ -265,7 +294,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
           )}
 
           {/* Photo */}
-          {punch.photo_url && (
+          {photoUrl && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -275,9 +304,13 @@ const mapContainer = useRef<HTMLDivElement>(null);
               </CardHeader>
               <CardContent>
                 <img 
-                  src={punch.photo_url} 
+                  src={photoUrl} 
                   alt="Punch photo" 
                   className="max-w-full h-auto rounded-md border"
+                  onError={(e) => {
+                    console.error('Photo failed to load:', photoUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
                 />
               </CardContent>
             </Card>

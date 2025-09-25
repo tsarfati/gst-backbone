@@ -259,6 +259,9 @@ export default function PunchClockDashboard() {
       ip_address: undefined,
       user_agent: undefined,
       notes: undefined,
+      job_latitude: job?.latitude,
+      job_longitude: job?.longitude,
+      job_address: job?.address,
     });
     setDetailOpen(true);
   };
@@ -281,6 +284,9 @@ export default function PunchClockDashboard() {
       ip_address: row.ip_address || undefined,
       user_agent: row.user_agent || undefined,
       notes: undefined,
+      job_latitude: job?.latitude,
+      job_longitude: job?.longitude,
+      job_address: job?.address,
     });
     setDetailOpen(true);
   };

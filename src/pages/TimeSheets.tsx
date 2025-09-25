@@ -729,7 +729,7 @@ export default function TimeSheets() {
                             <div className="flex items-center gap-3">
                               {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
                                 <a
-                                  href={`https://maps.google.com/?q=${timeCard.punch_in_location_lat},${timeCard.punch_in_location_lng}`}
+                                  href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_in_location_lat}&mlon=${timeCard.punch_in_location_lng}&zoom=15`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="underline text-primary"
@@ -742,7 +742,7 @@ export default function TimeSheets() {
                               )}
                               {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
                                 <a
-                                  href={`https://maps.google.com/?q=${timeCard.punch_out_location_lat},${timeCard.punch_out_location_lng}`}
+                                  href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_out_location_lat}&mlon=${timeCard.punch_out_location_lng}&zoom=15`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="underline text-primary"
@@ -882,7 +882,7 @@ export default function TimeSheets() {
                            <div className="flex items-center gap-1">
                              <MapPin className="h-4 w-4" />
                              {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
-                               <a href={`https://maps.google.com/?q=${timeCard.punch_in_location_lat},${timeCard.punch_in_location_lng}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">In</a>
+                               <a href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_in_location_lat}&mlon=${timeCard.punch_in_location_lng}&zoom=15`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">In</a>
                              ) : (
                                <span className="text-muted-foreground">In: -</span>
                              )}
@@ -890,7 +890,7 @@ export default function TimeSheets() {
                            <div className="flex items-center gap-1">
                              <MapPin className="h-4 w-4" />
                              {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
-                               <a href={`https://maps.google.com/?q=${timeCard.punch_out_location_lat},${timeCard.punch_out_location_lng}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">Out</a>
+                               <a href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_out_location_lat}&mlon=${timeCard.punch_out_location_lng}&zoom=15`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">Out</a>
                              ) : (
                                <span className="text-muted-foreground">Out: -</span>
                              )}
