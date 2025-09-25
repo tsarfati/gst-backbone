@@ -155,6 +155,41 @@ serve(async (req) => {
       if (action === "in") {
         if (!job_id || !cost_code_id) return errorResponse("Missing job_id or cost_code_id");
 
+        // Load punch clock settings for this job to check photo requirements
+        const { data: jobSettings, error: settingsErr } = await supabaseAdmin
+          .from("job_punch_clock_settings")
+          .select("require_photo, require_location")
+          .eq("job_id", job_id)
+          .maybeSingle();
+
+        // Also load company-wide punch clock settings as fallback
+        const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
+          .from("punch_clock_settings")
+          .select("require_photo, require_location, company_id")
+          .limit(1)
+          .maybeSingle();
+
+        if (settingsErr) {
+          console.error("Error loading job settings:", settingsErr);
+        }
+        if (companySettingsErr) {
+          console.error("Error loading company settings:", companySettingsErr);
+        }
+
+        // Use job-specific settings first, fall back to company settings
+        const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
+        const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
+
+        // Check photo requirement
+        if (photoRequired && !photo_url) {
+          return errorResponse("Photo is required for this job", 400);
+        }
+
+        // Check location requirement
+        if (locationRequired && (!latitude || !longitude)) {
+          return errorResponse("Location is required for this job", 400);
+        }
+
         // Check if user is already punched in
         const { data: existingPunch, error: checkErr } = await supabaseAdmin
           .from("current_punch_status")
@@ -232,6 +267,41 @@ serve(async (req) => {
         }
 
         console.log(`Found active punch for user ${userRow.user_id}, job: ${currentPunch.job_id}`);
+
+        // Load punch clock settings for this job to check photo requirements
+        const { data: jobSettings, error: settingsErr } = await supabaseAdmin
+          .from("job_punch_clock_settings")
+          .select("require_photo, require_location")
+          .eq("job_id", currentPunch.job_id)
+          .maybeSingle();
+
+        // Also load company-wide punch clock settings as fallback
+        const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
+          .from("punch_clock_settings")
+          .select("require_photo, require_location, company_id")
+          .limit(1)
+          .maybeSingle();
+
+        if (settingsErr) {
+          console.error("Error loading job settings:", settingsErr);
+        }
+        if (companySettingsErr) {
+          console.error("Error loading company settings:", companySettingsErr);
+        }
+
+        // Use job-specific settings first, fall back to company settings
+        const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
+        const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
+
+        // Check photo requirement for punch out
+        if (photoRequired && !photo_url) {
+          return errorResponse("Photo is required for punch out on this job", 400);
+        }
+
+        // Check location requirement for punch out
+        if (locationRequired && (!latitude || !longitude)) {
+          return errorResponse("Location is required for punch out on this job", 400);
+        }
 
         // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({

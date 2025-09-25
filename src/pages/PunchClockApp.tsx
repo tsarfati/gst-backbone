@@ -626,6 +626,20 @@ function PunchClockApp() {
             // Refresh the data to sync state
             await loadFromEdge();
             return;
+          } else if (errorMessage.includes('Photo is required')) {
+            toast({
+              title: 'Photo Required',
+              description: 'Please take a photo before punching. Tap the camera icon to capture a photo.',
+              variant: 'destructive'
+            });
+            return;
+          } else if (errorMessage.includes('Location is required')) {
+            toast({
+              title: 'Location Required',
+              description: 'Location access is required for this job. Please enable location services.',
+              variant: 'destructive'
+            });
+            return;
           }
           
           throw new Error(errorMessage);
