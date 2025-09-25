@@ -34,10 +34,10 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
         throw new Error('Geocoding failed');
       }
       
-      const data = await response.json();
+      const geocodeData = await response.json();
       
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].center;
+      if (geocodeData.features && geocodeData.features.length > 0) {
+        const [lng, lat] = geocodeData.features[0].center;
         return { lat, lng };
       }
       
