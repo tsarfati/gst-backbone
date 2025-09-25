@@ -268,7 +268,7 @@ function PunchClockApp() {
       } catch (error) {
         console.error('Face detection error:', error);
       }
-    }, 1000); // Check every second
+    }, 500); // Check every 500ms for faster response
     
     setFaceDetectionInterval(interval);
   };
@@ -296,7 +296,7 @@ function PunchClockApp() {
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
 
-    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.6) && !isPunching) {
+    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.5) && !isPunching) {
       // Face detected with good confidence - automatically capture
       setIsCapturing(true);
       setIsPunching(true); // Prevent concurrent punch attempts
@@ -320,30 +320,130 @@ function PunchClockApp() {
 
   const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
     try {
-      // Dynamically import transformers only when needed
-      const { pipeline, env } = await import('@huggingface/transformers');
-      env.allowLocalModels = false;
-      env.useBrowserCache = true;
-
-      // Lazy-init and cache detector (avoid reloading model each frame)
-      if (!(window as any).__cachedFaceDetector__) {
-        (window as any).__cachedFaceDetector__ = pipeline('object-detection', 'Xenova/detr-resnet-50');
-      }
-      const detector = await (window as any).__cachedFaceDetector__;
-
-      // Run detection
-      const results = await detector(imageData);
+      // Use MediaPipe FaceMesh for faster, more accurate face detection
+      const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
       
-      // Look for person/face detection
-      const faceDetections = results.filter((result: any) => result.label === 'person');
+      // Lazy-init and cache detector
+      if (!(window as any).__cachedFaceDetector__) {
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        (window as any).__cachedFaceDetector__ = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: false,
+          outputFacialTransformationMatrixes: false,
+          runningMode: "IMAGE",
+          numFaces: 1
+        });
+      }
+      const detector = (window as any).__cachedFaceDetector__;
 
+      // Convert data URL to HTMLImageElement
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageData;
+      });
+
+      // Run face detection
+      const results = detector.detect(img);
+      
+      const hasFace = results.faceLandmarks && results.faceLandmarks.length > 0;
+      
       return {
-        hasFace: faceDetections.length > 0,
-        confidence: faceDetections.length > 0 ? Math.max(...faceDetections.map((d: any) => d.score)) : 0
+        hasFace,
+        confidence: hasFace ? 0.9 : 0 // MediaPipe doesn't provide confidence scores
       };
     } catch (error) {
-      console.error('Face detection error:', error);
-      // Fallback to allow photo if detection fails
+      console.error('MediaPipe face detection error, falling back to browser API:', error);
+      
+      // Fallback to FaceDetector API if available
+      try {
+        if ('FaceDetector' in window) {
+          const detector = new (window as any).FaceDetector();
+          
+          // Convert data URL to ImageData
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = imageData;
+          });
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          
+          const faces = await detector.detect(img);
+          return {
+            hasFace: faces.length > 0,
+            confidence: faces.length > 0 ? 0.8 : 0
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Browser FaceDetector fallback failed:', fallbackError);
+      }
+      
+      // Final fallback: simple image analysis
+      return await simpleFaceDetection(imageData);
+    }
+  };
+
+  const simpleFaceDetection = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
+    try {
+      // Convert to canvas for pixel analysis
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = imageData;
+      });
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(img.width, 320); // Reduce size for faster processing
+      canvas.height = Math.min(img.height, 240);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { hasFace: true, confidence: 1 };
+      
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Simple heuristic: look for skin-tone pixels in face region (upper third)
+      let skinPixels = 0;
+      let totalPixels = 0;
+      const faceRegionStartY = Math.floor(canvas.height * 0.1);
+      const faceRegionEndY = Math.floor(canvas.height * 0.6);
+      
+      for (let y = faceRegionStartY; y < faceRegionEndY; y++) {
+        for (let x = Math.floor(canvas.width * 0.2); x < Math.floor(canvas.width * 0.8); x++) {
+          const i = (y * canvas.width + x) * 4;
+          const r = pixelData.data[i];
+          const g = pixelData.data[i + 1];
+          const b = pixelData.data[i + 2];
+          
+          // Simple skin tone detection
+          if (r > 80 && g > 50 && b > 40 && r > b && r - g < 40) {
+            skinPixels++;
+          }
+          totalPixels++;
+        }
+      }
+      
+      const skinRatio = skinPixels / totalPixels;
+      const hasFace = skinRatio > 0.1; // At least 10% skin-tone pixels
+      
+      return {
+        hasFace,
+        confidence: hasFace ? Math.min(skinRatio * 3, 0.8) : 0
+      };
+    } catch (error) {
+      console.error('Simple face detection failed:', error);
       return { hasFace: true, confidence: 1 };
     }
   };
