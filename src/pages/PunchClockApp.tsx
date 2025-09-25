@@ -560,33 +560,10 @@ function PunchClockApp() {
       setIsLoading(true);
       setIsPunching(true);
 
-      // Check if photo is required but missing
-      if (!photoBlob) {
-        toast({
-          title: 'Photo Required',
-          description: 'Please take a photo before punching in/out.',
-          variant: 'destructive'
-        });
-        setIsLoading(false);
-        setIsPunching(false);
-        return;
-      }
-
-      // Upload photo (required for all punches)
+      // Upload photo if available (for all authentication types)
       let photoUrl: string | null = null;
       if (photoBlob) {
         photoUrl = await uploadPhoto(photoBlob);
-        
-        if (!photoUrl) {
-          toast({
-            title: 'Photo Upload Failed',
-            description: 'Failed to upload photo. Please try again.',
-            variant: 'destructive'
-          });
-          setIsLoading(false);
-          setIsPunching(false);
-          return;
-        }
         
         // If this is a PIN employee's first punch with face detected, set their avatar
         if (isPinAuthenticated && photoUrl && faceDetectionResult?.hasFace) {
@@ -953,49 +930,22 @@ function PunchClockApp() {
 
         {/* Punch Button */}
         <div className="space-y-4">
-          {!photoBlob ? (
-            <Button
-              onClick={() => {
-                console.log('Photo capture button clicked');
-                startCamera();
-              }}
-              disabled={isLoading || (!currentPunch && (!selectedJob || !selectedCostCode))}
-              className="w-full h-16 text-lg font-semibold bg-blue-600 hover:bg-blue-700"
-            >
-              <Camera className="h-6 w-6 mr-2" />
-              Take Required Photo
-            </Button>
-          ) : (
-            <div className="space-y-2">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-green-700 text-sm">
-                  <CheckCircle className="h-4 w-4" />
-                  Photo captured successfully
-                </div>
-              </div>
-              <Button
-                onClick={handlePunch}
-                disabled={isLoading}
-                className={`w-full h-16 text-lg font-semibold ${
-                  currentPunch 
-                    ? 'bg-red-600 hover:bg-red-700' 
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {isLoading ? 'Processing...' : currentPunch ? 'Complete Punch Out' : 'Complete Punch In'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setPhotoBlob(null);
-                  setFaceDetectionResult(null);
-                }}
-                className="w-full"
-              >
-                Retake Photo
-              </Button>
-            </div>
-          )}
+          <Button
+            onClick={() => {
+              console.log('Punch button clicked');
+              console.log('Button disabled?', isLoading || (!currentPunch && (!selectedJob || !selectedCostCode)));
+              startCamera();
+            }}
+            disabled={isLoading || (!currentPunch && (!selectedJob || !selectedCostCode))}
+            className={`w-full h-16 text-lg font-semibold ${
+              currentPunch 
+                ? 'bg-red-600 hover:bg-red-700' 
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            <Camera className="h-6 w-6 mr-2" />
+            {isLoading ? 'Processing...' : currentPunch ? 'Punch Out' : 'Punch In'}
+          </Button>
           
           {location && (
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
