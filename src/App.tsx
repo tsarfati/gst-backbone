@@ -112,9 +112,6 @@ function PublicRoutes() {
           <Route path="/punch-clock-login" element={<PunchClockLogin />} />
           <Route path="/punch-clock" element={<PunchClockLogin />} />
           <Route path="/punch-clock-app" element={<PunchClockApp />} />
-          <Route path="/punch-clock/dashboard" element={<PunchClockDashboard />} />
-          <Route path="/punch-clock/settings" element={<PunchClockSettings />} />
-          <Route path="/punch-clock/reports" element={<TimecardReports />} />
         </Routes>
       </PunchClockAuthProvider>
     </AuthProvider>
@@ -188,9 +185,21 @@ function AuthenticatedRoutes() {
                 <Route path="punch-clock" element={<TimeTracking />} />
                 <Route path="time-sheets" element={<TimeSheets />} />
                 <Route path="punch-clock/timesheets" element={<TimeSheets />} />
-                <Route path="punch-clock/dashboard" element={<PunchClockDashboard />} />
-                <Route path="punch-clock/reports" element={<TimecardReports />} />
-                <Route path="punch-clock/settings" element={<PunchClockSettings />} />
+                <Route path="punch-clock/dashboard" element={
+                  <PunchClockAuthProvider>
+                    <PunchClockDashboard />
+                  </PunchClockAuthProvider>
+                } />
+                <Route path="punch-clock/reports" element={
+                  <PunchClockAuthProvider>
+                    <TimecardReports />
+                  </PunchClockAuthProvider>
+                } />
+                <Route path="punch-clock/settings" element={
+                  <PunchClockAuthProvider>
+                    <PunchClockSettings />
+                  </PunchClockAuthProvider>
+                } />
                 <Route path="messages" element={<AllMessages />} />
                 <Route path="team-chat" element={<TeamChat />} />
                 <Route path="announcements" element={<Announcements />} />
