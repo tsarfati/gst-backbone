@@ -162,6 +162,14 @@ serve(async (req) => {
         }
         if (statusErr) return errorResponse(statusErr.message, 500);
 
+        // Update PIN employee avatar with punch photo if applicable
+        if (userRow.is_pin_employee && photo_url) {
+          await supabaseAdmin
+            .from('pin_employees')
+            .update({ avatar_url: photo_url })
+            .eq('id', userRow.user_id);
+        }
+
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
