@@ -623,8 +623,7 @@ function PunchClockApp() {
         setPhotoBlob(null);
         setPunchOutNote('');
         
-        // Refresh punch status after successful operation
-        await loadFromEdge();
+        // Refresh punch status after successful operation (only once)
         await loadFromEdge();
         toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
         return;

@@ -11,7 +11,7 @@ interface RoleGuardProps {
 export function RoleGuard({ 
   children, 
   allowedRoles = ['admin', 'controller', 'project_manager'],
-  redirectTo = '/punch-clock-app' 
+  redirectTo = '/' 
 }: RoleGuardProps) {
   const { profile, loading } = useAuth();
 
