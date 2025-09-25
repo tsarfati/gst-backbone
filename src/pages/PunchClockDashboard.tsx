@@ -319,7 +319,9 @@ export default function PunchClockDashboard() {
         latitude: null,
         longitude: null,
         photo_url: null,
-        notes: 'Admin punch-out'
+        notes: 'Admin punch-out',
+        user_agent: navigator.userAgent,
+        ip_address: null // Browser can't directly access IP
       });
 
       if (punchError) throw punchError;

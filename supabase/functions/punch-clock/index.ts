@@ -201,6 +201,13 @@ serve(async (req) => {
         if (checkErr) return errorResponse(checkErr.message, 500);
         if (existingPunch) return errorResponse("User is already punched in", 400);
 
+        // Capture device and network information
+        const userAgent = req.headers.get('user-agent') || null;
+        const ipAddress = req.headers.get('x-forwarded-for') || 
+                         req.headers.get('x-real-ip') || 
+                         req.headers.get('cf-connecting-ip') || 
+                         null;
+
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
           job_id,
@@ -210,6 +217,8 @@ serve(async (req) => {
           latitude,
           longitude,
           photo_url,
+          user_agent: userAgent,
+          ip_address: ipAddress,
         });
         if (punchErr) return errorResponse(punchErr.message, 500);
 
@@ -303,6 +312,13 @@ serve(async (req) => {
           return errorResponse("Location is required for punch out on this job", 400);
         }
 
+        // Capture device and network information
+        const userAgent = req.headers.get('user-agent') || null;
+        const ipAddress = req.headers.get('x-forwarded-for') || 
+                         req.headers.get('x-real-ip') || 
+                         req.headers.get('cf-connecting-ip') || 
+                         null;
+
         // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
@@ -313,6 +329,8 @@ serve(async (req) => {
           latitude,
           longitude,
           photo_url,
+          user_agent: userAgent,
+          ip_address: ipAddress,
         });
         
         if (punchErr) {

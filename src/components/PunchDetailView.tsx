@@ -73,16 +73,16 @@ const mapContainer = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open || !punch || !mapContainer.current) return;
 
-    (async () => {
-      // Initialize Mapbox
-      try {
-        const { data } = await supabase.functions.invoke('get-mapbox-token');
-        const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-        mapboxgl.accessToken = token;
-      } catch (e) {
-        console.warn('Failed to fetch Mapbox token, using fallback');
-        mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-      }
+      (async () => {
+        // Initialize Mapbox
+        try {
+          const { data } = await supabase.functions.invoke('get-mapbox-token');
+          const token = data?.token || data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+          mapboxgl.accessToken = token;
+        } catch (e) {
+          console.warn('Failed to fetch Mapbox token, using fallback');
+          mapboxgl.accessToken = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+        }
 
       // Determine job site coordinates first (from coords or by geocoding address)
       let jobLngLat: [number, number] | null = null;
@@ -187,19 +187,72 @@ const mapContainer = useRef<HTMLDivElement>(null);
   const getBrowserInfo = (userAgent: string) => {
     if (!userAgent) return 'Unknown';
     
-    if (userAgent.includes('Chrome')) return 'Chrome';
-    if (userAgent.includes('Firefox')) return 'Firefox';
-    if (userAgent.includes('Safari')) return 'Safari';
-    if (userAgent.includes('Edge')) return 'Edge';
-    return 'Other';
+    // More detailed browser detection
+    if (userAgent.includes('Edg/')) return 'Microsoft Edge';
+    if (userAgent.includes('Chrome/') && !userAgent.includes('Chromium/')) return 'Google Chrome';
+    if (userAgent.includes('Firefox/')) return 'Mozilla Firefox';
+    if (userAgent.includes('Safari/') && !userAgent.includes('Chrome/')) return 'Apple Safari';
+    if (userAgent.includes('Opera/') || userAgent.includes('OPR/')) return 'Opera';
+    if (userAgent.includes('Chromium/')) return 'Chromium';
+    return 'Other Browser';
   };
 
   const getDeviceInfo = (userAgent: string) => {
-    if (!userAgent) return 'Unknown';
+    if (!userAgent) return 'Unknown Device';
     
-    if (userAgent.includes('Mobile')) return 'Mobile';
-    if (userAgent.includes('Tablet')) return 'Tablet';
-    return 'Desktop';
+    // Mobile detection
+    if (/Android/i.test(userAgent)) return 'Android Device';
+    if (/iPhone/i.test(userAgent)) return 'iPhone';
+    if (/iPad/i.test(userAgent)) return 'iPad';
+    if (/iPod/i.test(userAgent)) return 'iPod';
+    if (/BlackBerry/i.test(userAgent)) return 'BlackBerry';
+    if (/Windows Phone/i.test(userAgent)) return 'Windows Phone';
+    
+    // Desktop detection
+    if (/Windows NT/i.test(userAgent)) return 'Windows Desktop';
+    if (/Macintosh/i.test(userAgent)) return 'Mac Desktop';
+    if (/Linux/i.test(userAgent)) return 'Linux Desktop';
+    if (/X11/i.test(userAgent)) return 'Unix Desktop';
+    
+    // Generic mobile/tablet
+    if (/Mobile|Tablet/i.test(userAgent)) return 'Mobile Device';
+    
+    return 'Desktop Computer';
+  };
+
+  const getOperatingSystem = (userAgent: string) => {
+    if (!userAgent) return 'Unknown OS';
+    
+    if (/Windows NT 10.0/i.test(userAgent)) return 'Windows 10/11';
+    if (/Windows NT 6.3/i.test(userAgent)) return 'Windows 8.1';
+    if (/Windows NT 6.2/i.test(userAgent)) return 'Windows 8';
+    if (/Windows NT 6.1/i.test(userAgent)) return 'Windows 7';
+    if (/Windows NT/i.test(userAgent)) return 'Windows';
+    
+    if (/Mac OS X 10[._](\d+)/i.test(userAgent)) {
+      const match = userAgent.match(/Mac OS X 10[._](\d+)/i);
+      const version = match ? match[1] : '';
+      return `macOS ${version}`;
+    }
+    if (/Mac OS X/i.test(userAgent)) return 'macOS';
+    
+    if (/Android (\d+\.\d+)/i.test(userAgent)) {
+      const match = userAgent.match(/Android (\d+\.\d+)/i);
+      const version = match ? match[1] : '';
+      return `Android ${version}`;
+    }
+    if (/Android/i.test(userAgent)) return 'Android';
+    
+    if (/iPhone OS (\d+)_(\d+)/i.test(userAgent)) {
+      const match = userAgent.match(/iPhone OS (\d+)_(\d+)/i);
+      const version = match ? `${match[1]}.${match[2]}` : '';
+      return `iOS ${version}`;
+    }
+    if (/iPhone/i.test(userAgent)) return 'iOS';
+    
+    if (/Linux/i.test(userAgent)) return 'Linux';
+    
+    return 'Unknown OS';
   };
 
   return (
@@ -264,7 +317,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
                 Device Information
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <span className="text-sm text-muted-foreground">Browser</span>
                 <p className="font-medium">{getBrowserInfo(punch.user_agent || '')}</p>
@@ -273,10 +326,14 @@ const mapContainer = useRef<HTMLDivElement>(null);
                 <span className="text-sm text-muted-foreground">Device Type</span>
                 <p className="font-medium">{getDeviceInfo(punch.user_agent || '')}</p>
               </div>
+              <div>
+                <span className="text-sm text-muted-foreground">Operating System</span>
+                <p className="font-medium">{getOperatingSystem(punch.user_agent || '')}</p>
+              </div>
               {punch.user_agent && (
-                <div className="col-span-2">
+                <div className="col-span-full">
                   <span className="text-sm text-muted-foreground">User Agent</span>
-                  <p className="font-mono text-xs text-muted-foreground break-all">
+                  <p className="font-mono text-xs text-muted-foreground break-all bg-muted p-2 rounded">
                     {punch.user_agent}
                   </p>
                 </div>
@@ -294,16 +351,23 @@ const mapContainer = useRef<HTMLDivElement>(null);
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <span className="text-sm text-muted-foreground">Latitude</span>
-                    <p className="font-medium">{Number(punch.latitude).toFixed(6)}</p>
+                {punch.latitude && punch.longitude ? (
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <span className="text-sm text-muted-foreground">Latitude</span>
+                      <p className="font-medium">{Number(punch.latitude).toFixed(6)}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-muted-foreground">Longitude</span>
+                      <p className="font-medium">{Number(punch.longitude).toFixed(6)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-sm text-muted-foreground">Longitude</span>
-                    <p className="font-medium">{Number(punch.longitude).toFixed(6)}</p>
+                ) : (
+                  <div className="text-center text-muted-foreground mb-4">
+                    <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Location not recorded for this punch</p>
                   </div>
-                </div>
+                )}
                 
                 <div 
                   ref={mapContainer} 

@@ -120,7 +120,9 @@ export default function ManualPunchOut() {
           cost_code_id: employee.cost_code_id,
           punch_type: 'punched_out',
           punch_time: new Date().toISOString(),
-          notes: 'Manual punch out by manager'
+          notes: 'Manual punch out by manager',
+          user_agent: navigator.userAgent,
+          ip_address: null // Browser can't directly access IP
         });
 
       if (punchError) throw punchError;
