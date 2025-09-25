@@ -77,7 +77,7 @@ export default function TimeSheets() {
   const viewPreference = useTimeSheetsViewPreference('timesheet-view', 'list');
   const currentView = viewPreference.currentView;
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
   useEffect(() => {
     if (isManager) {

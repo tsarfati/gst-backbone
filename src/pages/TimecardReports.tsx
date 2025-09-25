@@ -71,7 +71,7 @@ export default function TimecardReports() {
     status: []
   });
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
   useEffect(() => {
     loadInitialData();

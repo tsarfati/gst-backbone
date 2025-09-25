@@ -227,6 +227,47 @@ serve(async (req) => {
         }
 
         console.log(`Punch out completed successfully for user ${userRow.user_id}`);
+
+        // Create corresponding time card entry
+        try {
+          const punchInDate = new Date(currentPunch.punch_in_time);
+          const punchOutDate = new Date(now);
+          let totalHours = Math.max(0, (punchOutDate.getTime() - punchInDate.getTime()) / (1000 * 60 * 60));
+          const breakMinutes = totalHours > 6 ? 30 : 0; // auto 30-min break if over 6 hours
+          totalHours = totalHours - breakMinutes / 60;
+          const overtimeHours = Math.max(0, totalHours - 8);
+
+          const { error: tcErr } = await supabaseAdmin
+            .from('time_cards')
+            .insert({
+              user_id: userRow.user_id,
+              job_id: currentPunch.job_id,
+              cost_code_id: currentPunch.cost_code_id,
+              punch_in_time: currentPunch.punch_in_time,
+              punch_out_time: now,
+              total_hours: totalHours,
+              overtime_hours: overtimeHours,
+              break_minutes: breakMinutes,
+              punch_in_location_lat: currentPunch.punch_in_location_lat ?? null,
+              punch_in_location_lng: currentPunch.punch_in_location_lng ?? null,
+              punch_out_location_lat: latitude ?? null,
+              punch_out_location_lng: longitude ?? null,
+              punch_in_photo_url: currentPunch.punch_in_photo_url ?? null,
+              punch_out_photo_url: photo_url ?? null,
+              notes: body?.notes ?? null,
+              status: 'approved',
+              created_via_punch_clock: true,
+              requires_approval: false,
+              distance_warning: false
+            });
+
+          if (tcErr) {
+            console.error('Error creating time card:', tcErr);
+          }
+        } catch (tcCatchErr) {
+          console.error('Exception while creating time card:', tcCatchErr);
+        }
+
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 

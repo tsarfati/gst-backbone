@@ -10,7 +10,7 @@ interface RoleGuardProps {
 
 export function RoleGuard({ 
   children, 
-  allowedRoles = ['admin', 'controller', 'project_manager'],
+  allowedRoles = ['admin', 'controller', 'project_manager', 'manager'],
   redirectTo = '/' 
 }: RoleGuardProps) {
   const { profile, loading } = useAuth();

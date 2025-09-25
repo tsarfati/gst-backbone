@@ -186,17 +186,17 @@ function AuthenticatedRoutes() {
                 <Route path="time-sheets" element={<TimeSheets />} />
                 <Route path="punch-clock/timesheets" element={<TimeSheets />} />
                 <Route path="punch-clock/dashboard" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager']}>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                     <PunchClockDashboard />
                   </RoleGuard>
                 } />
                 <Route path="punch-clock/reports" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager']}>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                     <TimecardReports />
                   </RoleGuard>
                 } />
                 <Route path="punch-clock/settings" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager']}>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                     <PunchClockSettings />
                   </RoleGuard>
                 } />
