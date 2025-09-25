@@ -494,25 +494,25 @@ export default function AddBill() {
                 />
                 <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
               </div>
-
-              {formData.is_subcontract_invoice && (
-                <div className="space-y-2">
-                  <Label htmlFor="subcontract">Subcontract *</Label>
-                  <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a subcontract" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subcontracts.map((subcontract) => (
-                        <SelectItem key={subcontract.id} value={subcontract.id}>
-                          {subcontract.name} - {subcontract.vendors?.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
+
+            {formData.is_subcontract_invoice && (
+              <div className="space-y-2">
+                <Label htmlFor="subcontract">Subcontract *</Label>
+                <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a subcontract" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subcontracts.map((subcontract) => (
+                      <SelectItem key={subcontract.id} value={subcontract.id}>
+                        {subcontract.name} - {subcontract.vendors?.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>

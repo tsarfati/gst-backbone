@@ -106,7 +106,7 @@ export default function BillEdit() {
         description: billData.description || '',
         payment_terms: billData.payment_terms || '',
         is_subcontract_invoice: billData.is_subcontract_invoice || false,
-        is_reimbursement: billData.is_reimbursement || false
+        is_reimbursement: (billData as any).is_reimbursement || false
       });
     } catch (error) {
       console.error('Error loading bill:', error);

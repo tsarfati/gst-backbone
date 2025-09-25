@@ -688,6 +688,7 @@ export type Database = {
           file_url: string | null
           id: string
           invoice_number: string | null
+          is_reimbursement: boolean
           is_subcontract_invoice: boolean
           issue_date: string
           job_id: string
@@ -708,6 +709,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           invoice_number?: string | null
+          is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
           issue_date: string
           job_id: string
@@ -728,6 +730,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           invoice_number?: string | null
+          is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
           issue_date?: string
           job_id?: string
