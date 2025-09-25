@@ -213,28 +213,34 @@ export default function PunchClockApp() {
     console.log('selectedJob:', selectedJob);
     console.log('selectedCostCode:', selectedCostCode);
     
-    try {
-      console.log('Requesting camera permissions...');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
-      });
-      console.log('Camera stream obtained:', stream);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setShowCamera(true);
-        console.log('Camera dialog should now be visible');
-      } else {
-        console.error('videoRef.current is null');
+    // First open the dialog, then start camera
+    setShowCamera(true);
+    
+    // Wait a bit for the dialog to render the video element
+    setTimeout(async () => {
+      try {
+        console.log('Requesting camera permissions...');
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'user' } 
+        });
+        console.log('Camera stream obtained:', stream);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log('Camera stream set to video element');
+        } else {
+          console.error('videoRef.current is still null after timeout');
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setShowCamera(false);
+        toast({
+          title: 'Camera Error',
+          description: 'Could not access camera. Please enable camera permissions.',
+          variant: 'destructive'
+        });
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      toast({
-        title: 'Camera Error',
-        description: 'Could not access camera. Please enable camera permissions.',
-        variant: 'destructive'
-      });
-    }
+    }, 100);
   };
 
   const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
@@ -680,7 +686,7 @@ export default function PunchClockApp() {
             }`}
           >
             <Camera className="h-6 w-6 mr-2" />
-            {isLoading ? 'Processing...' : currentPunch ? 'Punch Out' : 'Punch In'}
+            {isLoading ? 'Processing...' : currentPunch ? 'Take Selfie to Punch Out' : 'Take Selfie to Punch In'}
           </Button>
           
           {location && (
