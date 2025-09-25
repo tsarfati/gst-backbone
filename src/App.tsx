@@ -85,6 +85,7 @@ import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
 import PunchClockLogin from "./pages/PunchClockLogin";
+import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 
 const queryClient = new QueryClient();
 
@@ -179,6 +180,7 @@ function AuthenticatedRoutes() {
                 <Route path="settings/users/:userId/edit" element={<UserEdit />} />
                 <Route path="employees" element={<AllEmployees />} />
                 <Route path="employees/add" element={<AddEmployee />} />
+                <Route path="pin-employees/:employeeId/edit" element={<PinEmployeeEdit />} />
                 <Route path="manual-punch-out" element={<ManualPunchOut />} />
                 <Route path="manual-time-entry" element={<ManualTimeEntry />} />
                 <Route path="add-employee" element={<AddEmployee />} />

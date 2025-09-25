@@ -60,9 +60,8 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
     if (employee.user_id) {
       navigate(`/settings/users/${employee.user_id}/edit`);
     } else {
-      // For PIN employees, could navigate to PIN employee management in the future
-      // For now, show info that PIN employee editing is not yet implemented
-      alert(`PIN Employee editing is not yet implemented for ${employee.display_name}`);
+      // Navigate to PIN employee edit page
+      navigate(`/pin-employees/${employee.id}/edit`);
     }
   };
 
