@@ -72,7 +72,7 @@ export default function BillEdit() {
 
       // Load vendors, jobs, and cost codes
       const [vendorsRes, jobsRes, costCodesRes] = await Promise.all([
-        supabase.from('vendors').select('id, name').eq('is_active', true),
+        supabase.from('vendors').select('id, name, logo_url').eq('is_active', true),
         supabase.from('jobs').select('id, name'),
         supabase.from('cost_codes').select('id, code, description').eq('is_active', true)
       ]);

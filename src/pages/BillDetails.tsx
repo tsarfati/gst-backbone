@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import VendorAvatar from "@/components/VendorAvatar";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -67,7 +68,7 @@ export default function BillDetails() {
         .from('invoices')
         .select(`
           *,
-          vendors (name),
+          vendors (name, logo_url),
           jobs (
             id,
             name
@@ -180,9 +181,16 @@ export default function BillDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Vendor Name</p>
-              <p className="font-medium">{bill?.vendors?.name}</p>
+            <div className="flex items-center gap-3">
+              <VendorAvatar 
+                name={bill?.vendors?.name || 'Unknown Vendor'}
+                logoUrl={bill?.vendors?.logo_url}
+                size="md"
+              />
+              <div>
+                <p className="text-sm text-muted-foreground">Vendor Name</p>
+                <p className="font-medium">{bill?.vendors?.name}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

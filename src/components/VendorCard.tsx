@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Building, Phone, Mail, MapPin, Receipt, AlertTriangle } from "lucide-react";
 import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
+import VendorAvatar from "@/components/VendorAvatar";
 
 interface Vendor {
   id: string;
@@ -37,11 +38,12 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-lg">
-            {vendor.logo_url ? (
-              <img src={vendor.logo_url} alt={vendor.name} className="h-8 w-8 mr-2 rounded object-cover" />
-            ) : (
-              <Building className="h-5 w-5 mr-2 text-primary" />
-            )}
+            <VendorAvatar 
+              name={vendor.name}
+              logoUrl={vendor.logo_url}
+              size="sm"
+              className="mr-2"
+            />
             {vendor.name}
           </CardTitle>
           <div className="flex gap-2">

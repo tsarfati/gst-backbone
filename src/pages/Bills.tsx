@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
+import VendorAvatar from "@/components/VendorAvatar";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ interface Bill {
   id: string;
   invoice_number: string | null;
   vendor_name: string;
+  vendor_logo_url: string | null;
   amount: number;
   status: string;
   issue_date: string;
@@ -86,7 +88,7 @@ export default function Bills() {
           due_date,
           description,
           payment_terms,
-          vendors(name),
+          vendors(name, logo_url),
           jobs(name),
           cost_codes(description)
         `)
@@ -98,6 +100,7 @@ export default function Bills() {
         id: bill.id,
         invoice_number: bill.invoice_number,
         vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
+        vendor_logo_url: (bill.vendors as any)?.logo_url || null,
         amount: bill.amount,
         status: bill.status,
         issue_date: bill.issue_date,
@@ -265,9 +268,13 @@ export default function Bills() {
                     onClick={() => navigate(`/bills/${bill.id}`)}
                   >
                      <TableCell>
-                       <div className="flex items-center">
-                         <Building className="h-4 w-4 mr-2 text-muted-foreground" />
-                         {bill.vendor_name}
+                       <div className="flex items-center gap-3">
+                         <VendorAvatar 
+                           name={bill.vendor_name}
+                           logoUrl={bill.vendor_logo_url}
+                           size="sm"
+                         />
+                         <span className="font-medium">{bill.vendor_name}</span>
                        </div>
                      </TableCell>
                      <TableCell>{bill.job_name}</TableCell>

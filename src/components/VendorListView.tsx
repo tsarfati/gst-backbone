@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Building, AlertTriangle } from "lucide-react";
 import { useComplianceWarnings } from "@/hooks/useComplianceWarnings";
+import VendorAvatar from "@/components/VendorAvatar";
 
 interface Vendor {
   id: string;
@@ -51,12 +52,12 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
           {vendors.map((vendor) => (
             <TableRow key={vendor.id} className="cursor-pointer hover-row" onClick={() => onVendorClick(vendor)}>
               <TableCell>
-                <div className="flex items-center gap-2">
-                  {vendor.logo_url ? (
-                    <img src={vendor.logo_url} alt={vendor.name} className="h-6 w-6 rounded object-cover" />
-                  ) : (
-                    <Building className="h-4 w-4 text-primary" />
-                  )}
+                <div className="flex items-center gap-3">
+                  <VendorAvatar 
+                    name={vendor.name}
+                    logoUrl={vendor.logo_url}
+                    size="sm"
+                  />
                   <span className="font-medium">{vendor.name}</span>
                 </div>
               </TableCell>

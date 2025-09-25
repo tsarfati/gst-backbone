@@ -70,7 +70,7 @@ export default function AddBill() {
     
     try {
       const [vendorsRes, jobsRes] = await Promise.all([
-        supabase.from('vendors').select('*').eq('company_id', currentCompany?.id || profile?.current_company_id),
+        supabase.from('vendors').select('id, name, logo_url').eq('company_id', currentCompany?.id || profile?.current_company_id),
         supabase.from('jobs').select('*')
       ]);
 
