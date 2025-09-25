@@ -281,7 +281,7 @@ export default function BillDetails() {
       </div>
 
       {/* Bill Information */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -308,61 +308,52 @@ export default function BillDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Bill Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Amount</p>
-              <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Status</p>
-              <Badge variant={getStatusVariant(bill?.status)}>
-                {bill?.status}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Issue Date</p>
-              <p className="font-medium">
-                {bill?.issue_date ? new Date(bill.issue_date).toLocaleDateString() : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Due Date</p>
-              <p className="font-medium">
-                {bill?.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Project & Approval
+              Bill Details & Project Information
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Job</p>
-              <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
-            </div>
-            {bill?.cost_codes && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Cost Code</p>
+                <p className="text-sm text-muted-foreground">Amount</p>
+                <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge variant={getStatusVariant(bill?.status)}>
+                  {bill?.status}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Issue Date</p>
                 <p className="font-medium">
-                  {bill.cost_codes.code} - {bill.cost_codes.description}
+                  {bill?.issue_date ? new Date(bill.issue_date).toLocaleDateString() : 'N/A'}
                 </p>
               </div>
-            )}
-            {bill?.payment_terms && (
               <div>
-                <p className="text-sm text-muted-foreground">Payment Terms</p>
-                <p className="font-medium">{bill.payment_terms} days</p>
+                <p className="text-sm text-muted-foreground">Due Date</p>
+                <p className="font-medium">
+                  {bill?.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A'}
+                </p>
               </div>
-            )}
+              <div>
+                <p className="text-sm text-muted-foreground">Job</p>
+                <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
+              </div>
+              {bill?.cost_codes && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Cost Code</p>
+                  <p className="font-medium">
+                    {bill.cost_codes.code} - {bill.cost_codes.description}
+                  </p>
+                </div>
+              )}
+              {bill?.payment_terms && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Payment Terms</p>
+                  <p className="font-medium">{bill.payment_terms} days</p>
+                </div>
+              )}
+            </div>
             <div className="border-t pt-4">
               <BillApprovalActions
                 billId={bill?.id || ''}
