@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, LogIn } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface LoginSettings {
   header_image_url?: string;
@@ -188,20 +189,43 @@ export default function PunchClockLogin() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePinLogin} className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="pin" className="text-sm font-medium">
-                  Enter your 6-digit PIN
-                </label>
-                <Input
-                  id="pin"
-                  type="password"
-                  value={pin}
-                  onChange={(e) => handlePinInput(e.target.value)}
-                  placeholder="••••••"
-                  className="text-center text-2xl tracking-widest"
-                  maxLength={6}
-                  autoComplete="off"
-                />
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Enter your 6-digit PIN</label>
+                {/* PIN Dots */}
+                <div className="flex justify-between gap-2">
+                  {[0,1,2,3,4,5].map((i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "h-10 flex-1 rounded-md border flex items-center justify-center",
+                        pin.length > i ? "bg-primary/10 border-primary/30" : "bg-muted"
+                      )}
+                    >
+                      <span className="font-semibold tracking-widest select-none">
+                        {pin[i] ? "•" : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Numeric Keypad */}
+                <div className="grid grid-cols-3 gap-2 pt-2">
+                  {["1","2","3","4","5","6","7","8","9","C","0","⌫"].map((key) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant="outline"
+                      className="h-12 text-lg"
+                      onClick={() => {
+                        if (key === "C") return setPin("");
+                        if (key === "⌫") return setPin((p) => p.slice(0, -1));
+                        if (pin.length < 6) setPin((p) => p + key);
+                      }}
+                    >
+                      {key}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
               <Button 

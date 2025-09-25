@@ -64,6 +64,13 @@ export default function PunchClockApp() {
     loadLoginSettings();
   }, []);
 
+  // Redirect unauthenticated users directly to PIN login
+  useEffect(() => {
+    if (!user) {
+      window.location.replace('/punch-clock-login');
+    }
+  }, [user]);
+
   // Load initial data
   useEffect(() => {
     if (user) {
@@ -518,9 +525,6 @@ export default function PunchClockApp() {
             <div className="space-y-2">
               <Button onClick={() => (window.location.href = '/punch-clock-login')} className="w-full">
                 Continue with PIN Login
-              </Button>
-              <Button variant="outline" onClick={() => (window.location.href = '/auth')} className="w-full">
-                Sign In (Full Access)
               </Button>
             </div>
           </CardContent>
