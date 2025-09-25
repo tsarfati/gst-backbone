@@ -8,31 +8,33 @@ import VendorListView from "@/components/VendorListView";
 import VendorCompactView from "@/components/VendorCompactView";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVendorViewPreference } from "@/hooks/useVendorViewPreference";
 
 export default function Vendors() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView } = useVendorViewPreference();
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
+    if (user && currentCompany) {
       loadVendors();
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const loadVendors = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
-        .eq('company_id', user.id)
+        .eq('company_id', currentCompany.id)
         .eq('is_active', true)
         .order('name');
 
