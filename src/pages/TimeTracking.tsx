@@ -762,7 +762,7 @@ export default function TimeTracking() {
                         <SelectValue placeholder="Select Job" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
-                        {jobs.map(job => <SelectItem key={job.id} value={job.id} className="text-lg py-3">
+                        {jobs.filter(job => job.id && job.id.trim()).map(job => <SelectItem key={job.id} value={job.id} className="text-lg py-3">
                             {job.name}
                           </SelectItem>)}
                       </SelectContent>
@@ -773,7 +773,7 @@ export default function TimeTracking() {
                           <SelectValue placeholder="Select Cost Code" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl bg-background border-border backdrop-blur-sm z-50">
-                          {costCodes.map(code => <SelectItem key={code.id} value={code.id} className="text-lg py-3">
+                          {costCodes.filter(code => code.id && code.id.trim()).map(code => <SelectItem key={code.id} value={code.id} className="text-lg py-3">
                               {code.code} - {code.description}
                             </SelectItem>)}
                         </SelectContent>
