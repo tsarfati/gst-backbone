@@ -51,6 +51,8 @@ export default function PunchClockApp() {
   const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [loginSettings, setLoginSettings] = useState<any>({});
   const [punchOutNote, setPunchOutNote] = useState('');
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -217,6 +219,8 @@ export default function PunchClockApp() {
     
     // First open the dialog, then start camera
     setShowCamera(true);
+    setIsCapturing(false);
+    setFaceDetectionResult(null);
     
     // Wait a bit for the dialog to render the video element
     setTimeout(async () => {
@@ -230,6 +234,11 @@ export default function PunchClockApp() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           console.log('Camera stream set to video element');
+          
+          // Start automatic face detection after video loads
+          videoRef.current.onloadedmetadata = () => {
+            startFaceDetection();
+          };
         } else {
           console.error('videoRef.current is still null after timeout');
         }
@@ -245,7 +254,67 @@ export default function PunchClockApp() {
     }, 100);
   };
 
-  const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
+  const startFaceDetection = () => {
+    if (faceDetectionInterval) {
+      clearInterval(faceDetectionInterval);
+    }
+    
+    const interval = setInterval(async () => {
+      if (!videoRef.current || !canvasRef.current || isCapturing) return;
+      
+      try {
+        await detectAndCapture();
+      } catch (error) {
+        console.error('Face detection error:', error);
+      }
+    }, 1000); // Check every second
+    
+    setFaceDetectionInterval(interval);
+  };
+
+  const detectAndCapture = async () => {
+    if (!videoRef.current || !canvasRef.current || isCapturing) return;
+
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.drawImage(video, 0, 0);
+    
+    // Get image data for face detection
+    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Detect face
+    setIsDetectingFace(true);
+    const faceResult = await detectFace(imageData);
+    setFaceDetectionResult(faceResult);
+    setIsDetectingFace(false);
+
+    if (faceResult.hasFace && faceResult.confidence && faceResult.confidence > 0.7) {
+      // Face detected with good confidence - automatically capture
+      setIsCapturing(true);
+      
+      // Clear the detection interval
+      if (faceDetectionInterval) {
+        clearInterval(faceDetectionInterval);
+        setFaceDetectionInterval(null);
+      }
+      
+      // Capture the photo
+      canvas.toBlob((blob) => {
+        if (blob) {
+          setPhotoBlob(blob);
+          stopCamera();
+          handlePunch();
+        }
+      }, 'image/jpeg', 0.8);
+    }
+  };
     try {
       // Configure transformers.js
       env.allowLocalModels = false;
@@ -275,54 +344,21 @@ export default function PunchClockApp() {
     }
   };
 
-  const capturePhoto = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(video, 0, 0);
-      
-      // Get image data for face detection
-      const imageData = canvas.toDataURL('image/jpeg', 0.8);
-      
-      // Detect face
-      setIsDetectingFace(true);
-      const faceResult = await detectFace(imageData);
-      setFaceDetectionResult(faceResult);
-      setIsDetectingFace(false);
-
-      if (!faceResult.hasFace) {
-        toast({
-          title: 'No Face Detected',
-          description: 'Please make sure your face is visible in the photo and try again.',
-          variant: 'destructive'
-        });
-        return;
-      }
-      
-      canvas.toBlob((blob) => {
-        if (blob) {
-          setPhotoBlob(blob);
-          stopCamera();
-          handlePunch();
-        }
-      }, 'image/jpeg', 0.8);
-    }
-  };
-
   const stopCamera = () => {
+    // Clear face detection interval
+    if (faceDetectionInterval) {
+      clearInterval(faceDetectionInterval);
+      setFaceDetectionInterval(null);
+    }
+    
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
     setShowCamera(false);
+    setIsCapturing(false);
+    setFaceDetectionResult(null);
   };
 
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
@@ -743,42 +779,38 @@ export default function PunchClockApp() {
                     </div>
                   </div>
                 </div>
+                
+                {/* Detection status overlay */}
+                <div className="absolute top-4 left-4 right-4">
+                  {isDetectingFace && (
+                    <div className="bg-blue-500/80 text-white px-3 py-2 rounded-lg text-sm">
+                      Detecting face...
+                    </div>
+                  )}
+                  {faceDetectionResult && !isCapturing && (
+                    <div className={`px-3 py-2 rounded-lg text-sm ${
+                      faceDetectionResult.hasFace 
+                        ? 'bg-green-500/80 text-white' 
+                        : 'bg-red-500/80 text-white'
+                    }`}>
+                      {faceDetectionResult.hasFace 
+                        ? 'Face detected! Capturing...' 
+                        : 'No face detected - please position yourself in the oval'}
+                    </div>
+                  )}
+                  {isCapturing && (
+                    <div className="bg-green-600/80 text-white px-3 py-2 rounded-lg text-sm">
+                      Capturing photo...
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={capturePhoto} 
-                  disabled={isDetectingFace}
-                  className="flex-1"
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  {isDetectingFace ? 'Detecting Face...' : 'Capture'}
-                </Button>
+              
+              <div className="flex justify-center">
                 <Button variant="outline" onClick={stopCamera}>
                   Cancel
                 </Button>
               </div>
-              
-              {faceDetectionResult && !faceDetectionResult.hasFace && (
-                <div className="text-center p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                  <AlertCircle className="h-5 w-5 mx-auto mb-2 text-destructive" />
-                  <p className="text-sm text-destructive font-medium">No face detected</p>
-                  <p className="text-xs text-destructive/80 mt-1">
-                    Make sure your face is clearly visible and try again
-                  </p>
-                </div>
-              )}
-              
-              {faceDetectionResult && faceDetectionResult.hasFace && (
-                <div className="text-center p-3 bg-green-100 border border-green-200 rounded-lg">
-                  <CheckCircle className="h-5 w-5 mx-auto mb-2 text-green-600" />
-                  <p className="text-sm text-green-700 font-medium">Face detected successfully</p>
-                  {faceDetectionResult.confidence && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Confidence: {Math.round(faceDetectionResult.confidence * 100)}%
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
             
             <canvas ref={canvasRef} style={{ display: 'none' }} />
