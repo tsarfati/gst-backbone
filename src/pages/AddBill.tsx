@@ -11,10 +11,14 @@ import { Upload, ArrowLeft, FileText, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 export default function AddBill() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   
   const [formData, setFormData] = useState({
     vendor_id: "",
@@ -61,9 +65,11 @@ export default function AddBill() {
   }, [formData.vendor_id, vendors, formData.use_terms]);
 
   const fetchInitialData = async () => {
+    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+    
     try {
       const [vendorsRes, jobsRes] = await Promise.all([
-        supabase.from('vendors').select('*').eq('company_id', (await supabase.auth.getUser()).data.user?.id),
+        supabase.from('vendors').select('*').eq('company_id', currentCompany?.id || profile?.current_company_id),
         supabase.from('jobs').select('*')
       ]);
 

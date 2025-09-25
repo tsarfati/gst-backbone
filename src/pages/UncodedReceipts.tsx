@@ -16,6 +16,7 @@ import ViewSelector, { ViewType } from "@/components/ViewSelector";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface JobOption { id: string; name: string }
 interface CostCodeOption { id: string; code: string; description: string }
@@ -28,6 +29,8 @@ export default function UncodedReceipts() {
   const [selectedCostCode, setSelectedCostCode] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedAmount, setSelectedAmount] = useState("");
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   // View preference management
@@ -38,7 +41,6 @@ export default function UncodedReceipts() {
     setCurrentView, 
     setDefaultView 
   } = useViewPreference('uncoded-receipts-view', 'grid');
-  const { user } = useAuth();
 
   useEffect(() => {
     if (selectedReceipt) {
@@ -91,12 +93,12 @@ export default function UncodedReceipts() {
 
   useEffect(() => {
     const loadVendors = async () => {
-      if (!user) return;
+      if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
       try {
         const { data, error } = await supabase
           .from('vendors')
           .select('id, name')
-          .eq('company_id', user.id)
+          .eq('company_id', currentCompany?.id || profile?.current_company_id)
           .eq('is_active', true)
           .order('name');
         if (error) throw error;
@@ -106,7 +108,7 @@ export default function UncodedReceipts() {
       }
     };
     loadVendors();
-  }, [user]);
+  }, [user, currentCompany, profile?.current_company_id]);
   const handleCodeReceipt = () => {
     if (!selectedReceipt || !selectedJob || !selectedCostCode) {
       toast({

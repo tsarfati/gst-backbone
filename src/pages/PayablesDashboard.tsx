@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface PayableMetrics {
@@ -46,6 +47,7 @@ interface RecentActivity {
 export default function PayablesDashboard() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [metrics, setMetrics] = useState<PayableMetrics>({
     totalOutstanding: 0,
@@ -60,13 +62,13 @@ export default function PayablesDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("this_month");
 
   useEffect(() => {
-    if (user) {
+    if (user && (currentCompany?.id || profile?.current_company_id)) {
       loadDashboardData();
     }
-  }, [user, selectedPeriod]);
+  }, [user, currentCompany, profile?.current_company_id, selectedPeriod]);
 
   const loadDashboardData = async () => {
-    if (!user) return;
+    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
     
     try {
       setLoading(true);
@@ -75,7 +77,7 @@ export default function PayablesDashboard() {
       const { data: vendorsData } = await supabase
         .from('vendors')
         .select('id')
-        .eq('company_id', user.id);
+        .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
       // Load invoices for calculations
       const { data: invoicesData } = await supabase

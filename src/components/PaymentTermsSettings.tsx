@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 export default function PaymentTermsSettings() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<string[]>(['asap', '15', '30']);
   const [newTerm, setNewTerm] = useState('');
@@ -18,16 +20,16 @@ export default function PaymentTermsSettings() {
 
   useEffect(() => {
     fetchPaymentTermsOptions();
-  }, [user]);
+  }, [user, currentCompany, profile?.current_company_id]);
 
   const fetchPaymentTermsOptions = async () => {
-    if (!user) return;
+    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
 
     try {
       const { data, error } = await supabase
         .from('company_settings')
         .select('payment_terms_options')
-        .eq('company_id', user.id)
+        .eq('company_id', currentCompany?.id || profile?.current_company_id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -44,14 +46,14 @@ export default function PaymentTermsSettings() {
   };
 
   const savePaymentTermsOptions = async (options: string[]) => {
-    if (!user) return;
+    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
 
     setLoading(true);
     try {
       const { error } = await supabase
         .from('company_settings')
         .upsert({
-          company_id: user.id,
+          company_id: currentCompany?.id || profile?.current_company_id,
           payment_terms_options: options
         });
 

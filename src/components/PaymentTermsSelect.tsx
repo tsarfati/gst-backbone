@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface PaymentTermsSelectProps {
   value: string;
@@ -9,18 +10,19 @@ interface PaymentTermsSelectProps {
 }
 
 export default function PaymentTermsSelect({ value, onValueChange }: PaymentTermsSelectProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const [paymentTermsOptions, setPaymentTermsOptions] = useState<string[]>(['asap', '15', '30']);
 
   useEffect(() => {
     const fetchPaymentTermsOptions = async () => {
-      if (!user) return;
+      if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
 
       try {
         const { data, error } = await supabase
           .from('company_settings')
           .select('payment_terms_options')
-          .eq('company_id', user.id)
+          .eq('company_id', currentCompany?.id || profile?.current_company_id)
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
@@ -37,7 +39,7 @@ export default function PaymentTermsSelect({ value, onValueChange }: PaymentTerm
     };
 
     fetchPaymentTermsOptions();
-  }, [user]);
+  }, [user, currentCompany, profile?.current_company_id]);
 
   const getDisplayText = (option: string) => {
     switch (option) {
