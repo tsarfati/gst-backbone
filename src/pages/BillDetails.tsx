@@ -28,6 +28,7 @@ import VendorAvatar from "@/components/VendorAvatar";
 import BillApprovalActions from "@/components/BillApprovalActions";
 import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
+import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -405,6 +406,16 @@ export default function BillDetails() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Receipt Suggestions */}
+      {!bill?.file_url && (
+        <BillReceiptSuggestions
+          billVendorId={bill?.vendor_id}
+          billVendorName={bill?.vendors?.name}
+          billAmount={bill?.amount}
+          onReceiptAttached={fetchBillDetails}
+        />
+      )}
 
       {/* Description */}
       {bill?.description && (
