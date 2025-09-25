@@ -1,15 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Eye } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-const mockBills: any[] = [];
+interface Bill {
+  id: string;
+  invoice_number: string | null;
+  vendor_name: string;
+  amount: number;
+  status: string;
+  issue_date: string;
+  due_date: string;
+  job_name: string;
+  cost_code_description: string;
+  description: string;
+  payment_terms: string | null;
+}
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -26,17 +40,88 @@ const getStatusVariant = (status: string) => {
 
 export default function Bills() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [jobFilter, setJobFilter] = useState("all");
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('bills-view');
 
+  useEffect(() => {
+    loadBills();
+  }, []);
+
+  const loadBills = async () => {
+    try {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from('invoices')
+        .select(`
+          id,
+          invoice_number,
+          amount,
+          status,
+          issue_date,
+          due_date,
+          description,
+          payment_terms,
+          vendors!inner(name),
+          jobs!inner(name),
+          cost_codes!inner(description)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedBills: Bill[] = data?.map(bill => ({
+        id: bill.id,
+        invoice_number: bill.invoice_number,
+        vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
+        amount: bill.amount,
+        status: bill.status,
+        issue_date: bill.issue_date,
+        due_date: bill.due_date,
+        job_name: (bill.jobs as any)?.name || 'No Job',
+        cost_code_description: (bill.cost_codes as any)?.description || 'No Cost Code',
+        description: bill.description || '',
+        payment_terms: bill.payment_terms
+      })) || [];
+
+      setBills(formattedBills);
+    } catch (error) {
+      console.error('Error loading bills:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load bills",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredBills = jobFilter === "all" 
-    ? mockBills 
-    : mockBills.filter(bill => bill.job === jobFilter);
+    ? bills 
+    : bills.filter(bill => bill.job_name === jobFilter);
 
-  const uniqueJobs: string[] = [];
+  const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
 
-  const totalPending = 0;
-  const totalOverdue = 0;
+  const totalPending = bills.filter(bill => bill.status === 'pending').reduce((sum, bill) => sum + bill.amount, 0);
+  const totalOverdue = bills.filter(bill => {
+    const dueDate = new Date(bill.due_date);
+    const today = new Date();
+    return bill.status === 'pending' && dueDate < today;
+  }).reduce((sum, bill) => sum + bill.amount, 0);
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-muted-foreground">Loading bills...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -163,16 +248,16 @@ export default function Bills() {
                     onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <TableCell className="font-medium">{bill.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Building className="h-4 w-4 mr-2 text-muted-foreground" />
-                        {bill.vendor}
-                      </div>
-                    </TableCell>
-                    <TableCell>{bill.job}</TableCell>
-                    <TableCell className="font-semibold">{bill.amount}</TableCell>
-                    <TableCell>{bill.issueDate}</TableCell>
-                    <TableCell>{bill.dueDate}</TableCell>
+                     <TableCell>
+                       <div className="flex items-center">
+                         <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+                         {bill.vendor_name}
+                       </div>
+                     </TableCell>
+                     <TableCell>{bill.job_name}</TableCell>
+                     <TableCell className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
+                     <TableCell>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                     <TableCell>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(bill.status)}>
                         {bill.status}
