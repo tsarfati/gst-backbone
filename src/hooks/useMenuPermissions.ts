@@ -47,6 +47,14 @@ export function useMenuPermissions() {
 
   const hasAccess = (menuItem: string): boolean => {
     if (loading) return false;
+    
+    // Always allow managers access to punch clock features
+    const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+    const punchClockItems = ['punch-clock-dashboard', 'timecard-reports', 'punch-clock-settings'];
+    if (isManager && punchClockItems.includes(menuItem)) {
+      return true;
+    }
+    
     if (typeof permissions[menuItem] === 'boolean') {
       return permissions[menuItem];
     }

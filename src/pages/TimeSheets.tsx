@@ -84,6 +84,28 @@ export default function TimeSheets() {
       loadEmployees();
     }
     loadTimeCards();
+
+    // Set up real-time subscription for time cards
+    const channel = supabase
+      .channel('time-cards-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'time_cards'
+        },
+        (payload) => {
+          console.log('Time card change detected:', payload);
+          // Reload time cards when changes occur
+          loadTimeCards();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, profile]);
 
   useEffect(() => {
