@@ -106,16 +106,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoutes() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-        <Route path="/punch-clock" element={<PunchClockLogin />} />
-        <Route path="/punch-clock-app" element={
-          <PunchClockAuthProvider>
-            <PunchClockApp />
-          </PunchClockAuthProvider>
-        } />
-      </Routes>
+      <PunchClockAuthProvider>
+        <Routes>
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/punch-clock-login" element={<PunchClockLogin />} />
+          <Route path="/punch-clock" element={<PunchClockLogin />} />
+          <Route path="/punch-clock-app" element={<PunchClockApp />} />
+          <Route path="/punch-clock/dashboard" element={<PunchClockDashboard />} />
+          <Route path="/punch-clock/settings" element={<PunchClockSettings />} />
+          <Route path="/punch-clock/reports" element={<TimecardReports />} />
+        </Routes>
+      </PunchClockAuthProvider>
     </AuthProvider>
   );
 }
