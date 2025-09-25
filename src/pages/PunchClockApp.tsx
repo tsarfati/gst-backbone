@@ -9,7 +9,7 @@ import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { pipeline, env } from '@huggingface/transformers';
+// transformers will be dynamically imported when needed
 
 interface Job {
   id: string;
@@ -318,7 +318,8 @@ function PunchClockApp() {
 
   const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
     try {
-      // Configure transformers.js
+      // Dynamically import transformers only when needed
+      const { pipeline, env } = await import('@huggingface/transformers');
       env.allowLocalModels = false;
       env.useBrowserCache = true;
 
