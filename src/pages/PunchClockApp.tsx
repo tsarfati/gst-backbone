@@ -208,13 +208,24 @@ export default function PunchClockApp() {
   };
 
   const startCamera = async () => {
+    console.log('startCamera called - checking conditions');
+    console.log('currentPunch:', currentPunch);
+    console.log('selectedJob:', selectedJob);
+    console.log('selectedCostCode:', selectedCostCode);
+    
     try {
+      console.log('Requesting camera permissions...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'user' } 
       });
+      console.log('Camera stream obtained:', stream);
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setShowCamera(true);
+        console.log('Camera dialog should now be visible');
+      } else {
+        console.error('videoRef.current is null');
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -656,7 +667,11 @@ export default function PunchClockApp() {
         {/* Punch Button */}
         <div className="space-y-4">
           <Button
-            onClick={startCamera}
+            onClick={() => {
+              console.log('Punch button clicked');
+              console.log('Button disabled?', isLoading || (!currentPunch && (!selectedJob || !selectedCostCode)));
+              startCamera();
+            }}
             disabled={isLoading || (!currentPunch && (!selectedJob || !selectedCostCode))}
             className={`w-full h-16 text-lg font-semibold ${
               currentPunch 
