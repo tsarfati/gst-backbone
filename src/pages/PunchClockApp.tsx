@@ -33,7 +33,7 @@ interface PunchStatus {
   punch_in_photo_url?: string;
 }
 
-export default function PunchClockApp() {
+function PunchClockApp() {
   const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
   const { toast } = useToast();
   
@@ -820,3 +820,5 @@ export default function PunchClockApp() {
     </div>
   );
 }
+
+export default PunchClockApp;
