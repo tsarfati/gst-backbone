@@ -179,16 +179,24 @@ function PunchClockApp() {
     const pin = getPin();
     if (!pin) return;
     try {
-      const res = await fetch(`${FUNCTION_BASE}/init?pin=${pin}`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } });
+      const res = await fetch(`${FUNCTION_BASE}/init?pin=${pin}`, { 
+        headers: { 
+          apikey: ANON_KEY, 
+          Authorization: `Bearer ${ANON_KEY}` 
+        } 
+      });
       const json = await res.json();
       if (res.ok) {
         setJobs(json.jobs || []);
         setCostCodes(json.cost_codes || []);
         setCurrentPunch(json.current_punch || null);
+        console.log('Edge data loaded - current punch:', json.current_punch);
       } else {
         console.error('Edge init error:', json);
       }
-    } catch (e) { console.error('Edge init exception', e); }
+    } catch (e) { 
+      console.error('Edge init exception', e); 
+    }
   };
 
   const getCurrentLocation = () => {
@@ -578,18 +586,18 @@ function PunchClockApp() {
                   description: 'You are already punched in. Please punch out first.',
                   variant: 'destructive'
                 });
-                // Refresh the data to sync state
+                // Refresh the data to sync state and break out of retry loop
                 await loadFromEdge();
-                return;
+                break;
               } else if (errorMessage.includes('not currently punched in')) {
                 toast({
                   title: 'Not Punched In',
                   description: 'You are not currently punched in. Please punch in first.',
                   variant: 'destructive'
                 });
-                // Refresh the data to sync state
+                // Refresh the data to sync state and break out of retry loop
                 await loadFromEdge();
-                return;
+                break;
               }
               
               throw new Error(errorMessage);
@@ -610,8 +618,13 @@ function PunchClockApp() {
           }
         }
 
+        
+        // Clear form data
         setPhotoBlob(null);
         setPunchOutNote('');
+        
+        // Refresh punch status after successful operation
+        await loadFromEdge();
         await loadFromEdge();
         toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
         return;
