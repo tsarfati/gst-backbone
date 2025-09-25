@@ -32,8 +32,10 @@ const getStatusVariant = (status: string) => {
   switch (status) {
     case "paid":
       return "success";
-    case "pending": 
+    case "pending_approval": 
       return "warning";
+    case "pending_payment":
+      return "default";
     case "overdue":
       return "destructive";
     default:
@@ -213,7 +215,7 @@ export default function BillDetails() {
             Edit Bill
           </Button>
           
-          {bill?.status !== 'approved' && bill?.status !== 'paid' && (
+          {bill?.status === 'pending_approval' && (
             <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="default">

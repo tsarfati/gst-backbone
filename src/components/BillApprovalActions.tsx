@@ -43,7 +43,7 @@ export default function BillApprovalActions({ billId, currentStatus, onStatusUpd
       case "pending_approval":
         return { text: "Pending Approval", variant: "warning" as const, icon: Clock };
       case "pending_payment":
-        return { text: "Pending Payment", variant: "secondary" as const, icon: Clock };
+        return { text: "Pending Payment", variant: "default" as const, icon: Clock };
       case "paid":
         return { text: "Paid", variant: "success" as const, icon: CheckCircle };
       case "rejected":
@@ -88,40 +88,6 @@ export default function BillApprovalActions({ billId, currentStatus, onStatusUpd
             Reject Bill
           </Button>
         </div>
-      )}
-
-      {currentStatus === 'pending_payment' && (
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => updateBillStatus('paid', 'Marked as Paid')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <CheckCircle className="h-4 w-4" />
-            Mark as Paid
-          </Button>
-          <Button 
-            onClick={() => updateBillStatus('pending_approval', 'Returned for Review')}
-            variant="outline"
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Clock className="h-4 w-4" />
-            Return for Review
-          </Button>
-        </div>
-      )}
-
-      {currentStatus === 'rejected' && (
-        <Button 
-          onClick={() => updateBillStatus('pending_approval', 'Returned for Review')}
-          variant="outline"
-          className="flex items-center gap-2"
-          size="sm"
-        >
-          <Clock className="h-4 w-4" />
-          Return for Review
-        </Button>
       )}
     </div>
   );
