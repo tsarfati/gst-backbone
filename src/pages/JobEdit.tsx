@@ -126,6 +126,7 @@ export default function JobEdit() {
           }
 
           // Fetch selected cost codes for this job
+          console.log('Loading cost codes for job:', id);
           const { data: codes, error: codesError } = await supabase
             .from('cost_codes')
             .select('*')
@@ -133,7 +134,13 @@ export default function JobEdit() {
             .eq('is_active', true);
 
           if (!codesError && codes) {
+            console.log('Loaded cost codes:', codes.map(c => ({ id: c.id, code: c.code })));
             setSelectedCostCodes(codes);
+          } else if (codesError) {
+            console.error('Error loading cost codes:', codesError);
+          } else {
+            console.log('No cost codes found for job');
+            setSelectedCostCodes([]);
           }
         }
       } catch (err) {
@@ -253,12 +260,22 @@ export default function JobEdit() {
       }
 
       // Save selected cost codes relationship
+      console.log('Saving cost codes:', {
+        selectedCostCodesCount: selectedCostCodes.length,
+        selectedCostCodes: selectedCostCodes.map(c => ({ id: c.id, code: c.code }))
+      });
+      
       if (selectedCostCodes.length > 0) {
         // Delete existing job-cost code relationships
-        await supabase
+        console.log('Deleting existing job cost codes for job:', id);
+        const { error: deleteError } = await supabase
           .from('cost_codes')
           .delete()
           .eq('job_id', id);
+
+        if (deleteError) {
+          console.error('Error deleting existing cost codes:', deleteError);
+        }
 
         // Create job-specific copies of selected cost codes
         const costCodeInserts = selectedCostCodes.map(code => ({
@@ -268,6 +285,7 @@ export default function JobEdit() {
           is_active: true
         }));
 
+        console.log('Inserting cost codes:', costCodeInserts);
         const { error: costCodeError } = await supabase
           .from('cost_codes')
           .insert(costCodeInserts);
@@ -284,6 +302,7 @@ export default function JobEdit() {
         }
       } else {
         // Remove all job cost codes if none selected
+        console.log('Removing all job cost codes for job:', id);
         const { error: deleteError } = await supabase
           .from('cost_codes')
           .delete()
@@ -291,6 +310,8 @@ export default function JobEdit() {
           
         if (deleteError) {
           console.error('Error removing job cost codes:', deleteError);
+        } else {
+          console.log('All job cost codes removed successfully');
         }
       }
 
