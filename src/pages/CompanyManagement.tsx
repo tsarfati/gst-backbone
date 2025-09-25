@@ -28,6 +28,7 @@ interface CompanyUser {
     first_name?: string;
     last_name?: string;
   };
+  is_pin_employee?: boolean; // Flag to identify PIN employees
 }
 
 export default function CompanyManagement() {
@@ -75,7 +76,7 @@ export default function CompanyManagement() {
     try {
       console.log('Fetching users for company:', currentCompany.id);
       
-      // Use a manual approach to join user_company_access with profiles
+      // Fetch regular users from user_company_access
       const { data: userAccessData, error: accessError } = await supabase
         .from('user_company_access')
         .select('*')
@@ -86,37 +87,68 @@ export default function CompanyManagement() {
 
       if (accessError) throw accessError;
 
-      if (!userAccessData || userAccessData.length === 0) {
-        console.log('No user access data found');
-        setUsers([]);
-        return;
+      let combinedUsers: CompanyUser[] = [];
+
+      // Process regular users if they exist
+      if (userAccessData && userAccessData.length > 0) {
+        // Get user IDs to fetch profiles with role
+        const userIds = userAccessData.map(access => access.user_id);
+        console.log('User IDs to fetch:', userIds);
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, first_name, last_name, role')
+          .in('user_id', userIds);
+
+        console.log('Profiles data:', profilesData, 'error:', profilesError);
+
+        if (profilesError) throw profilesError;
+
+        // Combine the regular user data
+        const regularUsers = userAccessData.map(access => {
+          const profile = profilesData?.find(profile => profile.user_id === access.user_id);
+          return {
+            ...access,
+            role: profile?.role || access.role,
+            profile
+          };
+        });
+
+        combinedUsers = [...regularUsers];
       }
 
-      // Get user IDs to fetch profiles with role
-      const userIds = userAccessData.map(access => access.user_id);
-      console.log('User IDs to fetch:', userIds);
-      
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, first_name, last_name, role')
-        .in('user_id', userIds);
+      // Fetch PIN employees and add them to the list
+      const { data: pinEmployeesData, error: pinError } = await supabase
+        .from('pin_employees')
+        .select('*')
+        .eq('is_active', true);
 
-      console.log('Profiles data:', profilesData, 'error:', profilesError);
+      console.log('PIN employees data:', pinEmployeesData, 'error:', pinError);
 
-      if (profilesError) throw profilesError;
+      if (pinError) {
+        console.error('Error fetching PIN employees:', pinError);
+      } else if (pinEmployeesData && pinEmployeesData.length > 0) {
+        // Convert PIN employees to CompanyUser format
+        const pinEmployeeUsers = pinEmployeesData.map(pinEmployee => ({
+          id: `pin-${pinEmployee.id}`, // Prefix to distinguish from regular users
+          user_id: pinEmployee.id, // Use PIN employee ID as user_id
+          company_id: currentCompany.id,
+          role: 'employee', // PIN employees are always employees
+          is_active: pinEmployee.is_active,
+          granted_at: pinEmployee.created_at,
+          profile: {
+            display_name: pinEmployee.display_name,
+            first_name: pinEmployee.first_name,
+            last_name: pinEmployee.last_name
+          },
+          is_pin_employee: true // Flag to identify PIN employees
+        }));
 
-      // Combine the data, using the role from profiles (not user_company_access)
-      const combinedData = userAccessData.map(access => {
-        const profile = profilesData?.find(profile => profile.user_id === access.user_id);
-        return {
-          ...access,
-          role: profile?.role || access.role, // Use profile role as primary source
-          profile
-        };
-      });
+        combinedUsers = [...combinedUsers, ...pinEmployeeUsers];
+      }
 
-      console.log('Combined data:', combinedData);
-      setUsers(combinedData);
+      console.log('Combined users (regular + PIN):', combinedUsers);
+      setUsers(combinedUsers);
     } catch (error) {
       console.error('Error fetching company users:', error);
       toast({
@@ -573,7 +605,13 @@ export default function CompanyManagement() {
                   <TableRow 
                     key={companyUser.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => window.location.href = `/settings/users/${companyUser.user_id}/edit`}
+                    onClick={() => {
+                      if (companyUser.is_pin_employee) {
+                        window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
+                      } else {
+                        window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                      }
+                    }}
                   >
                     <TableCell>
                       <div>
@@ -583,10 +621,15 @@ export default function CompanyManagement() {
                            'Unknown User'}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          User ID: {companyUser.user_id.substring(0, 8)}...
+                          {companyUser.is_pin_employee ? (
+                            <>PIN Employee ID: {companyUser.user_id.substring(0, 8)}...</>
+                          ) : (
+                            <>User ID: {companyUser.user_id.substring(0, 8)}...</>
+                          )}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {companyUser.user_id === user?.id && '(You)'}
+                          {companyUser.is_pin_employee && '(PIN Only Employee)'}
+                          {!companyUser.is_pin_employee && companyUser.user_id === user?.id && '(You)'}
                         </p>
                       </div>
                     </TableCell>
@@ -599,12 +642,27 @@ export default function CompanyManagement() {
                           'outline'
                         }
                       >
-                        {companyUser.role === 'admin' ? 'Administrator' :
-                         companyUser.role === 'controller' ? 'Controller' :
-                         companyUser.role === 'project_manager' ? 'Project Manager' :
-                         companyUser.role === 'view_only' ? 'View Only' :
-                         companyUser.role === 'company_admin' ? 'Company Admin' :
-                         'Employee'}
+                        {companyUser.is_pin_employee ? (
+                          <Badge variant="secondary">
+                            PIN Employee
+                          </Badge>
+                        ) : (
+                          <Badge 
+                            variant={
+                              companyUser.role === 'admin' ? 'destructive' :
+                              companyUser.role === 'controller' ? 'secondary' :
+                              companyUser.role === 'project_manager' ? 'default' :
+                              'outline'
+                            }
+                          >
+                            {companyUser.role === 'admin' ? 'Administrator' :
+                             companyUser.role === 'controller' ? 'Controller' :
+                             companyUser.role === 'project_manager' ? 'Project Manager' :
+                             companyUser.role === 'view_only' ? 'View Only' :
+                             companyUser.role === 'company_admin' ? 'Company Admin' :
+                             'Employee'}
+                          </Badge>
+                        )}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -620,12 +678,16 @@ export default function CompanyManagement() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                              if (companyUser.is_pin_employee) {
+                                window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
+                              } else {
+                                window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                              }
                             }}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {companyUser.user_id !== user?.id && (
+                          {!companyUser.is_pin_employee && companyUser.user_id !== user?.id && (
                             <Button
                               variant="destructive"
                               size="sm"
