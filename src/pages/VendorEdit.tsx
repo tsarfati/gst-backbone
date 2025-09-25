@@ -14,12 +14,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import PaymentMethodEdit from "@/components/PaymentMethodEdit";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import PaymentTermsSelect from "@/components/PaymentTermsSelect";
+import { useCompany } from "@/contexts/CompanyContext";
 
 export default function VendorEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -51,10 +53,10 @@ export default function VendorEdit() {
   const [editingPaymentMethod, setEditingPaymentMethod] = useState<any>(null);
 
   useEffect(() => {
-    if (!isAddMode && user) {
+    if (!isAddMode && user && (currentCompany?.id || profile?.current_company_id)) {
       loadVendor();
     }
-  }, [id, isAddMode, user]);
+  }, [id, isAddMode, user, currentCompany, profile?.current_company_id]);
 
   const loadPaymentMethods = async () => {
     if (!user || !id) return;
@@ -105,7 +107,7 @@ export default function VendorEdit() {
         .from('vendors')
         .select('*')
         .eq('id', id)
-        .eq('company_id', user.id)
+        .eq('company_id', currentCompany?.id || profile?.current_company_id)
         .maybeSingle();
 
       if (error) throw error;
@@ -241,7 +243,7 @@ export default function VendorEdit() {
         const { data, error } = await supabase
           .from('vendors')
           .insert({
-            company_id: user.id,
+            company_id: currentCompany?.id || profile?.current_company_id,
             ...vendorData
           })
           .select()
@@ -259,7 +261,7 @@ export default function VendorEdit() {
           .from('vendors')
           .update(vendorData)
           .eq('id', id)
-          .eq('company_id', user.id);
+          .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
         if (error) throw error;
 
@@ -289,7 +291,7 @@ export default function VendorEdit() {
         .from('vendors')
         .update({ is_active: false })
         .eq('id', id)
-        .eq('company_id', user.id);
+        .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
       if (error) throw error;
 
@@ -319,7 +321,7 @@ export default function VendorEdit() {
         .from('vendors')
         .update({ is_active: newStatus })
         .eq('id', id)
-        .eq('company_id', user.id);
+        .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
       if (error) throw error;
 
