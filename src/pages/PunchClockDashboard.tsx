@@ -253,8 +253,8 @@ export default function PunchClockDashboard() {
       cost_code: row.cost_code_id && costCodes[row.cost_code_id]
         ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
         : '',
-      latitude: row.punch_in_location_lat || undefined,
-      longitude: row.punch_in_location_lng || undefined,
+      latitude: row.punch_in_location_lat !== null && row.punch_in_location_lat !== undefined ? Number(row.punch_in_location_lat) : undefined,
+      longitude: row.punch_in_location_lng !== null && row.punch_in_location_lng !== undefined ? Number(row.punch_in_location_lng) : undefined,
       photo_url: row.punch_in_photo_url || undefined,
       ip_address: undefined,
       user_agent: undefined,
@@ -275,8 +275,8 @@ export default function PunchClockDashboard() {
       cost_code: row.cost_code_id && costCodes[row.cost_code_id]
         ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
         : '',
-      latitude: row.latitude || undefined,
-      longitude: row.longitude || undefined,
+      latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : undefined,
+      longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : undefined,
       photo_url: row.photo_url || undefined,
       ip_address: row.ip_address || undefined,
       user_agent: row.user_agent || undefined,

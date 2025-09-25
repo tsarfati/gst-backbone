@@ -44,7 +44,7 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: [punch.longitude, punch.latitude],
+        center: [Number(punch.longitude), Number(punch.latitude)],
         zoom: 15,
         projection: 'mercator'
       });
@@ -61,7 +61,7 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
     marker.current = new mapboxgl.Marker({
       color: punch.punch_type === 'punched_in' ? '#10b981' : '#ef4444'
     })
-      .setLngLat([punch.longitude, punch.latitude])
+      .setLngLat([Number(punch.longitude), Number(punch.latitude)])
       .setPopup(
         new mapboxgl.Popup({ offset: 25 })
           .setHTML(`
@@ -207,11 +207,11 @@ export default function PunchDetailView({ punch, open, onOpenChange }: PunchDeta
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <span className="text-sm text-muted-foreground">Latitude</span>
-                    <p className="font-medium">{punch.latitude.toFixed(6)}</p>
+                    <p className="font-medium">{Number(punch.latitude).toFixed(6)}</p>
                   </div>
                   <div>
                     <span className="text-sm text-muted-foreground">Longitude</span>
-                    <p className="font-medium">{punch.longitude.toFixed(6)}</p>
+                    <p className="font-medium">{Number(punch.longitude).toFixed(6)}</p>
                   </div>
                 </div>
                 
