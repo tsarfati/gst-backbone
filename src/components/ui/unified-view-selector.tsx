@@ -27,32 +27,18 @@ export default function UnifiedViewSelector({
   isDefault = false,
   className = "" 
 }: UnifiedViewSelectorProps) {
+  const currentViewConfig = views.find(view => view.type === currentView);
+  
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {views.map((view) => (
-        <Button
-          key={view.type}
-          variant={currentView === view.type ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => onViewChange(view.type)}
-          className="h-8"
-        >
-          <view.icon className="h-4 w-4" />
-        </Button>
-      ))}
-      
+    <div className={className}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            <Settings className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="h-8 gap-2">
+            {currentViewConfig && <currentViewConfig.icon className="h-4 w-4" />}
+            {currentViewConfig ? currentViewConfig.label : 'Select View'}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onSetDefault}>
-            Set as Default View
-            {isDefault && <Badge variant="secondary" className="ml-2 text-xs">Current</Badge>}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+        <DropdownMenuContent align="end" className="w-48">
           {views.map((view) => (
             <DropdownMenuItem 
               key={view.type}
@@ -61,8 +47,15 @@ export default function UnifiedViewSelector({
             >
               <view.icon className="h-4 w-4 mr-2" />
               {view.label}
+              {currentView === view.type && <Badge variant="secondary" className="ml-auto text-xs">Active</Badge>}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onSetDefault}>
+            <Settings className="h-4 w-4 mr-2" />
+            Set as Default
+            {isDefault && <Badge variant="secondary" className="ml-auto text-xs">Default</Badge>}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

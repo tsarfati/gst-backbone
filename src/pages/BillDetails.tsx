@@ -21,6 +21,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import VendorAvatar from "@/components/VendorAvatar";
+import BillApprovalActions from "@/components/BillApprovalActions";
+import BillCommunications from "@/components/BillCommunications";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -232,10 +234,10 @@ export default function BillDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Project Information
+              Project & Approval
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Job</p>
               <p className="font-medium">{bill?.jobs?.name || 'N/A'}</p>
@@ -254,6 +256,13 @@ export default function BillDetails() {
                 <p className="font-medium">{bill.payment_terms} days</p>
               </div>
             )}
+            <div className="border-t pt-4">
+              <BillApprovalActions
+                billId={bill?.id || ''}
+                currentStatus={bill?.status || 'pending_approval'}
+                onStatusUpdate={fetchBillDetails}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -271,47 +280,54 @@ export default function BillDetails() {
       )}
 
       {/* File Preview Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Bill Document
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {bill?.file_url ? (
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  <span className="font-medium">Bill Document</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Bill Document
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {bill?.file_url ? (
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    <span className="font-medium">Bill Document</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.open(bill.file_url, '_blank')}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Full Document
+                  </Button>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => window.open(bill.file_url, '_blank')}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  View Full Document
-                </Button>
+                <iframe 
+                  src={bill.file_url} 
+                  className="w-full h-96 border rounded"
+                  title="Bill Document"
+                />
               </div>
-              <iframe 
-                src={bill.file_url} 
-                className="w-full h-96 border rounded"
-                title="Bill Document"
-              />
-            </div>
-          ) : (
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
-              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No Document Available</h3>
-              <p className="text-muted-foreground">
-                No bill document has been uploaded for this bill
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
+                <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-medium mb-2">No Document Available</h3>
+                <p className="text-muted-foreground">
+                  No bill document has been uploaded for this bill
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <BillCommunications 
+          billId={bill?.id || ''}
+          vendorId={bill?.vendor_id || ''}
+        />
+      </div>
     </div>
   );
 }
