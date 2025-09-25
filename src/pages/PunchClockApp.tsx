@@ -53,6 +53,7 @@ function PunchClockApp() {
   const [punchOutNote, setPunchOutNote] = useState('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isPunching, setIsPunching] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -295,9 +296,10 @@ function PunchClockApp() {
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
 
-    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.6)) {
+    if (faceResult.hasFace && (faceResult.confidence === undefined || faceResult.confidence > 0.6) && !isPunching) {
       // Face detected with good confidence - automatically capture
       setIsCapturing(true);
+      setIsPunching(true); // Prevent concurrent punch attempts
       
       // Clear the detection interval
       if (faceDetectionInterval) {
@@ -390,10 +392,11 @@ function PunchClockApp() {
   };
 
   const handlePunch = async () => {
-    if (!user) return;
+    if (!user || isPunching) return;
 
     try {
       setIsLoading(true);
+      setIsPunching(true);
 
       if (isPinAuthenticated) {
         const pin = getPin();
@@ -422,7 +425,30 @@ function PunchClockApp() {
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
-          throw new Error(j.error || 'Edge punch failed');
+          const errorMessage = j.error || 'Failed to record punch';
+          
+          // Handle specific error cases
+          if (errorMessage.includes('already punched in')) {
+            toast({
+              title: 'Already Punched In',
+              description: 'You are already punched in. Please punch out first.',
+              variant: 'destructive'
+            });
+            // Refresh the data to sync state
+            await loadFromEdge();
+            return;
+          } else if (errorMessage.includes('not currently punched in')) {
+            toast({
+              title: 'Not Punched In',
+              description: 'You are not currently punched in. Please punch in first.',
+              variant: 'destructive'
+            });
+            // Refresh the data to sync state
+            await loadFromEdge();
+            return;
+          }
+          
+          throw new Error(errorMessage);
         }
         setPhotoBlob(null);
         setPunchOutNote('');
@@ -461,6 +487,8 @@ function PunchClockApp() {
       toast({ title: 'Error', description: 'Failed to record punch. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
+      setIsPunching(false);
+      setIsCapturing(false);
     }
   };
 

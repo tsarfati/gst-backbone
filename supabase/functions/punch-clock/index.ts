@@ -25,7 +25,10 @@ function errorResponse(message: string, status = 400) {
 }
 
 async function validatePin(supabaseAdmin: any, pin: string) {
-  if (!pin || pin.length !== 6) return null;
+  if (!pin || pin.trim().length !== 6) return null;
+  
+  // Normalize PIN to ensure consistent format
+  pin = pin.trim();
   
   // First check regular profiles table
   const { data: profileData, error: profileError } = await supabaseAdmin
@@ -113,6 +116,17 @@ serve(async (req) => {
       if (action === "in") {
         if (!job_id || !cost_code_id) return errorResponse("Missing job_id or cost_code_id");
 
+        // Check if user is already punched in
+        const { data: existingPunch, error: checkErr } = await supabaseAdmin
+          .from("current_punch_status")
+          .select("*")
+          .eq("user_id", userRow.user_id)
+          .eq("is_active", true)
+          .maybeSingle();
+        
+        if (checkErr) return errorResponse(checkErr.message, 500);
+        if (existingPunch) return errorResponse("User is already punched in", 400);
+
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
           job_id,
@@ -148,6 +162,7 @@ serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
         if (curErr) return errorResponse(curErr.message, 500);
+        if (!currentPunch) return errorResponse("User is not currently punched in", 400);
 
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
