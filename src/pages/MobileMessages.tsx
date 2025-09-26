@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MessageSquare, User, Search } from "lucide-react";
+import { ArrowLeft, MessageSquare, User, Search, Plus, Reply } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import MobileComposeDialog from "@/components/MobileComposeDialog";
 
 interface Message {
   id: string;
@@ -18,15 +19,18 @@ interface Message {
   content: string;
   read: boolean;
   created_at: string;
+  thread_id?: string;
   from_profile?: {
     display_name?: string;
     first_name?: string;
     last_name?: string;
+    avatar_url?: string;
   };
   to_profile?: {
     display_name?: string;
     first_name?: string;
     last_name?: string;
+    avatar_url?: string;
   };
 }
 
@@ -36,6 +40,8 @@ export function MobileMessages() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showCompose, setShowCompose] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -56,7 +62,8 @@ export function MobileMessages() {
           subject,
           content,
           read,
-          created_at
+          created_at,
+          thread_id
         `)
         .or(`from_user_id.eq.${user?.id},to_user_id.eq.${user?.id}`)
         .order('created_at', { ascending: false })
@@ -64,7 +71,7 @@ export function MobileMessages() {
 
       if (error) throw error;
 
-      // Fetch profile data separately for better reliability
+      // Fetch profile data and avatars separately for better reliability
       const userIds = [...new Set([
         ...data.map(m => m.from_user_id),
         ...data.map(m => m.to_user_id)
@@ -72,10 +79,10 @@ export function MobileMessages() {
 
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, display_name, first_name, last_name')
-        .in('id', userIds);
+        .select('user_id, display_name, first_name, last_name, avatar_url')
+        .in('user_id', userIds);
 
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
       const messagesWithProfiles = data.map(message => ({
         ...message,
@@ -114,6 +121,17 @@ export function MobileMessages() {
     } catch (error) {
       console.error('Error marking message as read:', error);
     }
+  };
+
+  const handleReply = (message: Message) => {
+    setReplyToMessage(message);
+    setShowCompose(true);
+  };
+
+  const handleMessageSent = () => {
+    setShowCompose(false);
+    setReplyToMessage(null);
+    loadMessages();
   };
 
   const filteredMessages = messages.filter(message => {
@@ -163,6 +181,14 @@ export function MobileMessages() {
                   )}
                 </CardTitle>
               </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowCompose(true)}
+                className="p-2"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           </CardHeader>
         </Card>
@@ -220,9 +246,17 @@ export function MobileMessages() {
                             <div className="flex items-center gap-2">
                               {message.from_user_id === user?.id ? (
                                 <>
-                                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                                    <User className="h-3 w-3 text-primary" />
-                                  </div>
+                                  {user?.user_metadata?.avatar_url || message.from_profile?.avatar_url ? (
+                                    <img 
+                                      src={user?.user_metadata?.avatar_url || message.from_profile?.avatar_url} 
+                                      alt="Your Avatar"
+                                      className="h-6 w-6 rounded-full"
+                                    />
+                                  ) : (
+                                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                                      <User className="h-3 w-3 text-primary" />
+                                    </div>
+                                  )}
                                   <span className="text-sm font-medium">You</span>
                                   <span className="text-xs text-muted-foreground">→</span>
                                   <span className="text-xs text-muted-foreground">
@@ -233,9 +267,17 @@ export function MobileMessages() {
                                 </>
                               ) : (
                                 <>
-                                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-                                    <User className="h-3 w-3" />
-                                  </div>
+                                  {message.from_profile?.avatar_url ? (
+                                    <img 
+                                      src={message.from_profile.avatar_url} 
+                                      alt={message.from_profile.display_name || message.from_profile.first_name || 'User'} 
+                                      className="h-6 w-6 rounded-full"
+                                    />
+                                  ) : (
+                                    <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                                      <User className="h-3 w-3" />
+                                    </div>
+                                  )}
                                   <span className="text-sm font-medium">
                                     {message.from_profile?.display_name || 
                                      message.from_profile?.first_name || 
@@ -257,9 +299,25 @@ export function MobileMessages() {
                             {message.content}
                           </p>
                           
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(message.created_at).toLocaleString()}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(message.created_at).toLocaleString()}
+                            </p>
+                            
+                            {message.from_user_id !== user?.id && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReply(message);
+                                }}
+                                className="h-6 px-2"
+                              >
+                                <Reply className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         
                         {!message.read && message.to_user_id === user?.id && (
@@ -285,6 +343,17 @@ export function MobileMessages() {
         >
           {loading ? 'Refreshing...' : 'Refresh Messages'}
         </Button>
+
+        {/* Compose Message Dialog */}
+        <MobileComposeDialog 
+          isOpen={showCompose}
+          onClose={() => {
+            setShowCompose(false);
+            setReplyToMessage(null);
+          }}
+          onMessageSent={handleMessageSent}
+          replyToMessage={replyToMessage}
+        />
       </div>
     </div>
   );
