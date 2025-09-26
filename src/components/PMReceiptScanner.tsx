@@ -38,7 +38,6 @@ export function PMReceiptScanner() {
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showCodingForm, setShowCodingForm] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -51,10 +50,11 @@ export function PMReceiptScanner() {
   
   // Receipt form fields
   const [selectedVendor, setSelectedVendor] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [receiptAmount, setReceiptAmount] = useState('');
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
-  const [ocrData, setOcrData] = useState<any>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -149,7 +149,7 @@ export function PMReceiptScanner() {
     
     setCapturedImage(imageData);
     stopCamera();
-    processReceiptWithOCR(imageData);
+    setShowCodingForm(true);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,67 +160,9 @@ export function PMReceiptScanner() {
     reader.onload = (e) => {
       const imageData = e.target?.result as string;
       setCapturedImage(imageData);
-      processReceiptWithOCR(imageData);
+      setShowCodingForm(true);
     };
     reader.readAsDataURL(file);
-  };
-
-  const processReceiptWithOCR = async (imageData: string) => {
-    if (!imageData) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const base64Data = imageData.split(',')[1];
-      
-      const { data, error } = await supabase.functions.invoke('process-receipt-ocr', {
-        body: { imageBase64: base64Data }
-      });
-
-      if (error) throw error;
-
-      if (data.success && data.extractedData) {
-        setOcrData(data.extractedData);
-        
-        // Pre-fill form with OCR data
-        if (data.extractedData.amount) {
-          setReceiptAmount(data.extractedData.amount.toString());
-        }
-        if (data.extractedData.date) {
-          setReceiptDate(data.extractedData.date);
-        }
-        if (data.extractedData.vendor) {
-          const matchingVendor = vendors.find(v => 
-            v.name.toLowerCase().includes(data.extractedData.vendor.toLowerCase()) ||
-            data.extractedData.vendor.toLowerCase().includes(v.name.toLowerCase())
-          );
-          if (matchingVendor) {
-            setSelectedVendor(matchingVendor.id);
-          }
-        }
-        
-        toast({
-          title: 'Receipt Processed',
-          description: 'OCR data extracted successfully. Please review and submit.',
-        });
-      } else {
-        toast({
-          title: 'OCR Processing Failed',
-          description: 'Could not extract data from receipt. Please enter details manually.',
-          variant: 'destructive'
-        });
-      }
-    } catch (error) {
-      console.error('OCR processing error:', error);
-      toast({
-        title: 'Processing Error',
-        description: 'Failed to process receipt. Please enter details manually.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsProcessing(false);
-      setShowCodingForm(true);
-    }
   };
 
   const submitCodedReceipt = async () => {
@@ -294,10 +236,11 @@ export function PMReceiptScanner() {
     setCapturedImage(null);
     setShowCodingForm(false);
     setSelectedVendor('');
+    setVendorName('');
+    setPaymentMethod('');
     setReceiptAmount('');
     setReceiptDate(new Date().toISOString().split('T')[0]);
     setNotes('');
-    setOcrData(null);
   };
 
   return (
@@ -373,14 +316,6 @@ export function PMReceiptScanner() {
         </div>
       )}
 
-      {(!selectedJob || !selectedCostCode) && (
-        <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
-          <CardContent className="p-4 text-center text-muted-foreground">
-            <p>Please select a job and cost code to proceed with receipt scanning.</p>
-          </CardContent>
-        </Card>
-      )}
-
       {capturedImage && (
         <Card>
           <CardContent className="p-4">
@@ -391,14 +326,6 @@ export function PMReceiptScanner() {
                   alt="Captured receipt" 
                   className="w-full rounded-lg border"
                 />
-                {isProcessing && (
-                  <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
-                    <div className="bg-white rounded-lg p-4 flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span className="text-sm font-medium">Processing OCR...</span>
-                    </div>
-                  </div>
-                )}
               </div>
               
               <div className="flex gap-2">
@@ -410,7 +337,7 @@ export function PMReceiptScanner() {
                   <X className="h-4 w-4 mr-2" />
                   Retake
                 </Button>
-                {!isProcessing && !showCodingForm && (
+                {!showCodingForm && (
                   <Button 
                     onClick={() => setShowCodingForm(true)}
                     className="flex-1"
@@ -468,23 +395,6 @@ export function PMReceiptScanner() {
               </div>
             </div>
 
-            {ocrData && (
-              <div className="bg-muted p-3 rounded-lg">
-                <div className="text-sm font-medium mb-2">OCR Results:</div>
-                <div className="space-y-1 text-xs">
-                  {ocrData.vendor && (
-                    <div>Vendor: <Badge variant="secondary">{ocrData.vendor}</Badge></div>
-                  )}
-                  {ocrData.amount && (
-                    <div>Amount: <Badge variant="secondary">${ocrData.amount}</Badge></div>
-                  )}
-                  {ocrData.date && (
-                    <div>Date: <Badge variant="secondary">{ocrData.date}</Badge></div>
-                  )}
-                </div>
-              </div>
-            )}
-
             <div className="space-y-3">
               <div>
                 <Label htmlFor="vendor">Vendor</Label>
@@ -498,6 +408,33 @@ export function PMReceiptScanner() {
                         {vendor.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="vendorName">Vendor/Supplier Name</Label>
+                <Input
+                  id="vendorName"
+                  placeholder="Enter vendor/supplier name"
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="paymentMethod">Payment Method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="company_card">Company Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
