@@ -196,13 +196,6 @@ export function PMReceiptScanner() {
     }
 
     setIsUploading(true);
-    // Hard failsafe to prevent permanent "Processing..." state
-    const killTimer = window.setTimeout(() => {
-      setIsUploading(false);
-      try {
-        toast({ title: 'Upload taking longer than expected', description: 'We will continue processing in the background.' });
-      } catch (_) {}
-    }, 30000);
 
     try {
 // Convert captured image to blob
@@ -276,7 +269,6 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
         variant: 'destructive'
       });
     } finally {
-      clearTimeout(killTimer);
       setIsUploading(false);
     }
   };

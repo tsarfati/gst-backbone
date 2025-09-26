@@ -54,15 +54,6 @@ interface ReceiptContextType {
 
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 
-// Simple timeout wrapper to avoid long-hanging operations in OCR
-function withTimeout<T>(promise: Promise<T>, ms: number, label = 'operation'): Promise<T> {
-  let id: number;
-  const timeout = new Promise<never>((_, reject) => {
-    id = window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  // @ts-ignore
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(id!)) as Promise<T>;
-}
 
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -111,48 +102,12 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           .from('receipts')
           .getPublicUrl(filePath);
 
-        let ocrData = null;
-        
-        // Process with AI OCR if it's an image
-        if (file.type.startsWith('image/')) {
-          try {
-            console.log('Processing image with AI OCR...');
-            
-            // Convert file to base64 for AI processing
-            const base64 = await new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const base64String = reader.result as string;
-                resolve(base64String.split(',')[1]); // Remove data:image/jpeg;base64, prefix
-              };
-              reader.readAsDataURL(file);
-            });
-
-            const ocrResponse = await withTimeout(
-              supabase.functions.invoke('process-receipt-ocr', {
-                body: { imageBase64: base64 }
-              }),
-              12000,
-              'Receipt OCR'
-            );
-
-            if (ocrResponse.data?.success) {
-              ocrData = ocrResponse.data.data;
-              console.log('OCR processed successfully:', ocrData);
-            } else {
-              console.warn('OCR processing failed:', ocrResponse.data?.error);
-            }
-          } catch (ocrError) {
-            console.warn('OCR processing error:', ocrError);
-          }
-        }
-
         const newReceipt: Receipt = {
           id: `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           filename: file.name,
-          amount: ocrData?.amount || "$0.00",
-          date: ocrData?.date || new Date().toISOString().split('T')[0],
-          vendor: ocrData?.vendor || undefined,
+          amount: "$0.00",
+          date: new Date().toISOString().split('T')[0],
+          vendor: undefined,
           type: file.type.startsWith('image/') ? 'image' : 'pdf',
           previewUrl: urlData.publicUrl,
           uploadedBy: user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User",
