@@ -37,7 +37,6 @@ export function PMReceiptScanner() {
   
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [showCodingForm, setShowCodingForm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -149,7 +148,6 @@ export function PMReceiptScanner() {
     
     setCapturedImage(imageData);
     stopCamera();
-    setShowCodingForm(true);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,7 +158,6 @@ export function PMReceiptScanner() {
     reader.onload = (e) => {
       const imageData = e.target?.result as string;
       setCapturedImage(imageData);
-      setShowCodingForm(true);
     };
     reader.readAsDataURL(file);
   };
@@ -289,7 +286,6 @@ export function PMReceiptScanner() {
 
   const resetForm = () => {
     setCapturedImage(null);
-    setShowCodingForm(false);
     setSelectedVendor('');
     setVendorName('');
     setPaymentMethod('');
@@ -299,7 +295,7 @@ export function PMReceiptScanner() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="h-full overflow-y-auto space-y-4 pb-20">
       {/* Job and Cost Code Pre-selection */}
       <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
         <CardHeader>
@@ -340,71 +336,174 @@ export function PMReceiptScanner() {
         </CardContent>
       </Card>
 
-      {!capturedImage && (
-        <div className="space-y-3">
-          <Button 
-            onClick={startCamera} 
-            className="w-full h-14 text-base"
-            size="lg"
-          >
-            <Camera className="h-6 w-6 mr-3" />
-            Take Photo
-          </Button>
-          
-          <Button 
-            onClick={() => fileInputRef.current?.click()} 
-            variant="outline" 
-            className="w-full h-14 text-base"
-            size="lg"
-          >
-            <Upload className="h-6 w-6 mr-3" />
-            Upload from Gallery
-          </Button>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-        </div>
-      )}
+      {/* Camera/Upload Section */}
+      <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base">Receipt Photo</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <Button 
+              onClick={startCamera} 
+              className="w-full h-14 text-base"
+              size="lg"
+            >
+              <Camera className="h-6 w-6 mr-3" />
+              Take Photo
+            </Button>
+            
+            <Button 
+              onClick={() => fileInputRef.current?.click()} 
+              variant="outline" 
+              className="w-full h-14 text-base"
+              size="lg"
+            >
+              <Upload className="h-6 w-6 mr-3" />
+              Upload from Gallery
+            </Button>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Receipt Details Form */}
+      <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base">Receipt Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="vendor">Vendor</Label>
+            <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select vendor (optional)" />
+              </SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                {vendors.map(vendor => (
+                  <SelectItem key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="vendorName">Vendor/Supplier Name</Label>
+            <Input
+              id="vendorName"
+              placeholder="Enter vendor/supplier name"
+              value={vendorName}
+              onChange={(e) => setVendorName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="paymentMethod">Payment Method</Label>
+            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="check">Check</SelectItem>
+                <SelectItem value="credit_card">Credit Card</SelectItem>
+                <SelectItem value="company_card">Company Card</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="amount">Amount</Label>
+            <Input
+              id="amount"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={receiptAmount}
+              onChange={(e) => setReceiptAmount(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="date">Date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={receiptDate}
+              onChange={(e) => setReceiptDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              placeholder="Add any additional notes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Image Preview at Bottom */}
       {capturedImage && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-4">
-              <div className="relative">
-                <img 
-                  src={capturedImage} 
-                  alt="Captured receipt" 
-                  className="w-full rounded-lg border"
-                />
-              </div>
-              
-              <div className="flex gap-2">
-                <Button 
-                  onClick={resetForm} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Retake
-                </Button>
-                {!showCodingForm && (
-                  <Button 
-                    onClick={() => setShowCodingForm(true)}
-                    className="flex-1"
-                  >
-                    Review Details
-                  </Button>
-                )}
-              </div>
+        <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="text-base">Receipt Preview</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <img 
+                src={capturedImage} 
+                alt="Captured receipt" 
+                className="w-full rounded-lg border"
+              />
             </div>
+            
+            <Button 
+              onClick={resetForm} 
+              variant="outline"
+              className="w-full"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Remove Image
+            </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Submit Button */}
+      <div className="pb-4">
+        <Button 
+          onClick={submitReceipt} 
+          className="w-full h-14 text-base"
+          size="lg"
+          disabled={!capturedImage || isUploading}
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Submit Receipt
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* Camera Dialog */}
       <Dialog open={showCamera} onOpenChange={() => stopCamera()}>
@@ -429,121 +528,6 @@ export function PMReceiptScanner() {
                 <Camera className="h-8 w-8" />
               </Button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Receipt Details Dialog */}
-      <Dialog open={showCodingForm} onOpenChange={() => setShowCodingForm(false)}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Receipt Details</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {/* Show selected job and cost code */}
-            <div className="bg-muted p-3 rounded-lg">
-              <div className="text-sm font-medium mb-2">Assignment:</div>
-              <div className="space-y-1 text-xs">
-                <div>Job: <Badge variant="secondary">{jobs.find(j => j.id === selectedJob)?.name}</Badge></div>
-                <div>Cost Code: <Badge variant="secondary">{costCodes.find(c => c.id === selectedCostCode)?.code} - {costCodes.find(c => c.id === selectedCostCode)?.description}</Badge></div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="vendor">Vendor</Label>
-                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vendor (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="z-50 bg-popover">
-                    {vendors.map(vendor => (
-                      <SelectItem key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="vendorName">Vendor/Supplier Name</Label>
-                <Input
-                  id="vendorName"
-                  placeholder="Enter vendor/supplier name"
-                  value={vendorName}
-                  onChange={(e) => setVendorName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="paymentMethod">Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment method" />
-                  </SelectTrigger>
-                  <SelectContent className="z-50 bg-popover">
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="check">Check</SelectItem>
-                    <SelectItem value="credit_card">Credit Card</SelectItem>
-                    <SelectItem value="company_card">Company Card</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={receiptAmount}
-                  onChange={(e) => setReceiptAmount(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="date">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={receiptDate}
-                  onChange={(e) => setReceiptDate(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add any additional notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <Button 
-              onClick={submitReceipt} 
-              className="w-full"
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Submit Receipt
-                </>
-              )}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
