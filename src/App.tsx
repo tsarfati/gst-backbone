@@ -87,6 +87,7 @@ import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
 import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
+import PMobileApp from "./pages/PMobileApp";
 
 const queryClient = new QueryClient();
 
@@ -257,6 +258,7 @@ function AuthenticatedRoutes() {
                 <Route path="banking/print-checks" element={<PrintChecks />} />
                 <Route path="banking/make-payment" element={<MakePayment />} />
                 <Route path="banking/reconcile" element={<Reconcile />} />
+                <Route path="pm-mobile" element={<PMobileApp />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
