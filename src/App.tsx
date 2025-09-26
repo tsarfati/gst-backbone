@@ -261,9 +261,7 @@ function AuthenticatedRoutes() {
               </Route>
               <Route path="/pm-mobile" element={
                 <ProtectedRoute>
-                  <AccessControl>
-                    <PMobileApp />
-                  </AccessControl>
+                  <PMobileApp />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
