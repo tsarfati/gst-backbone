@@ -237,13 +237,37 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
           description: 'Receipt has been processed and added to coded receipts.',
         });
       } else {
-        // Add to uncoded receipts
-        const fileList = Object.create(FileList.prototype);
-        Object.defineProperty(fileList, '0', { value: file });
-        Object.defineProperty(fileList, 'length', { value: 1 });
+        // Upload directly to database with proper company_id
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentCompany?.id || 'no-company'}/${Date.now()}.${fileExt}`;
         
-        const maybe = addReceipts(fileList as FileList);
-        await withTimeout(Promise.resolve(maybe) as Promise<any>, 15000, 'Add receipts');
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+
+        const { error: insertError } = await supabase
+          .from('receipts')
+          .insert({
+            company_id: currentCompany?.id || user?.id,
+            created_by: user?.id,
+            file_name: file.name,
+            file_url: publicUrlData.publicUrl,
+            file_size: file.size,
+            status: 'uncoded',
+            vendor_name: vendorName || null,
+            amount: parseFloat(receiptAmount) || null,
+            receipt_date: receiptDate || null,
+            payment_method: paymentMethod || null,
+            notes: notes || null
+          });
+
+        if (insertError) throw insertError;
         
         toast({
           title: 'Receipt Uploaded',
