@@ -30,6 +30,21 @@ interface Vendor {
   name: string;
 }
 
+// Utility: timeout any async op to prevent indefinite "Processing..." state
+async function withTimeout<T>(promise: Promise<T>, ms: number, label = 'operation'): Promise<T> {
+  let timeoutId: number;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]) as T;
+  } finally {
+    clearTimeout(timeoutId!);
+  }
+}
+
 export function PMReceiptScanner() {
   const { user } = useAuth();
   const { addReceipts, codeReceipt } = useReceipts();
@@ -175,13 +190,13 @@ export function PMReceiptScanner() {
     setIsUploading(true);
 
     try {
-      // Convert captured image to blob
-      const response = await fetch(capturedImage);
-      const blob = await response.blob();
-      
-      // Create file for upload
-      const fileName = `receipt-${Date.now()}.jpg`;
-      const file = new File([blob], fileName, { type: 'image/jpeg' });
+// Convert captured image to blob
+const response = await withTimeout(fetch(capturedImage), 5000, 'Image read');
+const blob = await response.blob();
+
+// Create file for upload
+const fileName = `receipt-${Date.now()}.jpg`;
+const file = new File([blob], fileName, { type: 'image/jpeg' });
       
       let finalFile = file;
       
@@ -249,46 +264,60 @@ export function PMReceiptScanner() {
     }
   };
 
-  const enhanceReceiptImage = async (imageBlob: Blob): Promise<Blob> => {
-    try {
-      const formData = new FormData();
-      formData.append('image', imageBlob);
+const enhanceReceiptImage = async (imageBlob: Blob): Promise<Blob> => {
+  try {
+    const formData = new FormData();
+    formData.append('image', imageBlob);
 
-      const { data, error } = await supabase.functions.invoke('enhance-receipt', {
-        body: formData
-      });
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke('enhance-receipt', { body: formData }),
+      15000,
+      'Image enhancement'
+    );
 
-      if (error) throw error;
+    if (error) throw error;
 
-      // Convert base64 to blob
-      const response = await fetch(`data:image/jpeg;base64,${data.enhancedImage}`);
-      return await response.blob();
-    } catch (error) {
-      console.error('Error enhancing image:', error);
-      // Return original image if enhancement fails
+    if (!data?.enhancedImage) {
+      console.warn('Enhance function returned no image, using original');
       return imageBlob;
     }
-  };
 
-  const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
-    const timestamp = Date.now();
-    
-    // Upload original file for audit/backup
-    const originalPath = `receipts/originals/${timestamp}-${originalFile.name}`;
-    const { error: originalError } = await supabase.storage
-      .from('receipts')
-      .upload(originalPath, originalFile);
+    const response = await withTimeout(
+      fetch(`data:image/jpeg;base64,${data.enhancedImage}`),
+      5000,
+      'Enhanced image conversion'
+    );
+    return await response.blob();
+  } catch (error) {
+    console.warn('Enhancement skipped due to error:', error);
+    return imageBlob;
+  }
+};
 
-    if (originalError) throw originalError;
+const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
+  const timestamp = Date.now();
+  
+  // Upload original and enhanced in parallel; auto-overwrite on name collision
+  const originalPath = `receipts/originals/${timestamp}-${originalFile.name}`;
+  const enhancedPath = `receipts/enhanced/${timestamp}-${enhancedFile.name}`;
 
-    // Upload enhanced file for main use
-    const enhancedPath = `receipts/enhanced/${timestamp}-${enhancedFile.name}`;
-    const { error: enhancedError } = await supabase.storage
-      .from('receipts')
-      .upload(enhancedPath, enhancedFile);
+  const originalUpload = supabase.storage
+    .from('receipts')
+    .upload(originalPath, originalFile, { upsert: true, cacheControl: '3600' });
 
-    if (enhancedError) throw enhancedError;
-  };
+  const enhancedUpload = supabase.storage
+    .from('receipts')
+    .upload(enhancedPath, enhancedFile, { upsert: true, cacheControl: '3600' });
+
+  const [{ error: originalError }, { error: enhancedError }] = await withTimeout(
+    Promise.all([originalUpload, enhancedUpload]),
+    20000,
+    'Receipt upload'
+  );
+
+  if (originalError) throw originalError;
+  if (enhancedError) throw enhancedError;
+};
 
   const resetForm = () => {
     setCapturedImage(null);
