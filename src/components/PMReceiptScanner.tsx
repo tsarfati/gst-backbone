@@ -186,6 +186,14 @@ export function PMReceiptScanner() {
       });
       return;
     }
+    if (!selectedJob) {
+      toast({
+        title: 'Job Required',
+        description: 'Please select a job before submitting the receipt.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     setIsUploading(true);
 
@@ -210,7 +218,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
       }
       
       // Upload file(s)
-      await uploadReceiptFiles(file, finalFile);
+      const paths = await uploadReceiptFiles(file, finalFile);
       
       // Check if receipt should be coded or go to uncoded
       const isComplete = selectedJob && selectedCostCode && receiptAmount;
@@ -242,7 +250,8 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
         Object.defineProperty(fileList, '0', { value: finalFile });
         Object.defineProperty(fileList, 'length', { value: 1 });
         
-        await addReceipts(fileList as FileList);
+        const maybe = addReceipts(fileList as FileList);
+        await withTimeout(Promise.resolve(maybe) as Promise<any>, 15000, 'Add receipts');
         
         toast({
           title: 'Receipt Uploaded',
@@ -317,6 +326,9 @@ const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
 
   if (originalError) throw originalError;
   if (enhancedError) throw enhancedError;
+  
+  console.info('[Upload] Stored files in bucket "receipts"', { originalPath, enhancedPath });
+  return { originalPath, enhancedPath } as const;
 };
 
   const resetForm = () => {
@@ -338,10 +350,10 @@ const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
         </CardHeader>
         <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="job">Job (Optional - for automatic coding)</Label>
+              <Label htmlFor="job">Job (Required)</Label>
               <Select value={selectedJob} onValueChange={setSelectedJob}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select job" />
+                  <SelectValue placeholder="Select job (required)" />
                 </SelectTrigger>
                 <SelectContent className="z-50 bg-popover">
                   {jobs.map(job => (
@@ -524,7 +536,7 @@ const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
           onClick={submitReceipt} 
           className="w-full h-14 text-base"
           size="lg"
-          disabled={!capturedImage || isUploading}
+          disabled={!capturedImage || isUploading || !selectedJob}
         >
           {isUploading ? (
             <>
