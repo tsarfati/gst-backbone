@@ -258,8 +258,14 @@ function AuthenticatedRoutes() {
                 <Route path="banking/print-checks" element={<PrintChecks />} />
                 <Route path="banking/make-payment" element={<MakePayment />} />
                 <Route path="banking/reconcile" element={<Reconcile />} />
-                <Route path="pm-mobile" element={<PMobileApp />} />
               </Route>
+              <Route path="/pm-mobile" element={
+                <ProtectedRoute>
+                  <AccessControl>
+                    <PMobileApp />
+                  </AccessControl>
+                </ProtectedRoute>
+              } />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ReceiptProvider>
