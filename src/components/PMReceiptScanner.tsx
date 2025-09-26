@@ -100,15 +100,6 @@ export function PMReceiptScanner() {
   }, [loadData]);
 
   const startCamera = async () => {
-    if (!selectedJob || !selectedCostCode) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please select a job and cost code first.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
     setShowCamera(true);
     
     setTimeout(async () => {
@@ -162,15 +153,6 @@ export function PMReceiptScanner() {
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedJob || !selectedCostCode) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please select a job and cost code first.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -242,10 +224,19 @@ export function PMReceiptScanner() {
   };
 
   const submitCodedReceipt = async () => {
-    if (!capturedImage || !selectedJob || !selectedCostCode || !receiptAmount) {
+    if (!capturedImage || !receiptAmount) {
       toast({
         title: 'Missing Information',
-        description: 'Please fill in all required fields.',
+        description: 'Please capture receipt and enter amount.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (!selectedJob || !selectedCostCode) {
+      toast({
+        title: 'Missing Assignment',
+        description: 'Please select a job and cost code.',
         variant: 'destructive'
       });
       return;
@@ -351,7 +342,7 @@ export function PMReceiptScanner() {
         </CardContent>
       </Card>
 
-      {!capturedImage && (selectedJob && selectedCostCode) && (
+      {!capturedImage && (
         <div className="space-y-3">
           <Button 
             onClick={startCamera} 
@@ -435,22 +426,27 @@ export function PMReceiptScanner() {
 
       {/* Camera Dialog */}
       <Dialog open={showCamera} onOpenChange={() => stopCamera()}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Capture Receipt</DialogTitle>
+        <DialogContent className="max-w-full max-h-full p-0 m-0 h-screen w-screen bg-black">
+          <DialogHeader className="absolute top-4 left-4 right-4 z-10">
+            <DialogTitle className="text-white">Capture Receipt</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="relative h-full w-full">
             <video
               ref={videoRef}
               autoPlay
               playsInline
-              className="w-full rounded-lg"
+              className="h-full w-full object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
-            <Button onClick={capturePhoto} className="w-full">
-              <Camera className="h-4 w-4 mr-2" />
-              Capture Photo
-            </Button>
+            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+              <Button 
+                onClick={capturePhoto} 
+                className="h-16 w-16 rounded-full bg-white text-black hover:bg-gray-200"
+                size="lg"
+              >
+                <Camera className="h-8 w-8" />
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
