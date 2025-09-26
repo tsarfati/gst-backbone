@@ -657,11 +657,11 @@ export default function CodedReceipts() {
               </div>
               <div>
                 <Label>Job</Label>
-                <Badge variant="secondary">{selectedReceipt.job}</Badge>
+                <Badge variant="secondary">{selectedReceipt.job?.name || 'Not specified'}</Badge>
               </div>
               <div>
                 <Label>Cost Code</Label>
-                <Badge variant="outline">{selectedReceipt.costCode}</Badge>
+                <Badge variant="outline">{selectedReceipt.costCode?.description || 'Not specified'}</Badge>
               </div>
               <div>
                 <Label>Uploaded By</Label>
