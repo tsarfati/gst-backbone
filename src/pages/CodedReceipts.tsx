@@ -34,8 +34,8 @@ export default function CodedReceipts() {
   const { toast } = useToast();
 
   // Create dynamic lists from coded receipts data
-  const jobs = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.job).filter(Boolean))) as string[], [codedReceipts]);
-  const costCodes = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.costCode).filter(Boolean))) as string[], [codedReceipts]);
+  const jobs = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.jobName).filter(Boolean))) as string[], [codedReceipts]);
+  const costCodes = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.costCodeName).filter(Boolean))) as string[], [codedReceipts]);
 
   // Sort coded receipts
   const allReceipts = useMemo((): CodedReceipt[] => {
@@ -43,7 +43,9 @@ export default function CodedReceipts() {
       if (sortBy === 'date') {
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       } else if (sortBy === 'amount') {
-        return parseFloat(b.amount.replace(/[^0-9.-]/g, '')) - parseFloat(a.amount.replace(/[^0-9.-]/g, ''));
+        const aAmount = typeof a.amount === 'string' ? parseFloat(a.amount.replace(/[^0-9.-]/g, '')) : Number(a.amount) || 0;
+        const bAmount = typeof b.amount === 'string' ? parseFloat(b.amount.replace(/[^0-9.-]/g, '')) : Number(b.amount) || 0;
+        return bAmount - aAmount;
       } else if (sortBy === 'vendor') {
         return (a.vendor || '').localeCompare(b.vendor || '');
       }
@@ -57,10 +59,10 @@ export default function CodedReceipts() {
       const matchesSearch = searchTerm === "" || 
         receipt.filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
         receipt.vendor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        receipt.amount.toLowerCase().includes(searchTerm.toLowerCase());
+        receipt.amount?.toString().toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesJob = filterJob === "all" || receipt.job === filterJob;
-      const matchesCostCode = filterCostCode === "all" || receipt.costCode === filterCostCode;
+      const matchesJob = filterJob === "all" || receipt.jobName === filterJob;
+      const matchesCostCode = filterCostCode === "all" || receipt.costCodeName === filterCostCode;
 
       return matchesSearch && matchesJob && matchesCostCode;
     });

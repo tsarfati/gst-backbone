@@ -74,7 +74,7 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
                       <div className="flex items-center gap-2">
                         <Briefcase className="h-4 w-4 text-blue-500" />
                         <span className="font-medium text-sm">Job:</span>
-                        <Badge variant="secondary">{receipt.job}</Badge>
+                        <Badge variant="secondary">{receipt.jobName || 'No job'}</Badge>
                       </div>
                     </div>
                     
@@ -82,7 +82,7 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
                       <div className="flex items-center gap-2">
                         <Code className="h-4 w-4 text-green-500" />
                         <span className="font-medium text-sm">Cost Code:</span>
-                        <Badge variant="outline">{receipt.costCode}</Badge>
+                        <Badge variant="outline">{receipt.costCodeName || 'No cost code'}</Badge>
                       </div>
                     </div>
                     
@@ -129,8 +129,8 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
                 </div>
                 
                 <div className="space-y-1">
-                  <Badge variant="secondary" className="text-xs">{receipt.job}</Badge>
-                  <Badge variant="outline" className="text-xs">{receipt.costCode}</Badge>
+                  <Badge variant="secondary" className="text-xs">{receipt.jobName || 'No job'}</Badge>
+                  <Badge variant="outline" className="text-xs">{receipt.costCodeName || 'No cost code'}</Badge>
                 </div>
                 
                 <div className="flex justify-end">
@@ -162,8 +162,8 @@ export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSel
             <div className="truncate font-medium">{receipt.filename}</div>
             <div className="text-muted-foreground">{receipt.amount}</div>
             <div className="truncate text-muted-foreground">{receipt.vendor || '-'}</div>
-            <div className="truncate">{receipt.job}</div>
-            <div className="truncate">{receipt.costCode}</div>
+            <div className="truncate">{receipt.jobName || 'No job'}</div>
+            <div className="truncate">{receipt.costCodeName || 'No cost code'}</div>
             <div className="text-right">
               <Button size="sm" variant="ghost" onClick={() => onReceiptClick(receipt)} className="h-6 w-6 p-0">
                 <Eye className="h-3 w-3" />
@@ -206,10 +206,10 @@ export function CodedReceiptIconView({ receipts, selectedReceipts, onSelectRecei
             
             <div className="space-y-1">
               <Badge variant="secondary" className="text-xs w-full truncate">
-                {receipt.job}
+                {receipt.jobName || 'No job'}
               </Badge>
               <Badge variant="outline" className="text-xs w-full truncate">
-                {receipt.costCode}
+                {receipt.costCodeName || 'No cost code'}
               </Badge>
             </div>
           </CardContent>

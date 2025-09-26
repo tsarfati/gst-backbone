@@ -32,14 +32,14 @@ export default function BillReceiptSuggestions({
         // Check for vendor match
         const vendorMatch = billVendorId && receipt.vendorId === billVendorId;
         
-        // Check for amount match (within $5 tolerance)
-        const amountMatch = billAmount && Math.abs(parseFloat(receipt.amount) - billAmount) <= 5;
+        // Check for amount match (within $5 tolerance)  
+        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 5;
 
         return vendorMatch || amountMatch;
       })
       .map(receipt => {
         const vendorMatch = billVendorId && receipt.vendorId === billVendorId;
-        const amountMatch = billAmount && Math.abs(parseFloat(receipt.amount) - billAmount) <= 5;
+        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 5;
         
         let score = 0;
         let reasons: string[] = [];
@@ -125,13 +125,13 @@ export default function BillReceiptSuggestions({
                     <span className="font-medium">Vendor:</span> {receipt.vendor || 'Unknown'}
                   </div>
                   <div>
-                    <span className="font-medium">Amount:</span> ${parseFloat(receipt.amount).toLocaleString()}
+                    <span className="font-medium">Amount:</span> ${Number(receipt.amount || 0).toLocaleString()}
                   </div>
                   <div>
                     <span className="font-medium">Date:</span> {new Date(receipt.date).toLocaleDateString()}
                   </div>
                   <div>
-                    <span className="font-medium">Job:</span> {receipt.job || 'Not assigned'}
+                    <span className="font-medium">Job:</span> {receipt.jobName || 'Not assigned'}
                   </div>
                 </div>
               </div>

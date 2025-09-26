@@ -10,7 +10,7 @@ export interface Receipt {
   file_name: string;
   file_url: string;
   file_size?: number;
-  amount?: number;
+  amount?: string; // Changed back to string for legacy compatibility
   vendor_name?: string;
   receipt_date?: string;
   job_id?: string;
@@ -108,15 +108,15 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         previewUrl: receipt.file_url,
         uploadedBy: 'User', // This would need to be joined from profiles table
         uploadedDate: new Date(receipt.created_at),
-        amount: receipt.amount || 0
+        amount: receipt.amount?.toString() || '$0.00' // Convert to string for legacy compatibility
       }));
 
       const uncoded = processedReceipts.filter(r => r.status === 'uncoded');
       const coded = processedReceipts.filter(r => r.status !== 'uncoded').map(r => ({
         ...r,
-        job: r.job?.name || '',
-        costCode: r.costCode?.description || '',
-        codedBy: 'User', // This would need profile join
+        jobName: '', // Will populate from lookup later
+        costCodeName: '', // Will populate from lookup later
+        codedBy: 'User',
         codedDate: new Date(r.updated_at),
         vendorId: r.vendor_name
       }));
