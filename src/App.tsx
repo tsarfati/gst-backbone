@@ -88,6 +88,7 @@ import PunchClockApp from "./pages/PunchClockApp";
 import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
+import MobileMessages from "./pages/MobileMessages";
 
 const queryClient = new QueryClient();
 
@@ -262,6 +263,11 @@ function AuthenticatedRoutes() {
               <Route path="/pm-mobile" element={
                 <ProtectedRoute>
                   <PMobileApp />
+                </ProtectedRoute>
+              } />
+              <Route path="/mobile-messages" element={
+                <ProtectedRoute>
+                  <MobileMessages />
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
