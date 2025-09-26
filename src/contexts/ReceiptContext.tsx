@@ -54,6 +54,16 @@ interface ReceiptContextType {
 
 const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 
+// Simple timeout wrapper to avoid long-hanging operations in OCR
+function withTimeout<T>(promise: Promise<T>, ms: number, label = 'operation'): Promise<T> {
+  let id: number;
+  const timeout = new Promise<never>((_, reject) => {
+    id = window.setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  // @ts-ignore
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(id!)) as Promise<T>;
+}
+
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   
@@ -118,9 +128,13 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
               reader.readAsDataURL(file);
             });
 
-            const ocrResponse = await supabase.functions.invoke('process-receipt-ocr', {
-              body: { imageBase64: base64 }
-            });
+            const ocrResponse = await withTimeout(
+              supabase.functions.invoke('process-receipt-ocr', {
+                body: { imageBase64: base64 }
+              }),
+              12000,
+              'Receipt OCR'
+            );
 
             if (ocrResponse.data?.success) {
               ocrData = ocrResponse.data.data;
