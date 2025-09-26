@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -92,9 +92,9 @@ export function ReceiptScanner() {
     }
   }, []);
 
-  useState(() => {
+  useEffect(() => {
     loadData();
-  });
+  }, [loadData]);
 
   const startCamera = async () => {
     setShowCamera(true);

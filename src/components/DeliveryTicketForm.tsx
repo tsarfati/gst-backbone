@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -60,9 +60,9 @@ export function DeliveryTicketForm() {
     }
   }, []);
 
-  useState(() => {
+  useEffect(() => {
     loadJobs();
-  });
+  }, [loadJobs]);
 
   const startCamera = async (photoType: 'material' | 'slip' | 'general') => {
     setCurrentPhotoType(photoType);
