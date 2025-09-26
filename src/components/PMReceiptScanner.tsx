@@ -183,13 +183,19 @@ export function PMReceiptScanner() {
       const fileName = `receipt-${Date.now()}.jpg`;
       const file = new File([blob], fileName, { type: 'image/jpeg' });
       
-      // Enhance image with AI
-      const enhancedBlob = await enhanceReceiptImage(blob);
-      const enhancedFileName = `receipt-enhanced-${Date.now()}.jpg`;
-      const enhancedFile = new File([enhancedBlob], enhancedFileName, { type: 'image/jpeg' });
+      let finalFile = file;
       
-      // Upload both original and enhanced versions
-      await uploadReceiptFiles(file, enhancedFile);
+      // Try to enhance image with AI, but don't fail if it doesn't work
+      try {
+        const enhancedBlob = await enhanceReceiptImage(blob);
+        const enhancedFileName = `receipt-enhanced-${Date.now()}.jpg`;
+        finalFile = new File([enhancedBlob], enhancedFileName, { type: 'image/jpeg' });
+      } catch (enhanceError) {
+        console.warn('Image enhancement failed, using original:', enhanceError);
+      }
+      
+      // Upload file(s)
+      await uploadReceiptFiles(file, finalFile);
       
       // Check if receipt should be coded or go to uncoded
       const isComplete = selectedJob && selectedCostCode && receiptAmount;
@@ -218,7 +224,7 @@ export function PMReceiptScanner() {
       } else {
         // Add to uncoded receipts
         const fileList = Object.create(FileList.prototype);
-        Object.defineProperty(fileList, '0', { value: enhancedFile });
+        Object.defineProperty(fileList, '0', { value: finalFile });
         Object.defineProperty(fileList, 'length', { value: 1 });
         
         await addReceipts(fileList as FileList);
