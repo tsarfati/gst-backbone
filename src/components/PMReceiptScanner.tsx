@@ -257,7 +257,7 @@ export function PMReceiptScanner() {
               <SelectTrigger>
                 <SelectValue placeholder="Select job" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-popover">
                 {jobs.map(job => (
                   <SelectItem key={job.id} value={job.id}>
                     {job.name}
@@ -273,7 +273,7 @@ export function PMReceiptScanner() {
               <SelectTrigger>
                 <SelectValue placeholder="Select cost code" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-popover">
                 {costCodes.map(code => (
                   <SelectItem key={code.id} value={code.id}>
                     {code.code} - {code.description}
@@ -402,7 +402,7 @@ export function PMReceiptScanner() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select vendor (optional)" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-popover">
                     {vendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
@@ -428,7 +428,7 @@ export function PMReceiptScanner() {
                   <SelectTrigger>
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-popover">
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="check">Check</SelectItem>
                     <SelectItem value="credit_card">Credit Card</SelectItem>
