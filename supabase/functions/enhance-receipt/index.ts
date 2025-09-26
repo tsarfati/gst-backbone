@@ -47,7 +47,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'gpt-4o',
-        max_completion_tokens: 1000,
+        max_tokens: 1000,
         messages: [
           {
             role: 'system',
@@ -98,7 +98,8 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in enhance-receipt function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
