@@ -46,6 +46,56 @@ export function MobileMessages() {
   useEffect(() => {
     if (user) {
       loadMessages();
+      
+      // Set up real-time subscription for new messages
+      const channel = supabase
+        .channel('messages_updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `to_user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('New message received:', payload);
+            // Reload messages to get the latest data with profiles
+            loadMessages();
+            
+            // Show toast notification for new message
+            toast({
+              title: 'New Message',
+              description: 'You have received a new message',
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `to_user_id=eq.${user.id}`
+          },
+          (payload) => {
+            // Update message read status in real-time
+            if (payload.new.read !== payload.old.read) {
+              setMessages(prev => 
+                prev.map(msg => 
+                  msg.id === payload.new.id 
+                    ? { ...msg, read: payload.new.read }
+                    : msg
+                )
+              );
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

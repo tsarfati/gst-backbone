@@ -11,12 +11,15 @@ import { PMReceiptScanner } from '@/components/PMReceiptScanner';
 import { DeliveryTicketForm } from '@/components/DeliveryTicketForm';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { PushNotificationService } from '@/utils/pushNotifications';
 
 function PMobileApp() {
   const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   // Update time every second
   useEffect(() => {
@@ -30,6 +33,84 @@ function PMobileApp() {
       navigate('/auth');
     }
   }, [user, navigate]);
+
+  // Load unread message count and set up real-time updates
+  useEffect(() => {
+    if (user) {
+      loadUnreadCount();
+      
+      // Set up real-time subscription for message updates
+      const channel = supabase
+        .channel('message_badge_updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `to_user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('New message received for badge:', payload);
+            loadUnreadCount();
+            
+            // Update badge count and show notification
+            const newCount = unreadMessageCount + 1;
+            PushNotificationService.updateBadgeCount(newCount);
+            PushNotificationService.scheduleLocalNotification(
+              'New Message',
+              'You have received a new message',
+              newCount
+            );
+            
+            // Show toast notification
+            toast({
+              title: 'New Message',
+              description: 'You have received a new message',
+            });
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `to_user_id=eq.${user.id}`
+          },
+          (payload) => {
+            // Update count when messages are marked as read
+            if (payload.new.read !== payload.old.read) {
+              loadUnreadCount();
+              // Update badge when messages are read
+              setTimeout(() => {
+                PushNotificationService.updateBadgeCount(unreadMessageCount - 1);
+              }, 500);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, navigate]);
+
+  const loadUnreadCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('to_user_id', user?.id)
+        .eq('read', false);
+
+      if (error) throw error;
+      setUnreadMessageCount(count || 0);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -175,11 +256,19 @@ function PMobileApp() {
             </Button>
             <Button 
               variant="ghost" 
-              className="w-full justify-start h-12"
+              className="w-full justify-start h-12 relative"
               onClick={() => navigate('/mobile-messages')}
             >
               <MessageSquare className="h-4 w-4 mr-3" />
               Messages
+              {unreadMessageCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                >
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </Badge>
+              )}
             </Button>
           </CardContent>
         </Card>
