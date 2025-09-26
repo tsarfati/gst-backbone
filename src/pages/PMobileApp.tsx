@@ -49,17 +49,31 @@ function PMobileApp() {
         .from('messages')
         .select(`
           *,
-          from_profile:profiles!messages_from_user_id_fkey(display_name, first_name, last_name),
-          to_profile:profiles!messages_to_user_id_fkey(display_name, first_name, last_name)
+          from_profile:profiles!from_user_id(user_id, display_name, first_name, last_name),
+          to_profile:profiles!to_user_id(user_id, display_name, first_name, last_name)
         `)
         .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
-      setMessages(data || []);
+      if (error) {
+        console.error('Error loading messages:', error);
+        // Fallback query without joins if the relationship queries fail
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('messages')
+          .select('*')
+          .or(`from_user_id.eq.${user.id},to_user_id.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (fallbackError) throw fallbackError;
+        setMessages(fallbackData || []);
+      } else {
+        setMessages(data || []);
+      }
     } catch (error) {
       console.error('Error loading messages:', error);
+      setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
@@ -109,10 +123,20 @@ function PMobileApp() {
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2 justify-center mb-2">
-              <User className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3 justify-center mb-2">
+              {user?.user_metadata?.avatar_url ? (
+                <img 
+                  src={user.user_metadata.avatar_url} 
+                  alt="User Avatar"
+                  className="h-10 w-10 rounded-full border-2 border-primary/20"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+              )}
               <span className="font-semibold text-lg">
-                {profile?.display_name || profile?.first_name || 'Project Manager'}
+                {profile?.display_name || profile?.first_name || user?.user_metadata?.full_name || 'Project Manager'}
               </span>
             </div>
             <div className="text-3xl font-bold text-primary">
@@ -269,30 +293,53 @@ function PMobileApp() {
               ) : (
                 <ScrollArea className="h-48">
                   <div className="space-y-3">
-                    {messages.map((message) => (
-                      <div key={message.id} className="border rounded-lg p-3 bg-muted/50">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-medium">
-                                {message.from_user_id === user.id ? 'You' : 
-                                 message.from_profile?.display_name || 
-                                 message.from_profile?.first_name || 
-                                 'Unknown User'}
-                              </span>
-                              {message.from_user_id !== user.id && (
-                                <span className="text-xs text-muted-foreground">
-                                  → You
-                                </span>
-                              )}
-                              {message.from_user_id === user.id && (
-                                <span className="text-xs text-muted-foreground">
-                                  → {message.to_profile?.display_name || 
-                                      message.to_profile?.first_name || 
-                                      'Unknown User'}
-                                </span>
-                              )}
-                            </div>
+                     {messages.map((message) => (
+                       <div key={message.id} className="border rounded-lg p-3 bg-muted/50">
+                         <div className="flex items-start justify-between mb-2">
+                           <div className="flex-1">
+                             <div className="flex items-center gap-2 mb-1">
+                               <div className="flex items-center gap-2">
+                                 {message.from_user_id === user.id ? (
+                                   <>
+                                     {user?.user_metadata?.avatar_url ? (
+                                       <img 
+                                         src={user.user_metadata.avatar_url} 
+                                         alt="Your Avatar"
+                                         className="h-6 w-6 rounded-full"
+                                       />
+                                     ) : (
+                                       <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                                         <User className="h-3 w-3 text-primary" />
+                                       </div>
+                                     )}
+                                     <span className="text-xs font-medium">You</span>
+                                   </>
+                                 ) : (
+                                   <>
+                                     <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                                       <User className="h-3 w-3" />
+                                     </div>
+                                     <span className="text-xs font-medium">
+                                       {message.from_profile?.display_name || 
+                                        message.from_profile?.first_name || 
+                                        'Unknown User'}
+                                     </span>
+                                   </>
+                                 )}
+                               </div>
+                               {message.from_user_id !== user.id && (
+                                 <span className="text-xs text-muted-foreground">
+                                   → You
+                                 </span>
+                               )}
+                               {message.from_user_id === user.id && (
+                                 <span className="text-xs text-muted-foreground">
+                                   → {message.to_profile?.display_name || 
+                                       message.to_profile?.first_name || 
+                                       'Unknown User'}
+                                 </span>
+                               )}
+                             </div>
                             {message.subject && (
                               <p className="text-xs font-medium text-primary mb-1">
                                 {message.subject}
