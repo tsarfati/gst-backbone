@@ -11,6 +11,7 @@ import { Camera, Upload, CheckCircle, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useReceipts } from '@/contexts/ReceiptContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Job {
@@ -48,6 +49,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label = 'operatio
 export function PMReceiptScanner() {
   const { user } = useAuth();
   const { addReceipts, codeReceipt } = useReceipts();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   const [showCamera, setShowCamera] = useState(false);
