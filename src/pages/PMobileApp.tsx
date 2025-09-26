@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, FileText, Scan, Upload, CheckCircle, User, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { ReceiptScanner } from '@/components/ReceiptScanner';
+import { PMReceiptScanner } from '@/components/PMReceiptScanner';
 import { DeliveryTicketForm } from '@/components/DeliveryTicketForm';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -120,7 +120,7 @@ function PMobileApp() {
                     Take a photo of receipts and code them to jobs
                   </p>
                 </div>
-                <ReceiptScanner />
+                <PMReceiptScanner />
               </TabsContent>
               
               <TabsContent value="delivery" className="p-4 space-y-4">
