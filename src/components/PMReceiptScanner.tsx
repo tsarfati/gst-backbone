@@ -165,20 +165,11 @@ export function PMReceiptScanner() {
     reader.readAsDataURL(file);
   };
 
-  const submitCodedReceipt = async () => {
-    if (!capturedImage || !receiptAmount) {
+  const submitReceipt = async () => {
+    if (!capturedImage) {
       toast({
-        title: 'Missing Information',
-        description: 'Please capture receipt and enter amount.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    if (!selectedJob || !selectedCostCode) {
-      toast({
-        title: 'Missing Assignment',
-        description: 'Please select a job and cost code.',
+        title: 'Photo Required',
+        description: 'Please capture or upload a photo of the receipt.',
         variant: 'destructive'
       });
       return;
@@ -187,49 +178,113 @@ export function PMReceiptScanner() {
     setIsUploading(true);
 
     try {
+      // Convert captured image to blob
       const response = await fetch(capturedImage);
       const blob = await response.blob();
       
+      // Create file for upload
       const fileName = `receipt-${Date.now()}.jpg`;
       const file = new File([blob], fileName, { type: 'image/jpeg' });
-      const fileList = Object.create(FileList.prototype);
-      Object.defineProperty(fileList, '0', { value: file });
-      Object.defineProperty(fileList, 'length', { value: 1 });
       
-      await addReceipts(fileList as FileList);
+      // Enhance image with AI
+      const enhancedBlob = await enhanceReceiptImage(blob);
+      const enhancedFileName = `receipt-enhanced-${Date.now()}.jpg`;
+      const enhancedFile = new File([enhancedBlob], enhancedFileName, { type: 'image/jpeg' });
       
-      setTimeout(() => {
-        const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        const selectedJobData = jobs.find(j => j.id === selectedJob);
-        const selectedCostCodeData = costCodes.find(c => c.id === selectedCostCode);
-        
-        if (selectedJobData && selectedCostCodeData) {
-          const jobName = selectedJobData.name;
-          const costCodeName = `${selectedCostCodeData.code} - ${selectedCostCodeData.description}`;
-          const codedBy = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || 'Project Manager';
+      // Upload both original and enhanced versions
+      await uploadReceiptFiles(file, enhancedFile);
+      
+      // Check if receipt should be coded or go to uncoded
+      const isComplete = selectedJob && selectedCostCode && receiptAmount;
+      
+      if (isComplete) {
+        // Code the receipt immediately
+        setTimeout(() => {
+          const receiptId = `receipt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
-          codeReceipt(receiptId, jobName, costCodeName, codedBy, selectedVendor);
-        }
-      }, 500);
+          const selectedJobData = jobs.find(j => j.id === selectedJob);
+          const selectedCostCodeData = costCodes.find(c => c.id === selectedCostCode);
+          
+          if (selectedJobData && selectedCostCodeData) {
+            const jobName = selectedJobData.name;
+            const costCodeName = `${selectedCostCodeData.code} - ${selectedCostCodeData.description}`;
+            const codedBy = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || 'Project Manager';
+            
+            codeReceipt(receiptId, jobName, costCodeName, codedBy, selectedVendor, receiptAmount);
+          }
+        }, 500);
 
-      toast({
-        title: 'Receipt Coded Successfully',
-        description: 'Receipt has been processed and added to coded receipts.',
-      });
+        toast({
+          title: 'Receipt Coded Successfully',
+          description: 'Receipt has been processed and added to coded receipts.',
+        });
+      } else {
+        // Add to uncoded receipts
+        const fileList = Object.create(FileList.prototype);
+        Object.defineProperty(fileList, '0', { value: enhancedFile });
+        Object.defineProperty(fileList, 'length', { value: 1 });
+        
+        await addReceipts(fileList as FileList);
+        
+        toast({
+          title: 'Receipt Uploaded',
+          description: 'Receipt has been added to uncoded receipts for later processing.',
+        });
+      }
 
       resetForm();
       
     } catch (error) {
       console.error('Error saving receipt:', error);
       toast({
-        title: 'Save Error',
-        description: 'Failed to save coded receipt. Please try again.',
+        title: 'Upload Error',
+        description: 'Failed to upload receipt. Please try again.',
         variant: 'destructive'
       });
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const enhanceReceiptImage = async (imageBlob: Blob): Promise<Blob> => {
+    try {
+      const formData = new FormData();
+      formData.append('image', imageBlob);
+
+      const { data, error } = await supabase.functions.invoke('enhance-receipt', {
+        body: formData
+      });
+
+      if (error) throw error;
+
+      // Convert base64 to blob
+      const response = await fetch(`data:image/jpeg;base64,${data.enhancedImage}`);
+      return await response.blob();
+    } catch (error) {
+      console.error('Error enhancing image:', error);
+      // Return original image if enhancement fails
+      return imageBlob;
+    }
+  };
+
+  const uploadReceiptFiles = async (originalFile: File, enhancedFile: File) => {
+    const timestamp = Date.now();
+    
+    // Upload original file for audit/backup
+    const originalPath = `receipts/originals/${timestamp}-${originalFile.name}`;
+    const { error: originalError } = await supabase.storage
+      .from('receipts')
+      .upload(originalPath, originalFile);
+
+    if (originalError) throw originalError;
+
+    // Upload enhanced file for main use
+    const enhancedPath = `receipts/enhanced/${timestamp}-${enhancedFile.name}`;
+    const { error: enhancedError } = await supabase.storage
+      .from('receipts')
+      .upload(enhancedPath, enhancedFile);
+
+    if (enhancedError) throw enhancedError;
   };
 
   const resetForm = () => {
@@ -251,37 +306,37 @@ export function PMReceiptScanner() {
           <CardTitle className="text-base">Receipt Assignment</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="job">Job *</Label>
-            <Select value={selectedJob} onValueChange={setSelectedJob}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select job" />
-              </SelectTrigger>
-              <SelectContent className="z-50 bg-popover">
-                {jobs.map(job => (
-                  <SelectItem key={job.id} value={job.id}>
-                    {job.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div>
+              <Label htmlFor="job">Job (Optional - for automatic coding)</Label>
+              <Select value={selectedJob} onValueChange={setSelectedJob}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select job" />
+                </SelectTrigger>
+                <SelectContent className="z-50 bg-popover">
+                  {jobs.map(job => (
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <Label htmlFor="costCode">Cost Code *</Label>
-            <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select cost code" />
-              </SelectTrigger>
-              <SelectContent className="z-50 bg-popover">
-                {costCodes.map(code => (
-                  <SelectItem key={code.id} value={code.id}>
-                    {code.code} - {code.description}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div>
+              <Label htmlFor="costCode">Cost Code (Optional - for automatic coding)</Label>
+              <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cost code" />
+                </SelectTrigger>
+                <SelectContent className="z-50 bg-popover">
+                  {costCodes.map(code => (
+                    <SelectItem key={code.id} value={code.id}>
+                      {code.code} - {code.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
         </CardContent>
       </Card>
 
@@ -440,7 +495,7 @@ export function PMReceiptScanner() {
               </div>
 
               <div>
-                <Label htmlFor="amount">Amount *</Label>
+                <Label htmlFor="amount">Amount</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -473,9 +528,9 @@ export function PMReceiptScanner() {
             </div>
 
             <Button 
-              onClick={submitCodedReceipt} 
+              onClick={submitReceipt} 
               className="w-full"
-              disabled={isUploading || !receiptAmount}
+              disabled={isUploading}
             >
               {isUploading ? (
                 <>
