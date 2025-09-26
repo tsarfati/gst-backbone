@@ -206,20 +206,12 @@ const blob = await response.blob();
 const fileName = `receipt-${Date.now()}.jpg`;
 const file = new File([blob], fileName, { type: 'image/jpeg' });
       
-      let finalFile = file;
-      
-      // Try to enhance image with AI, but don't fail if it doesn't work
-      try {
-        const enhancedBlob = await enhanceReceiptImage(blob);
-        const enhancedFileName = `receipt-enhanced-${Date.now()}.jpg`;
-        finalFile = new File([enhancedBlob], enhancedFileName, { type: 'image/jpeg' });
-      } catch (enhanceError) {
-        console.warn('Image enhancement failed, using original:', enhanceError);
-      }
-      
-      // Upload file(s)
-      const paths = await uploadReceiptFiles(file, finalFile);
-      
+      // Upload original file only (no AI enhancement)
+      const storagePath = `receipts/originals/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(storagePath, file, { upsert: true, cacheControl: '3600' });
+      if (uploadError) throw uploadError;
       // Check if receipt should be coded or go to uncoded
       const isComplete = selectedJob && selectedCostCode && receiptAmount;
       
@@ -247,7 +239,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
       } else {
         // Add to uncoded receipts
         const fileList = Object.create(FileList.prototype);
-        Object.defineProperty(fileList, '0', { value: finalFile });
+        Object.defineProperty(fileList, '0', { value: file });
         Object.defineProperty(fileList, 'length', { value: 1 });
         
         const maybe = addReceipts(fileList as FileList);
