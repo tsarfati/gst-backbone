@@ -206,12 +206,12 @@ const blob = await response.blob();
 const fileName = `receipt-${Date.now()}.jpg`;
 const file = new File([blob], fileName, { type: 'image/jpeg' });
       
-      // Upload original file only (no AI enhancement)
-      const storagePath = `receipts/originals/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('receipts')
-        .upload(storagePath, file, { upsert: true, cacheControl: '3600' });
-      if (uploadError) throw uploadError;
+      // Use the ReceiptContext's addReceipts method for proper database storage
+      const fileList = Object.create(FileList.prototype);
+      Object.defineProperty(fileList, '0', { value: file });
+      Object.defineProperty(fileList, 'length', { value: 1 });
+      
+      await addReceipts(fileList as FileList);
       // Check if receipt should be coded or go to uncoded
       const isComplete = selectedJob && selectedCostCode && receiptAmount;
       

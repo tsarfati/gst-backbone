@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      calls: {
+        Row: {
+          answered_at: string | null
+          call_status: string
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          property_id: string
+          started_at: string
+          visitor_message: string | null
+          visitor_name: string | null
+          visitor_phone: string | null
+        }
+        Insert: {
+          answered_at?: string | null
+          call_status?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          property_id: string
+          started_at?: string
+          visitor_message?: string | null
+          visitor_name?: string | null
+          visitor_phone?: string | null
+        }
+        Update: {
+          answered_at?: string | null
+          call_status?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          property_id?: string
+          started_at?: string
+          visitor_message?: string | null
+          visitor_name?: string | null
+          visitor_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chart_of_accounts: {
         Row: {
           account_category: string | null
@@ -1719,6 +1769,48 @@ export type Database = {
           },
         ]
       }
+      properties: {
+        Row: {
+          address: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          location_lat: number | null
+          location_lng: number | null
+          name: string
+          owner_id: string
+          qr_code: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name: string
+          owner_id: string
+          qr_code: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name?: string
+          owner_id?: string
+          qr_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       punch_clock_login_settings: {
         Row: {
           background_color: string | null
@@ -1991,6 +2083,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      receipt_messages: {
+        Row: {
+          created_at: string
+          from_user_id: string
+          id: string
+          message: string
+          receipt_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_user_id: string
+          id?: string
+          message: string
+          receipt_id: string
+        }
+        Update: {
+          created_at?: string
+          from_user_id?: string
+          id?: string
+          message?: string
+          receipt_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_messages_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receipts: {
+        Row: {
+          amount: number | null
+          assigned_to: string | null
+          company_id: string
+          cost_code_id: string | null
+          created_at: string
+          created_by: string
+          file_name: string
+          file_size: number | null
+          file_url: string
+          id: string
+          job_id: string | null
+          notes: string | null
+          receipt_date: string | null
+          status: string
+          updated_at: string
+          vendor_name: string | null
+        }
+        Insert: {
+          amount?: number | null
+          assigned_to?: string | null
+          company_id: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by: string
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          receipt_date?: string | null
+          status?: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Update: {
+          amount?: number | null
+          assigned_to?: string | null
+          company_id?: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          job_id?: string | null
+          notes?: string | null
+          receipt_date?: string | null
+          status?: string
+          updated_at?: string
+          vendor_name?: string | null
+        }
+        Relationships: []
       }
       role_default_pages: {
         Row: {
@@ -2597,6 +2778,10 @@ export type Database = {
       activate_company_access: {
         Args: { _company_id: string }
         Returns: undefined
+      }
+      generate_qr_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_mapbox_token: {
         Args: Record<PropertyKey, never>
