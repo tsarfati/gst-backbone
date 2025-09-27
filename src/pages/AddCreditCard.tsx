@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,16 @@ import { CreditCard, DollarSign, Calendar, Save, ArrowLeft, Shield } from 'lucid
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useCompany } from '@/contexts/CompanyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AddCreditCard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [liabilityAccounts, setLiabilityAccounts] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({
     cardName: '',
@@ -30,7 +34,26 @@ export default function AddCreditCard() {
     interestRate: '',
     dueDate: '',
     description: '',
+    liabilityAccountId: '',
   });
+
+  useEffect(() => {
+    const fetchLiabilityAccounts = async () => {
+      if (!currentCompany) return;
+      
+      const { data } = await supabase
+        .from('chart_of_accounts')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('account_type', 'liability')
+        .eq('is_active', true)
+        .order('account_number');
+        
+      setLiabilityAccounts(data || []);
+    };
+
+    fetchLiabilityAccounts();
+  }, [currentCompany]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -62,10 +85,10 @@ export default function AddCreditCard() {
     }
 
     // Basic validation
-    if (!formData.cardName || !formData.cardNumber || !formData.cardholderName || !formData.issuer) {
+    if (!formData.cardName || !formData.cardNumber || !formData.cardholderName || !formData.issuer || !formData.liabilityAccountId) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields.',
+        description: 'Please fill in all required fields including liability account.',
         variant: 'destructive',
       });
       return;
@@ -74,8 +97,30 @@ export default function AddCreditCard() {
     setIsLoading(true);
 
     try {
-      // This would typically insert into a credit_cards table
-      // For now, we'll just show a success message
+      // Extract last 4 digits from card number
+      const cardNumberDigits = formData.cardNumber.replace(/\D/g, '');
+      const lastFour = cardNumberDigits.slice(-4);
+
+      const { error } = await supabase
+        .from('credit_cards')
+        .insert({
+          company_id: currentCompany!.id,
+          card_name: formData.cardName,
+          card_number_last_four: lastFour,
+          cardholder_name: formData.cardholderName,
+          issuer: formData.issuer,
+          card_type: formData.cardType || null,
+          credit_limit: formData.creditLimit ? parseFloat(formData.creditLimit) : 0,
+          current_balance: formData.currentBalance ? parseFloat(formData.currentBalance) : 0,
+          interest_rate: formData.interestRate ? parseFloat(formData.interestRate) : null,
+          due_date: formData.dueDate || null,
+          liability_account_id: formData.liabilityAccountId,
+          description: formData.description || null,
+          created_by: user!.id,
+        });
+
+      if (error) throw error;
+
       toast({
         title: 'Success',
         description: 'Credit card added successfully!',
@@ -295,6 +340,25 @@ export default function AddCreditCard() {
                   value={formData.dueDate}
                   onChange={(e) => handleInputChange('dueDate', e.target.value)}
                 />
+              </div>
+              
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="liabilityAccount">Liability Account <span className="text-destructive">*</span></Label>
+                <Select value={formData.liabilityAccountId} onValueChange={(value) => handleInputChange('liabilityAccountId', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select liability account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {liabilityAccounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.account_number} - {account.account_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select the liability account this credit card should be associated with
+                </p>
               </div>
             </div>
             

@@ -416,6 +416,74 @@ export type Database = {
           },
         ]
       }
+      credit_cards: {
+        Row: {
+          card_name: string
+          card_number_last_four: string
+          card_type: string | null
+          cardholder_name: string
+          company_id: string
+          created_at: string
+          created_by: string
+          credit_limit: number | null
+          current_balance: number | null
+          description: string | null
+          due_date: string | null
+          id: string
+          interest_rate: number | null
+          is_active: boolean
+          issuer: string
+          liability_account_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          card_name: string
+          card_number_last_four: string
+          card_type?: string | null
+          cardholder_name: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          credit_limit?: number | null
+          current_balance?: number | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          is_active?: boolean
+          issuer: string
+          liability_account_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          card_name?: string
+          card_number_last_four?: string
+          card_type?: string | null
+          cardholder_name?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          credit_limit?: number | null
+          current_balance?: number | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          interest_rate?: number | null
+          is_active?: boolean
+          issuer?: string
+          liability_account_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_liability_account_id_fkey"
+            columns: ["liability_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       current_punch_status: {
         Row: {
           cost_code_id: string | null
