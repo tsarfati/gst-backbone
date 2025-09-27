@@ -182,6 +182,8 @@ function AuthenticatedRoutes() {
                 <Route path="settings" element={<AppSettings />} />
                 <Route path="settings/theme" element={<ThemeSettings />} />
                 <Route path="settings/company" element={<CompanySettingsPage />} />
+                <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
+                <Route path="settings/company/job-cost-setup" element={<JobCostSetup />} />
                 <Route path="settings/company-management" element={<CompanyManagement />} />
                 <Route path="settings/notifications" element={<NotificationSettings />} />
                 <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />

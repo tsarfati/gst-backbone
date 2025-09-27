@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +13,7 @@ import { Building, CreditCard, Briefcase, DollarSign } from 'lucide-react';
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("company");
 
   const handleSaveSettings = () => {
@@ -112,7 +114,7 @@ export default function CompanySettingsPage() {
                       Set up and manage your company's chart of accounts for proper financial tracking and reporting.
                     </p>
                     <Button 
-                      onClick={() => window.open('/chart-of-accounts', '_blank')}
+                      onClick={() => navigate('/settings/company/chart-of-accounts')}
                       variant="outline"
                     >
                       Manage Chart of Accounts
@@ -134,7 +136,7 @@ export default function CompanySettingsPage() {
                       Set up cost codes for tracking job expenses and link them to your chart of accounts.
                     </p>
                     <Button 
-                      onClick={() => window.open('/jobs/cost-setup', '_blank')}
+                      onClick={() => navigate('/settings/company/job-cost-setup')}
                       variant="outline"
                     >
                       Manage Job Cost Setup
