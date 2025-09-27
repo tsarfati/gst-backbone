@@ -8,7 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
 import JobSettings from '@/components/JobSettings';
-import { Building, CreditCard, Briefcase, DollarSign } from 'lucide-react';
+import CreditCardSettings from '@/components/CreditCardSettings';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote } from 'lucide-react';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -38,7 +39,7 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Company Info
@@ -46,6 +47,10 @@ export default function CompanySettingsPage() {
             <TabsTrigger value="payables" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Payables Settings
+            </TabsTrigger>
+            <TabsTrigger value="credit-cards" className="flex items-center gap-2">
+              <Banknote className="h-4 w-4" />
+              Credit Cards
             </TabsTrigger>
             <TabsTrigger value="jobs" className="flex items-center gap-2">
               <Briefcase className="h-4 w-4" />
@@ -81,6 +86,20 @@ export default function CompanySettingsPage() {
               </CardHeader>
               <CardContent>
                 <PayablesSettings />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="credit-cards">
+            <Card>
+              <CardHeader>
+                <CardTitle>Credit Card Settings</CardTitle>
+                <CardDescription>
+                  Manage credit cards, configure approval workflows, and set spending controls
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CreditCardSettings />
               </CardContent>
             </Card>
           </TabsContent>

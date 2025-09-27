@@ -42,12 +42,6 @@ export default function CreditCards() {
             Manage company credit cards and track expenses
           </p>
         </div>
-        <Button asChild>
-          <Link to="/banking/credit-cards/add">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Credit Card
-          </Link>
-        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -143,15 +137,17 @@ export default function CreditCards() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm || statusFilter !== "all" 
                   ? "Try adjusting your search or filters"
-                  : "Start by adding your first credit card account"
+                  : "Credit cards can be added from Company Settings"
                 }
               </p>
-              <Button asChild>
-                <Link to="/banking/credit-cards/add">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Credit Card
-                </Link>
-              </Button>
+              {!searchTerm && statusFilter === "all" && (
+                <Button asChild variant="outline">
+                  <Link to="/settings/company">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Go to Credit Card Settings
+                  </Link>
+                </Button>
+              )}
             </div>
           ) : (
             <Table>
