@@ -27,7 +27,8 @@ import {
   Building,
   Settings,
   DollarSign,
-  Calculator
+  Calculator,
+  Upload
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,8 @@ export default function JobCostSetup() {
   const [filterType, setFilterType] = useState<string>('all');
   const [addTemplateDialogOpen, setAddTemplateDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [csvUploadDialogOpen, setCsvUploadDialogOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   
   // Settings state
   const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
@@ -254,6 +257,81 @@ export default function JobCostSetup() {
     return matchesSearch && matchesType;
   });
 
+  const handleCsvUpload = async () => {
+    if (!csvFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a CSV file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      // Validate headers
+      const requiredHeaders = ['code', 'description', 'type'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      
+      if (missingHeaders.length > 0) {
+        toast({
+          title: "Invalid CSV format",
+          description: `Missing required columns: ${missingHeaders.join(', ')}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const costCodesToInsert = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const costCode: any = {};
+        
+        headers.forEach((header, index) => {
+          costCode[header] = values[index];
+        });
+
+        if (costCode.code && costCode.description && costCode.type) {
+          costCodesToInsert.push({
+            code: costCode.code,
+            description: costCode.description,
+            type: costCode.type,
+            is_active: true,
+            job_id: null // General cost code template
+          });
+        }
+      }
+
+      if (costCodesToInsert.length > 0) {
+        const { error } = await supabase
+          .from('cost_codes')
+          .insert(costCodesToInsert);
+
+        if (error) throw error;
+
+        toast({
+          title: "CSV Uploaded Successfully",
+          description: `${costCodesToInsert.length} cost code templates imported`,
+        });
+
+        setCsvUploadDialogOpen(false);
+        setCsvFile(null);
+        loadData();
+      }
+    } catch (error) {
+      console.error('Error uploading CSV:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to upload CSV file",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -343,6 +421,44 @@ export default function JobCostSetup() {
                     });
                   }}>
                     Save Settings
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={csvUploadDialogOpen} onOpenChange={setCsvUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Upload Cost Code Templates CSV</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="csv-file">CSV File</Label>
+                  <Input
+                    id="csv-file"
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Required columns: code, description, type
+                    <br />
+                    Valid types: material, labor, sub, equipment, other
+                  </p>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setCsvUploadDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCsvUpload} disabled={!csvFile}>
+                    Upload CSV
                   </Button>
                 </div>
               </div>

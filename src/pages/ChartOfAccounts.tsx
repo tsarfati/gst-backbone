@@ -19,7 +19,10 @@ import {
   FileText,
   Building,
   Loader2,
-  Search
+  Search,
+  Upload,
+  Settings,
+  Banknote
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -43,7 +46,8 @@ const accountTypes = [
   { value: 'equity', label: 'Equity' },
   { value: 'revenue', label: 'Revenue' },
   { value: 'expense', label: 'Expense' },
-  { value: 'cost_of_goods_sold', label: 'Cost of Goods Sold' }
+  { value: 'cost_of_goods_sold', label: 'Cost of Goods Sold' },
+  { value: 'cash', label: 'Cash' }
 ];
 
 const accountCategories: Record<string, string[]> = {
@@ -52,7 +56,8 @@ const accountCategories: Record<string, string[]> = {
   equity: ['owners_equity', 'retained_earnings'],
   revenue: ['operating_revenue', 'other_revenue'],
   expense: ['operating_expenses', 'administrative_expenses', 'job_costs'],
-  cost_of_goods_sold: ['direct_costs', 'materials', 'labor']
+  cost_of_goods_sold: ['direct_costs', 'materials', 'labor'],
+  cash: ['cash_accounts', 'bank_accounts', 'petty_cash']
 };
 
 export default function ChartOfAccounts() {
@@ -64,6 +69,10 @@ export default function ChartOfAccounts() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [csvUploadDialogOpen, setCsvUploadDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [jobAssociationRange, setJobAssociationRange] = useState({ start: '5000', end: '5999' });
 
   const [newAccount, setNewAccount] = useState({
     account_number: '',
@@ -220,6 +229,7 @@ export default function ChartOfAccounts() {
       case 'revenue': return <DollarSign className="h-4 w-4" />;
       case 'expense': return <FileText className="h-4 w-4" />;
       case 'cost_of_goods_sold': return <Building className="h-4 w-4" />;
+      case 'cash': return <Banknote className="h-4 w-4" />;
       default: return <FileText className="h-4 w-4" />;
     }
   };
@@ -232,6 +242,7 @@ export default function ChartOfAccounts() {
       case 'revenue': return 'bg-purple-100 text-purple-800';
       case 'expense': return 'bg-orange-100 text-orange-800';
       case 'cost_of_goods_sold': return 'bg-yellow-100 text-yellow-800';
+      case 'cash': return 'bg-emerald-100 text-emerald-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -248,6 +259,86 @@ export default function ChartOfAccounts() {
       style: 'currency',
       currency: 'USD',
     }).format(amount);
+  };
+
+  const handleCsvUpload = async () => {
+    if (!csvFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a CSV file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      // Validate headers
+      const requiredHeaders = ['account_number', 'account_name', 'account_type'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      
+      if (missingHeaders.length > 0) {
+        toast({
+          title: "Invalid CSV format",
+          description: `Missing required columns: ${missingHeaders.join(', ')}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: userData } = await supabase.auth.getUser();
+      const accountsToInsert = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const account: any = {};
+        
+        headers.forEach((header, index) => {
+          account[header] = values[index];
+        });
+
+        if (account.account_number && account.account_name && account.account_type) {
+          accountsToInsert.push({
+            account_number: account.account_number,
+            account_name: account.account_name,
+            account_type: account.account_type,
+            account_category: account.account_category || null,
+            normal_balance: account.normal_balance || 'debit',
+            current_balance: parseFloat(account.current_balance || '0'),
+            is_system_account: false,
+            is_active: true,
+            created_by: userData.user?.id
+          });
+        }
+      }
+
+      if (accountsToInsert.length > 0) {
+        const { error } = await supabase
+          .from('chart_of_accounts')
+          .insert(accountsToInsert);
+
+        if (error) throw error;
+
+        toast({
+          title: "CSV Uploaded Successfully",
+          description: `${accountsToInsert.length} accounts imported`,
+        });
+
+        setCsvUploadDialogOpen(false);
+        setCsvFile(null);
+        loadAccounts();
+      }
+    } catch (error) {
+      console.error('Error uploading CSV:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to upload CSV file",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -269,13 +360,108 @@ export default function ChartOfAccounts() {
           <h1 className="text-3xl font-bold text-foreground">Chart of Accounts</h1>
           <p className="text-muted-foreground">Manage your company's chart of accounts</p>
         </div>
-        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Account
-            </Button>
-          </DialogTrigger>
+        <div className="flex space-x-2">
+          <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Chart of Accounts Settings</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Job Association Account Range</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Define which account numbers are designated for job cost associations
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="range-start">Start</Label>
+                      <Input
+                        id="range-start"
+                        value={jobAssociationRange.start}
+                        onChange={(e) => setJobAssociationRange({ ...jobAssociationRange, start: e.target.value })}
+                        placeholder="5000"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="range-end">End</Label>
+                      <Input
+                        id="range-end"
+                        value={jobAssociationRange.end}
+                        onChange={(e) => setJobAssociationRange({ ...jobAssociationRange, end: e.target.value })}
+                        placeholder="5999"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    setSettingsDialogOpen(false);
+                    toast({
+                      title: "Settings Saved",
+                      description: "Chart of accounts settings have been saved",
+                    });
+                  }}>
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={csvUploadDialogOpen} onOpenChange={setCsvUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Upload Chart of Accounts CSV</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="csv-file">CSV File</Label>
+                  <Input
+                    id="csv-file"
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Required columns: account_number, account_name, account_type
+                    <br />
+                    Optional: account_category, normal_balance, current_balance
+                  </p>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setCsvUploadDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCsvUpload} disabled={!csvFile}>
+                    Upload CSV
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Account
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Account</DialogTitle>
@@ -360,8 +546,9 @@ export default function ChartOfAccounts() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
+            </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Filters */}
