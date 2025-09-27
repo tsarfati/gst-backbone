@@ -162,27 +162,14 @@ export function AppSidebar() {
     }
 
     if (settings.navigationMode === 'single') {
-      const activeGroups = navigationCategories
-        .filter(category => 
-          category.items.some(item => 
-            item.href === location.pathname || 
-            location.pathname.startsWith(item.href + '/') ||
-            // Keep Payables open when on subcontract/PO pages
-            (category.title === 'Payables' && (
-              location.pathname.startsWith('/subcontracts/') ||
-              location.pathname.startsWith('/purchase-orders/')
-            ))
-          )
-        )
-        .map(category => category.title);
-        
       setOpenGroups(prev => {
         const isCurrentlyOpen = prev.includes(groupTitle);
         if (isCurrentlyOpen) {
-          // Allow collapsing even if it's the active group
-          return [];
+          // Allow collapsing any group, even if it contains the active page
+          return prev.filter(g => g !== groupTitle);
         } else {
-          return [...new Set([groupTitle, ...activeGroups])];
+          // Close other groups and open this one
+          return [groupTitle];
         }
       });
     } else {
@@ -210,11 +197,15 @@ export function AppSidebar() {
 
   useEffect(() => {
     if (settings.navigationMode === 'single') {
-      setOpenGroups(activeGroups.length > 0 ? activeGroups : ["Dashboard"]);
+      // Only auto-open groups if no groups are currently open
+      if (openGroups.length === 0) {
+        setOpenGroups(activeGroups.length > 0 ? activeGroups : ["Dashboard"]);
+      }
     }
   }, [settings.navigationMode, location.pathname]);
 
-  const allOpenGroups = [...new Set([...openGroups, ...activeGroups])];
+  // Use only manually controlled open groups, don't force active groups to stay open
+  const allOpenGroups = openGroups;
 
   return (
     <Sidebar collapsible="icon" className="border-r">
@@ -305,7 +296,7 @@ export function AppSidebar() {
                         <span className="group-data-[collapsible=icon]:hidden">
                           {category.title}
                         </span>
-                        <ChevronDown className="h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden data-[state=open]:rotate-180" />
+                        <ChevronDown className={`h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden ${allOpenGroups.includes(category.title) ? 'rotate-180' : ''}`} />
                       </Button>
                     </CollapsibleTrigger>
                   </SidebarGroupLabel>
