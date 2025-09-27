@@ -261,7 +261,6 @@ function AuthenticatedRoutes() {
                 <Route path="banking/credit-cards" element={<CreditCards />} />
                 <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
                 <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
-                <Route path="chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="banking/reports" element={<BankingReports />} />
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
