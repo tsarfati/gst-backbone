@@ -10,6 +10,7 @@ import DashboardCustomizer from '@/components/DashboardCustomizer';
 import { Receipt, Clock, CheckCircle, DollarSign, Settings, Bell, MessageSquare, X, FileText, AlertTriangle, Users, TrendingUp, BarChart3 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -60,6 +61,7 @@ interface DashboardSettings {
 export default function Dashboard() {
   const { user, profile } = useAuth();
   const { settings } = useSettings();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -88,12 +90,12 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (user && currentCompany) {
       fetchNotifications();
       fetchMessages();
       fetchDashboardSettings();
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const fetchNotifications = async () => {
     if (!user) return;
@@ -149,13 +151,14 @@ export default function Dashboard() {
   };
 
   const fetchDashboardSettings = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
       const { data, error } = await supabase
         .from('dashboard_settings')
         .select('*')
         .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
@@ -189,13 +192,14 @@ export default function Dashboard() {
   };
 
   const updateDashboardSettings = async (settings: Partial<DashboardSettings>) => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
       const { error } = await supabase
         .from('dashboard_settings')
         .upsert({
           user_id: user.id,
+          company_id: currentCompany.id,
           ...dashboardSettings,
           ...settings,
         });

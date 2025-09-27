@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GripVertical, Eye, EyeOff, BarChart3, Clock, FileText, Users, TrendingUp, AlertTriangle, CheckCircle, Receipt, DollarSign, Bell, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -264,6 +265,7 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
   ]);
 
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
   const sensors = useSensors(

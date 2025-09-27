@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, User, Bell, Save, Camera, Upload, X } from 'lucide-react';
@@ -22,6 +23,7 @@ interface ProfileData {
 interface NotificationSettings {
   id?: string;
   user_id: string;
+  company_id: string;
   email_enabled: boolean;
   in_app_enabled: boolean;
   overdue_bills: boolean;
@@ -34,6 +36,7 @@ interface NotificationSettings {
 export default function ProfileSettings() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -52,6 +55,7 @@ export default function ProfileSettings() {
 
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     user_id: user?.id || '',
+    company_id: currentCompany?.id || '',
     email_enabled: true,
     in_app_enabled: true,
     overdue_bills: true,
@@ -282,7 +286,7 @@ export default function ProfileSettings() {
       
       const { error } = await supabase
         .from('notification_settings')
-        .upsert(dbSettings, { onConflict: 'user_id' });
+        .upsert(dbSettings, { onConflict: 'user_id,company_id' });
 
       if (error) throw error;
 

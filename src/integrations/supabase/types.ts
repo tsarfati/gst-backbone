@@ -462,6 +462,7 @@ export type Database = {
       }
       dashboard_settings: {
         Row: {
+          company_id: string
           created_at: string
           id: string
           show_active_jobs: boolean
@@ -485,6 +486,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id: string
           created_at?: string
           id?: string
           show_active_jobs?: boolean
@@ -508,6 +510,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string
           created_at?: string
           id?: string
           show_active_jobs?: boolean
@@ -530,7 +533,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       delivery_ticket_audit: {
         Row: {
@@ -1529,6 +1540,7 @@ export type Database = {
       }
       notification_settings: {
         Row: {
+          company_id: string
           created_at: string
           email_enabled: boolean
           id: string
@@ -1542,6 +1554,7 @@ export type Database = {
           vendor_invitations: boolean
         }
         Insert: {
+          company_id: string
           created_at?: string
           email_enabled?: boolean
           id?: string
@@ -1555,6 +1568,7 @@ export type Database = {
           vendor_invitations?: boolean
         }
         Update: {
+          company_id?: string
           created_at?: string
           email_enabled?: boolean
           id?: string
@@ -1567,7 +1581,15 @@ export type Database = {
           user_id?: string
           vendor_invitations?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {

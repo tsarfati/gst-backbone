@@ -9,10 +9,12 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface NotificationSettings {
   id?: string;
   user_id: string;
+  company_id: string;
   email_enabled: boolean;
   in_app_enabled: boolean;
   overdue_bills: boolean;
@@ -34,8 +36,10 @@ export default function NotificationSettings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [settings, setSettings] = useState<NotificationSettings>({
     user_id: user?.id || "",
+    company_id: currentCompany?.id || "",
     email_enabled: true,
     in_app_enabled: true,
     overdue_bills: true,
@@ -48,20 +52,21 @@ export default function NotificationSettings() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user) {
+    if (user && currentCompany) {
       loadNotificationSettings();
       loadEmailTemplates();
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const loadNotificationSettings = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     try {
       const { data, error } = await supabase
         .from("notification_settings")
         .select("*")
         .eq("user_id", user.id)
+        .eq("company_id", currentCompany.id)
         .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
@@ -103,7 +108,7 @@ export default function NotificationSettings() {
   };
 
   const saveSettings = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     try {
       // Map interface fields back to database fields
@@ -115,7 +120,7 @@ export default function NotificationSettings() {
       
       const { error } = await supabase
         .from("notification_settings")
-        .upsert(dbSettings, { onConflict: "user_id" });
+        .upsert(dbSettings, { onConflict: "user_id,company_id" });
 
       if (error) throw error;
 
