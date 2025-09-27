@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
 import JobSettings from '@/components/JobSettings';
-import { Building, CreditCard, Briefcase } from 'lucide-react';
+import { Building, CreditCard, Briefcase, DollarSign } from 'lucide-react';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -36,7 +36,7 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Company Info
@@ -48,6 +48,10 @@ export default function CompanySettingsPage() {
             <TabsTrigger value="jobs" className="flex items-center gap-2">
               <Briefcase className="h-4 w-4" />
               Job Settings
+            </TabsTrigger>
+            <TabsTrigger value="banking" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Banking Settings
             </TabsTrigger>
           </TabsList>
 
@@ -91,6 +95,54 @@ export default function CompanySettingsPage() {
                 <JobSettings />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="banking">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Chart of Accounts</CardTitle>
+                  <CardDescription>
+                    Manage your company's chart of accounts and accounting structure
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Set up and manage your company's chart of accounts for proper financial tracking and reporting.
+                    </p>
+                    <Button 
+                      onClick={() => window.open('/chart-of-accounts', '_blank')}
+                      variant="outline"
+                    >
+                      Manage Chart of Accounts
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Job Cost Setup</CardTitle>
+                  <CardDescription>
+                    Configure job cost codes and their associations with chart of accounts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Set up cost codes for tracking job expenses and link them to your chart of accounts.
+                    </p>
+                    <Button 
+                      onClick={() => window.open('/jobs/cost-setup', '_blank')}
+                      variant="outline"
+                    >
+                      Manage Job Cost Setup
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

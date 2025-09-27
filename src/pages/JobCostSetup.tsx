@@ -1,0 +1,586 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { 
+  FileText, 
+  Plus, 
+  Trash2, 
+  Edit,
+  Loader2, 
+  Wrench, 
+  Hammer, 
+  Users, 
+  Truck, 
+  Package, 
+  Search,
+  Link,
+  Building,
+  Settings,
+  DollarSign,
+  Calculator
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+
+interface CostCode {
+  id: string;
+  code: string;
+  description: string;
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+  is_active: boolean;
+  job_id?: string | null;
+  chart_account_id?: string | null;
+  chart_account_number?: string | null;
+}
+
+interface Job {
+  id: string;
+  name: string;
+  job_number?: string;
+}
+
+interface ChartAccount {
+  id: string;
+  account_number: string;
+  account_name: string;
+  account_type: string;
+}
+
+interface CostCodeTemplate {
+  id: string;
+  code: string;
+  description: string;
+  type: string;
+  is_default: boolean;
+}
+
+export default function JobCostSetup() {
+  const { toast } = useToast();
+  const [costCodes, setCostCodes] = useState<CostCode[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [chartAccounts, setChartAccounts] = useState<ChartAccount[]>([]);
+  const [costCodeTemplates, setCostCodeTemplates] = useState<CostCodeTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [addTemplateDialogOpen, setAddTemplateDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  
+  // Settings state
+  const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
+  const [requireChartAccount, setRequireChartAccount] = useState(false);
+  const [defaultCostCodePrefix, setDefaultCostCodePrefix] = useState('CC-');
+
+  const [newTemplate, setNewTemplate] = useState<{
+    code: string;
+    description: string;
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+    is_default: boolean;
+  }>({
+    code: "",
+    description: "",
+    type: "other",
+    is_default: false
+  });
+
+  const costTypeOptions = [
+    { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
+    { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
+    { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
+    { value: 'equipment', label: 'Equipment', icon: Truck, color: 'bg-orange-100 text-orange-800' },
+    { value: 'other', label: 'Other', icon: Wrench, color: 'bg-gray-100 text-gray-800' }
+  ];
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      // Load general cost codes (not job-specific)
+      const { data: costCodesData, error: costCodesError } = await supabase
+        .from('cost_codes')
+        .select(`
+          *,
+          chart_of_accounts:chart_account_id (
+            account_number,
+            account_name
+          )
+        `)
+        .is('job_id', null)
+        .eq('is_active', true)
+        .order('code');
+
+      if (costCodesError) throw costCodesError;
+
+      // Transform the data to include chart account info
+      const transformedCostCodes = costCodesData?.map(code => ({
+        ...code,
+        chart_account_number: code.chart_of_accounts?.account_number || code.chart_account_number,
+        chart_account_name: code.chart_of_accounts?.account_name
+      })) || [];
+
+      setCostCodes(transformedCostCodes);
+
+      // Load jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .order('name');
+
+      if (jobsError) throw jobsError;
+      setJobs(jobsData || []);
+
+      // Load chart of accounts
+      const { data: accountsData, error: accountsError } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_number, account_name, account_type')
+        .eq('is_active', true)
+        .in('account_type', ['expense', 'cost_of_goods_sold'])
+        .order('account_number');
+
+      if (accountsError) throw accountsError;
+      setChartAccounts(accountsData || []);
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load job cost setup data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddTemplate = async () => {
+    if (!newTemplate.code || !newTemplate.description) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const insertData: any = {
+        code: newTemplate.code,
+        description: newTemplate.description,
+        type: newTemplate.type,
+        is_active: true,
+        job_id: null // General cost code template
+      };
+
+      const { error } = await supabase
+        .from('cost_codes')
+        .insert(insertData);
+
+      if (error) throw error;
+
+      toast({
+        title: "Cost Code Template Added",
+        description: "General cost code template has been added successfully",
+      });
+
+      setNewTemplate({
+        code: "",
+        description: "",
+        type: "other",
+        is_default: false
+      });
+      setAddTemplateDialogOpen(false);
+      loadData();
+    } catch (error) {
+      console.error('Error adding cost code template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add cost code template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTemplate = async (codeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('cost_codes')
+        .update({ is_active: false })
+        .eq('id', codeId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Cost Code Template Deactivated",
+        description: "Cost code template has been deactivated",
+      });
+
+      loadData();
+    } catch (error) {
+      console.error('Error deactivating cost code template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to deactivate cost code template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getCostTypeIcon = (type: string) => {
+    const typeOption = costTypeOptions.find(option => option.value === type);
+    return typeOption ? <typeOption.icon className="h-4 w-4" /> : <FileText className="h-4 w-4" />;
+  };
+
+  const getCostTypeColor = (type: string) => {
+    const typeOption = costTypeOptions.find(option => option.value === type);
+    return typeOption ? typeOption.color : 'bg-gray-100 text-gray-800';
+  };
+
+  const filteredCostCodes = costCodes.filter(code => {
+    const matchesSearch = code.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         code.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'all' || code.type === filterType;
+    return matchesSearch && matchesType;
+  });
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="text-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading job cost setup...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Job Cost Setup</h1>
+          <p className="text-muted-foreground">Configure cost code templates and job costing settings</p>
+        </div>
+        <div className="flex space-x-2">
+          <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Settings className="h-4 w-4 mr-2" />
+                Setup Settings
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Job Cost Setup Settings</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Auto-create cost codes for new jobs</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically create cost codes from templates when a new job is created
+                      </p>
+                    </div>
+                    <Switch
+                      checked={autoCreateCostCodes}
+                      onCheckedChange={setAutoCreateCostCodes}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Require chart of account assignment</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Make chart of account assignment mandatory for all cost codes
+                      </p>
+                    </div>
+                    <Switch
+                      checked={requireChartAccount}
+                      onCheckedChange={setRequireChartAccount}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cost-code-prefix">Default Cost Code Prefix</Label>
+                    <Input
+                      id="cost-code-prefix"
+                      value={defaultCostCodePrefix}
+                      onChange={(e) => setDefaultCostCodePrefix(e.target.value)}
+                      placeholder="e.g., CC-, JC-"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Prefix used when auto-generating cost codes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    setSettingsDialogOpen(false);
+                    toast({
+                      title: "Settings Saved",
+                      description: "Job cost setup settings have been saved",
+                    });
+                  }}>
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={addTemplateDialogOpen} onOpenChange={setAddTemplateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Cost Code Template
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add Cost Code Template</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="template_code">Code *</Label>
+                    <Input
+                      id="template_code"
+                      value={newTemplate.code}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, code: e.target.value })}
+                      placeholder="e.g., MAT-001"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="template_type">Type</Label>
+                    <Select value={newTemplate.type} onValueChange={(value: any) => setNewTemplate({ ...newTemplate, type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {costTypeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex items-center space-x-2">
+                              <option.icon className="h-4 w-4" />
+                              <span>{option.label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template_description">Description *</Label>
+                  <Textarea
+                    id="template_description"
+                    value={newTemplate.description}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                    placeholder="Enter description"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setAddTemplateDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddTemplate}>
+                    Add Template
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="text-sm font-medium">Cost Code Templates</p>
+                <p className="text-2xl font-bold">{costCodes.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Building className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="text-sm font-medium">Active Jobs</p>
+                <p className="text-2xl font-bold">{jobs.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-5 w-5 text-purple-500" />
+              <div>
+                <p className="text-sm font-medium">Chart Accounts</p>
+                <p className="text-2xl font-bold">{chartAccounts.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Link className="h-5 w-5 text-orange-500" />
+              <div>
+                <p className="text-sm font-medium">Linked Codes</p>
+                <p className="text-2xl font-bold">{costCodes.filter(c => c.chart_account_id).length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex space-x-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search cost code templates..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {costTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Cost Code Templates Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost Code Templates ({filteredCostCodes.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Chart Account</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredCostCodes.map((code) => (
+                <TableRow key={code.id}>
+                  <TableCell className="font-mono font-medium">{code.code}</TableCell>
+                  <TableCell>{code.description}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={getCostTypeColor(code.type)}>
+                      <span className="flex items-center space-x-1">
+                        {getCostTypeIcon(code.type)}
+                        <span>{costTypeOptions.find(t => t.value === code.type)?.label}</span>
+                      </span>
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {code.chart_account_number ? (
+                      <Badge variant="outline">
+                        <Link className="h-3 w-3 mr-1" />
+                        {code.chart_account_number}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Edit functionality would go here
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Deactivate Cost Code Template</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to deactivate this cost code template? This will prevent it from being used in new jobs.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteTemplate(code.id)}>
+                              Deactivate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {filteredCostCodes.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No cost code templates found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

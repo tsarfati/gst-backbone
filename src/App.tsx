@@ -54,6 +54,7 @@ import BankingChartOfAccounts from "./pages/BankingChartOfAccounts";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import CostCodes from "./pages/CostCodes";
 import JobCostManagement from "./pages/JobCostManagement";
+import JobCostSetup from "./pages/JobCostSetup";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
@@ -165,6 +166,7 @@ function AuthenticatedRoutes() {
                 <Route path="jobs/add" element={<AddJob />} />
                 <Route path="jobs/cost-codes" element={<CostCodes />} />
                 <Route path="jobs/cost-management" element={<JobCostManagement />} />
+                <Route path="jobs/cost-setup" element={<JobCostSetup />} />
                 <Route path="jobs/reports" element={<JobReports />} />
                 <Route path="jobs/:id" element={<JobDetails />} />
                 <Route path="jobs/:id/edit" element={<JobEdit />} />
