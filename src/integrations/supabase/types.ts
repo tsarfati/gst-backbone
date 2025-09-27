@@ -190,6 +190,7 @@ export type Database = {
           created_by: string
           display_name: string | null
           email: string | null
+          enable_shared_vendor_database: boolean
           id: string
           is_active: boolean
           license_number: string | null
@@ -209,6 +210,7 @@ export type Database = {
           created_by: string
           display_name?: string | null
           email?: string | null
+          enable_shared_vendor_database?: boolean
           id?: string
           is_active?: boolean
           license_number?: string | null
@@ -228,6 +230,7 @@ export type Database = {
           created_by?: string
           display_name?: string | null
           email?: string | null
+          enable_shared_vendor_database?: boolean
           id?: string
           is_active?: boolean
           license_number?: string | null

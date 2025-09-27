@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera, Share2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -51,7 +52,8 @@ export default function CompanyManagement() {
     zip_code: '',
     phone: '',
     email: '',
-    website: ''
+    website: '',
+    enable_shared_vendor_database: false
   });
   const [newCompanyForm, setNewCompanyForm] = useState({
     name: '',
@@ -62,7 +64,8 @@ export default function CompanyManagement() {
     zip_code: '',
     phone: '',
     email: '',
-    website: ''
+    website: '',
+    enable_shared_vendor_database: false
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
@@ -246,7 +249,8 @@ export default function CompanyManagement() {
         zip_code: '',
         phone: '',
         email: '',
-        website: ''
+        website: '',
+        enable_shared_vendor_database: false
       });
       
       await refreshCompanies();
@@ -396,7 +400,8 @@ export default function CompanyManagement() {
         zip_code: currentCompany.zip_code || '',
         phone: currentCompany.phone || '',
         email: currentCompany.email || '',
-        website: currentCompany.website || ''
+        website: currentCompany.website || '',
+        enable_shared_vendor_database: currentCompany.enable_shared_vendor_database || false
       });
     }
   }, [currentCompany]);
@@ -535,6 +540,87 @@ export default function CompanyManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Vendor Sharing Settings Card - Only show for company admins */}
+      {isCompanyAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Vendor Database Sharing
+            </CardTitle>
+            <CardDescription>
+              Configure whether this company participates in shared vendor database
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-blue-600" />
+                  <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, your company can access vendor contact information from other companies that also enable this setting. 
+                  Jobs, invoices, and other company-specific data remain separate and private.
+                </p>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div>• Share: Vendor names, addresses, phone numbers, emails</div>
+                  <div>• Keep separate: Jobs, invoices, payments, company-specific notes</div>
+                </div>
+              </div>
+              <Switch
+                checked={currentCompany?.enable_shared_vendor_database || false}
+                onCheckedChange={async (checked) => {
+                  try {
+                    const { error } = await supabase
+                      .from('companies')
+                      .update({ enable_shared_vendor_database: checked })
+                      .eq('id', currentCompany?.id);
+
+                    if (error) throw error;
+
+                    await refreshCompanies();
+                    
+                    toast({
+                      title: checked ? "Shared vendor database enabled" : "Shared vendor database disabled",
+                      description: checked 
+                        ? "Your company can now access shared vendor information from other participating companies."
+                        : "Your company will only see vendors specifically added to your company.",
+                    });
+                  } catch (error) {
+                    console.error('Error updating vendor sharing setting:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to update vendor sharing setting",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+              />
+            </div>
+            
+            {currentCompany?.enable_shared_vendor_database && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-blue-900">Privacy & Security</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <p>✓ Only basic vendor contact information is shared between companies</p>
+                      <p>✓ Your jobs, invoices, and financial data remain completely private</p>
+                      <p>✓ You can disable this feature at any time</p>
+                      <p>✓ Shared vendors appear with a "Shared" badge for identification</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Access Requests Card - Only show for company admins */}
 
       {/* Access Requests Card - Only show for company admins */}
       {isCompanyAdmin && (
@@ -852,6 +938,21 @@ export default function CompanyManagement() {
                 placeholder="https://company.com"
               />
             </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
+                <p className="text-xs text-muted-foreground">
+                  Share vendor contact information with other companies (jobs and invoices remain private)
+                </p>
+              </div>
+              <Switch
+                checked={newCompanyForm.enable_shared_vendor_database}
+                onCheckedChange={(checked) => setNewCompanyForm(prev => ({ 
+                  ...prev, 
+                  enable_shared_vendor_database: checked 
+                }))}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateCompanyDialog(false)}>
@@ -954,6 +1055,21 @@ export default function CompanyManagement() {
                 id="website"
                 value={companyForm.website}
                 onChange={(e) => setCompanyForm(prev => ({ ...prev, website: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
+                <p className="text-xs text-muted-foreground">
+                  Share vendor contact information with other companies (jobs and invoices remain private)
+                </p>
+              </div>
+              <Switch
+                checked={companyForm.enable_shared_vendor_database}
+                onCheckedChange={(checked) => setCompanyForm(prev => ({ 
+                  ...prev, 
+                  enable_shared_vendor_database: checked 
+                }))}
               />
             </div>
           </div>

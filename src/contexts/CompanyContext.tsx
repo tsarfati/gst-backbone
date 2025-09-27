@@ -15,6 +15,7 @@ interface Company {
   phone?: string;
   email?: string;
   website?: string;
+  enable_shared_vendor_database?: boolean;
 }
 
 interface UserCompanyAccess {
