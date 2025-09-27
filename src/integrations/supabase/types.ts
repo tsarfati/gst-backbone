@@ -318,6 +318,33 @@ export type Database = {
         }
         Relationships: []
       }
+      company_ui_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cost_codes: {
         Row: {
           chart_account_id: string | null

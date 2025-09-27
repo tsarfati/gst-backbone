@@ -1,4 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useCompany } from '@/contexts/CompanyContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
@@ -70,49 +73,94 @@ const defaultSettings: AppSettings = {
 interface SettingsContextType {
   settings: AppSettings;
   updateSettings: (updates: Partial<AppSettings>) => void;
-  resetSettings: () => void;
+  resetSettings: () => Promise<void>;
   applyCustomColors: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const saved = localStorage.getItem('app-settings');
-    return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
-  });
+  const { currentCompany } = useCompany();
+  const { user } = useAuth();
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [isLoaded, setIsLoaded] = useState(false);
 
+  // Load settings from database when company or user changes
   useEffect(() => {
-    try {
-      // Create a copy of settings without potentially large logo data for localStorage
-      const settingsForStorage = { ...settings };
-      // Remove logo data if it's base64 (starts with 'data:')
-      if (settingsForStorage.companyLogo?.startsWith('data:')) {
-        delete settingsForStorage.companyLogo;
+    const loadSettings = async () => {
+      if (!currentCompany?.id || !user?.id) {
+        setSettings(defaultSettings);
+        setIsLoaded(true);
+        return;
       }
-      if (settingsForStorage.headerLogo?.startsWith('data:')) {
-        delete settingsForStorage.headerLogo;
-      }
-      
-      localStorage.setItem('app-settings', JSON.stringify(settingsForStorage));
-    } catch (error) {
-      console.warn('Failed to save settings to localStorage:', error);
-      // If localStorage is full, try to clear it and save essential settings only
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        try {
-          localStorage.removeItem('app-settings');
-          const essentialSettings = {
-            theme: settings.theme,
-            navigationMode: settings.navigationMode,
-            customColors: settings.customColors
-          };
-          localStorage.setItem('app-settings', JSON.stringify(essentialSettings));
-        } catch (fallbackError) {
-          console.error('Failed to save even essential settings:', fallbackError);
+
+      try {
+        const { data, error } = await supabase
+          .from('company_ui_settings')
+          .select('settings')
+          .eq('company_id', currentCompany.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Failed to load company settings:', error);
+          setSettings(defaultSettings);
+        } else if (data?.settings && typeof data.settings === 'object') {
+          const mergedSettings = { ...defaultSettings, ...(data.settings as Partial<AppSettings>) };
+          setSettings(mergedSettings);
+        } else {
+          setSettings(defaultSettings);
         }
+      } catch (error) {
+        console.warn('Error loading settings:', error);
+        setSettings(defaultSettings);
+      } finally {
+        setIsLoaded(true);
       }
-    }
-  }, [settings]);
+    };
+
+    loadSettings();
+  }, [currentCompany?.id, user?.id]);
+
+  // Save settings to database
+  useEffect(() => {
+    const saveSettings = async () => {
+      if (!currentCompany?.id || !user?.id || !isLoaded) {
+        return;
+      }
+
+      try {
+        // Remove large data before saving
+        const settingsForStorage = { ...settings };
+        if (settingsForStorage.companyLogo?.startsWith('data:')) {
+          delete settingsForStorage.companyLogo;
+        }
+        if (settingsForStorage.headerLogo?.startsWith('data:')) {
+          delete settingsForStorage.headerLogo;
+        }
+
+        const { error } = await supabase
+          .from('company_ui_settings')
+          .upsert({
+            company_id: currentCompany.id,
+            user_id: user.id,
+            settings: settingsForStorage
+          }, {
+            onConflict: 'company_id,user_id'
+          });
+
+        if (error) {
+          console.warn('Failed to save settings:', error);
+        }
+      } catch (error) {
+        console.warn('Error saving settings:', error);
+      }
+    };
+
+    // Debounce saving to avoid too many requests
+    const timeoutId = setTimeout(saveSettings, 500);
+    return () => clearTimeout(timeoutId);
+  }, [settings, currentCompany?.id, user?.id, isLoaded]);
 
   // Apply custom colors on mount
   useEffect(() => {
@@ -144,10 +192,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
+    if (!currentCompany?.id || !user?.id) return;
+    
     setSettings(defaultSettings);
-    localStorage.removeItem('app-settings');
     applyCustomColors();
+    
+    try {
+      await supabase
+        .from('company_ui_settings')
+        .delete()
+        .eq('company_id', currentCompany.id)
+        .eq('user_id', user.id);
+    } catch (error) {
+      console.warn('Error resetting settings:', error);
+    }
   };
 
   // Apply custom colors when settings change

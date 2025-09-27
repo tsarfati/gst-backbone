@@ -30,8 +30,8 @@ export default function AppSettings() {
     });
   };
 
-  const handleResetSettings = () => {
-    resetSettings();
+  const handleResetSettings = async () => {
+    await resetSettings();
     setShowResetDialog(false);
     toast({
       title: "Settings reset",
