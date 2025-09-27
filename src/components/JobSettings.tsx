@@ -342,14 +342,24 @@ export default function JobSettings() {
 
       <Separator />
 
-      {/* Job Cost Setup - Moved from separate page */}
+      {/* Job Cost Setup Navigation */}
       <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Settings className="h-5 w-5 text-indigo-600" />
-          <h3 className="text-lg font-semibold">Job Cost Setup</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Settings className="h-5 w-5 text-indigo-600" />
+            <h3 className="text-lg font-semibold">Job Cost Setup</h3>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={() => window.open('/jobs/cost-setup', '_blank')}
+            className="flex items-center gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Open Job Cost Setup
+          </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Job cost setup functionality has been integrated here. Manage cost code templates and job costing settings directly within job settings.
+          Configure cost code templates and job costing settings for your projects.
         </p>
       </div>
 

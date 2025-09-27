@@ -144,7 +144,7 @@ export default function JobCostSetup() {
       if (jobsError) throw jobsError;
       setJobs(jobsData || []);
 
-      // Load chart of accounts
+      // Load chart of accounts  
       const { data: accountsData, error: accountsError } = await supabase
         .from('chart_of_accounts')
         .select('id, account_number, account_name, account_type')
@@ -158,7 +158,7 @@ export default function JobCostSetup() {
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
-        title: "Error",
+        title: "Error", 
         description: "Failed to load job cost setup data",
         variant: "destructive",
       });
