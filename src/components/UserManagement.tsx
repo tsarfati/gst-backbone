@@ -11,6 +11,7 @@ import { CheckCircle, XCircle, User, Settings, Briefcase, Mail } from "lucide-re
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface UserProfile {
   user_id: string;
@@ -35,6 +36,7 @@ interface Job {
 
 export default function UserManagement() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -50,38 +52,76 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchJobs();
-  }, []);
+    if (currentCompany) {
+      fetchUsers();
+      fetchJobs();
+    }
+  }, [currentCompany]);
 
   const fetchUsers = async () => {
+    if (!currentCompany) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Fetch both regular profiles and PIN employees
-      const [profilesResult, pinEmployeesResult] = await Promise.all([
-        supabase
+      // Fetch users that have access to the current company
+      const { data: userAccessData, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, role, is_active, granted_at')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+
+      let allUsers: UserProfile[] = [];
+
+      // Fetch profiles for users with company access
+      if (userAccessData && userAccessData.length > 0) {
+        const userIds = userAccessData.map(access => access.user_id);
+        
+        const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('pin_employees')
-          .select('id as user_id, first_name, last_name, display_name, created_at, is_active, phone, department, notes')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-      ]);
+          .in('user_id', userIds)
+          .order('created_at', { ascending: false });
 
-      if (profilesResult.error) throw profilesResult.error;
-      
-      const profiles = profilesResult.data || [];
-      const pinEmployees = (pinEmployeesResult.data || []).map((emp: any) => ({
-        ...emp,
-        role: 'employee',
-        status: 'approved',
-        has_global_job_access: false,
-        isPinEmployee: true
-      }));
+        if (profilesError) throw profilesError;
 
-      // Combine both types of users
-      const allUsers = [...profiles, ...pinEmployees];
+        // Combine profile data with company access data
+        const companyUsers = profilesData?.map(profile => {
+          const access = userAccessData.find(access => access.user_id === profile.user_id);
+          return {
+            ...profile,
+            role: access?.role || profile.role, // Use company role if available
+            granted_at: access?.granted_at
+          };
+        }) || [];
+
+        allUsers = [...companyUsers];
+      }
+
+      // Fetch PIN employees for this company (they are company-wide)
+      const { data: pinEmployeesData, error: pinError } = await supabase
+        .from('pin_employees')
+        .select('id as user_id, first_name, last_name, display_name, created_at, is_active, phone, department, notes')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (pinError) {
+        console.error('Error fetching PIN employees:', pinError);
+      } else if (pinEmployeesData) {
+        const pinEmployees = pinEmployeesData.map((emp: any) => ({
+          ...emp,
+          role: 'employee',
+          status: 'approved',
+          has_global_job_access: false,
+          isPinEmployee: true
+        }));
+
+        allUsers = [...allUsers, ...pinEmployees];
+      }
+
       setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -96,10 +136,13 @@ export default function UserManagement() {
   };
 
   const fetchJobs = async () => {
+    if (!currentCompany) return;
+
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('id, name, client, status')
+        .eq('company_id', currentCompany.id)
         .order('name');
 
       if (error) throw error;
@@ -308,12 +351,22 @@ export default function UserManagement() {
     return <div className="p-6 text-center">Loading users...</div>;
   }
 
+  if (!currentCompany) {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-muted-foreground">Please select a company to view its users.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Approve users and manage permissions</p>
+          <p className="text-muted-foreground">
+            Manage users for {currentCompany.display_name || currentCompany.name}
+          </p>
         </div>
       </div>
 
