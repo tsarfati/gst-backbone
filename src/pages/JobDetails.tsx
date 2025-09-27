@@ -3,14 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, QrCode } from "lucide-react";
+
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
-import { JobQRCode } from "@/components/JobQRCode";
 
 
 interface Job {
@@ -258,33 +257,17 @@ export default function JobDetails() {
 
       {/* Tabbed Content */}
       <div className="mt-8">
-        <Tabs defaultValue="costs" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="costs" className="flex items-center space-x-2">
-              <Calculator className="h-4 w-4" />
-              <span>Committed Costs</span>
-            </TabsTrigger>
-            <TabsTrigger value="qr-code" className="flex items-center space-x-2">
-              <QrCode className="h-4 w-4" />
-              <span>QR Code</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="costs">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Committed Costs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <CommittedCosts jobId={id!} />
-          </TabsContent>
-
-          <TabsContent value="qr-code">
-            <JobQRCode 
-              jobId={id!} 
-              jobName={job.name} 
-              visitorQrCode={job.visitor_qr_code || undefined}
-              onQrCodeUpdate={(newCode) => {
-                setJob(prev => prev ? { ...prev, visitor_qr_code: newCode } : null);
-              }}
-            />
-          </TabsContent>
-        </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

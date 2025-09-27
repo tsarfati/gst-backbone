@@ -119,7 +119,6 @@ function PublicRoutes() {
           <Route path="/punch-clock" element={<PunchClockLogin />} />
           <Route path="/punch-clock-app" element={<PunchClockApp />} />
           <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-          <Route path="/jobs/:id/visitor-logs" element={<JobVisitorLogs />} />
         </Routes>
       </PunchClockAuthProvider>
     </AuthProvider>
@@ -166,6 +165,7 @@ function AuthenticatedRoutes() {
                 <Route path="jobs/reports" element={<JobReports />} />
                 <Route path="jobs/:id" element={<JobDetails />} />
                 <Route path="jobs/:id/edit" element={<JobEdit />} />
+                <Route path="jobs/:id/visitor-logs" element={<JobVisitorLogs />} />
                 <Route path="jobs/:id/budget" element={<JobBudget />} />
                 <Route path="delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
