@@ -10,11 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PunchClockLoginSettings } from '@/components/PunchClockLoginSettings';
+import { VisitorLogSettings } from '@/components/VisitorLogSettings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import ColorPicker from '@/components/ColorPicker';
-import { Palette, Smartphone } from 'lucide-react';
+import { Palette, Smartphone, Users } from 'lucide-react';
 
 export default function ThemeSettings() {
   const { settings, updateSettings } = useSettings();
