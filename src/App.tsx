@@ -90,6 +90,7 @@ import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
 import MobileMessages from "./pages/MobileMessages";
 import VisitorLogin from "./pages/VisitorLogin";
+import JobVisitorLogs from "./pages/JobVisitorLogs";
 
 const queryClient = new QueryClient();
 
@@ -118,6 +119,7 @@ function PublicRoutes() {
           <Route path="/punch-clock" element={<PunchClockLogin />} />
           <Route path="/punch-clock-app" element={<PunchClockApp />} />
           <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+          <Route path="/jobs/:id/visitor-logs" element={<JobVisitorLogs />} />
         </Routes>
       </PunchClockAuthProvider>
     </AuthProvider>

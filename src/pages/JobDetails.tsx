@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
 import { JobQRCode } from "@/components/JobQRCode";
-import { VisitorReports } from "@/components/VisitorReports";
+
 
 interface Job {
   id: string;
@@ -243,6 +243,14 @@ export default function JobDetails() {
                 <Clock className="h-4 w-4 mr-2" />
                 Time Tracking
               </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start" 
+                onClick={() => navigate(`/jobs/${id}/visitor-logs`)}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Visitor Logs
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -251,14 +259,10 @@ export default function JobDetails() {
       {/* Tabbed Content */}
       <div className="mt-8">
         <Tabs defaultValue="costs" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="costs" className="flex items-center space-x-2">
               <Calculator className="h-4 w-4" />
               <span>Committed Costs</span>
-            </TabsTrigger>
-            <TabsTrigger value="visitors" className="flex items-center space-x-2">
-              <Users className="h-4 w-4" />
-              <span>Visitor Log</span>
             </TabsTrigger>
             <TabsTrigger value="qr-code" className="flex items-center space-x-2">
               <QrCode className="h-4 w-4" />
@@ -268,10 +272,6 @@ export default function JobDetails() {
 
           <TabsContent value="costs">
             <CommittedCosts jobId={id!} />
-          </TabsContent>
-
-          <TabsContent value="visitors">
-            <VisitorReports jobId={id!} jobName={job.name} />
           </TabsContent>
 
           <TabsContent value="qr-code">

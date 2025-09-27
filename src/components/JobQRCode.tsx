@@ -7,12 +7,62 @@ import { Label } from '@/components/ui/label';
 import { QrCode, Download, Copy, Smartphone, Users, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import QRCode from 'qrcode';
 
 interface JobQRCodeProps {
   jobId: string;
   jobName: string;
   visitorQrCode?: string;
   onQrCodeUpdate?: (newCode: string) => void;
+}
+
+// QR Code Display Component
+function QRCodeDisplay({ qrCode }: { qrCode: string }) {
+  const [qrCodeImage, setQrCodeImage] = useState<string>('');
+
+  useEffect(() => {
+    const generateQRImage = async () => {
+      try {
+        const qrData = `${window.location.origin}/visitor/${qrCode}`;
+        const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+          width: 128,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        setQrCodeImage(qrCodeDataURL);
+      } catch (error) {
+        console.error('Error generating QR code display:', error);
+      }
+    };
+
+    if (qrCode) {
+      generateQRImage();
+    }
+  }, [qrCode]);
+
+  if (!qrCodeImage) {
+    return (
+      <div className="w-32 h-32 bg-gray-100 border flex items-center justify-center rounded">
+        <div className="text-center">
+          <QrCode className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-xs text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-32 h-32 border rounded overflow-hidden">
+      <img 
+        src={qrCodeImage} 
+        alt="Visitor QR Code" 
+        className="w-full h-full object-contain"
+      />
+    </div>
+  );
 }
 
 export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: JobQRCodeProps) {
@@ -100,55 +150,63 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
     });
   };
 
-  const downloadQrCode = () => {
-    // Create a simple QR code representation for download
-    const qrData = `${window.location.origin}/visitor/${qrCode}`;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (ctx) {
-      canvas.width = 300;
-      canvas.height = 350;
+  const downloadQrCode = async () => {
+    try {
+      const qrData = `${window.location.origin}/visitor/${qrCode}`;
       
-      // White background
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // QR code placeholder (black squares pattern)
-      ctx.fillStyle = 'black';
-      const qrSize = 200;
-      const startX = (canvas.width - qrSize) / 2;
-      const startY = 50;
-      
-      // Simple pattern to represent QR code
-      const gridSize = 10;
-      for (let i = 0; i < qrSize; i += gridSize) {
-        for (let j = 0; j < qrSize; j += gridSize) {
-          if ((i + j) % (gridSize * 2) === 0) {
-            ctx.fillRect(startX + i, startY + j, gridSize - 1, gridSize - 1);
-          }
+      // Generate actual QR code using the qrcode library
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
         }
+      });
+      
+      // Create canvas for final image with job name
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (ctx) {
+        canvas.width = 300;
+        canvas.height = 350;
+        
+        // White background
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Load and draw QR code
+        const qrImage = new Image();
+        qrImage.onload = () => {
+          // Draw QR code
+          ctx.drawImage(qrImage, 0, 0, 300, 300);
+          
+          // Add job name text
+          ctx.fillStyle = 'black';
+          ctx.font = '16px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(jobName, canvas.width / 2, 330);
+          
+          // Download
+          const link = document.createElement('a');
+          link.download = `visitor-qr-${jobName.replace(/\s+/g, '-')}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+          
+          toast({
+            title: "QR Code Downloaded",
+            description: "Functional QR code has been downloaded successfully.",
+          });
+        };
+        qrImage.src = qrCodeDataURL;
       }
-      
-      // Job name text
-      ctx.fillStyle = 'black';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(jobName, canvas.width / 2, startY + qrSize + 30);
-      
-      // QR code text
-      ctx.font = '12px Arial';
-      ctx.fillText(`QR: ${qrCode}`, canvas.width / 2, startY + qrSize + 50);
-      
-      // Download
-      const link = document.createElement('a');
-      link.download = `visitor-qr-${jobName.replace(/\s+/g, '-')}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-      
+    } catch (error) {
+      console.error('Error generating QR code:', error);
       toast({
-        title: "QR Code Downloaded",
-        description: "QR code has been downloaded as PNG image.",
+        title: "Download Failed",
+        description: "Failed to generate QR code for download.",
+        variant: "destructive",
       });
     }
   };
@@ -177,13 +235,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
         {/* QR Code Display */}
         <div className="text-center">
           <div className="inline-block p-4 bg-white border-2 border-dashed border-gray-300 rounded-lg">
-            <div className="w-32 h-32 bg-gray-100 border flex items-center justify-center rounded">
-              <div className="text-center">
-                <QrCode className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-xs text-gray-500">QR Code</p>
-                <p className="text-xs font-mono">{qrCode}</p>
-              </div>
-            </div>
+            <QRCodeDisplay qrCode={qrCode} />
           </div>
         </div>
 
