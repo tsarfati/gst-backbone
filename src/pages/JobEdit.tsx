@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Building, Users, UserCheck, QrCode, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
 import JobBudgetManager from "@/components/JobBudgetManager";
@@ -22,6 +23,7 @@ export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
@@ -287,6 +289,7 @@ export default function JobEdit() {
           job_id: id,
           code: code.code,
           description: code.description,
+          company_id: currentCompany?.id || '',
           is_active: true
         }));
 

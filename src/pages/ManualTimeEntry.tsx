@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Clock, ArrowLeft, Save, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,6 +30,7 @@ interface Employee {
 
 export default function ManualTimeEntry() {
   const { profile, user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -129,6 +131,7 @@ export default function ManualTimeEntry() {
           user_id: formData.user_id,
           job_id: formData.job_id,
           cost_code_id: formData.cost_code_id || null,
+          company_id: currentCompany?.id || '',
           punch_in_time: punchInDateTime.toISOString(),
           punch_out_time: punchOutDateTime.toISOString(),
           total_hours: totalHours,

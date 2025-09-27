@@ -25,6 +25,7 @@ import {
   Banknote
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface Account {
@@ -62,6 +63,7 @@ const accountCategories: Record<string, string[]> = {
 
 export default function ChartOfAccounts() {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,10 +89,13 @@ export default function ChartOfAccounts() {
   }, []);
 
   const loadAccounts = async () => {
+    if (!currentCompany) return;
+    
     try {
       const { data, error } = await supabase
         .from('chart_of_accounts')
         .select('*')
+        .eq('company_id', currentCompany.id)
         .eq('is_active', true)
         .order('account_number');
 
@@ -132,6 +137,7 @@ export default function ChartOfAccounts() {
           current_balance: 0,
           is_system_account: false,
           is_active: true,
+          company_id: currentCompany?.id || '',
           created_by: userData.user?.id
         });
 
@@ -310,6 +316,7 @@ export default function ChartOfAccounts() {
             current_balance: parseFloat(account.current_balance || '0'),
             is_system_account: false,
             is_active: true,
+            company_id: currentCompany?.id || '',
             created_by: userData.user?.id
           });
         }

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { UserPlus, ArrowLeft, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,6 +32,7 @@ export default function AddEmployee() {
   const [newGroupName, setNewGroupName] = useState('');
   const [loading, setLoading] = useState(false);
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -41,10 +43,13 @@ export default function AddEmployee() {
   }, []);
 
   const loadGroups = async () => {
+    if (!currentCompany) return;
+    
     try {
       const { data, error } = await supabase
         .from('employee_groups')
         .select('id, name')
+        .eq('company_id', currentCompany.id)
         .order('name');
 
       if (error) throw error;
@@ -62,7 +67,7 @@ export default function AddEmployee() {
         .from('employee_groups')
         .insert({
           name: newGroupName,
-          company_id: profile?.current_company_id || profile?.user_id || '',
+          company_id: currentCompany?.id || '',
           created_by: profile?.user_id || '',
         })
         .select('id, name')
@@ -136,6 +141,7 @@ export default function AddEmployee() {
             phone: formData.phone,
             notes: formData.notes,
             group_id: formData.groupId || null,
+            company_id: currentCompany?.id || '',
             created_by: profile?.user_id || ''
           });
 

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea";
 import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 
 interface CostCode {
@@ -23,6 +24,7 @@ interface CostCode {
 
 export default function CostCodes() {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [csvUploading, setCsvUploading] = useState(false);
@@ -51,10 +53,13 @@ export default function CostCodes() {
   }, []);
 
   const loadCostCodes = async () => {
+    if (!currentCompany) return;
+    
     try {
       const { data, error } = await supabase
         .from('cost_codes')
         .select('*')
+        .eq('company_id', currentCompany.id)
         .is('job_id', null) // Only company-wide cost codes
         .eq('is_active', true)
         .order('code');
@@ -90,6 +95,7 @@ export default function CostCodes() {
           code: newCode.code,
           description: newCode.description,
           type: newCode.type,
+          company_id: currentCompany?.id || '',
           is_active: true,
           job_id: null // Company-wide cost code
         })
@@ -204,6 +210,7 @@ export default function CostCodes() {
             code: row.code,
             description: row.description,
             type: row.type,
+            company_id: currentCompany?.id || '',
             is_active: true,
             job_id: null
           })));

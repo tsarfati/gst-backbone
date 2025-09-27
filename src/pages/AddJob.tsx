@@ -121,6 +121,7 @@ export default function AddJob() {
             current_balance: 0,
             is_system_account: false,
             is_active: true,
+            company_id: currentCompany?.id || '',
             created_by: user.id
           });
 

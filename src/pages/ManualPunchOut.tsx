@@ -15,6 +15,7 @@ interface PunchedInEmployee {
   punch_in_time: string;
   job_id?: string;
   cost_code_id?: string;
+  company_id?: string;
   punch_in_location_lat?: number;
   punch_in_location_lng?: number;
   profiles?: {
@@ -118,6 +119,7 @@ export default function ManualPunchOut() {
           user_id: employee.user_id,
           job_id: employee.job_id,
           cost_code_id: employee.cost_code_id,
+          company_id: employee.company_id || '',
           punch_type: 'punched_out',
           punch_time: new Date().toISOString(),
           notes: 'Manual punch out by manager',
