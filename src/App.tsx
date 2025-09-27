@@ -131,8 +131,8 @@ function PublicRoutes() {
 function AuthenticatedRoutes() {
   return (
     <AuthProvider>
-      <SettingsProvider>
-        <CompanyProvider>
+      <CompanyProvider>
+        <SettingsProvider>
           <ReceiptProvider>
             <Routes>
               <Route path="/profile-completion" element={
@@ -284,8 +284,8 @@ function AuthenticatedRoutes() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </ReceiptProvider>
-        </CompanyProvider>
-      </SettingsProvider>
+        </SettingsProvider>
+      </CompanyProvider>
     </AuthProvider>
   );
 }
