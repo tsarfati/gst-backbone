@@ -73,6 +73,22 @@ export default function CompanyManagement() {
   const currentUserCompany = userCompanies.find(uc => uc.company_id === currentCompany?.id);
   const isCompanyAdmin = currentUserCompany?.role === 'admin' || currentUserCompany?.role === 'controller';
 
+  // Helper function to get user IDs that have access to a company
+  const getCompanyUserIds = async (companyId: string): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('user_company_access')
+      .select('user_id')
+      .eq('company_id', companyId)
+      .eq('is_active', true);
+    
+    if (error) {
+      console.error('Error fetching company user IDs:', error);
+      return [];
+    }
+    
+    return data?.map(item => item.user_id) || [];
+  };
+
   const fetchCompanyUsers = async () => {
     if (!currentCompany) return;
 
@@ -120,11 +136,15 @@ export default function CompanyManagement() {
         combinedUsers = [...regularUsers];
       }
 
-      // Fetch PIN employees and add them to the list
+      // Fetch PIN employees that belong to the current company
+      // PIN employees are associated with companies through their creator's company access
+      const companyUserIds = await getCompanyUserIds(currentCompany.id);
+      
       const { data: pinEmployeesData, error: pinError } = await supabase
         .from('pin_employees')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .in('created_by', companyUserIds);
 
       console.log('PIN employees data:', pinEmployeesData, 'error:', pinError);
 

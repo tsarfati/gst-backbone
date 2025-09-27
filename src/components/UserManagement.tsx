@@ -75,10 +75,12 @@ export default function UserManagement() {
       if (accessError) throw accessError;
 
       let allUsers: UserProfile[] = [];
+      let companyUserIds: string[] = [];
 
       // Fetch profiles for users with company access
       if (userAccessData && userAccessData.length > 0) {
         const userIds = userAccessData.map(access => access.user_id);
+        companyUserIds = userIds; // Store for PIN employee filtering
         
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -102,10 +104,12 @@ export default function UserManagement() {
       }
 
       // Fetch PIN employees for this company (they are company-wide)
+      // PIN employees are associated with companies through their creator's company access
       const { data: pinEmployeesData, error: pinError } = await supabase
         .from('pin_employees')
         .select('id as user_id, first_name, last_name, display_name, created_at, is_active, phone, department, notes')
         .eq('is_active', true)
+        .in('created_by', companyUserIds)
         .order('created_at', { ascending: false });
 
       if (pinError) {
