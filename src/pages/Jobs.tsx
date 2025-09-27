@@ -24,24 +24,32 @@ export default function Jobs() {
 
   useEffect(() => {
     if (user && currentCompany) {
+      // Clear previous company's jobs to avoid cross-company bleed
+      setJobs([]);
       loadJobs();
     }
   }, [user, currentCompany]);
 
   const loadJobs = async () => {
-    if (!user || !currentCompany) return;
+    const companyId = currentCompany?.id;
+    if (!user || !companyId) return;
     
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
-        .eq('company_id', currentCompany.id)
+        .eq('company_id', companyId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const mapped = (data || []).map((j: any) => ({
+      // Guard against race conditions if company switched mid-request
+      if (currentCompany?.id !== companyId) return;
+
+      const filtered = (data || []).filter((j: any) => j.company_id === companyId);
+
+      const mapped = filtered.map((j: any) => ({
         id: j.id,
         name: j.name,
         client: j.client,
