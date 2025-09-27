@@ -32,22 +32,48 @@ export default function Jobs() {
 
   const loadJobs = async () => {
     const companyId = currentCompany?.id;
-    if (!user || !companyId) return;
+    if (!user || !companyId) {
+      console.log('Missing user or company ID:', { user: !!user, companyId });
+      return;
+    }
+    
+    console.log('Loading jobs for company:', companyId, currentCompany?.name);
     
     try {
       setLoading(true);
+      
+      // Clear any existing jobs first to prevent cross-company contamination
+      setJobs([]);
+      
       const { data, error } = await supabase
         .from('jobs')
         .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Raw data from Supabase:', data);
 
       // Guard against race conditions if company switched mid-request
-      if (currentCompany?.id !== companyId) return;
+      if (currentCompany?.id !== companyId) {
+        console.log('Company changed during request, aborting');
+        return;
+      }
 
-      const filtered = (data || []).filter((j: any) => j.company_id === companyId);
+      // Triple check filtering to ensure no cross-company data
+      const filtered = (data || []).filter((j: any) => {
+        const isMatch = j.company_id === companyId;
+        if (!isMatch) {
+          console.warn('Found job from wrong company:', j.name, 'Company ID:', j.company_id, 'Expected:', companyId);
+        }
+        return isMatch;
+      });
+
+      console.log('Filtered jobs:', filtered.length, 'for company:', companyId);
 
       const mapped = filtered.map((j: any) => ({
         id: j.id,
@@ -58,7 +84,10 @@ export default function Jobs() {
         receipts: 0,
         startDate: j.start_date || "-",
         status: j.status || "planning",
+        company_id: j.company_id, // Keep company_id for debugging
       }));
+      
+      console.log('Final mapped jobs:', mapped);
       setJobs(mapped);
     } catch (error) {
       console.error('Error loading jobs:', error);
