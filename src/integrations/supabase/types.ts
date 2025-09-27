@@ -245,6 +245,8 @@ export type Database = {
       }
       cost_codes: {
         Row: {
+          chart_account_id: string | null
+          chart_account_number: string | null
           code: string
           created_at: string
           description: string
@@ -255,6 +257,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          chart_account_id?: string | null
+          chart_account_number?: string | null
           code: string
           created_at?: string
           description: string
@@ -265,6 +269,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          chart_account_id?: string | null
+          chart_account_number?: string | null
           code?: string
           created_at?: string
           description?: string
@@ -275,6 +281,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cost_codes_chart_account_id_fkey"
+            columns: ["chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cost_codes_job_id_fkey"
             columns: ["job_id"]

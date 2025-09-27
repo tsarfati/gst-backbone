@@ -51,7 +51,9 @@ import PaymentReports from "./pages/PaymentReports";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
 import BankingChartOfAccounts from "./pages/BankingChartOfAccounts";
+import ChartOfAccounts from "./pages/ChartOfAccounts";
 import CostCodes from "./pages/CostCodes";
+import JobCostManagement from "./pages/JobCostManagement";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
@@ -162,6 +164,7 @@ function AuthenticatedRoutes() {
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="jobs/add" element={<AddJob />} />
                 <Route path="jobs/cost-codes" element={<CostCodes />} />
+                <Route path="jobs/cost-management" element={<JobCostManagement />} />
                 <Route path="jobs/reports" element={<JobReports />} />
                 <Route path="jobs/:id" element={<JobDetails />} />
                 <Route path="jobs/:id/edit" element={<JobEdit />} />
@@ -256,6 +259,7 @@ function AuthenticatedRoutes() {
                 <Route path="banking/credit-cards" element={<CreditCards />} />
                 <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
                 <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
+                <Route path="chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="banking/reports" element={<BankingReports />} />
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />

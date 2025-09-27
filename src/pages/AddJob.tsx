@@ -74,7 +74,8 @@ export default function AddJob() {
       }
     }
 
-    const { error } = await supabase.from('jobs').insert({
+    // Create the job first
+    const { data: jobData, error: jobError } = await supabase.from('jobs').insert({
       name: formData.jobName,
       client: formData.client,
       address: formData.address,
@@ -88,14 +89,50 @@ export default function AddJob() {
       description: formData.description,
       project_manager_user_id: formData.projectManagerId || null,
       created_by: user.id,
-    } as any);
+    } as any).select('id').single();
 
-    if (error) {
-      toast({ title: "Error creating job", description: error.message, variant: "destructive" });
+    if (jobError) {
+      toast({ title: "Error creating job", description: jobError.message, variant: "destructive" });
       return;
     }
 
-    toast({ title: "Job created", description: "New job has been successfully created" });
+    // Auto-create a chart of account for this job
+    if (jobData?.id) {
+      try {
+        // Generate a unique account number for the job (using job ID for uniqueness)
+        const jobAccountNumber = `8000-${jobData.id.slice(-8)}`;
+        
+        const { error: accountError } = await supabase
+          .from('chart_of_accounts')
+          .insert({
+            account_number: jobAccountNumber,
+            account_name: `Job Costs - ${formData.jobName}`,
+            account_type: 'expense',
+            account_category: 'job_costs',
+            normal_balance: 'debit',
+            current_balance: 0,
+            is_system_account: false,
+            is_active: true,
+            created_by: user.id
+          });
+
+        if (accountError) {
+          console.error('Error creating job chart account:', accountError);
+          // Don't fail the job creation if chart account creation fails
+          toast({ 
+            title: "Job created", 
+            description: "Job created successfully, but chart of account creation failed. You can create it manually later.",
+            variant: "default"
+          });
+        } else {
+          toast({ title: "Job created", description: "New job and associated chart of account have been successfully created" });
+        }
+      } catch (error) {
+        console.error('Error in chart account creation:', error);
+        toast({ title: "Job created", description: "Job created successfully, but chart of account creation failed." });
+      }
+    }
+
     navigate("/jobs");
   };
 
