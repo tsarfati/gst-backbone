@@ -89,6 +89,7 @@ import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
 import MobileMessages from "./pages/MobileMessages";
+import VisitorLogin from "./pages/VisitorLogin";
 
 const queryClient = new QueryClient();
 
@@ -116,6 +117,7 @@ function PublicRoutes() {
           <Route path="/punch-clock-login" element={<PunchClockLogin />} />
           <Route path="/punch-clock" element={<PunchClockLogin />} />
           <Route path="/punch-clock-app" element={<PunchClockApp />} />
+          <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
         </Routes>
       </PunchClockAuthProvider>
     </AuthProvider>
@@ -283,7 +285,7 @@ function AppRoutes() {
   const location = useLocation();
   
   const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/punch-clock'];
-  const isPublicRoute = publicExactPaths.includes(location.pathname);
+  const isPublicRoute = publicExactPaths.includes(location.pathname) || location.pathname.startsWith('/visitor/');
   
   if (isPublicRoute) {
     return <PublicRoutes />;

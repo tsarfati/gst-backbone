@@ -1104,6 +1104,42 @@ export type Database = {
         }
         Relationships: []
       }
+      job_subcontractors: {
+        Row: {
+          company_name: string
+          contact_person: string | null
+          created_at: string
+          created_by: string
+          email: string | null
+          id: string
+          is_active: boolean
+          job_id: string
+          phone: string | null
+        }
+        Insert: {
+          company_name: string
+          contact_person?: string | null
+          created_at?: string
+          created_by: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          job_id: string
+          phone?: string | null
+        }
+        Update: {
+          company_name?: string
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          job_id?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           address: string | null
@@ -1124,6 +1160,7 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["job_status"] | null
           updated_at: string
+          visitor_qr_code: string | null
         }
         Insert: {
           address?: string | null
@@ -1144,6 +1181,7 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string
+          visitor_qr_code?: string | null
         }
         Update: {
           address?: string | null
@@ -1164,6 +1202,7 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string
+          visitor_qr_code?: string | null
         }
         Relationships: [
           {
@@ -2758,6 +2797,102 @@ export type Database = {
         }
         Relationships: []
       }
+      visitor_login_settings: {
+        Row: {
+          background_image_url: string | null
+          button_color: string | null
+          company_id: string
+          confirmation_message: string | null
+          confirmation_title: string | null
+          created_at: string
+          created_by: string
+          enable_checkout: boolean | null
+          header_logo_url: string | null
+          id: string
+          primary_color: string | null
+          require_company_name: boolean | null
+          require_purpose_visit: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          background_image_url?: string | null
+          button_color?: string | null
+          company_id: string
+          confirmation_message?: string | null
+          confirmation_title?: string | null
+          created_at?: string
+          created_by: string
+          enable_checkout?: boolean | null
+          header_logo_url?: string | null
+          id?: string
+          primary_color?: string | null
+          require_company_name?: boolean | null
+          require_purpose_visit?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          background_image_url?: string | null
+          button_color?: string | null
+          company_id?: string
+          confirmation_message?: string | null
+          confirmation_title?: string | null
+          created_at?: string
+          created_by?: string
+          enable_checkout?: boolean | null
+          header_logo_url?: string | null
+          id?: string
+          primary_color?: string | null
+          require_company_name?: boolean | null
+          require_purpose_visit?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      visitor_logs: {
+        Row: {
+          check_in_time: string
+          check_out_time: string | null
+          company_name: string | null
+          created_at: string
+          id: string
+          job_id: string
+          notes: string | null
+          purpose_of_visit: string | null
+          subcontractor_id: string | null
+          updated_at: string
+          visitor_name: string
+          visitor_phone: string
+        }
+        Insert: {
+          check_in_time?: string
+          check_out_time?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          notes?: string | null
+          purpose_of_visit?: string | null
+          subcontractor_id?: string | null
+          updated_at?: string
+          visitor_name: string
+          visitor_phone: string
+        }
+        Update: {
+          check_in_time?: string
+          check_out_time?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          notes?: string | null
+          purpose_of_visit?: string | null
+          subcontractor_id?: string | null
+          updated_at?: string
+          visitor_name?: string
+          visitor_phone?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       job_cost_summary: {
@@ -2780,6 +2915,10 @@ export type Database = {
         Returns: undefined
       }
       generate_qr_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_visitor_qr_code: {
         Args: Record<PropertyKey, never>
         Returns: string
       }

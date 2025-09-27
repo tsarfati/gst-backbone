@@ -118,7 +118,7 @@ export default function ThemeSettings() {
         </div>
         
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
               General Theme
@@ -126,6 +126,10 @@ export default function ThemeSettings() {
             <TabsTrigger value="punch-clock" className="flex items-center gap-2">
               <Smartphone className="h-4 w-4" />
               Punch Clock Login
+            </TabsTrigger>
+            <TabsTrigger value="visitor-login" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Visitor Login
             </TabsTrigger>
           </TabsList>
 
@@ -320,6 +324,10 @@ export default function ThemeSettings() {
 
           <TabsContent value="punch-clock">
             <PunchClockLoginSettings />
+          </TabsContent>
+
+          <TabsContent value="visitor-login">
+            <VisitorLogSettings />
           </TabsContent>
         </Tabs>
       </div>

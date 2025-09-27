@@ -3,12 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, QrCode } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
+import { JobQRCode } from "@/components/JobQRCode";
+import { VisitorReports } from "@/components/VisitorReports";
 
 interface Job {
   id: string;
@@ -21,6 +24,7 @@ interface Job {
   start_date?: string;
   end_date?: string;
   description?: string;
+  visitor_qr_code?: string;
 }
 
 export default function JobDetails() {
@@ -195,7 +199,7 @@ export default function JobDetails() {
             </CardContent>
           </Card>
 
-          {/* Location Map - moved to main content area for better visibility */}
+          {/* Location Map */}
           <JobLocationMap address={job.address} />
         </div>
 
@@ -244,9 +248,43 @@ export default function JobDetails() {
         </div>
       </div>
 
-      {/* Committed Costs Section */}
+      {/* Tabbed Content */}
       <div className="mt-8">
-        <CommittedCosts jobId={id!} />
+        <Tabs defaultValue="costs" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="costs" className="flex items-center space-x-2">
+              <Calculator className="h-4 w-4" />
+              <span>Committed Costs</span>
+            </TabsTrigger>
+            <TabsTrigger value="visitors" className="flex items-center space-x-2">
+              <Users className="h-4 w-4" />
+              <span>Visitor Log</span>
+            </TabsTrigger>
+            <TabsTrigger value="qr-code" className="flex items-center space-x-2">
+              <QrCode className="h-4 w-4" />
+              <span>QR Code</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="costs">
+            <CommittedCosts jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="visitors">
+            <VisitorReports jobId={id!} jobName={job.name} />
+          </TabsContent>
+
+          <TabsContent value="qr-code">
+            <JobQRCode 
+              jobId={id!} 
+              jobName={job.name} 
+              visitorQrCode={job.visitor_qr_code || undefined}
+              onQrCodeUpdate={(newCode) => {
+                setJob(prev => prev ? { ...prev, visitor_qr_code: newCode } : null);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
