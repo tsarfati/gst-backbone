@@ -31,7 +31,7 @@ interface AccessRequest {
 
 export default function CompanyAccessApproval() {
   const { user } = useAuth();
-  const { currentCompany } = useCompany();
+  const { currentCompany, loading: companyLoading } = useCompany();
   const { toast } = useToast();
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,8 +178,12 @@ export default function CompanyAccessApproval() {
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const processedRequests = requests.filter(r => r.status !== 'pending');
 
-  if (loading) {
+  if (companyLoading || loading) {
     return <div className="text-center">Loading access requests...</div>;
+  }
+
+  if (!currentCompany) {
+    return <div className="text-center">No company selected. Please select a company first.</div>;
   }
 
   return (
