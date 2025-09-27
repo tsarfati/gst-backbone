@@ -81,13 +81,14 @@ export default function ProfileSettings() {
   }, [profile, user]);
 
   const loadNotificationSettings = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     try {
       const { data, error } = await supabase
         .from('notification_settings')
         .select('*')
         .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -273,13 +274,15 @@ export default function ProfileSettings() {
   };
 
   const saveNotificationSettings = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     setLoading(true);
     try {
       // Map interface fields back to database fields
       const dbSettings = {
         ...notificationSettings,
+        user_id: user.id,
+        company_id: currentCompany.id,
         overdue_invoices: notificationSettings.overdue_bills,
         invoices_paid: notificationSettings.bills_paid,
       };
@@ -319,7 +322,7 @@ export default function ProfileSettings() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Profile Settings</h1>
           <p className="text-muted-foreground">
-            Manage your profile information and notification preferences
+            Manage your profile information and notification preferences for {currentCompany?.display_name || currentCompany?.name || 'your company'}
           </p>
         </div>
       </div>

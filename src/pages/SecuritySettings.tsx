@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, Upload, Shield, Key, Trash2, Lock } from 'lucide-react';
+import { useCompany } from '@/contexts/CompanyContext';
 import DevelopmentFreeze from '@/components/DevelopmentFreeze';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
@@ -52,7 +54,7 @@ export default function SecuritySettings() {
         <div>
           <h1 className="text-3xl font-bold">Data & Security</h1>
           <p className="text-muted-foreground">
-            Manage your account security and data preferences
+            Manage your account security and data preferences for {currentCompany?.display_name || currentCompany?.name || 'your company'}
           </p>
         </div>
 

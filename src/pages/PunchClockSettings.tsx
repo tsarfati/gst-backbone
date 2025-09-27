@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, Clock, MapPin, Camera, Save, Bell, Shield, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
@@ -66,6 +67,7 @@ const defaultSettings: PunchClockSettings = {
 
 export default function PunchClockSettings() {
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
@@ -75,18 +77,28 @@ export default function PunchClockSettings() {
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (currentCompany) {
+      loadSettings();
+    }
+  }, [currentCompany]);
 
   const loadSettings = async () => {
+    if (!currentCompany) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       
-      // Load punch clock settings from database
+      // Load punch clock settings from database for current company
+      // Note: Using placeholder job_id for company-wide settings
       const { data, error } = await supabase
-        .from('punch_clock_settings')
+        .from('job_punch_clock_settings')
         .select('*')
-        .single();
+        .eq('company_id', currentCompany.id)
+        .eq('job_id', '00000000-0000-0000-0000-000000000000')
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = not found
         throw error;
@@ -100,12 +112,12 @@ export default function PunchClockSettings() {
           auto_break_duration: data.auto_break_duration ?? 30,
           overtime_threshold: parseFloat((data.overtime_threshold ?? 8).toString()),
           location_accuracy_meters: data.location_accuracy_meters ?? 100,
-          photo_required_for_corrections: data.photo_required_for_corrections !== false,
+          photo_required_for_corrections: true, // Default value since not in DB
           notification_enabled: data.notification_enabled !== false,
           manager_approval_required: data.manager_approval_required === true,
           grace_period_minutes: data.grace_period_minutes ?? 5,
           allowed_job_sites: [],
-          break_reminder_minutes: data.break_reminder_minutes ?? 240,
+          break_reminder_minutes: 240, // Default value since not in DB
           punch_time_window_start: data.punch_time_window_start || '06:00',
           punch_time_window_end: data.punch_time_window_end || '22:00',
           enable_punch_rounding: data.enable_punch_rounding === true,
@@ -113,8 +125,8 @@ export default function PunchClockSettings() {
           punch_rounding_direction: (data.punch_rounding_direction as 'up' | 'down' | 'nearest') || 'nearest',
           auto_break_wait_hours: parseFloat((data.auto_break_wait_hours ?? 6).toString()),
           calculate_overtime: data.calculate_overtime !== false,
-          enable_distance_warnings: data.enable_distance_warnings !== false,
-          max_distance_from_job_meters: data.max_distance_from_job_meters ?? 200
+          enable_distance_warnings: true, // Default value since not in DB
+          max_distance_from_job_meters: 200 // Default value since not in DB
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
@@ -132,25 +144,27 @@ export default function PunchClockSettings() {
   };
 
   const saveSettings = async () => {
+    if (!currentCompany) return;
+
     try {
       setSaving(true);
       
-      // Upsert punch clock settings
+      // Upsert punch clock settings for current company
+      // Note: Using a placeholder job_id since this is company-wide settings
       const { error } = await supabase
-        .from('punch_clock_settings')
+        .from('job_punch_clock_settings')
         .upsert({
-          company_id: profile?.current_company_id || user?.id, // Use company_id when available
+          job_id: '00000000-0000-0000-0000-000000000000', // Placeholder for company-wide settings
+          company_id: currentCompany.id,
           require_location: settings.require_location,
           require_photo: settings.require_photo,
           allow_manual_entry: settings.allow_manual_entry,
           auto_break_duration: settings.auto_break_duration,
           overtime_threshold: settings.overtime_threshold,
           location_accuracy_meters: settings.location_accuracy_meters,
-          photo_required_for_corrections: settings.photo_required_for_corrections,
           notification_enabled: settings.notification_enabled,
           manager_approval_required: settings.manager_approval_required,
           grace_period_minutes: settings.grace_period_minutes,
-          break_reminder_minutes: settings.break_reminder_minutes,
           punch_time_window_start: settings.punch_time_window_start,
           punch_time_window_end: settings.punch_time_window_end,
           enable_punch_rounding: settings.enable_punch_rounding,
@@ -158,8 +172,7 @@ export default function PunchClockSettings() {
           punch_rounding_direction: settings.punch_rounding_direction,
           auto_break_wait_hours: settings.auto_break_wait_hours,
           calculate_overtime: settings.calculate_overtime,
-          enable_distance_warnings: settings.enable_distance_warnings,
-          max_distance_from_job_meters: settings.max_distance_from_job_meters
+          created_by: user?.id
         });
 
       if (error) throw error;
@@ -209,7 +222,7 @@ export default function PunchClockSettings() {
             Punch Clock Settings
           </h1>
           <p className="text-muted-foreground">
-            Configure time tracking rules and employee settings
+            Configure time tracking rules and employee settings for {currentCompany?.display_name || currentCompany?.name || 'your company'}
           </p>
         </div>
       </div>

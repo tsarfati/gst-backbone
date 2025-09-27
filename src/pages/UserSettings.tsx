@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
@@ -51,6 +52,7 @@ export default function UserSettings() {
   const [editRole, setEditRole] = useState('');
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<string | null>(null);
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
   const isAdmin = profile?.role === 'admin';
@@ -58,14 +60,39 @@ export default function UserSettings() {
   const canManageUsers = isAdmin || isController;
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (currentCompany) {
+      fetchUsers();
+    }
+  }, [currentCompany]);
 
   const fetchUsers = async () => {
+    if (!currentCompany) {
+      setLoading(false);
+      return;
+    }
+
     try {
+      // Get users that have access to the current company
+      const { data: companyUsers, error: companyError } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (companyError) throw companyError;
+
+      if (!companyUsers || companyUsers.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      const userIds = companyUsers.map(u => u.user_id);
+
       const { data, error } = await supabase
         .from('profiles')
         .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code')
+        .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -135,7 +162,7 @@ export default function UserSettings() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">User Management</h1>
         <p className="text-muted-foreground">
-          Manage user roles and permissions
+          Manage user roles and permissions for {currentCompany?.display_name || currentCompany?.name || 'your company'}
         </p>
       </div>
 
