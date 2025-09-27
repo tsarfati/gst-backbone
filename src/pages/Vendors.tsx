@@ -31,12 +31,33 @@ export default function Vendors() {
     if (!user || !currentCompany) return;
     
     try {
-      const { data, error } = await supabase
+      // Check if current company has shared vendor database enabled
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('enable_shared_vendor_database')
+        .eq('id', currentCompany.id)
+        .single();
+
+      let query = supabase
         .from('vendors')
         .select('*')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .order('name');
+        .eq('is_active', true);
+
+      if (companyData?.enable_shared_vendor_database) {
+        // If shared database is enabled, get vendors from companies that also have it enabled
+        const { data: sharedCompanies } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('enable_shared_vendor_database', true);
+        
+        const companyIds = sharedCompanies?.map(c => c.id) || [currentCompany.id];
+        query = query.in('company_id', companyIds);
+      } else {
+        // Only show vendors from current company
+        query = query.eq('company_id', currentCompany.id);
+      }
+
+      const { data, error } = await query.order('name');
 
       if (error) throw error;
       setVendors(data || []);

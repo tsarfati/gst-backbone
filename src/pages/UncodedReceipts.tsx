@@ -58,10 +58,12 @@ export default function UncodedReceipts() {
 
   useEffect(() => {
     const loadJobs = async () => {
+      if (!user || !currentCompany) return;
       try {
         const { data, error } = await supabase
           .from('jobs')
           .select('id, name')
+          .eq('company_id', currentCompany.id)
           .order('name');
         if (error) throw error;
         setJobs((data || []) as JobOption[]);
@@ -70,10 +72,11 @@ export default function UncodedReceipts() {
       }
     };
     loadJobs();
-  }, []);
+  }, [currentCompany]);
 
   useEffect(() => {
     const loadCostCodes = async () => {
+      if (!currentCompany) return;
       try {
         const job = jobs.find(j => j.name === selectedJob);
         if (!job) { setCostCodes([]); return; }
@@ -81,6 +84,7 @@ export default function UncodedReceipts() {
           .from('cost_codes')
           .select('id, code, description')
           .eq('job_id', job.id)
+          .eq('company_id', currentCompany.id)
           .eq('is_active', true)
           .order('code');
         if (error) throw error;
@@ -90,18 +94,39 @@ export default function UncodedReceipts() {
       }
     };
     if (selectedJob) loadCostCodes(); else setCostCodes([]);
-  }, [selectedJob, jobs]);
+  }, [selectedJob, jobs, currentCompany]);
 
   useEffect(() => {
     const loadVendors = async () => {
-      if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+      if (!user || !currentCompany) return;
       try {
-        const { data, error } = await supabase
+        // Check if current company has shared vendor database enabled
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('enable_shared_vendor_database')
+          .eq('id', currentCompany.id)
+          .single();
+
+        let query = supabase
           .from('vendors')
           .select('id, name')
-          .eq('company_id', currentCompany?.id || profile?.current_company_id)
-          .eq('is_active', true)
-          .order('name');
+          .eq('is_active', true);
+
+        if (companyData?.enable_shared_vendor_database) {
+          // If shared database is enabled, get vendors from companies that also have it enabled
+          const { data: sharedCompanies } = await supabase
+            .from('companies')
+            .select('id')
+            .eq('enable_shared_vendor_database', true);
+          
+          const companyIds = sharedCompanies?.map(c => c.id) || [currentCompany.id];
+          query = query.in('company_id', companyIds);
+        } else {
+          // Only show vendors from current company
+          query = query.eq('company_id', currentCompany.id);
+        }
+
+        const { data, error } = await query.order('name');
         if (error) throw error;
         setVendors((data || []) as VendorOption[]);
       } catch (err) {
@@ -110,7 +135,7 @@ export default function UncodedReceipts() {
     };
 
     const loadUncodedBills = async () => {
-      if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+      if (!user || !currentCompany) return;
       try {
         const { data, error } = await supabase
           .from('invoices')
@@ -120,7 +145,7 @@ export default function UncodedReceipts() {
             jobs (id, name),
             cost_codes (id, code, description)
           `)
-          .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
+          .eq('vendors.company_id', currentCompany.id)
           .or('job_id.is.null,cost_code_id.is.null')
           .order('created_at', { ascending: false });
         
@@ -133,10 +158,10 @@ export default function UncodedReceipts() {
 
     loadVendors();
     loadUncodedBills();
-  }, [user, currentCompany, profile?.current_company_id]);
+  }, [user, currentCompany]);
 
   const loadUncodedBills = async () => {
-    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+    if (!user || !currentCompany) return;
     try {
       const { data, error } = await supabase
         .from('invoices')
@@ -146,7 +171,7 @@ export default function UncodedReceipts() {
           jobs (id, name),
           cost_codes (id, code, description)
         `)
-        .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
+        .eq('vendors.company_id', currentCompany.id)
         .or('job_id.is.null,cost_code_id.is.null')
         .order('created_at', { ascending: false });
       
