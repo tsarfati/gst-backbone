@@ -62,11 +62,26 @@ export default function AddBankAccount() {
     setIsLoading(true);
 
     try {
-      // This would typically insert into a bank_accounts table
-      // For now, we'll just show a success message
+      // Insert bank account - this will automatically create the associated cash account
+      const { error } = await supabase
+        .from('bank_accounts')
+        .insert({
+          account_name: formData.accountName,
+          account_number: formData.accountNumber || null,
+          routing_number: formData.routingNumber || null,
+          bank_name: formData.bankName,
+          account_type: formData.accountType,
+          initial_balance: parseFloat(formData.initialBalance) || 0,
+          balance_date: formData.balanceDate,
+          description: formData.description || null,
+          created_by: user.id
+        });
+
+      if (error) throw error;
+      
       toast({
         title: 'Success',
-        description: 'Bank account added successfully!',
+        description: 'Bank account and associated cash account created successfully!',
       });
       
       // Navigate back to bank accounts page

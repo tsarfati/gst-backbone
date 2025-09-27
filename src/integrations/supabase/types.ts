@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_name: string
+          account_number: string | null
+          account_type: string
+          balance_date: string | null
+          bank_name: string
+          chart_account_id: string | null
+          created_at: string | null
+          created_by: string
+          current_balance: number | null
+          description: string | null
+          id: string
+          initial_balance: number | null
+          is_active: boolean | null
+          routing_number: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number?: string | null
+          account_type: string
+          balance_date?: string | null
+          bank_name: string
+          chart_account_id?: string | null
+          created_at?: string | null
+          created_by: string
+          current_balance?: number | null
+          description?: string | null
+          id?: string
+          initial_balance?: number | null
+          is_active?: boolean | null
+          routing_number?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number?: string | null
+          account_type?: string
+          balance_date?: string | null
+          bank_name?: string
+          chart_account_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          current_balance?: number | null
+          description?: string | null
+          id?: string
+          initial_balance?: number | null
+          is_active?: boolean | null
+          routing_number?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_chart_account_id_fkey"
+            columns: ["chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           answered_at: string | null
@@ -2936,6 +2998,10 @@ export type Database = {
         Returns: string
       }
       get_mapbox_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_next_cash_account_number: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
