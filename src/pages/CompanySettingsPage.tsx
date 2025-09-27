@@ -123,23 +123,23 @@ export default function CompanySettingsPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+               <Card>
                 <CardHeader>
-                  <CardTitle>Job Cost Setup</CardTitle>
+                  <CardTitle>Bank Accounts</CardTitle>
                   <CardDescription>
-                    Configure job cost codes and their associations with chart of accounts
+                    Add and manage your company's bank accounts
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      Set up cost codes for tracking job expenses and link them to your chart of accounts.
+                      Add new bank accounts which will automatically create associated cash accounts in your chart of accounts.
                     </p>
                     <Button 
-                      onClick={() => navigate('/settings/company/job-cost-setup')}
+                      onClick={() => navigate('/banking/accounts/add')}
                       variant="outline"
                     >
-                      Manage Job Cost Setup
+                      Add Bank Account
                     </Button>
                   </div>
                 </CardContent>

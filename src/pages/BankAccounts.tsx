@@ -22,6 +22,7 @@ export default function BankAccounts() {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
+  // Remove this line - data comes from database
   const accounts: any[] = [];
 
   const filteredAccounts = accounts.filter(account => {
@@ -41,12 +42,7 @@ export default function BankAccounts() {
             Manage your company bank accounts and account details
           </p>
         </div>
-        <Button asChild>
-          <Link to="/banking/accounts/add">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Account
-          </Link>
-        </Button>
+        {/* Add Account button moved to Banking Settings in Company Settings */}
       </div>
 
       {/* Summary Cards */}
@@ -135,12 +131,7 @@ export default function BankAccounts() {
                   : "Start by adding your first bank account"
                 }
               </p>
-              <Button asChild>
-                <Link to="/banking/accounts/add">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Bank Account
-                </Link>
-              </Button>
+              {/* Add Account button moved to Banking Settings in Company Settings */}
             </div>
           ) : (
             <Table>
