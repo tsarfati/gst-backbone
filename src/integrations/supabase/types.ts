@@ -132,6 +132,7 @@ export type Database = {
           account_name: string
           account_number: string
           account_type: string
+          company_id: string
           created_at: string
           created_by: string
           current_balance: number | null
@@ -147,6 +148,7 @@ export type Database = {
           account_name: string
           account_number: string
           account_type: string
+          company_id: string
           created_at?: string
           created_by: string
           current_balance?: number | null
@@ -162,6 +164,7 @@ export type Database = {
           account_name?: string
           account_number?: string
           account_type?: string
+          company_id?: string
           created_at?: string
           created_by?: string
           current_balance?: number | null
@@ -173,6 +176,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "chart_of_accounts_parent_account_id_fkey"
             columns: ["parent_account_id"]
@@ -313,6 +323,7 @@ export type Database = {
           chart_account_id: string | null
           chart_account_number: string | null
           code: string
+          company_id: string
           created_at: string
           description: string
           id: string
@@ -325,6 +336,7 @@ export type Database = {
           chart_account_id?: string | null
           chart_account_number?: string | null
           code: string
+          company_id: string
           created_at?: string
           description: string
           id?: string
@@ -337,6 +349,7 @@ export type Database = {
           chart_account_id?: string | null
           chart_account_number?: string | null
           code?: string
+          company_id?: string
           created_at?: string
           description?: string
           id?: string
@@ -351,6 +364,13 @@ export type Database = {
             columns: ["chart_account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_codes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
@@ -2066,6 +2086,7 @@ export type Database = {
       }
       punch_records: {
         Row: {
+          company_id: string
           cost_code_id: string | null
           created_at: string
           id: string
@@ -2081,6 +2102,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id: string
           cost_code_id?: string | null
           created_at?: string
           id?: string
@@ -2096,6 +2118,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string
           cost_code_id?: string | null
           created_at?: string
           id?: string
@@ -2111,6 +2134,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "punch_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "punch_records_cost_code_id_fkey"
             columns: ["cost_code_id"]
@@ -2539,6 +2569,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           break_minutes: number | null
+          company_id: string
           correction_approved_at: string | null
           correction_approved_by: string | null
           correction_reason: string | null
@@ -2572,6 +2603,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           break_minutes?: number | null
+          company_id: string
           correction_approved_at?: string | null
           correction_approved_by?: string | null
           correction_reason?: string | null
@@ -2605,6 +2637,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           break_minutes?: number | null
+          company_id?: string
           correction_approved_at?: string | null
           correction_approved_by?: string | null
           correction_reason?: string | null
@@ -2634,7 +2667,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "time_cards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_company_access: {
         Row: {
