@@ -296,7 +296,7 @@ export function AppSidebar() {
                         <span className="group-data-[collapsible=icon]:hidden">
                           {category.title}
                         </span>
-                        <ChevronDown className={`h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden ${allOpenGroups.includes(category.title) ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`h-3 w-3 transition-transform group-data-[collapsible=icon]:hidden ${!allOpenGroups.includes(category.title) ? 'rotate-180' : ''}`} />
                       </Button>
                     </CollapsibleTrigger>
                   </SidebarGroupLabel>
