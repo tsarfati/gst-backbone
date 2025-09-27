@@ -14,6 +14,7 @@ import { VisitorLogSettings } from '@/components/VisitorLogSettings';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, Smartphone, Users } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export default function ThemeSettings() {
   const { toast } = useToast();
   const { setTheme } = useTheme();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [uploading, setUploading] = useState(false);
 
   const handleSaveSettings = () => {
@@ -114,7 +116,7 @@ export default function ThemeSettings() {
         <div>
           <h1 className="text-3xl font-bold">Theme & Appearance</h1>
           <p className="text-muted-foreground">
-            Customize the look and feel of your application
+            Customize the look and feel for {currentCompany?.display_name || currentCompany?.name || 'your company'}
           </p>
         </div>
         
@@ -188,7 +190,7 @@ export default function ThemeSettings() {
               <CardHeader>
                 <CardTitle>Logo & Branding</CardTitle>
                 <CardDescription>
-                  Customize your company branding
+                  Customize your company branding for {currentCompany?.display_name || currentCompany?.name || 'your company'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
