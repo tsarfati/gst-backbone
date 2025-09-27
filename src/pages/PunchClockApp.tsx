@@ -9,6 +9,7 @@ import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useCompany } from "@/contexts/CompanyContext";
 // transformers will be dynamically imported when needed
 
 interface Job {
@@ -35,6 +36,7 @@ interface PunchStatus {
 
 function PunchClockApp() {
   const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -689,6 +691,7 @@ function PunchClockApp() {
       .from('punch_records')
       .insert({
         user_id: userId,
+        company_id: currentCompany?.id,
         job_id: selectedJob,
         cost_code_id: selectedCostCode,
         punch_type: 'punched_in',
@@ -726,6 +729,7 @@ function PunchClockApp() {
       .from('punch_records')
       .insert({
         user_id: userId,
+        company_id: currentCompany?.id,
         job_id: currentPunch.job_id,
         cost_code_id: currentPunch.cost_code_id,
         punch_type: 'punched_out',

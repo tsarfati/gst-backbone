@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useCompany } from "@/contexts/CompanyContext";
 import PunchDetailView from '@/components/PunchDetailView';
 import TimeCardDetailModal from '@/components/TimeCardDetailModal';
 
@@ -46,6 +47,7 @@ interface PunchRecord {
 }
 
 export default function PunchClockDashboard() {
+  const { currentCompany } = useCompany();
   const [active, setActive] = useState<CurrentStatus[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [jobs, setJobs] = useState<Record<string, Job>>({});
@@ -312,6 +314,7 @@ export default function PunchClockDashboard() {
       // Create punch out record
       const { error: punchError } = await supabase.from('punch_records').insert({
         user_id: employeeToPunchOut.user_id,
+        company_id: currentCompany?.id,
         job_id: employeeToPunchOut.job_id,
         cost_code_id: employeeToPunchOut.cost_code_id,
         punch_type: 'punched_out',
@@ -341,6 +344,7 @@ export default function PunchClockDashboard() {
 
       const { data: timeCardData, error: timeCardError } = await supabase.from('time_cards').insert({
         user_id: employeeToPunchOut.user_id,
+        company_id: currentCompany?.id,
         job_id: employeeToPunchOut.job_id,
         cost_code_id: employeeToPunchOut.cost_code_id,
         punch_in_time: employeeToPunchOut.punch_in_time,

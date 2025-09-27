@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface Account {
   id: string;
@@ -55,6 +56,7 @@ const accountCategories: Record<string, string[]> = {
 };
 
 export default function BankingChartOfAccounts() {
+  const { currentCompany } = useCompany();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,6 +148,7 @@ export default function BankingChartOfAccounts() {
           .insert({
             ...formData,
             created_by: user.data.user?.id,
+            company_id: currentCompany?.id,
             parent_account_id: formData.parent_account_id || null
           });
 
