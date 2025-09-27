@@ -84,7 +84,7 @@ import PayablesDashboard from "./pages/PayablesDashboard";
 import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
-import SearchIndexSettings from "./pages/SearchIndexSettings";
+
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
@@ -188,7 +188,7 @@ function AuthenticatedRoutes() {
                 <Route path="settings/notifications" element={<NotificationSettings />} />
                 <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
                 <Route path="settings/security" element={<SecuritySettings />} />
-                <Route path="settings/search-index" element={<SearchIndexSettings />} />
+                
                 <Route path="profile-settings" element={<ProfileSettings />} />
                 <Route path="settings/users" element={<UserSettings />} />
                 <Route path="settings/users/:userId/edit" element={<UserEdit />} />

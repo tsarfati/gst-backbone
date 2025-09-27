@@ -9,34 +9,60 @@ import JobCard from "@/components/JobCard";
 import JobListView from "@/components/JobListView";
 import JobCompactView from "@/components/JobCompactView";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Jobs() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  const { toast } = useToast();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('jobs-view', 'list');
 
   useEffect(() => {
-    const loadJobs = async () => {
+    if (user && currentCompany) {
+      loadJobs();
+    }
+  }, [user, currentCompany]);
+
+  const loadJobs = async () => {
+    if (!user || !currentCompany) return;
+    
+    try {
       setLoading(true);
-      const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-      if (!error && data) {
-        const mapped = data.map((j: any) => ({
-          id: j.id,
-          name: j.name,
-          client: j.client,
-          budget: j.budget ? `$${Number(j.budget).toLocaleString()}` : "$0",
-          spent: "$0",
-          receipts: 0,
-          startDate: j.start_date || "-",
-          status: j.status || "planning",
-        }));
-        setJobs(mapped);
-      }
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const mapped = (data || []).map((j: any) => ({
+        id: j.id,
+        name: j.name,
+        client: j.client,
+        budget: j.budget ? `$${Number(j.budget).toLocaleString()}` : "$0",
+        spent: "$0",
+        receipts: 0,
+        startDate: j.start_date || "-",
+        status: j.status || "planning",
+      }));
+      setJobs(mapped);
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load jobs",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    };
-    loadJobs();
-  }, []);
+    }
+  };
 
   const handleJobClick = (job: any) => {
     navigate(`/jobs/${job.id}`);

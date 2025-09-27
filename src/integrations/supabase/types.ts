@@ -1225,6 +1225,7 @@ export type Database = {
           budget: number | null
           budget_total: number | null
           client: string | null
+          company_id: string
           created_at: string
           created_by: string
           description: string | null
@@ -1246,6 +1247,7 @@ export type Database = {
           budget?: number | null
           budget_total?: number | null
           client?: string | null
+          company_id: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -1267,6 +1269,7 @@ export type Database = {
           budget?: number | null
           budget_total?: number | null
           client?: string | null
+          company_id?: string
           created_at?: string
           created_by?: string
           description?: string | null
@@ -1283,6 +1286,13 @@ export type Database = {
           visitor_qr_code?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "jobs_created_by_fkey"
             columns: ["created_by"]

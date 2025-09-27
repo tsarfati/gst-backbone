@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import CostCodeManager from "@/components/CostCodeManager";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import { geocodeAddress } from "@/utils/geocoding";
@@ -18,6 +19,7 @@ export default function AddJob() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [managers, setManagers] = useState<{ user_id: string; display_name: string | null; first_name: string | null; last_name: string | null; role: string }[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
   
@@ -59,6 +61,11 @@ export default function AddJob() {
       toast({ title: "Not signed in", description: "Please sign in to create a job.", variant: "destructive" });
       return;
     }
+    
+    if (!currentCompany) {
+      toast({ title: "No company selected", description: "Please select a company to create a job.", variant: "destructive" });
+      return;
+    }
 
     const budgetNumber = formData.budget ? Number(String(formData.budget).replace(/[^0-9.]/g, '')) : null;
 
@@ -89,6 +96,7 @@ export default function AddJob() {
       description: formData.description,
       project_manager_user_id: formData.projectManagerId || null,
       created_by: user.id,
+      company_id: currentCompany.id,
     } as any).select('id').single();
 
     if (jobError) {

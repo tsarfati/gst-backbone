@@ -136,7 +136,6 @@ const navigationCategories = [
       { name: "Theme & Appearance", href: "/settings/theme", icon: Settings, menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", icon: Building, menuKey: "settings" },
       { name: "Company Management", href: "/settings/company-management", icon: Building2, menuKey: "settings" },
-      { name: "Search Index", href: "/settings/search-index", icon: Search, menuKey: "settings" },
       { name: "Notifications & Email", href: "/settings/notifications", icon: Bell, menuKey: "settings" },
       { name: "Data & Security", href: "/settings/security", icon: Shield, menuKey: "settings" },
       { name: "User Management", href: "/settings/users", icon: UserCog, menuKey: "settings" },
