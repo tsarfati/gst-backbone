@@ -264,12 +264,12 @@ export function AppSidebar() {
                         location.pathname.startsWith(item.href + '/');
                       return (
                         <SidebarMenuItem key={item.name}>
-                          <SidebarMenuButton 
-                            asChild 
-                            isActive={isActive}
-                            tooltip={state === "collapsed" ? item.name : undefined}
-                            style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
-                            className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={isActive}
+                        tooltip={state === "collapsed" ? item.name : undefined}
+                        style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
+                        className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
                           >
                             <Link to={item.href}>
                               <item.icon className="h-4 w-4" />
@@ -291,7 +291,7 @@ export function AppSidebar() {
                     <CollapsibleTrigger asChild>
                        <Button 
                          variant="ghost" 
-                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
+                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
                        >
                         <span className="group-data-[collapsible=icon]:hidden">
                           {category.title}
@@ -302,45 +302,45 @@ export function AppSidebar() {
                   </SidebarGroupLabel>
                   
                   <CollapsibleContent>
-                    <SidebarGroupContent>
-                      <SidebarMenu>
-                        {(() => {
-                          // Determine the single most specific active item within this category
-                          const matches = allowedItems.filter((itm) => {
-                            if (location.pathname === itm.href) return true;
-                            if (location.pathname.startsWith(itm.href + "/")) return true;
-                            if (category.title === "Payables") {
-                              if (itm.href === "/subcontracts/add" && location.pathname.startsWith("/subcontracts/")) return true;
-                              if (itm.href === "/purchase-orders/add" && location.pathname.startsWith("/purchase-orders/")) return true;
-                            }
-                            return false;
-                          });
-                          const activeItemHref = matches.length
-                            ? matches.reduce((longest, curr) => (curr.href.length > longest.length ? curr.href : longest), matches[0].href)
-                            : "";
+                        <SidebarGroupContent>
+                          <SidebarMenu className={allOpenGroups.includes(category.title) ? "bg-primary/5 rounded-md p-1" : ""}>
+                            {(() => {
+                              // Determine the single most specific active item within this category
+                              const matches = allowedItems.filter((itm) => {
+                                if (location.pathname === itm.href) return true;
+                                if (location.pathname.startsWith(itm.href + "/")) return true;
+                                if (category.title === "Payables") {
+                                  if (itm.href === "/subcontracts/add" && location.pathname.startsWith("/subcontracts/")) return true;
+                                  if (itm.href === "/purchase-orders/add" && location.pathname.startsWith("/purchase-orders/")) return true;
+                                }
+                                return false;
+                              });
+                              const activeItemHref = matches.length
+                                ? matches.reduce((longest, curr) => (curr.href.length > longest.length ? curr.href : longest), matches[0].href)
+                                : "";
 
-                          return allowedItems.map((item) => {
-                            const isActive = item.href === activeItemHref;
-                            return (
-                              <SidebarMenuItem key={item.name}>
-                                <SidebarMenuButton
-                                  asChild
-                                  isActive={isActive}
-                                  tooltip={state === "collapsed" ? item.name : undefined}
-                                  style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white' } : {}}
-                                  className={isActive ? "hover:opacity-95" : "hover:bg-sidebar-accent/30 transition-colors duration-150"}
-                                >
-                                  <Link to={item.href}>
-                                    <item.icon className="h-4 w-4" />
-                                    <span>{item.name}</span>
-                                  </Link>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            );
-                          });
-                        })()}
-                      </SidebarMenu>
-                    </SidebarGroupContent>
+                              return allowedItems.map((item) => {
+                                const isActive = item.href === activeItemHref;
+                                return (
+                                  <SidebarMenuItem key={item.name}>
+                                    <SidebarMenuButton
+                                      asChild
+                                      isActive={isActive}
+                                      tooltip={state === "collapsed" ? item.name : undefined}
+                                      style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
+                                      className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
+                                    >
+                                      <Link to={item.href}>
+                                        <item.icon className="h-4 w-4" />
+                                        <span>{item.name}</span>
+                                      </Link>
+                                    </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                                );
+                              });
+                            })()}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
                   </CollapsibleContent>
                 </Collapsible>
               )}
