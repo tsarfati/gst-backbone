@@ -1591,6 +1591,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          company_id: string | null
           content: string
           created_at: string
           from_user_id: string
@@ -1602,6 +1603,7 @@ export type Database = {
           to_user_id: string
         }
         Insert: {
+          company_id?: string | null
           content: string
           created_at?: string
           from_user_id: string
@@ -1613,6 +1615,7 @@ export type Database = {
           to_user_id: string
         }
         Update: {
+          company_id?: string | null
           content?: string
           created_at?: string
           from_user_id?: string
@@ -1624,6 +1627,13 @@ export type Database = {
           to_user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_thread_id_fkey"
             columns: ["thread_id"]

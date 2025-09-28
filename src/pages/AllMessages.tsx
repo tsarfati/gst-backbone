@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MessageSquare, Plus, Search, Reply, Archive, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'react-router-dom';
@@ -38,12 +39,13 @@ export default function AllMessages() {
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showThreadView, setShowThreadView] = useState(false);
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
 
   useEffect(() => {
-    if (user) {
+    if (user && currentCompany) {
       fetchMessages();
     }
-  }, [user, filter]);
+  }, [user, currentCompany, filter]);
 
   // Handle URL parameters for opening specific message threads
   useEffect(() => {
@@ -72,10 +74,10 @@ export default function AllMessages() {
   }, [messages, searchParams, setSearchParams]);
 
   const fetchMessages = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     try {
-      let query = supabase.from('messages').select('*');
+      let query = supabase.from('messages').select('*').eq('company_id', currentCompany.id);
       
       if (filter === 'sent') {
         query = query.eq('from_user_id', user.id);

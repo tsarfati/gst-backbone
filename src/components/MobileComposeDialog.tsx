@@ -10,6 +10,7 @@ import { Send, User, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useCompany } from '@/contexts/CompanyContext';
 
 interface Message {
   id: string;
@@ -43,6 +44,7 @@ interface MobileComposeDialogProps {
 export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMessage }: MobileComposeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [selectedUser, setSelectedUser] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -68,13 +70,18 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
   }, [isOpen, user, replyToMessage]);
 
   const fetchUsers = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     setLoading(true);
     try {
+      // Fetch users who have access to the current company
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_id, display_name, first_name, last_name, role')
+        .select(`
+          user_id, display_name, first_name, last_name, role,
+          user_company_access!inner(company_id)
+        `)
+        .eq('user_company_access.company_id', currentCompany.id)
         .neq('user_id', user.id);
 
       if (error) throw error;
@@ -113,7 +120,8 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
           to_user_id: selectedUser,
           subject,
           content: message,
-          thread_id: replyToMessage?.id || null
+          thread_id: replyToMessage?.id || null,
+          company_id: currentCompany?.id
         });
 
       if (error) throw error;

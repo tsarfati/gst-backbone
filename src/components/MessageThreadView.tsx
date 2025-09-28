@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Reply, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -47,6 +48,7 @@ export default function MessageThreadView({
   const [isSending, setIsSending] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function MessageThreadView({
   }, [message, isOpen]);
 
   const loadThreadMessages = async () => {
-    if (!message) return;
+    if (!message || !currentCompany) return;
 
     try {
       setIsLoading(true);
@@ -69,6 +71,7 @@ export default function MessageThreadView({
       const { data, error } = await supabase
         .from('messages')
         .select('*')
+        .eq('company_id', currentCompany.id)
         .or(`id.eq.${rootMessageId},thread_id.eq.${rootMessageId}`)
         .order('created_at', { ascending: true });
 
@@ -152,7 +155,8 @@ export default function MessageThreadView({
           subject: `Re: ${message.subject}`,
           content: replyContent.trim(),
           thread_id: rootMessageId,
-          is_reply: true
+          is_reply: true,
+          company_id: currentCompany?.id
         });
 
       if (error) throw error;

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MessageCircle, Send, Users, User, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -26,6 +27,7 @@ interface User {
 
 export default function ComposeMessageDialog({ children }: ComposeMessageDialogProps) {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [recipients, setRecipients] = useState<User[]>([]);
@@ -43,13 +45,18 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
   }, [open, user]);
 
   const fetchUsers = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     setLoading(true);
     try {
+      // Fetch users who have access to the current company
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, user_id, display_name, role')
+        .select(`
+          id, user_id, display_name, role,
+          user_company_access!inner(company_id)
+        `)
+        .eq('user_company_access.company_id', currentCompany.id)
         .neq('user_id', user.id);
 
       if (error) throw error;
@@ -107,7 +114,8 @@ export default function ComposeMessageDialog({ children }: ComposeMessageDialogP
             from_user_id: user.id,
             to_user_id: recipient.user_id,
             subject,
-            content: message
+            content: message,
+            company_id: currentCompany?.id
           });
 
         if (error) throw error;

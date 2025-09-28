@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { MessageSquare, Send, User, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -48,6 +49,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
   const [sendingMessage, setSendingMessage] = useState(false);
   
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -94,7 +96,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
   };
 
   const loadMessages = async () => {
-    if (!user || !projectManager) return;
+    if (!user || !projectManager || !currentCompany) return;
 
     setLoading(true);
     try {
@@ -109,6 +111,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
             avatar_url
           )
         `)
+        .eq('company_id', currentCompany.id)
         .or(`and(from_user_id.eq.${user.id},to_user_id.eq.${projectManager.user_id}),and(from_user_id.eq.${projectManager.user_id},to_user_id.eq.${user.id})`)
         .order('created_at', { ascending: true });
 
@@ -147,7 +150,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
   };
 
   const sendMessage = async () => {
-    if (!user || !projectManager || !newMessage.trim()) return;
+    if (!user || !projectManager || !currentCompany || !newMessage.trim()) return;
 
     setSendingMessage(true);
     try {
@@ -159,7 +162,8 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
           from_user_id: user.id,
           to_user_id: projectManager.user_id,
           subject: messageSubject,
-          content: newMessage.trim()
+          content: newMessage.trim(),
+          company_id: currentCompany.id
         });
 
       if (error) throw error;

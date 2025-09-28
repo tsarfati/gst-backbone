@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, MessageSquare, User, Search, Plus, Reply } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import MobileComposeDialog from "@/components/MobileComposeDialog";
@@ -36,6 +37,7 @@ interface Message {
 
 export function MobileMessages() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,7 @@ export function MobileMessages() {
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
 
   useEffect(() => {
-    if (user) {
+    if (user && currentCompany) {
       loadMessages();
       
       // Set up real-time subscription for new messages
@@ -97,7 +99,7 @@ export function MobileMessages() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user]);
+  }, [user, currentCompany]);
 
   const loadMessages = async () => {
     try {
@@ -115,6 +117,7 @@ export function MobileMessages() {
           created_at,
           thread_id
         `)
+        .eq('company_id', currentCompany?.id)
         .or(`from_user_id.eq.${user?.id},to_user_id.eq.${user?.id}`)
         .order('created_at', { ascending: false })
         .limit(50);
