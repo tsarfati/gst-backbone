@@ -432,7 +432,7 @@ export default function PunchClockDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-rows-2 h-full">
+        <div className={`grid ${active.length === 0 && recentOuts.length === 0 ? 'grid-rows-1' : active.length === 0 || recentOuts.length === 0 ? 'grid-rows-1' : 'grid-rows-2'} h-full`}>
           {/* Currently Punched In */}
           <Card className="w-full rounded-none border-x-0 border-t-0">
             <CardHeader className="pb-4">
@@ -511,50 +511,52 @@ export default function PunchClockDashboard() {
           </Card>
 
           {/* Recently Punched Out */}
-          <Card className="w-full rounded-none border-x-0 border-b-0">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Clock className="h-6 w-6" />
-                Recently Punched Out ({recentOuts.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 flex-1 min-h-0 overflow-y-auto">
-              {recentOuts.length === 0 && (
-                <div className="flex items-center justify-center h-32">
-                  <p className="text-muted-foreground text-lg">No recent punch outs.</p>
-                </div>
-              )}
-              {recentOuts.map((row) => {
-                const prof = profiles[row.user_id];
-                const job = row.job_id ? jobs[row.job_id] : undefined;
-                return (
-                   <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
-                     <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={(
-                            () => {
-                              const url = (prof?.avatar_url || row.photo_url || undefined) as string | undefined;
-                              if (!url) return undefined;
-                              if (url.startsWith('http')) return url;
-                              const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
-                              return data.publicUrl || undefined;
-                            }
-                          )()} />
-                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                       <div className="min-w-0 flex-1">
-                         <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
-                         <div className="text-sm text-muted-foreground truncate">{job?.name || 'Unknown Job'}</div>
-                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                           <Clock className="h-4 w-4" /> {format(new Date(row.punch_time), 'MMM d, h:mm a')}
+          {(recentOuts.length > 0 || active.length === 0) && (
+            <Card className="w-full rounded-none border-x-0 border-b-0">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Clock className="h-6 w-6" />
+                  Recently Punched Out ({recentOuts.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 flex-1 min-h-0 overflow-y-auto">
+                {recentOuts.length === 0 && (
+                  <div className="flex items-center justify-center h-32">
+                    <p className="text-muted-foreground text-lg">No recent punch outs.</p>
+                  </div>
+                )}
+                {recentOuts.map((row) => {
+                  const prof = profiles[row.user_id];
+                  const job = row.job_id ? jobs[row.job_id] : undefined;
+                  return (
+                     <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                       <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={(
+                              () => {
+                                const url = (prof?.avatar_url || row.photo_url || undefined) as string | undefined;
+                                if (!url) return undefined;
+                                if (url.startsWith('http')) return url;
+                                const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
+                                return data.publicUrl || undefined;
+                              }
+                            )()} />
+                            <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                         <div className="min-w-0 flex-1">
+                           <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
+                           <div className="text-sm text-muted-foreground truncate">{job?.name || 'Unknown Job'}</div>
+                           <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                             <Clock className="h-4 w-4" /> {format(new Date(row.punch_time), 'MMM d, h:mm a')}
+                           </div>
                          </div>
                        </div>
                      </div>
-                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

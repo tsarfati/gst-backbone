@@ -82,18 +82,9 @@ const navigationCategories = [
     items: [
       { name: "All Employees", href: "/employees", menuKey: "employees" },
       { name: "Add Employee", href: "/employees/add", menuKey: "employees" },
-      { name: "Punch Clock Dashboard", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard" },
+      { name: "Time Tracking", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard" },
       { name: "Payroll", href: "/employees/payroll", menuKey: "employees" },
       { name: "Performance", href: "/employees/performance", menuKey: "employees" },
-    ],
-    collapsible: true,
-  },
-  {
-    title: "Time Tracking",
-    icon: Clock,
-    items: [
-      { name: "Manual Time Entry", href: "/manual-time-entry", menuKey: "manual-time-entry" },
-      { name: "Manual Punch Out", href: "/manual-punch-out", menuKey: "manual-punch-out" },
     ],
     collapsible: true,
   },
