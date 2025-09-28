@@ -114,16 +114,16 @@ const mapContainer = useRef<HTMLDivElement>(null);
       // If we have neither punch nor job coords, do nothing
       if (!punchLngLat && !jobLngLat) return;
 
-      // Create map if needed using the best available center
+      // Create map if needed using the punch location if available, otherwise job location
       if (!map.current) {
-        const center = (punchLngLat || jobLngLat)!;
-        console.log('Creating map with center:', center);
+        const center = punchLngLat || jobLngLat!;
+        console.log('Creating map with center:', center, 'Punch coords:', punchLngLat, 'Job coords:', jobLngLat);
         
         map.current = new mapboxgl.Map({
           container: mapContainer.current,
           style: 'mapbox://styles/mapbox/streets-v12',
           center,
-          zoom: 15,
+          zoom: punchLngLat ? 16 : 14, // Higher zoom for punch location
           projection: 'mercator'
         });
         
@@ -404,7 +404,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
 
                 {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
                   <img
-                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${(punch.longitude ?? punch.job_longitude)},${(punch.latitude ?? punch.job_latitude)},15,0/600x256?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
+                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x256?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
                     alt="Map preview of punch location"
                     className="w-full h-64 rounded-md border object-cover"
                     loading="lazy"
