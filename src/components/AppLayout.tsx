@@ -36,19 +36,15 @@ const navigationCategories = [
     title: "Vendors",
     items: [
       { name: "All Vendors", href: "/vendors", icon: Building2, menuKey: "vendors" },
-      { name: "Add Vendor", href: "/vendors/add", icon: Plus, menuKey: "vendors" },
-      { name: "Vendor Reports", href: "/vendors/reports", icon: FileBarChart, menuKey: "reports" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
     title: "Jobs",
     items: [
       { name: "All Jobs", href: "/jobs", icon: FolderOpen, menuKey: "jobs" },
-      { name: "Add Job", href: "/jobs/add", icon: Building, menuKey: "jobs" },
-      { name: "Job Reports", href: "/jobs/reports", icon: BarChart3, menuKey: "reports" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
     title: "Payables",
