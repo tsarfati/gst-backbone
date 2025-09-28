@@ -4,7 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { MapPin, Clock, Users } from 'lucide-react';
+import { MapPin, Clock, Users, FileText, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -409,8 +410,26 @@ export default function PunchClockDashboard() {
     <div className="min-h-screen bg-background">
       <div className="w-full space-y-0">
         <div className="p-6 border-b bg-card">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
+              <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild variant="outline">
+                <Link to="/time-sheets">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Time Sheets
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/punch-clock/reports">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Time Card Reports
+                </Link>
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-rows-2 h-full">
