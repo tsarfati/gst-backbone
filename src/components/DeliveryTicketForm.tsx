@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Camera, Upload, CheckCircle, X, Loader2, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Job {
@@ -26,6 +27,7 @@ interface DeliveryPhoto {
 
 export function DeliveryTicketForm() {
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -238,7 +240,8 @@ export function DeliveryTicketForm() {
         delivery_slip_photo_url: photoUrls.delivery_slip_photo_url,
         photo_url: photoUrls.photo_url,
         created_by: user?.id,
-        received_by: user?.id
+        received_by: user?.id,
+        company_id: currentCompany?.id
       };
 
       const { error: insertError } = await supabase

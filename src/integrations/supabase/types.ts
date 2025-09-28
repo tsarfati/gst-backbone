@@ -684,6 +684,7 @@ export type Database = {
       }
       delivery_tickets: {
         Row: {
+          company_id: string
           created_at: string | null
           created_by: string
           delivery_date: string
@@ -700,6 +701,7 @@ export type Database = {
           vendor_name: string
         }
         Insert: {
+          company_id: string
           created_at?: string | null
           created_by: string
           delivery_date?: string
@@ -716,6 +718,7 @@ export type Database = {
           vendor_name: string
         }
         Update: {
+          company_id?: string
           created_at?: string | null
           created_by?: string
           delivery_date?: string
@@ -732,6 +735,13 @@ export type Database = {
           vendor_name?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "delivery_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "delivery_tickets_job_id_fkey"
             columns: ["job_id"]
@@ -3108,6 +3118,7 @@ export type Database = {
         Row: {
           check_in_time: string
           check_out_time: string | null
+          company_id: string
           company_name: string | null
           created_at: string
           id: string
@@ -3122,6 +3133,7 @@ export type Database = {
         Insert: {
           check_in_time?: string
           check_out_time?: string | null
+          company_id: string
           company_name?: string | null
           created_at?: string
           id?: string
@@ -3136,6 +3148,7 @@ export type Database = {
         Update: {
           check_in_time?: string
           check_out_time?: string | null
+          company_id?: string
           company_name?: string | null
           created_at?: string
           id?: string
@@ -3147,7 +3160,15 @@ export type Database = {
           visitor_name?: string
           visitor_phone?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "visitor_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

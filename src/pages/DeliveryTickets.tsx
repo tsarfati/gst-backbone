@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, MapPin, Save, ArrowLeft, Loader2, Package, Calendar, Building2, FileText } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,6 +42,7 @@ export default function DeliveryTickets() {
   const { jobId } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
@@ -328,7 +330,8 @@ export default function DeliveryTickets() {
         material_photo_url: materialPhotoUrl,
         notes: notes.trim() || null,
         created_by: user.id,
-        received_by: user.id
+        received_by: user.id,
+        company_id: currentCompany?.id
       };
 
       const { error } = await supabase

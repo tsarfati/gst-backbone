@@ -9,7 +9,8 @@ import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
 import JobSettings from '@/components/JobSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote } from 'lucide-react';
+import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock } from 'lucide-react';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -39,7 +40,7 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Company Info
@@ -55,6 +56,10 @@ export default function CompanySettingsPage() {
             <TabsTrigger value="jobs" className="flex items-center gap-2">
               <Briefcase className="h-4 w-4" />
               Job Settings
+            </TabsTrigger>
+            <TabsTrigger value="punch-clock" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Punch Clock
             </TabsTrigger>
             <TabsTrigger value="banking" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
@@ -114,6 +119,20 @@ export default function CompanySettingsPage() {
               </CardHeader>
               <CardContent>
                 <JobSettings />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="punch-clock">
+            <Card>
+              <CardHeader>
+                <CardTitle>Punch Clock Settings</CardTitle>
+                <CardDescription>
+                  Configure time tracking rules, location requirements, and employee punch clock settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PunchClockSettingsComponent />
               </CardContent>
             </Card>
           </TabsContent>

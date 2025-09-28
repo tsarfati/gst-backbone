@@ -70,7 +70,7 @@ export default function VisitorLogin() {
       // Find job by QR code
       const { data: jobData, error: jobError } = await supabase
         .from('jobs')
-        .select('id, name, address, client')
+        .select('id, name, address, client, company_id')
         .eq('visitor_qr_code', qrCode)
         .single();
 
@@ -156,6 +156,7 @@ export default function VisitorLogin() {
         subcontractor_id: formData.subcontractor_id || null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
+        company_id: (job as any).company_id
       };
 
       const { error } = await supabase
