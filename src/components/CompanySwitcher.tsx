@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,6 +8,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -17,8 +27,34 @@ import { cn } from '@/lib/utils';
 export function CompanySwitcher() {
   const { currentCompany, userCompanies, loading, switchCompany } = useCompany();
   const { user } = useAuth();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
+  const [pendingCompanyName, setPendingCompanyName] = useState<string>('');
 
-  // Don't render until user is authenticated
+  const handleCompanySwitch = (companyId: string, companyName: string) => {
+    // Don't show confirmation if switching to the same company
+    if (currentCompany.id === companyId) return;
+    
+    setPendingCompanyId(companyId);
+    setPendingCompanyName(companyName);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmSwitch = () => {
+    if (pendingCompanyId) {
+      switchCompany(pendingCompanyId);
+    }
+    setShowConfirmDialog(false);
+    setPendingCompanyId(null);
+    setPendingCompanyName('');
+  };
+
+  const cancelSwitch = () => {
+    setShowConfirmDialog(false);
+    setPendingCompanyId(null);
+    setPendingCompanyName('');
+  };
+
   if (!user || loading || !currentCompany || userCompanies.length === 0) {
     return (
       <div className="flex items-center gap-2 px-3 py-2">
@@ -77,7 +113,7 @@ export function CompanySwitcher() {
         {userCompanies.map((company) => (
           <DropdownMenuItem
             key={company.company_id}
-            onClick={() => switchCompany(company.company_id)}
+            onClick={() => handleCompanySwitch(company.company_id, company.company_name)}
             className={cn(
               "flex items-center gap-2 p-2 cursor-pointer",
               currentCompany.id === company.company_id && "bg-muted"
@@ -101,6 +137,21 @@ export function CompanySwitcher() {
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
+      
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch Company</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to switch to "{pendingCompanyName}"? This will change your current view and you may lose unsaved work.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelSwitch}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmSwitch}>Switch Company</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DropdownMenu>
   );
 }
