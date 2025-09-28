@@ -396,9 +396,11 @@ export default function Layout() {
         <SidebarInset>
           {!isPunchClockPage && (
             <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-1">
                 <SidebarTrigger className="-ml-1" />
-                <GlobalSearch />
+                <div className="flex-1 max-w-lg">
+                  <GlobalSearch />
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <CompanySwitcher />
