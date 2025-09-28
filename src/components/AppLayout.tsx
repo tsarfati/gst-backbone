@@ -46,9 +46,7 @@ const navigationCategories = [
     items: [
       { name: "All Jobs", href: "/jobs", icon: FolderOpen, menuKey: "jobs" },
       { name: "Add Job", href: "/jobs/add", icon: Building, menuKey: "jobs" },
-      { name: "Job Cost Codes", href: "/jobs/cost-codes", icon: FileText, menuKey: "jobs" },
       { name: "Job Reports", href: "/jobs/reports", icon: BarChart3, menuKey: "reports" },
-      { name: "Delivery Tickets", href: "/delivery-tickets", icon: Package, menuKey: "delivery-tickets" },
     ],
     collapsible: true,
   },
