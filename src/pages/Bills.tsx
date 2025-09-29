@@ -63,6 +63,31 @@ const getStatusDisplayName = (status: string) => {
   }
 };
 
+const getJobColor = (jobName: string) => {
+  // Generate consistent color based on job name
+  let hash = 0;
+  for (let i = 0; i < jobName.length; i++) {
+    hash = jobName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-teal-500',
+    'bg-orange-500',
+    'bg-cyan-500',
+    'bg-violet-500',
+    'bg-fuchsia-500',
+    'bg-rose-500',
+    'bg-amber-500'
+  ];
+  
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export default function Bills() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -366,10 +391,14 @@ export default function Bills() {
                              logoUrl={bill.vendor_logo_url}
                              size="sm"
                            />
-                           <span className="font-medium">{bill.vendor_name}</span>
-                         </div>
-                       </TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{bill.job_name}</TableCell>
+                       <span className="font-medium">{bill.vendor_name}</span>
+                       </div>
+                     </TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
+                         {bill.job_name}
+                       </Badge>
+                     </TableCell>
                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
@@ -408,14 +437,14 @@ export default function Bills() {
                       <div className="flex-1">
                         <p className="font-semibold text-foreground">{bill.invoice_number || 'No Invoice #'}</p>
                         <p className="text-sm text-muted-foreground">
-                          {bill.vendor_name} • {bill.job_name}
+                          {bill.vendor_name}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex flex-col items-end gap-2">
                       <p className="font-semibold text-foreground">${bill.amount.toLocaleString()}</p>
-                      <Badge variant={getStatusVariant(bill.status)} className="mt-1 text-xs">
-                        {getStatusDisplayName(bill.status)}
+                      <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
+                        {bill.job_name}
                       </Badge>
                     </div>
                   </div>
@@ -443,8 +472,8 @@ export default function Bills() {
                         checked={selectedBills.includes(bill.id)}
                         onCheckedChange={() => handleSelectBill(bill.id)}
                       />
-                      <Badge variant={getStatusVariant(bill.status)} className="flex-shrink-0 text-xs">
-                        {getStatusDisplayName(bill.status)}
+                      <Badge className={`${getJobColor(bill.job_name)} text-white flex-shrink-0 text-xs`}>
+                        {bill.job_name}
                       </Badge>
                       <span className="font-medium text-foreground truncate">{bill.invoice_number || 'No Invoice #'}</span>
                       <span className="text-sm text-muted-foreground truncate">{bill.vendor_name}</span>

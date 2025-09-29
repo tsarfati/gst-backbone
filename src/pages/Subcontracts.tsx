@@ -107,6 +107,31 @@ export default function Subcontracts() {
     }
   };
 
+  const getJobColor = (jobName: string) => {
+    // Generate consistent color based on job name
+    let hash = 0;
+    for (let i = 0; i < jobName.length; i++) {
+      hash = jobName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-indigo-500',
+      'bg-teal-500',
+      'bg-orange-500',
+      'bg-cyan-500',
+      'bg-violet-500',
+      'bg-fuchsia-500',
+      'bg-rose-500',
+      'bg-amber-500'
+    ];
+    
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -215,7 +240,7 @@ export default function Subcontracts() {
                       Vendor: {subcontract.vendors?.name || 'N/A'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Job: {subcontract.jobs?.name || 'N/A'}
+                      Status: {subcontract.status}
                     </p>
                   </div>
                   
@@ -233,8 +258,8 @@ export default function Subcontracts() {
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <Badge className={`${getStatusColor(subcontract.status)} text-white`}>
-                      {subcontract.status}
+                    <Badge className={`${getJobColor(subcontract.jobs?.name || 'N/A')} text-white`}>
+                      {subcontract.jobs?.name || 'N/A'}
                     </Badge>
                   </div>
                 </div>
@@ -260,14 +285,14 @@ export default function Subcontracts() {
                     <div className="flex-1">
                       <h3 className="font-semibold text-foreground">{subcontract.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {subcontract.vendors?.name} • {subcontract.jobs?.name}
+                        {subcontract.vendors?.name} • {subcontract.status}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-2">
                     <p className="font-semibold text-foreground">${formatNumber(subcontract.contract_amount)}</p>
-                    <Badge className={`${getStatusColor(subcontract.status)} text-white mt-1 text-xs`}>
-                      {subcontract.status}
+                    <Badge className={`${getJobColor(subcontract.jobs?.name || 'N/A')} text-white text-xs`}>
+                      {subcontract.jobs?.name || 'N/A'}
                     </Badge>
                   </div>
                 </div>
@@ -285,8 +310,8 @@ export default function Subcontracts() {
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Badge className={`${getStatusColor(subcontract.status)} text-white flex-shrink-0 text-xs`}>
-                      {subcontract.status}
+                    <Badge className={`${getJobColor(subcontract.jobs?.name || 'N/A')} text-white flex-shrink-0 text-xs`}>
+                      {subcontract.jobs?.name || 'N/A'}
                     </Badge>
                     <span className="font-medium text-foreground truncate">{subcontract.name}</span>
                     <span className="text-sm text-muted-foreground truncate">{subcontract.vendors?.name}</span>

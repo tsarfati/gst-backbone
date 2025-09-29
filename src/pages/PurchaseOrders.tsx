@@ -109,6 +109,31 @@ export default function PurchaseOrders() {
     }
   };
 
+  const getJobColor = (jobName: string) => {
+    // Generate consistent color based on job name
+    let hash = 0;
+    for (let i = 0; i < jobName.length; i++) {
+      hash = jobName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-indigo-500',
+      'bg-teal-500',
+      'bg-orange-500',
+      'bg-cyan-500',
+      'bg-violet-500',
+      'bg-fuchsia-500',
+      'bg-rose-500',
+      'bg-amber-500'
+    ];
+    
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -218,7 +243,7 @@ export default function PurchaseOrders() {
                       Vendor: {po.vendors?.name || 'N/A'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Job: {po.jobs?.name || 'N/A'}
+                      Status: {po.status}
                     </p>
                   </div>
                   
@@ -240,8 +265,8 @@ export default function PurchaseOrders() {
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <Badge className={`${getStatusColor(po.status)} text-white`}>
-                      {po.status}
+                    <Badge className={`${getJobColor(po.jobs?.name || 'N/A')} text-white`}>
+                      {po.jobs?.name || 'N/A'}
                     </Badge>
                   </div>
                 </div>
@@ -267,14 +292,14 @@ export default function PurchaseOrders() {
                     <div className="flex-1">
                       <h3 className="font-semibold text-foreground">PO #{po.po_number}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {po.vendors?.name} • {po.jobs?.name}
+                        {po.vendors?.name} • {po.status}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-2">
                     <p className="font-semibold text-foreground">${formatNumber(po.amount)}</p>
-                    <Badge className={`${getStatusColor(po.status)} text-white mt-1 text-xs`}>
-                      {po.status}
+                    <Badge className={`${getJobColor(po.jobs?.name || 'N/A')} text-white text-xs`}>
+                      {po.jobs?.name || 'N/A'}
                     </Badge>
                   </div>
                 </div>
@@ -292,8 +317,8 @@ export default function PurchaseOrders() {
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Badge className={`${getStatusColor(po.status)} text-white flex-shrink-0 text-xs`}>
-                      {po.status}
+                    <Badge className={`${getJobColor(po.jobs?.name || 'N/A')} text-white flex-shrink-0 text-xs`}>
+                      {po.jobs?.name || 'N/A'}
                     </Badge>
                     <span className="font-medium text-foreground truncate">PO #{po.po_number}</span>
                     <span className="text-sm text-muted-foreground truncate">{po.vendors?.name}</span>
