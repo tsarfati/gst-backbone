@@ -21,6 +21,7 @@ import {
   Loader2,
   Search,
   Upload,
+  Download,
   Settings,
   Banknote
 } from "lucide-react";
@@ -348,6 +349,19 @@ export default function ChartOfAccounts() {
     }
   };
 
+  const downloadCsvTemplate = () => {
+    const csvContent = "account_number,account_name,account_type,account_category,normal_balance,current_balance\n1000,Cash,cash,cash_accounts,debit,5000.00\n1100,Accounts Receivable,asset,current_assets,debit,2500.00\n2000,Accounts Payable,liability,current_liabilities,credit,1500.00\n3000,Equity,equity,equity,credit,10000.00\n4000,Revenue,revenue,operating_revenue,credit,15000.00\n5000,Expenses,expense,operating_expenses,debit,3000.00";
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'chart_of_accounts_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -444,6 +458,16 @@ export default function ChartOfAccounts() {
                     accept=".csv"
                     onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
                   />
+                  <div className="flex justify-between items-center mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={downloadCsvTemplate}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Template
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     Required columns: account_number, account_name, account_type
                     <br />

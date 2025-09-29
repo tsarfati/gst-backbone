@@ -28,7 +28,8 @@ import {
   Settings,
   DollarSign,
   Calculator,
-  Upload
+  Upload,
+  Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -332,6 +333,19 @@ export default function JobCostSetup() {
     }
   };
 
+  const downloadCsvTemplate = () => {
+    const csvContent = "code,description,type\nLABOR-001,General Labor,labor\nMATERIAL-001,Construction Materials,material\nSUB-001,Electrical Subcontractor,sub\nEQUIP-001,Heavy Equipment,equipment\nOTHER-001,Miscellaneous,other";
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cost_codes_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -447,6 +461,16 @@ export default function JobCostSetup() {
                     accept=".csv"
                     onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
                   />
+                  <div className="flex justify-between items-center mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={downloadCsvTemplate}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Template
+                    </Button>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     Required columns: code, description, type
                     <br />
