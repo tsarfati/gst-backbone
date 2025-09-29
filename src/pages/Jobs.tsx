@@ -2,32 +2,22 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Building, Plus } from "lucide-react";
-import JobViewSelector, { ViewType } from "@/components/JobViewSelector";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
 import JobCard from "@/components/JobCard";
-import JobListView from "@/components/JobListView";
-import JobCompactView from "@/components/JobCompactView";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 
 export default function Jobs() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { currentCompany, userCompanies } = useCompany();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('jobs-view', 'list');
-  const [reassignOpen, setReassignOpen] = useState(false);
-  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
-  const [targetCompanyId, setTargetCompanyId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (user && currentCompany) {
@@ -105,29 +95,6 @@ export default function Jobs() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const toggleSelectJob = (id: string) => {
-    setSelectedJobIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-
-  const handleReassign = async () => {
-    if (!targetCompanyId || selectedJobIds.length === 0) return;
-    try {
-      const { error } = await supabase
-        .from('jobs')
-        .update({ company_id: targetCompanyId })
-        .in('id', selectedJobIds);
-      if (error) throw error;
-      toast({ title: "Jobs reassigned", description: `${selectedJobIds.length} job(s) moved.` });
-      setReassignOpen(false);
-      setSelectedJobIds([]);
-      setTargetCompanyId(undefined);
-      await loadJobs();
-    } catch (e: any) {
-      console.error("Reassign error:", e);
-      toast({ title: "Failed to reassign", description: e.message || "Please try again.", variant: "destructive" });
     }
   };
 
@@ -235,9 +202,6 @@ export default function Jobs() {
             onSetDefault={setDefaultView}
             isDefault={isDefault}
           />
-          <Button variant="outline" onClick={() => setReassignOpen(true)}>
-            Reassign Jobs
-          </Button>
           <Button onClick={() => navigate("/jobs/add")}>
             <Plus className="h-4 w-4 mr-2" />
             New Job

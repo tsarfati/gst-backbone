@@ -48,6 +48,7 @@ export default function AddSubcontract() {
   const [allowedVendorTypes, setAllowedVendorTypes] = useState<string[]>([]);
   const [contractFiles, setContractFiles] = useState<File[]>([]);
   const [filePreviewUrls, setFilePreviewUrls] = useState<{file: File, url: string}[]>([]);
+  const [fileNames, setFileNames] = useState<{[key: string]: string}>({});
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<File | null>(null);
@@ -213,16 +214,21 @@ export default function AddSubcontract() {
       }
       return prev.filter(p => p.file !== fileToRemove);
     });
+    setFileNames(prev => {
+      const newNames = { ...prev };
+      delete newNames[fileToRemove.name];
+      return newNames;
+    });
   };
 
-  const uploadFilesToStorage = async (): Promise<string[]> => {
+  const uploadFilesToStorage = async (): Promise<{path: string, name: string}[]> => {
     if (contractFiles.length === 0) return [];
 
     const companyId = currentCompany?.id || profile?.current_company_id;
     if (!companyId) return [];
 
     setUploadingFiles(true);
-    const uploadedPaths: string[] = [];
+    const uploadedFiles: {path: string, name: string}[] = [];
 
     try {
       for (const file of contractFiles) {
@@ -244,10 +250,13 @@ export default function AddSubcontract() {
           continue;
         }
 
-        uploadedPaths.push(filePath);
+        uploadedFiles.push({
+          path: filePath,
+          name: fileNames[file.name] || file.name
+        });
       }
 
-      return uploadedPaths;
+      return uploadedFiles;
     } catch (error) {
       console.error('Error uploading files:', error);
       toast({
@@ -255,7 +264,7 @@ export default function AddSubcontract() {
         description: "Failed to upload contract files",
         variant: "destructive"
       });
-      return uploadedPaths;
+      return uploadedFiles;
     } finally {
       setUploadingFiles(false);
     }
@@ -305,14 +314,14 @@ export default function AddSubcontract() {
     setIsSubmitting(true);
     try {
       // Upload files if present
-      let fileUrls: string[] = [];
+      let fileData: {path: string, name: string}[] = [];
       if (contractFiles.length > 0) {
-        const uploadedPaths = await uploadFilesToStorage();
-        fileUrls = uploadedPaths;
+        const uploadedFiles = await uploadFilesToStorage();
+        fileData = uploadedFiles;
       }
 
-      // Store file URLs as JSON array or comma-separated string
-      const fileUrlString = fileUrls.length > 0 ? JSON.stringify(fileUrls) : formData.contract_file_url || null;
+      // Store file data as JSON array
+      const fileDataString = fileData.length > 0 ? JSON.stringify(fileData) : formData.contract_file_url || null;
 
       const { error } = await supabase
         .from('subcontracts')
@@ -325,7 +334,7 @@ export default function AddSubcontract() {
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
           status: formData.status,
-          contract_file_url: fileUrlString,
+          contract_file_url: fileDataString,
           apply_retainage: formData.apply_retainage,
           retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
           created_by: user.id
@@ -622,6 +631,7 @@ export default function AddSubcontract() {
                       onClick={() => {
                         setContractFiles([]);
                         setFilePreviewUrls([]);
+                        setFileNames({});
                       }}
                     >
                       Clear All
@@ -629,50 +639,71 @@ export default function AddSubcontract() {
                   </div>
 
                   {/* File List */}
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {contractFiles.map((file, index) => (
-                      <div 
-                        key={index} 
-                        className={cn(
-                          "flex items-start justify-between p-3 border rounded-lg transition-colors",
-                          file.type === 'application/pdf' 
-                            ? "cursor-pointer hover:bg-accent hover:border-primary/50" 
-                            : ""
-                        )}
-                        onClick={() => {
-                          if (file.type === 'application/pdf') {
-                            setViewingPdf(file);
-                          }
-                        }}
-                      >
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className="flex items-center justify-center w-10 h-10 bg-success/10 rounded flex-shrink-0">
-                            <FileText className="h-5 w-5 text-success" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium truncate text-sm">{file.name}</p>
-                              {file.type === 'application/pdf' && (
-                                <Badge variant="secondary" className="text-xs">Click to view</Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFile(file);
+                      <div key={index} className="space-y-2">
+                        <div 
+                          className={cn(
+                            "flex items-start justify-between p-3 border rounded-lg transition-colors",
+                            file.type === 'application/pdf' 
+                              ? "cursor-pointer hover:bg-accent hover:border-primary/50" 
+                              : ""
+                          )}
+                          onClick={() => {
+                            if (file.type === 'application/pdf') {
+                              setViewingPdf(file);
+                            }
                           }}
-                          className="flex-shrink-0"
                         >
-                          <X className="h-4 w-4" />
-                        </Button>
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="flex items-center justify-center w-10 h-10 bg-success/10 rounded flex-shrink-0">
+                              <FileText className="h-5 w-5 text-success" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium truncate text-sm">{file.name}</p>
+                                {file.type === 'application/pdf' && (
+                                  <Badge variant="secondary" className="text-xs">Click to view</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile(file);
+                            }}
+                            className="flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        {/* File name input */}
+                        <div className="ml-14 space-y-1">
+                          <Label htmlFor={`file-name-${index}`} className="text-xs">
+                            Display Name (optional)
+                          </Label>
+                          <Input
+                            id={`file-name-${index}`}
+                            type="text"
+                            placeholder={file.name}
+                            value={fileNames[file.name] || ''}
+                            onChange={(e) => {
+                              setFileNames(prev => ({
+                                ...prev,
+                                [file.name]: e.target.value
+                              }));
+                            }}
+                            className="h-8 text-sm"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

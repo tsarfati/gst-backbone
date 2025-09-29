@@ -130,12 +130,19 @@ export default function SubcontractDetails() {
     return path.split('/').pop() || 'Contract Document';
   };
 
-  let contractFiles: string[] = [];
+  let contractFiles: {path: string, name: string}[] = [];
   if (subcontract.contract_file_url) {
     try {
-      contractFiles = JSON.parse(subcontract.contract_file_url);
+      const parsed = JSON.parse(subcontract.contract_file_url);
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+        contractFiles = parsed;
+      } else if (Array.isArray(parsed)) {
+        contractFiles = parsed.map(p => ({ path: p, name: getFileNameFromPath(p) }));
+      } else {
+        contractFiles = [{ path: subcontract.contract_file_url, name: getFileNameFromPath(subcontract.contract_file_url) }];
+      }
     } catch {
-      contractFiles = [subcontract.contract_file_url];
+      contractFiles = [{ path: subcontract.contract_file_url, name: getFileNameFromPath(subcontract.contract_file_url) }];
     }
   }
 
@@ -234,15 +241,15 @@ export default function SubcontractDetails() {
             <CardTitle>Contract Documents</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {contractFiles.map((filePath, index) => (
+            {contractFiles.map((fileData, index) => (
               <div 
                 key={index}
                 className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
-                onClick={() => handleViewFile(filePath, getFileNameFromPath(filePath))}
+                onClick={() => handleViewFile(fileData.path, fileData.name)}
               >
                 <FileText className="h-8 w-8 text-muted-foreground" />
                 <div className="flex-1">
-                  <p className="font-medium text-foreground">{getFileNameFromPath(filePath)}</p>
+                  <p className="font-medium text-foreground">{fileData.name}</p>
                   <p className="text-sm text-muted-foreground">Click to view</p>
                 </div>
               </div>

@@ -354,31 +354,32 @@ export default function JobEdit() {
     if (!id) return;
 
     try {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from('jobs')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select();
 
       if (error) {
         console.error('Error deleting job:', error);
         toast({
           title: "Error",
-          description: "Failed to delete job",
+          description: error.message || "Failed to delete job. It may have associated data that needs to be removed first.",
           variant: "destructive",
         });
-      } else {
-        toast({
-          title: "Job Deleted",
-          description: "Job has been successfully deleted.",
-          variant: "destructive",
-        });
-        navigate("/jobs");
+        return;
       }
-    } catch (err) {
+
+      toast({
+        title: "Job Deleted",
+        description: "Job has been successfully deleted.",
+      });
+      navigate("/jobs");
+    } catch (err: any) {
       console.error('Error:', err);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: err.message || "An unexpected error occurred while deleting the job",
         variant: "destructive",
       });
     }
