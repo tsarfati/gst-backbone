@@ -152,12 +152,20 @@ export default function AddSubcontract() {
       // Create preview URLs for images and PDFs
       const newPreviews = validFiles
         .filter(file => file.type.startsWith('image/') || file.type === 'application/pdf')
-        .map(file => ({
-          file,
-          url: URL.createObjectURL(file)
-        }));
+        .map(file => {
+          const url = URL.createObjectURL(file);
+          console.log(`Created preview URL for ${file.name}:`, url, `Type: ${file.type}`);
+          return {
+            file,
+            url
+          };
+        });
       
       setFilePreviewUrls(prev => [...prev, ...newPreviews]);
+      
+      if (newPreviews.length > 0) {
+        console.log(`Total previews available: ${newPreviews.length + filePreviewUrls.length}`);
+      }
     }
   };
 
@@ -189,10 +197,12 @@ export default function AddSubcontract() {
   };
 
   const removeFile = (fileToRemove: File) => {
+    console.log(`Removing file: ${fileToRemove.name}`);
     setContractFiles(prev => prev.filter(f => f !== fileToRemove));
     setFilePreviewUrls(prev => {
       const preview = prev.find(p => p.file === fileToRemove);
       if (preview) {
+        console.log(`Revoking preview URL for ${fileToRemove.name}`);
         URL.revokeObjectURL(preview.url);
       }
       return prev.filter(p => p.file !== fileToRemove);
@@ -590,17 +600,22 @@ export default function AddSubcontract() {
                         <div key={index} className="border rounded-lg p-4 bg-muted/50">
                           <p className="text-sm font-medium mb-2">{preview.file.name}</p>
                           {preview.file.type === 'application/pdf' ? (
-                            <iframe
-                              src={preview.url}
-                              className="w-full h-96 border rounded"
-                              title={`Preview ${preview.file.name}`}
-                            />
+                            <div className="w-full h-96 border rounded bg-background overflow-hidden">
+                              <embed
+                                src={preview.url}
+                                type="application/pdf"
+                                className="w-full h-full"
+                                title={`Preview ${preview.file.name}`}
+                              />
+                            </div>
                           ) : preview.file.type.startsWith('image/') ? (
-                            <img
-                              src={preview.url}
-                              alt={`Preview ${preview.file.name}`}
-                              className="max-w-full h-auto max-h-96 rounded mx-auto"
-                            />
+                            <div className="flex justify-center">
+                              <img
+                                src={preview.url}
+                                alt={`Preview ${preview.file.name}`}
+                                className="max-w-full h-auto max-h-96 rounded object-contain"
+                              />
+                            </div>
                           ) : null}
                         </div>
                       ))}
