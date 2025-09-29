@@ -11,12 +11,14 @@ import { ArrowLeft, Upload, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   
   const jobId = searchParams.get('jobId');
   const vendorId = searchParams.get('vendorId');
@@ -43,31 +45,44 @@ export default function AddSubcontract() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const companyId = currentCompany?.id || profile?.current_company_id;
+        
+        if (!companyId) {
+          toast({
+            title: "Error",
+            description: "No company selected",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         // Fetch payables settings for allowed vendor types
         const { data: settingsData, error: settingsError } = await supabase
           .from('payables_settings')
           .select('allowed_subcontract_vendor_types')
-          .eq('company_id', user?.id)
+          .eq('company_id', companyId)
           .maybeSingle();
 
         const allowedTypes = settingsData?.allowed_subcontract_vendor_types || 
           ["Contractor", "Design Professional"];
         setAllowedVendorTypes(allowedTypes);
 
-        // Fetch jobs
+        // Fetch jobs for current company only
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
           .select('id, name, client')
+          .eq('company_id', companyId)
           .order('name');
 
         if (jobsError) throw jobsError;
         setJobs(jobsData || []);
 
-        // Fetch vendors filtered by allowed types
+        // Fetch vendors filtered by allowed types and company
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
           .select('id, name, vendor_type')
-          .eq('company_id', user?.id)
+          .eq('company_id', companyId)
           .eq('is_active', true)
           .in('vendor_type', allowedTypes)
           .order('name');
@@ -86,10 +101,10 @@ export default function AddSubcontract() {
       }
     };
 
-    if (user) {
+    if (user && (currentCompany?.id || profile?.current_company_id)) {
       fetchData();
     }
-  }, [user, toast]);
+  }, [user, currentCompany, profile, toast]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
