@@ -55,10 +55,9 @@ const navigationCategories = [
     icon: CreditCard,
     items: [
       { name: "Payables Dashboard", href: "/payables-dashboard", menuKey: "payables-dashboard" },
-      { name: "All Bills", href: "/bills", menuKey: "vendors" },
-      { name: "Add Bill", href: "/bills/add", menuKey: "vendors" },
-      { name: "Add Sub Contract", href: "/subcontracts/add", menuKey: "vendors" },
-      { name: "Add PO", href: "/purchase-orders/add", menuKey: "vendors" },
+      { name: "Bills", href: "/bills", menuKey: "vendors" },
+      { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
+      { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
       { name: "Make Payment", href: "/payables/make-payment", menuKey: "make-payment" },
       { name: "Payment History", href: "/bills/payments", menuKey: "reports" },
       { name: "Bill Reports", href: "/bills/payment-reports", menuKey: "reports" },

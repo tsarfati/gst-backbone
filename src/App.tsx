@@ -66,6 +66,8 @@ import EmailTemplateEdit from "./pages/EmailTemplateEdit";
 import ReceiptReports from "./pages/ReceiptReports";
 import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
+import Subcontracts from "./pages/Subcontracts";
+import PurchaseOrders from "./pages/PurchaseOrders";
 import JobReports from "./pages/JobReports";
 import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
@@ -244,7 +246,9 @@ function AuthenticatedRoutes() {
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
                 <Route path="bills/payments" element={<PaymentHistory />} />
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
+                <Route path="subcontracts" element={<Subcontracts />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />
+                <Route path="purchase-orders" element={<PurchaseOrders />} />
                 <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
                 {/* Legacy routes for backwards compatibility */}
                 <Route path="invoices" element={<Bills />} />

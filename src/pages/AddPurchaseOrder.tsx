@@ -177,11 +177,11 @@ export default function AddPurchaseOrder() {
         description: "Purchase order created successfully",
       });
 
-      // Navigate back to job details or commitments page
+      // Navigate back to job details or purchase orders page
       if (jobId) {
         navigate(`/jobs/${jobId}`);
       } else {
-        navigate(`/commitments/purchase-orders`);
+        navigate(`/purchase-orders`);
       }
     } catch (error) {
       console.error('Error creating purchase order:', error);
