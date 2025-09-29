@@ -354,17 +354,16 @@ export default function JobEdit() {
     if (!id) return;
 
     try {
-      const { error, count } = await supabase
+      const { error } = await supabase
         .from('jobs')
-        .delete()
-        .eq('id', id)
-        .select();
+        .update({ is_active: false })
+        .eq('id', id);
 
       if (error) {
         console.error('Error deleting job:', error);
         toast({
           title: "Error",
-          description: error.message || "Failed to delete job. It may have associated data that needs to be removed first.",
+          description: error.message || "Failed to delete job.",
           variant: "destructive",
         });
         return;

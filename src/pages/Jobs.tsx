@@ -46,6 +46,7 @@ export default function Jobs() {
         .from('jobs')
         .select('*')
         .eq('company_id', companyId)
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) {

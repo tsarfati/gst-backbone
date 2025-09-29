@@ -1439,6 +1439,7 @@ export type Database = {
           description: string | null
           end_date: string | null
           id: string
+          is_active: boolean
           job_type: Database["public"]["Enums"]["job_type"] | null
           latitude: number | null
           longitude: number | null
@@ -1462,6 +1463,7 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           id?: string
+          is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
           latitude?: number | null
           longitude?: number | null
@@ -1485,6 +1487,7 @@ export type Database = {
           description?: string | null
           end_date?: string | null
           id?: string
+          is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
           latitude?: number | null
           longitude?: number | null
