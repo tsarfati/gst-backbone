@@ -68,6 +68,7 @@ import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
 import Subcontracts from "./pages/Subcontracts";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import SubcontractDetails from "./pages/SubcontractDetails";
 import JobReports from "./pages/JobReports";
 import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
@@ -248,6 +249,7 @@ function AuthenticatedRoutes() {
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
                 <Route path="subcontracts" element={<Subcontracts />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />
+                <Route path="subcontracts/:id" element={<SubcontractDetails />} />
                 <Route path="purchase-orders" element={<PurchaseOrders />} />
                 <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
                 {/* Legacy routes for backwards compatibility */}
