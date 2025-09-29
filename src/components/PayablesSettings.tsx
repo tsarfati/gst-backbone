@@ -31,6 +31,8 @@ const payablesSettingsSchema = z.object({
   default_payment_terms: z.string(),
   default_payment_method: z.string(),
   require_receipt_attachment: z.boolean(),
+  allowed_subcontract_vendor_types: z.array(z.string()),
+  allowed_po_vendor_types: z.array(z.string()),
 });
 
 interface PayablesSettingsData {
@@ -50,6 +52,8 @@ interface PayablesSettingsData {
   default_payment_terms: string;
   default_payment_method: string;
   require_receipt_attachment: boolean;
+  allowed_subcontract_vendor_types: string[];
+  allowed_po_vendor_types: string[];
 }
 
 const defaultSettings: PayablesSettingsData = {
@@ -69,6 +73,8 @@ const defaultSettings: PayablesSettingsData = {
   default_payment_terms: '30',
   default_payment_method: 'check',
   require_receipt_attachment: false,
+  allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
+  allowed_po_vendor_types: ['Supplier'],
 };
 
 const availableRoles = [
@@ -92,6 +98,14 @@ const paymentTermsOptions = [
   { value: '30', label: 'Net 30' },
   { value: '45', label: 'Net 45' },
   { value: '60', label: 'Net 60' },
+];
+
+const vendorTypes = [
+  { value: 'Contractor', label: 'Contractor' },
+  { value: 'Supplier', label: 'Supplier' },
+  { value: 'Consultant', label: 'Consultant' },
+  { value: 'Design Professional', label: 'Design Professional' },
+  { value: 'Other', label: 'Other' },
 ];
 
 export default function PayablesSettings() {
@@ -140,6 +154,8 @@ export default function PayablesSettings() {
           default_payment_terms: data.default_payment_terms,
           default_payment_method: data.default_payment_method,
           require_receipt_attachment: data.require_receipt_attachment,
+          allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
+          allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
         });
       }
     } catch (error) {
@@ -429,6 +445,77 @@ export default function PayablesSettings() {
           </div>
         </div>
       </div>
+
+      <Separator />
+
+      {/* Vendor Type Restrictions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vendor Type Restrictions</CardTitle>
+          <CardDescription>Configure which vendor types can be assigned to subcontracts and purchase orders</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Allowed Subcontract Vendor Types */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Allowed Vendor Types for Subcontracts</Label>
+            <p className="text-xs text-muted-foreground">
+              Select which vendor types can be assigned to subcontracts
+            </p>
+            <div className="space-y-2">
+              {vendorTypes.map((type) => (
+                <div key={type.value} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`subcontract-${type.value}`}
+                    checked={settings.allowed_subcontract_vendor_types.includes(type.value)}
+                    onChange={(e) => {
+                      const types = e.target.checked
+                        ? [...settings.allowed_subcontract_vendor_types, type.value]
+                        : settings.allowed_subcontract_vendor_types.filter(t => t !== type.value);
+                      updateSettings("allowed_subcontract_vendor_types", types);
+                    }}
+                    className="rounded border-input"
+                  />
+                  <Label htmlFor={`subcontract-${type.value}`} className="font-normal cursor-pointer">
+                    {type.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Allowed PO Vendor Types */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Allowed Vendor Types for Purchase Orders</Label>
+            <p className="text-xs text-muted-foreground">
+              Select which vendor types can be assigned to purchase orders
+            </p>
+            <div className="space-y-2">
+              {vendorTypes.map((type) => (
+                <div key={type.value} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`po-${type.value}`}
+                    checked={settings.allowed_po_vendor_types.includes(type.value)}
+                    onChange={(e) => {
+                      const types = e.target.checked
+                        ? [...settings.allowed_po_vendor_types, type.value]
+                        : settings.allowed_po_vendor_types.filter(t => t !== type.value);
+                      updateSettings("allowed_po_vendor_types", types);
+                    }}
+                    className="rounded border-input"
+                  />
+                  <Label htmlFor={`po-${type.value}`} className="font-normal cursor-pointer">
+                    {type.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Separator />
 

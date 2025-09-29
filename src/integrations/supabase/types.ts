@@ -1820,6 +1820,8 @@ export type Database = {
       }
       payables_settings: {
         Row: {
+          allowed_po_vendor_types: string[] | null
+          allowed_subcontract_vendor_types: string[] | null
           bills_approval_roles: string[]
           bills_auto_approve_roles: string[]
           bills_max_auto_approve_amount: number | null
@@ -1843,6 +1845,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allowed_po_vendor_types?: string[] | null
+          allowed_subcontract_vendor_types?: string[] | null
           bills_approval_roles?: string[]
           bills_auto_approve_roles?: string[]
           bills_max_auto_approve_amount?: number | null
@@ -1866,6 +1870,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allowed_po_vendor_types?: string[] | null
+          allowed_subcontract_vendor_types?: string[] | null
           bills_approval_roles?: string[]
           bills_auto_approve_roles?: string[]
           bills_max_auto_approve_amount?: number | null

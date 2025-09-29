@@ -45,11 +45,11 @@ export default function AddPurchaseOrder() {
         // Fetch payables settings for allowed vendor types
         const { data: settingsData } = await supabase
           .from('payables_settings')
-          .select('settings')
+          .select('allowed_po_vendor_types')
           .eq('company_id', user?.id)
           .single();
 
-        const allowedTypes = settingsData?.settings?.allowedPOVendorTypes || ["Supplier"];
+        const allowedTypes = settingsData?.allowed_po_vendor_types || ["Supplier"];
         setAllowedVendorTypes(allowedTypes);
 
         // Fetch jobs
