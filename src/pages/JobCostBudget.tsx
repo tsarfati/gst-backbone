@@ -76,15 +76,20 @@ export default function JobCostBudget() {
         .eq('job_id', id)
         .eq('is_active', true);
 
-      if (!codesError && codes) {
-        setSelectedCostCodes(codes);
-      }
+      if (codesError) throw codesError;
 
-      // Load existing budget lines
+      // Load existing budget lines WITH cost code data
       const { data: budgetData, error: budgetError } = await supabase
         .from('job_budgets')
         .select(`
-          *,
+          id,
+          job_id,
+          cost_code_id,
+          budgeted_amount,
+          actual_amount,
+          committed_amount,
+          created_at,
+          updated_at,
           cost_codes (
             id,
             code,
@@ -94,8 +99,30 @@ export default function JobCostBudget() {
         `)
         .eq('job_id', id);
 
-      if (!budgetError && budgetData) {
-        setBudgetLines(budgetData);
+      if (budgetError) throw budgetError;
+
+      // Set cost codes first
+      setSelectedCostCodes(codes || []);
+      
+      // If we have budget data, use it directly (it already has cost_codes joined)
+      if (budgetData && budgetData.length > 0) {
+        setBudgetLines(budgetData.map(bd => ({
+          id: bd.id,
+          cost_code_id: bd.cost_code_id,
+          budgeted_amount: bd.budgeted_amount,
+          actual_amount: bd.actual_amount,
+          committed_amount: bd.committed_amount,
+          cost_code: bd.cost_codes
+        })));
+      } else {
+        // If no budget data, create empty lines for all cost codes
+        setBudgetLines((codes || []).map(code => ({
+          cost_code_id: code.id,
+          budgeted_amount: 0,
+          actual_amount: 0,
+          committed_amount: 0,
+          cost_code: code
+        })));
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -110,26 +137,33 @@ export default function JobCostBudget() {
   };
 
   const populateBudgetLines = () => {
-    const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
-      const existingLine = budgetLines.find(bl => bl.cost_code_id === costCode.id);
-      
-      if (existingLine) {
+    if (selectedCostCodes.length === 0) {
+      setBudgetLines([]);
+      return;
+    }
+
+    setBudgetLines(currentLines => {
+      const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
+        const existingLine = currentLines.find(bl => bl.cost_code_id === costCode.id);
+        
+        if (existingLine) {
+          return {
+            ...existingLine,
+            cost_code: costCode
+          };
+        }
+        
         return {
-          ...existingLine,
+          cost_code_id: costCode.id,
+          budgeted_amount: 0,
+          actual_amount: 0,
+          committed_amount: 0,
           cost_code: costCode
         };
-      }
-      
-      return {
-        cost_code_id: costCode.id,
-        budgeted_amount: 0,
-        actual_amount: 0,
-        committed_amount: 0,
-        cost_code: costCode
-      };
-    });
+      });
 
-    setBudgetLines(newBudgetLines);
+      return newBudgetLines;
+    });
   };
 
   const updateBudgetLine = (index: number, field: keyof BudgetLine, value: any) => {
@@ -333,12 +367,14 @@ export default function JobCostBudget() {
                           </TableCell>
                           <TableCell>
                             <Input
-                              type="number"
-                              step="0.01"
-                              value={line.budgeted_amount}
-                              onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
+                              type="text"
+                              value={line.budgeted_amount ? line.budgeted_amount.toLocaleString('en-US') : ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/,/g, '');
+                                updateBudgetLine(index, 'budgeted_amount', parseFloat(value) || 0);
+                              }}
                               className="w-32 text-right"
-                              placeholder="0.00"
+                              placeholder="0"
                               disabled={!canEdit}
                             />
                           </TableCell>
@@ -371,12 +407,14 @@ export default function JobCostBudget() {
                           </TableCell>
                           <TableCell>
                             <Input
-                              type="number"
-                              step="0.01"
-                              value={line.budgeted_amount}
-                              onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
+                              type="text"
+                              value={line.budgeted_amount ? line.budgeted_amount.toLocaleString('en-US') : ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/,/g, '');
+                                updateBudgetLine(index, 'budgeted_amount', parseFloat(value) || 0);
+                              }}
                               className="w-28 text-right text-sm"
-                              placeholder="0.00"
+                              placeholder="0"
                               disabled={!canEdit}
                             />
                           </TableCell>
