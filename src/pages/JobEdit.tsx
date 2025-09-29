@@ -309,6 +309,18 @@ export default function JobEdit() {
           });
         } else {
           console.log('Job cost codes saved successfully');
+          
+          // Reload the job-specific cost codes to get the new IDs
+          const { data: updatedCodes, error: reloadError } = await supabase
+            .from('cost_codes')
+            .select('id, code, description, type, job_id, company_id, is_active')
+            .eq('job_id', id)
+            .eq('is_active', true);
+
+          if (!reloadError && updatedCodes) {
+            console.log('Reloaded cost codes with new IDs:', updatedCodes);
+            setSelectedCostCodes(updatedCodes);
+          }
         }
       }
 
