@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { FileText, X, Plus, Copy, CheckSquare } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { FileText, X, Plus, Copy, CheckSquare, Check, ChevronsUpDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
+import { cn } from '@/lib/utils';
 
 interface CostCode {
   id: string;
@@ -31,6 +34,7 @@ export default function JobCostCodeSelector({
   const [selectedCodeId, setSelectedCodeId] = useState<string>("");
   const [previousJobs, setPreviousJobs] = useState<any[]>([]);
   const [selectedPreviousJobId, setSelectedPreviousJobId] = useState<string>("");
+  const [costCodePopoverOpen, setCostCodePopoverOpen] = useState(false);
   const { toast } = useToast();
   const { currentCompany } = useCompany();
 
@@ -84,10 +88,11 @@ export default function JobCostCodeSelector({
     }
   };
 
-  const handleAddCostCode = () => {
-    if (!selectedCodeId) return;
+  const handleAddCostCode = (costCodeId?: string) => {
+    const codeId = costCodeId || selectedCodeId;
+    if (!codeId) return;
 
-    const costCode = masterCostCodes.find(cc => cc.id === selectedCodeId);
+    const costCode = masterCostCodes.find(cc => cc.id === codeId);
     if (!costCode) return;
 
     // Check if already selected
@@ -102,6 +107,7 @@ export default function JobCostCodeSelector({
 
     onSelectedCostCodesChange([...selectedCostCodes, costCode]);
     setSelectedCodeId("");
+    setCostCodePopoverOpen(false);
     
     toast({
       title: "Cost Code Added",
@@ -259,27 +265,57 @@ export default function JobCostCodeSelector({
         {/* Add Cost Code Section */}
         <div className="flex gap-2 items-end">
           <div className="flex-1">
-            <Select value={selectedCodeId} onValueChange={setSelectedCodeId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a cost code from company master list" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableCostCodes.map((costCode) => (
-                  <SelectItem key={costCode.id} value={costCode.id}>
-                    {costCode.code} - {costCode.description} {costCode.type && `(${costCode.type})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={costCodePopoverOpen} onOpenChange={setCostCodePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={costCodePopoverOpen}
+                  className="w-full justify-between"
+                >
+                  {selectedCodeId
+                    ? (() => {
+                        const selected = availableCostCodes.find(cc => cc.id === selectedCodeId);
+                        return selected ? `${selected.code} - ${selected.description}${selected.type ? ` (${selected.type})` : ''}` : "Select a cost code...";
+                      })()
+                    : "Select a cost code from company master list"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[600px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search cost codes..." />
+                  <CommandList>
+                    <CommandEmpty>No cost code found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableCostCodes.map((costCode) => (
+                        <CommandItem
+                          key={costCode.id}
+                          value={`${costCode.code} ${costCode.description} ${costCode.type || ''}`}
+                          onSelect={() => {
+                            setSelectedCodeId(costCode.id);
+                            handleAddCostCode(costCode.id);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCodeId === costCode.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <span className="font-mono text-sm mr-2">{costCode.code}</span>
+                          <span className="flex-1">{costCode.description}</span>
+                          {costCode.type && (
+                            <span className="text-xs text-muted-foreground ml-2">({costCode.type})</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
-          <Button 
-            onClick={handleAddCostCode} 
-            disabled={!selectedCodeId}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Cost Code
-          </Button>
         </div>
 
         {/* Selected Cost Codes */}
