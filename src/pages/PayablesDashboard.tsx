@@ -79,10 +79,11 @@ export default function PayablesDashboard() {
         .select('id')
         .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
-      // Load invoices for calculations
+      // Load invoices for calculations (filtered by company)
       const { data: invoicesData } = await supabase
         .from('invoices')
-        .select('*')
+        .select('*, vendors!inner(company_id)')
+        .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
         .order('created_at', { ascending: false });
 
       // Calculate metrics
