@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
+import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ export default function AddSubcontract() {
   const [filePreviewUrls, setFilePreviewUrls] = useState<{file: File, url: string}[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [viewingPdf, setViewingPdf] = useState<File | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -357,6 +359,16 @@ export default function AddSubcontract() {
     );
   }
 
+  // Show full-page PDF viewer if a PDF is being viewed
+  if (viewingPdf) {
+    return (
+      <FullPagePdfViewer 
+        file={viewingPdf} 
+        onBack={() => setViewingPdf(null)} 
+      />
+    );
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
@@ -601,7 +613,18 @@ export default function AddSubcontract() {
                         <div key={index} className="border rounded-lg p-4 bg-muted/50">
                           <p className="text-sm font-medium mb-2">{preview.file.name}</p>
                           {preview.file.type === 'application/pdf' ? (
-                            <PdfInlinePreview file={preview.file} className="w-full" height={384} />
+                            <div className="space-y-2">
+                              <PdfInlinePreview file={preview.file} className="w-full" height={200} />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => setViewingPdf(preview.file)}
+                              >
+                                View Full PDF
+                              </Button>
+                            </div>
                           ) : preview.file.type.startsWith('image/') ? (
                             <div className="flex justify-center">
                               <img
