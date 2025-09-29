@@ -39,7 +39,9 @@ export default function SubcontractEdit() {
     contract_amount: "",
     start_date: "",
     end_date: "",
-    status: "active"
+    status: "active",
+    apply_retainage: false,
+    retainage_percentage: ""
   });
 
   const [jobs, setJobs] = useState<any[]>([]);
@@ -85,7 +87,9 @@ export default function SubcontractEdit() {
           contract_amount: subcontractData.contract_amount.toString(),
           start_date: subcontractData.start_date || "",
           end_date: subcontractData.end_date || "",
-          status: subcontractData.status
+          status: subcontractData.status,
+          apply_retainage: subcontractData.apply_retainage || false,
+          retainage_percentage: subcontractData.retainage_percentage?.toString() || ""
         });
 
         // Fetch jobs
