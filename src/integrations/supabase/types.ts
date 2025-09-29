@@ -2611,6 +2611,7 @@ export type Database = {
       }
       subcontracts: {
         Row: {
+          apply_retainage: boolean | null
           contract_amount: number
           contract_file_url: string | null
           created_at: string
@@ -2620,12 +2621,14 @@ export type Database = {
           id: string
           job_id: string
           name: string
+          retainage_percentage: number | null
           start_date: string | null
           status: string
           updated_at: string
           vendor_id: string
         }
         Insert: {
+          apply_retainage?: boolean | null
           contract_amount: number
           contract_file_url?: string | null
           created_at?: string
@@ -2635,12 +2638,14 @@ export type Database = {
           id?: string
           job_id: string
           name: string
+          retainage_percentage?: number | null
           start_date?: string | null
           status?: string
           updated_at?: string
           vendor_id: string
         }
         Update: {
+          apply_retainage?: boolean | null
           contract_amount?: number
           contract_file_url?: string | null
           created_at?: string
@@ -2650,6 +2655,7 @@ export type Database = {
           id?: string
           job_id?: string
           name?: string
+          retainage_percentage?: number | null
           start_date?: string | null
           status?: string
           updated_at?: string
