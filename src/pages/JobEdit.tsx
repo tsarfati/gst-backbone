@@ -7,13 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, UserCheck, QrCode, Settings, Calculator, FileText } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Save, Trash2, Building, Users, QrCode, Settings, Calculator, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
-import JobCostCodeSelector from "@/components/JobCostCodeSelector";
-import JobBudgetManager from "@/components/JobBudgetManager";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
 import { JobQRCode } from "@/components/JobQRCode";
@@ -29,7 +26,6 @@ export default function JobEdit() {
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
   const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
-  const [selectedCostCodes, setSelectedCostCodes] = useState<any[]>([]);
   const [visitorSettingsOpen, setVisitorSettingsOpen] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -130,25 +126,6 @@ export default function JobEdit() {
 
           if (!assistantsError && assistants) {
             setAssistantManagers(assistants);
-          }
-
-          // Fetch selected cost codes for this job
-          console.log('Loading cost codes for job:', id);
-          const { data: codes, error: codesError } = await supabase
-            .from('cost_codes')
-            .select('id, code, description, type, job_id, company_id, is_active')
-            .eq('job_id', id)
-            .eq('is_active', true);
-
-          if (!codesError && codes) {
-            console.log('Loaded cost codes:', codes.map(c => ({ id: c.id, code: c.code, type: c.type })));
-            setSelectedCostCodes(codes);
-          } else if (codesError) {
-            console.error('Error loading cost codes:', codesError);
-            setSelectedCostCodes([]);
-          } else {
-            console.log('No cost codes found for job');
-            setSelectedCostCodes([]);
           }
         }
       } catch (err) {
@@ -265,63 +242,6 @@ export default function JobEdit() {
           variant: "destructive",
         });
         return;
-      }
-
-      // Save selected cost codes relationship
-      console.log('Saving cost codes:', {
-        selectedCostCodesCount: selectedCostCodes.length,
-        selectedCostCodes: selectedCostCodes.map(c => ({ id: c.id, code: c.code }))
-      });
-      
-      // First, remove all existing job cost codes
-      console.log('Removing existing job cost codes for job:', id);
-      const { error: deleteError } = await supabase
-        .from('cost_codes')
-        .delete()
-        .eq('job_id', id);
-
-      if (deleteError) {
-        console.error('Error deleting existing job cost codes:', deleteError);
-      }
-
-      // Create job-specific copies of selected cost codes
-      if (selectedCostCodes.length > 0) {
-        const costCodeInserts = selectedCostCodes.map(code => ({
-          job_id: id,
-          code: code.code,
-          description: code.description,
-          type: code.type || 'other',
-          company_id: currentCompany?.id || '',
-          is_active: true
-        }));
-
-        console.log('Inserting job cost codes:', costCodeInserts);
-        const { error: insertError } = await supabase
-          .from('cost_codes')
-          .insert(costCodeInserts);
-
-        if (insertError) {
-          console.error('Error saving job cost codes:', insertError);
-          toast({
-            title: "Warning",
-            description: "Job saved but cost codes may not have been updated properly.",
-            variant: "destructive",
-          });
-        } else {
-          console.log('Job cost codes saved successfully');
-          
-          // Reload the job-specific cost codes to get the new IDs
-          const { data: updatedCodes, error: reloadError } = await supabase
-            .from('cost_codes')
-            .select('id, code, description, type, job_id, company_id, is_active')
-            .eq('job_id', id)
-            .eq('is_active', true);
-
-          if (!reloadError && updatedCodes) {
-            console.log('Reloaded cost codes with new IDs:', updatedCodes);
-            setSelectedCostCodes(updatedCodes);
-          }
-        }
       }
 
       toast({
@@ -765,35 +685,24 @@ export default function JobEdit() {
           </CardContent>
         </Card>
 
-        {/* Budget and Cost Codes Tabs */}
-        <Tabs defaultValue="cost-codes" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="cost-codes" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Job Cost Codes
-            </TabsTrigger>
-            <TabsTrigger value="budget" className="flex items-center gap-2">
-              <Calculator className="h-4 w-4" />
-              Job Budget
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="cost-codes" className="mt-6">
-            <JobCostCodeSelector
-              jobId={id}
-              selectedCostCodes={selectedCostCodes}
-              onSelectedCostCodesChange={setSelectedCostCodes}
-            />
-          </TabsContent>
-          
-          <TabsContent value="budget" className="mt-6">
-            <JobBudgetManager 
-              jobId={id!} 
-              jobName={formData.name}
-              selectedCostCodes={selectedCostCodes}
-            />
-          </TabsContent>
-        </Tabs>
+        {/* Cost Codes & Budget Link */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Cost Codes & Budget
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Manage job cost codes and budget allocations for this project.
+            </p>
+            <Button onClick={() => navigate(`/jobs/${id}/cost-budget`)}>
+              <FileText className="h-4 w-4 mr-2" />
+              Manage Cost Codes & Budget
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Visitor Log Settings */}
         <Card>

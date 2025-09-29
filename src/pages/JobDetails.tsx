@@ -211,10 +211,10 @@ export default function JobDetails() {
               <Button 
                 variant="outline" 
                 className="w-full justify-start" 
-                onClick={() => navigate(`/jobs/${id}/budget`)}
+                onClick={() => navigate(`/jobs/${id}/cost-budget`)}
               >
                 <Calculator className="h-4 w-4 mr-2" />
-                Manage Budget
+                Cost Codes & Budget
               </Button>
               <Button 
                 variant="outline" 
