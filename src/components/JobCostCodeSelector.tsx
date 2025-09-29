@@ -22,12 +22,14 @@ interface JobCostCodeSelectorProps {
   jobId?: string;
   selectedCostCodes: CostCode[];
   onSelectedCostCodesChange: (codes: CostCode[]) => void;
+  disabled?: boolean;
 }
 
-export default function JobCostCodeSelector({ 
-  jobId, 
-  selectedCostCodes, 
-  onSelectedCostCodesChange 
+export default function JobCostCodeSelector({
+  jobId,
+  selectedCostCodes,
+  onSelectedCostCodesChange,
+  disabled = false
 }: JobCostCodeSelectorProps) {
   const [masterCostCodes, setMasterCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,7 +227,7 @@ export default function JobCostCodeSelector({
           <div className="space-y-2">
             <label className="text-sm font-medium">Copy from Previous Job</label>
             <div className="flex gap-2">
-              <Select value={selectedPreviousJobId} onValueChange={setSelectedPreviousJobId}>
+              <Select value={selectedPreviousJobId} onValueChange={setSelectedPreviousJobId} disabled={disabled}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a previous job" />
                 </SelectTrigger>
@@ -239,7 +241,7 @@ export default function JobCostCodeSelector({
               </Select>
               <Button 
                 onClick={handleCopyFromPreviousJob} 
-                disabled={!selectedPreviousJobId}
+                disabled={!selectedPreviousJobId || disabled}
                 size="sm"
                 variant="outline"
               >
@@ -255,6 +257,7 @@ export default function JobCostCodeSelector({
               variant="outline"
               size="sm"
               className="w-full"
+              disabled={disabled}
             >
               <CheckSquare className="h-4 w-4 mr-2" />
               Select All ({availableCostCodes.length} available)
@@ -272,6 +275,7 @@ export default function JobCostCodeSelector({
                   role="combobox"
                   aria-expanded={costCodePopoverOpen}
                   className="w-full justify-between"
+                  disabled={disabled}
                 >
                   {selectedCodeId
                     ? (() => {
@@ -333,6 +337,7 @@ export default function JobCostCodeSelector({
                     variant="ghost"
                     className="h-4 w-4 p-0 hover:bg-destructive/20"
                     onClick={() => handleRemoveCostCode(costCode.id)}
+                    disabled={disabled}
                   >
                     <X className="h-3 w-3" />
                   </Button>

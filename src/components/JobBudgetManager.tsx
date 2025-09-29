@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/utils/formatNumber";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -230,21 +231,21 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                       placeholder="0.00"
                     />
                   </TableCell>
-                  <TableCell>
-                    ${(line.actual_amount || 0).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    ${(line.committed_amount || 0).toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`${
-                      (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
-                        ? 'text-destructive' 
-                        : 'text-muted-foreground'
-                    }`}>
-                      ${(line.budgeted_amount - (line.actual_amount + line.committed_amount)).toFixed(2)}
-                    </span>
-                  </TableCell>
+                      <TableCell>
+                        {formatCurrency(line.actual_amount)}
+                      </TableCell>
+                      <TableCell>
+                        {formatCurrency(line.committed_amount)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`${
+                          (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
+                            ? 'text-destructive' 
+                            : 'text-muted-foreground'
+                        }`}>
+                          {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
+                        </span>
+                      </TableCell>
                 </TableRow>
               ))}
               {budgetLines.length === 0 && (
@@ -259,7 +260,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           
           <div className="flex justify-end p-4 border-t">
             <div className="text-lg font-semibold">
-              Total Budget: ${totalBudget.toFixed(2)}
+              Total Budget: {formatCurrency(totalBudget)}
             </div>
           </div>
         </div>

@@ -4,10 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Save, Loader2, Grid3X3, List } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Save, Loader2, Grid3X3, List, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
+import { formatCurrency } from "@/utils/formatNumber";
 
 type ViewType = "compact" | "super-compact";
 
@@ -31,12 +35,17 @@ export default function JobCostBudget() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [viewType, setViewType] = useState<ViewType>("compact");
   const [selectedCostCodes, setSelectedCostCodes] = useState<CostCode[]>([]);
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
+  const [activeTab, setActiveTab] = useState('budget');
+
+  const isPlanning = job?.status === 'planning';
+  const canEdit = isPlanning;
 
   useEffect(() => {
     loadData();
@@ -130,6 +139,15 @@ export default function JobCostBudget() {
   };
 
   const saveBudget = async () => {
+    if (!canEdit) {
+      toast({
+        title: "Permission Denied",
+        description: "Budget can only be edited when job is in Planning status",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
@@ -215,7 +233,10 @@ export default function JobCostBudget() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Cost Codes & Budget</h1>
-            <p className="text-muted-foreground">{job.name}</p>
+            <p className="text-muted-foreground">
+              {job.name} • Status: <span className="font-semibold capitalize">{job.status}</span>
+              {!isPlanning && <span className="ml-2 text-xs">(Read-only)</span>}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -237,153 +258,169 @@ export default function JobCostBudget() {
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button onClick={saveBudget} disabled={saving}>
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Budget'}
-          </Button>
         </div>
       </div>
 
-      {/* Cost Code Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Cost Codes</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {!isPlanning && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            Budget and cost codes can only be edited when the job is in Planning status. Contact an administrator to change the job status.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="budget">Budget</TabsTrigger>
+          <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="budget" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Job Budget</span>
+                <Button onClick={saveBudget} disabled={saving || !canEdit}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save Budget'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {viewType === "compact" && (
+                      <>
+                        <TableHead>Cost Code</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Budgeted</TableHead>
+                        <TableHead className="text-right">Actual</TableHead>
+                        <TableHead className="text-right">Committed</TableHead>
+                        <TableHead className="text-right">Variance</TableHead>
+                      </>
+                    )}
+                    {viewType === "super-compact" && (
+                      <>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Budget</TableHead>
+                        <TableHead className="text-right">Variance</TableHead>
+                      </>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {budgetLines.map((line, index) => (
+                    <TableRow key={index}>
+                      {viewType === "compact" && (
+                        <>
+                          <TableCell>
+                            <span className="font-mono text-sm">
+                              {line.cost_code?.code}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              {line.cost_code?.description}
+                              {line.cost_code?.type && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({line.cost_code.type})
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={line.budgeted_amount}
+                              onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
+                              className="w-32 text-right"
+                              placeholder="0.00"
+                              disabled={!canEdit}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(line.actual_amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(line.committed_amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`${
+                              (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
+                                ? 'text-destructive' 
+                                : 'text-muted-foreground'
+                            }`}>
+                              {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
+                            </span>
+                          </TableCell>
+                        </>
+                      )}
+                      {viewType === "super-compact" && (
+                        <>
+                          <TableCell>
+                            <span className="font-mono text-sm">
+                              {line.cost_code?.code}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {line.cost_code?.description}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={line.budgeted_amount}
+                              onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
+                              className="w-28 text-right text-sm"
+                              placeholder="0.00"
+                              disabled={!canEdit}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`text-sm ${
+                              (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
+                                ? 'text-destructive font-semibold' 
+                                : 'text-muted-foreground'
+                            }`}>
+                              {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
+                            </span>
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  ))}
+                  {budgetLines.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={viewType === "compact" ? 6 : 4} className="text-center text-muted-foreground">
+                        No budget lines available. Add cost codes in the Cost Codes tab.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              
+              <div className="flex justify-end p-4 border-t mt-4">
+                <div className="text-lg font-semibold">
+                  Total Budget: {formatCurrency(totalBudget)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cost-codes" className="mt-6">
           <JobCostCodeSelector
             jobId={id}
             selectedCostCodes={selectedCostCodes}
             onSelectedCostCodesChange={setSelectedCostCodes}
+            disabled={!canEdit}
           />
-        </CardContent>
-      </Card>
-
-      {/* Budget Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Budget</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {viewType === "compact" && (
-                  <>
-                    <TableHead>Cost Code</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Budgeted</TableHead>
-                    <TableHead className="text-right">Actual</TableHead>
-                    <TableHead className="text-right">Committed</TableHead>
-                    <TableHead className="text-right">Variance</TableHead>
-                  </>
-                )}
-                {viewType === "super-compact" && (
-                  <>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Budget</TableHead>
-                    <TableHead className="text-right">Variance</TableHead>
-                  </>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {budgetLines.map((line, index) => (
-                <TableRow key={index}>
-                  {viewType === "compact" && (
-                    <>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {line.cost_code?.code}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          {line.cost_code?.description}
-                          {line.cost_code?.type && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({line.cost_code.type})
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={line.budgeted_amount}
-                          onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
-                          className="w-32 text-right"
-                          placeholder="0.00"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ${(line.actual_amount || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ${(line.committed_amount || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`${
-                          (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
-                            ? 'text-destructive' 
-                            : 'text-muted-foreground'
-                        }`}>
-                          ${(line.budgeted_amount - (line.actual_amount + line.committed_amount)).toFixed(2)}
-                        </span>
-                      </TableCell>
-                    </>
-                  )}
-                  {viewType === "super-compact" && (
-                    <>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {line.cost_code?.code}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {line.cost_code?.description}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={line.budgeted_amount}
-                          onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
-                          className="w-28 text-right text-sm"
-                          placeholder="0.00"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`text-sm ${
-                          (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
-                            ? 'text-destructive font-semibold' 
-                            : 'text-muted-foreground'
-                        }`}>
-                          ${(line.budgeted_amount - (line.actual_amount + line.committed_amount)).toFixed(2)}
-                        </span>
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              ))}
-              {budgetLines.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={viewType === "compact" ? 6 : 4} className="text-center text-muted-foreground">
-                    No budget lines available. Select cost codes for this job to create budget lines.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          
-          <div className="flex justify-end p-4 border-t mt-4">
-            <div className="text-lg font-semibold">
-              Total Budget: ${totalBudget.toFixed(2)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Building, Users, QrCode, Settings, Calculator, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
@@ -21,6 +22,9 @@ export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuth();
+  
+  const isAdmin = profile?.role === 'admin';
   const { currentCompany } = useCompany();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -177,6 +181,16 @@ export default function JobEdit() {
   }
 
   const handleInputChange = (field: string, value: string) => {
+    // Prevent changing TO planning status unless admin
+    if (field === 'status' && value === 'planning' && !isAdmin && formData.status !== 'planning') {
+      toast({
+        title: "Permission Denied",
+        description: "Only administrators can change a job to Planning status.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setFormData(prev => {
       const updated = {
         ...prev,
