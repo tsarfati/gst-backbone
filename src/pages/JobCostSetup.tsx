@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface CostCode {
   id: string;
@@ -68,6 +69,7 @@ interface CostCodeTemplate {
 
 export default function JobCostSetup() {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [chartAccounts, setChartAccounts] = useState<ChartAccount[]>([]);
@@ -107,11 +109,16 @@ export default function JobCostSetup() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentCompany?.id]);
 
   const loadData = async () => {
+    if (!currentCompany?.id) {
+      setLoading(false);
+      return;
+    }
+    
     try {
-      // Load general cost codes (not job-specific)
+      // Load general cost codes (not job-specific) for current company
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
         .select(`
@@ -122,6 +129,7 @@ export default function JobCostSetup() {
           )
         `)
         .is('job_id', null)
+        .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
         .order('code');
 
@@ -136,19 +144,21 @@ export default function JobCostSetup() {
 
       setCostCodes(transformedCostCodes);
 
-      // Load jobs
+      // Load jobs for current company
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, name')
+        .eq('company_id', currentCompany?.id)
         .order('name');
 
       if (jobsError) throw jobsError;
       setJobs(jobsData || []);
 
-      // Load chart of accounts  
+      // Load chart of accounts for current company
       const { data: accountsData, error: accountsError } = await supabase
         .from('chart_of_accounts')
         .select('id, account_number, account_name, account_type')
+        .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
         .in('account_type', ['expense', 'cost_of_goods_sold'])
         .order('account_number');
@@ -183,6 +193,7 @@ export default function JobCostSetup() {
         code: newTemplate.code,
         description: newTemplate.description,
         type: newTemplate.type,
+        company_id: currentCompany?.id,
         is_active: true,
         job_id: null // General cost code template
       };
@@ -301,6 +312,7 @@ export default function JobCostSetup() {
             code: costCode.code,
             description: costCode.description,
             type: costCode.type,
+            company_id: currentCompany?.id,
             is_active: true,
             job_id: null // General cost code template
           });
@@ -358,11 +370,11 @@ export default function JobCostSetup() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Job Cost Setup</h1>
+          <h2 className="text-xl font-bold text-foreground">Cost Code Templates</h2>
           <p className="text-muted-foreground">Configure cost code templates and job costing settings</p>
         </div>
         <div className="flex space-x-2">

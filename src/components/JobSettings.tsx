@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -101,6 +102,7 @@ export default function JobSettings() {
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<JobSettingsData>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -351,7 +353,7 @@ export default function JobSettings() {
           </div>
           <Button 
             variant="outline" 
-            onClick={() => window.open('/jobs/cost-setup', '_blank')}
+            onClick={() => navigate('/settings/company?tab=job-cost-setup')}
             className="flex items-center gap-2"
           >
             <Settings className="h-4 w-4" />

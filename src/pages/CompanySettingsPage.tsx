@@ -10,13 +10,18 @@ import PayablesSettings from '@/components/PayablesSettings';
 import JobSettings from '@/components/JobSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock } from 'lucide-react';
+import JobCostSetup from '@/pages/JobCostSetup';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Calculator } from 'lucide-react';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("company");
+  
+  // Check URL params for initial tab
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get('tab') || 'company';
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const handleSaveSettings = () => {
     toast({
@@ -40,7 +45,7 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Company Info
@@ -60,6 +65,10 @@ export default function CompanySettingsPage() {
             <TabsTrigger value="punch-clock" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Punch Clock
+            </TabsTrigger>
+            <TabsTrigger value="job-cost-setup" className="flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Job Cost Setup
             </TabsTrigger>
             <TabsTrigger value="banking" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
@@ -133,6 +142,20 @@ export default function CompanySettingsPage() {
               </CardHeader>
               <CardContent>
                 <PunchClockSettingsComponent />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="job-cost-setup">
+            <Card>
+              <CardHeader>
+                <CardTitle>Job Cost Setup</CardTitle>
+                <CardDescription>
+                  Configure cost code templates and job costing settings for your company
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <JobCostSetup />
               </CardContent>
             </Card>
           </TabsContent>
