@@ -41,10 +41,10 @@ export default function AddSubcontract() {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedVendorTypes, setAllowedVendorTypes] = useState<string[]>([]);
-  const [contractFile, setContractFile] = useState<File | null>(null);
-  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [contractFiles, setContractFiles] = useState<File[]>([]);
+  const [filePreviewUrls, setFilePreviewUrls] = useState<{file: File, url: string}[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,34 +118,46 @@ export default function AddSubcontract() {
     }));
   };
 
-  const handleFileUpload = (file: File) => {
-    // Validate file type
+  const handleFileUpload = (files: File[]) => {
+    const validFiles: File[] = [];
     const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF, Word document, or image file",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 10MB",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setContractFile(file);
     
-    // Create preview URL for images and PDFs
-    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-      const url = URL.createObjectURL(file);
-      setFilePreviewUrl(url);
+    for (const file of files) {
+      // Validate file type
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name}: Please upload PDF, Word document, or image files only`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      // Validate file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `${file.name}: Please upload files smaller than 10MB`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setContractFiles(prev => [...prev, ...validFiles]);
+      
+      // Create preview URLs for images and PDFs
+      const newPreviews = validFiles
+        .filter(file => file.type.startsWith('image/') || file.type === 'application/pdf')
+        .map(file => ({
+          file,
+          url: URL.createObjectURL(file)
+        }));
+      
+      setFilePreviewUrls(prev => [...prev, ...newPreviews]);
     }
   };
 
@@ -165,56 +177,71 @@ export default function AddSubcontract() {
     
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleFileUpload(files[0]);
+      handleFileUpload(files);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileUpload(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(Array.from(files));
     }
   };
 
-  const removeFile = () => {
-    setContractFile(null);
-    setFilePreviewUrl(null);
-    setFormData(prev => ({ ...prev, contract_file_url: "" }));
+  const removeFile = (fileToRemove: File) => {
+    setContractFiles(prev => prev.filter(f => f !== fileToRemove));
+    setFilePreviewUrls(prev => {
+      const preview = prev.find(p => p.file === fileToRemove);
+      if (preview) {
+        URL.revokeObjectURL(preview.url);
+      }
+      return prev.filter(p => p.file !== fileToRemove);
+    });
   };
 
-  const uploadFileToStorage = async (): Promise<string | null> => {
-    if (!contractFile) return null;
+  const uploadFilesToStorage = async (): Promise<string[]> => {
+    if (contractFiles.length === 0) return [];
 
     const companyId = currentCompany?.id || profile?.current_company_id;
-    if (!companyId) return null;
+    if (!companyId) return [];
 
-    setUploadingFile(true);
+    setUploadingFiles(true);
+    const uploadedPaths: string[] = [];
+
     try {
-      const fileExt = contractFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${companyId}/${fileName}`;
+      for (const file of contractFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${companyId}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('subcontract-files')
-        .upload(filePath, contractFile);
+        const { error: uploadError } = await supabase.storage
+          .from('subcontract-files')
+          .upload(filePath, file);
 
-      if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Error uploading file:', file.name, uploadError);
+          toast({
+            title: "Upload Error",
+            description: `Failed to upload ${file.name}`,
+            variant: "destructive"
+          });
+          continue;
+        }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('subcontract-files')
-        .getPublicUrl(filePath);
+        uploadedPaths.push(filePath);
+      }
 
-      return filePath; // Store the path, not the public URL
+      return uploadedPaths;
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error uploading files:', error);
       toast({
         title: "Upload Error",
-        description: "Failed to upload contract file",
+        description: "Failed to upload contract files",
         variant: "destructive"
       });
-      return null;
+      return uploadedPaths;
     } finally {
-      setUploadingFile(false);
+      setUploadingFiles(false);
     }
   };
 
@@ -261,14 +288,15 @@ export default function AddSubcontract() {
 
     setIsSubmitting(true);
     try {
-      // Upload file if present
-      let fileUrl = formData.contract_file_url;
-      if (contractFile) {
-        const uploadedPath = await uploadFileToStorage();
-        if (uploadedPath) {
-          fileUrl = uploadedPath;
-        }
+      // Upload files if present
+      let fileUrls: string[] = [];
+      if (contractFiles.length > 0) {
+        const uploadedPaths = await uploadFilesToStorage();
+        fileUrls = uploadedPaths;
       }
+
+      // Store file URLs as JSON array or comma-separated string
+      const fileUrlString = fileUrls.length > 0 ? JSON.stringify(fileUrls) : formData.contract_file_url || null;
 
       const { error } = await supabase
         .from('subcontracts')
@@ -281,7 +309,7 @@ export default function AddSubcontract() {
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
           status: formData.status,
-          contract_file_url: fileUrl || null,
+          contract_file_url: fileUrlString,
           created_by: user.id
         });
 
@@ -469,7 +497,7 @@ export default function AddSubcontract() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!contractFile ? (
+              {contractFiles.length === 0 ? (
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                     isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
@@ -483,12 +511,12 @@ export default function AddSubcontract() {
                       <Upload className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <div>
-                      <p className="text-lg font-medium">Upload Contract File</p>
+                      <p className="text-lg font-medium">Upload Contract Files</p>
                       <p className="text-sm text-muted-foreground">
-                        Drag and drop your contract file here, or click to browse
+                        Drag and drop your contract files here, or click to browse
                       </p>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Supported formats: PDF, Word, JPG, PNG (Max 10MB)
+                        Supported formats: PDF, Word, JPG, PNG • Max 10MB per file • Multiple files allowed
                       </p>
                     </div>
                     <div>
@@ -498,11 +526,12 @@ export default function AddSubcontract() {
                         onChange={handleFileInputChange}
                         className="hidden"
                         id="contract-file-upload"
+                        multiple
                       />
                       <Button type="button" asChild variant="outline">
                         <label htmlFor="contract-file-upload" className="cursor-pointer">
                           <Upload className="h-4 w-4 mr-2" />
-                          Choose File
+                          Choose Files
                         </label>
                       </Button>
                     </div>
@@ -510,48 +539,91 @@ export default function AddSubcontract() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex items-start justify-between p-4 border rounded-lg">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="flex items-center justify-center w-12 h-12 bg-success/10 rounded-lg flex-shrink-0">
-                        <FileText className="h-6 w-6 text-success" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{contractFile.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {(contractFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium">{contractFiles.length} file{contractFiles.length > 1 ? 's' : ''} selected</p>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={removeFile}
-                      className="flex-shrink-0"
+                      onClick={() => {
+                        setContractFiles([]);
+                        setFilePreviewUrls([]);
+                      }}
                     >
-                      <X className="h-4 w-4" />
+                      Clear All
                     </Button>
                   </div>
 
-                  {/* File Preview */}
-                  {filePreviewUrl && (
-                    <div className="border rounded-lg p-4 bg-muted/50">
-                      <p className="text-sm font-medium mb-2">Preview:</p>
-                      {contractFile.type === 'application/pdf' ? (
-                        <iframe
-                          src={filePreviewUrl}
-                          className="w-full h-96 border rounded"
-                          title="Contract Preview"
-                        />
-                      ) : contractFile.type.startsWith('image/') ? (
-                        <img
-                          src={filePreviewUrl}
-                          alt="Contract Preview"
-                          className="max-w-full h-auto max-h-96 rounded mx-auto"
-                        />
-                      ) : null}
+                  {/* File List */}
+                  <div className="space-y-2">
+                    {contractFiles.map((file, index) => (
+                      <div key={index} className="flex items-start justify-between p-3 border rounded-lg">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="flex items-center justify-center w-10 h-10 bg-success/10 rounded flex-shrink-0">
+                            <FileText className="h-5 w-5 text-success" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate text-sm">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(file)}
+                          className="flex-shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* File Previews */}
+                  {filePreviewUrls.length > 0 && (
+                    <div className="space-y-4">
+                      <p className="text-sm font-medium">Previews:</p>
+                      {filePreviewUrls.map((preview, index) => (
+                        <div key={index} className="border rounded-lg p-4 bg-muted/50">
+                          <p className="text-sm font-medium mb-2">{preview.file.name}</p>
+                          {preview.file.type === 'application/pdf' ? (
+                            <iframe
+                              src={preview.url}
+                              className="w-full h-96 border rounded"
+                              title={`Preview ${preview.file.name}`}
+                            />
+                          ) : preview.file.type.startsWith('image/') ? (
+                            <img
+                              src={preview.url}
+                              alt={`Preview ${preview.file.name}`}
+                              className="max-w-full h-auto max-h-96 rounded mx-auto"
+                            />
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
                   )}
+
+                  {/* Add More Files Button */}
+                  <div className="pt-2">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                      id="contract-file-upload-more"
+                      multiple
+                    />
+                    <Button type="button" asChild variant="outline" size="sm">
+                      <label htmlFor="contract-file-upload-more" className="cursor-pointer">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Add More Files
+                      </label>
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -590,10 +662,10 @@ export default function AddSubcontract() {
             </Button>
               <Button 
                 type="submit" 
-                disabled={isSubmitting || uploadingFile}
+                disabled={isSubmitting || uploadingFiles}
                 className="min-w-32"
               >
-                {uploadingFile ? "Uploading..." : isSubmitting ? "Creating..." : "Create Subcontract"}
+                {uploadingFiles ? "Uploading..." : isSubmitting ? "Creating..." : "Create Subcontract"}
               </Button>
           </div>
         </div>
