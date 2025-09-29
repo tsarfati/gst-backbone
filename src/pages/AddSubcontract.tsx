@@ -600,13 +600,32 @@ export default function AddSubcontract() {
                         <div key={index} className="border rounded-lg p-4 bg-muted/50">
                           <p className="text-sm font-medium mb-2">{preview.file.name}</p>
                           {preview.file.type === 'application/pdf' ? (
-                            <div className="w-full h-96 border rounded bg-background overflow-hidden">
-                              <embed
-                                src={preview.url}
+                            <div className="w-full h-96 border rounded bg-white relative">
+                              <object
+                                data={preview.url}
                                 type="application/pdf"
-                                className="w-full h-full"
-                                title={`Preview ${preview.file.name}`}
-                              />
+                                width="100%"
+                                height="100%"
+                                className="absolute inset-0"
+                                onError={(e) => {
+                                  console.error('PDF preview error:', preview.file.name, e);
+                                }}
+                              >
+                                <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+                                  <FileText className="h-12 w-12 text-muted-foreground mb-2" />
+                                  <p className="text-sm text-muted-foreground">
+                                    PDF preview not available in this browser.
+                                  </p>
+                                  <a
+                                    href={preview.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline mt-2"
+                                  >
+                                    Open PDF in new tab
+                                  </a>
+                                </div>
+                              </object>
                             </div>
                           ) : preview.file.type.startsWith('image/') ? (
                             <div className="flex justify-center">
@@ -614,6 +633,9 @@ export default function AddSubcontract() {
                                 src={preview.url}
                                 alt={`Preview ${preview.file.name}`}
                                 className="max-w-full h-auto max-h-96 rounded object-contain"
+                                onError={(e) => {
+                                  console.error('Image preview error:', preview.file.name, e);
+                                }}
                               />
                             </div>
                           ) : null}
