@@ -23,11 +23,13 @@ import {
   Upload,
   Download,
   Settings,
-  Banknote
+  Banknote,
+  Link
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import AccountAssociationSettings from "@/components/AccountAssociationSettings";
 
 interface Account {
   id: string;
@@ -74,6 +76,7 @@ export default function ChartOfAccounts() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [csvUploadDialogOpen, setCsvUploadDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [associationsDialogOpen, setAssociationsDialogOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [jobAssociationRange, setJobAssociationRange] = useState({ start: '5000', end: '5999' });
 
@@ -382,6 +385,21 @@ export default function ChartOfAccounts() {
           <p className="text-muted-foreground">Manage your company's chart of accounts</p>
         </div>
         <div className="flex space-x-2">
+          <Dialog open={associationsDialogOpen} onOpenChange={setAssociationsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Link className="h-4 w-4 mr-2" />
+                Account Associations
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Account Associations</DialogTitle>
+              </DialogHeader>
+              <AccountAssociationSettings />
+            </DialogContent>
+          </Dialog>
+          
           <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">

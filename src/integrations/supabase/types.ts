@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_associations: {
+        Row: {
+          account_id: string
+          association_type: string
+          company_id: string
+          cost_code_id: string | null
+          created_at: string | null
+          created_by: string
+          id: string
+          job_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id: string
+          association_type: string
+          company_id: string
+          cost_code_id?: string | null
+          created_at?: string | null
+          created_by: string
+          id?: string
+          job_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string
+          association_type?: string
+          company_id?: string
+          cost_code_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          job_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_associations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_associations_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_associations_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "account_associations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "account_associations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_name: string
@@ -1372,6 +1444,7 @@ export type Database = {
           longitude: number | null
           name: string
           project_manager_user_id: string | null
+          revenue_account_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["job_status"] | null
           updated_at: string
@@ -1394,6 +1467,7 @@ export type Database = {
           longitude?: number | null
           name: string
           project_manager_user_id?: string | null
+          revenue_account_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string
@@ -1416,6 +1490,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           project_manager_user_id?: string | null
+          revenue_account_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string
@@ -1442,6 +1517,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "jobs_revenue_account_id_fkey"
+            columns: ["revenue_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
           },
         ]
       }
