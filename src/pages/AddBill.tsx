@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -387,13 +388,11 @@ export default function AddBill() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="amount">Amount *</Label>
-                <Input
+                <CurrencyInput
                   id="amount"
                   value={formData.amount}
-                  onChange={(e) => handleInputChange("amount", e.target.value)}
+                  onChange={(value) => handleInputChange("amount", value)}
                   placeholder="0.00"
-                  type="number"
-                  step="0.01"
                   required
                 />
               </div>

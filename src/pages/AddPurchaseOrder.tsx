@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -221,13 +222,10 @@ export default function AddPurchaseOrder() {
                 </div>
                 <div>
                   <Label htmlFor="amount">Amount *</Label>
-                  <Input
+                  <CurrencyInput
                     id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
                     value={formData.amount}
-                    onChange={(e) => handleInputChange("amount", e.target.value)}
+                    onChange={(value) => handleInputChange("amount", value)}
                     placeholder="0.00"
                     required
                   />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -314,12 +315,10 @@ export default function NewJournalEntry() {
                   </div>
                   <div>
                     <Label>Debit</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={line.debit_amount || ''}
-                      onChange={(e) => updateLine(index, { 
-                        debit_amount: parseFloat(e.target.value) || 0,
+                    <CurrencyInput
+                      value={line.debit_amount.toString()}
+                      onChange={(value) => updateLine(index, { 
+                        debit_amount: parseFloat(value) || 0,
                         credit_amount: 0
                       })}
                       placeholder="0.00"
@@ -327,12 +326,10 @@ export default function NewJournalEntry() {
                   </div>
                   <div>
                     <Label>Credit</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={line.credit_amount || ''}
-                      onChange={(e) => updateLine(index, { 
-                        credit_amount: parseFloat(e.target.value) || 0,
+                    <CurrencyInput
+                      value={line.credit_amount.toString()}
+                      onChange={(value) => updateLine(index, { 
+                        credit_amount: parseFloat(value) || 0,
                         debit_amount: 0
                       })}
                       placeholder="0.00"

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Save, Trash2 } from "lucide-react";
@@ -222,11 +223,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={line.budgeted_amount}
-                      onChange={(e) => updateBudgetLine(index, 'budgeted_amount', parseFloat(e.target.value) || 0)}
+                    <CurrencyInput
+                      value={line.budgeted_amount.toString()}
+                      onChange={(value) => updateBudgetLine(index, 'budgeted_amount', parseFloat(value) || 0)}
                       className="w-32"
                       placeholder="0.00"
                     />
