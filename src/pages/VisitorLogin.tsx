@@ -77,7 +77,7 @@ export default function VisitorLogin() {
       if (jobError || !jobData) {
         toast({
           title: "Invalid QR Code",
-          description: "This QR code is not valid or has expired.",
+          description: "This QR code is not valid. Please scan a valid QR code from the job site.",
           variant: "destructive",
         });
         return;
@@ -200,7 +200,7 @@ export default function VisitorLogin() {
             <div className="text-destructive text-xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold mb-2">Invalid QR Code</h2>
             <p className="text-muted-foreground">
-              This QR code is not valid or has expired. Please scan a valid QR code from the job site.
+              This QR code is not valid. Please scan a valid QR code from the job site.
             </p>
           </CardContent>
         </Card>

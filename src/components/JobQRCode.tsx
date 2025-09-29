@@ -300,9 +300,10 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
             <Users className="h-4 w-4 mr-2" />
             Visitors can scan this QR code to access the check-in form
           </p>
-          <p>• No app installation required</p>
+          <p>• No app installation or account required</p>
           <p>• Works on any smartphone or tablet</p>
           <p>• Automatically captures date and time</p>
+          <p>• QR code never expires</p>
         </div>
       </CardContent>
     </Card>
