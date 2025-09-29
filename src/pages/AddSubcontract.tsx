@@ -43,11 +43,11 @@ export default function AddSubcontract() {
       setLoading(true);
       try {
         // Fetch payables settings for allowed vendor types
-        const { data: settingsData } = await supabase
+        const { data: settingsData, error: settingsError } = await supabase
           .from('payables_settings')
           .select('allowed_subcontract_vendor_types')
           .eq('company_id', user?.id)
-          .single();
+          .maybeSingle();
 
         const allowedTypes = settingsData?.allowed_subcontract_vendor_types || 
           ["Contractor", "Design Professional"];
