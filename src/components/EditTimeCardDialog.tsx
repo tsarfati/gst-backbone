@@ -28,7 +28,7 @@ interface TimeCardData {
   correction_reason?: string;
   profiles?: { display_name: string };
   jobs?: { name: string };
-  cost_codes?: { code: string; description: string };
+  cost_codes?: { code: string; description: string; type?: string };
 }
 
 interface EditTimeCardDialogProps {
@@ -96,7 +96,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           .maybeSingle() : Promise.resolve({ data: null }),
         timeCardData.cost_code_id ? supabase
           .from('cost_codes')
-          .select('code, description')
+          .select('code, description, type')
           .eq('id', timeCardData.cost_code_id)
           .maybeSingle() : Promise.resolve({ data: null })
       ]);
@@ -280,6 +280,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
                 <Label className="text-sm text-muted-foreground">Cost Code</Label>
                 <div className="font-medium">
                   {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                  {timeCard.cost_codes?.type && ` (${timeCard.cost_codes.type})`}
                 </div>
               </div>
             </CardContent>

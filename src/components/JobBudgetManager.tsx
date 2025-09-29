@@ -18,6 +18,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  type?: string;
 }
 
 interface BudgetLine {
@@ -55,7 +56,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           cost_codes (
             id,
             code,
-            description
+            description,
+            type
           )
         `)
         .eq('job_id', jobId);
@@ -204,7 +206,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                     </span>
                   </TableCell>
                   <TableCell>
-                    {line.cost_code?.description}
+                    <div>
+                      {line.cost_code?.description}
+                      {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Input

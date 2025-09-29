@@ -20,6 +20,7 @@ interface CostCode {
   code: string;
   description: string;
   job_id: string;
+  type?: string;
 }
 
 interface AccountingJobCostSelectorProps {
@@ -83,7 +84,7 @@ export default function AccountingJobCostSelector({
       setLoading(true);
       const { data, error } = await supabase
         .from('cost_codes')
-        .select('id, code, description, job_id')
+        .select('id, code, description, job_id, type')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .order('code');
@@ -199,10 +200,7 @@ export default function AccountingJobCostSelector({
               {costCodes.map((costCode) => (
                 <SelectItem key={costCode.id} value={costCode.id}>
                   <div className="flex flex-col">
-                    <span className="font-medium">{costCode.code}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {costCode.description}
-                    </span>
+                    <span className="font-medium">{costCode.code} - {costCode.description} {costCode.type && `(${costCode.type})`}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -241,10 +239,12 @@ export default function AccountingJobCostSelector({
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Cost Code:</span>
                   <div className="text-right">
-                    <div className="font-medium">{selectedCostCode.code}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {selectedCostCode.description}
-                    </div>
+                    <div className="font-medium">{selectedCostCode.code} - {selectedCostCode.description}</div>
+                    {selectedCostCode.type && (
+                      <div className="text-xs text-muted-foreground">
+                        Type: {selectedCostCode.type}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

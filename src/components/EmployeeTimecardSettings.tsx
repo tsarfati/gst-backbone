@@ -64,7 +64,7 @@ export default function EmployeeTimecardSettings({
   const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [costCodes, setCostCodes] = useState<{ id: string; code: string; description: string; }[]>([]);
+  const [costCodes, setCostCodes] = useState<{ id: string; code: string; description: string; type?: string; }[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -121,7 +121,7 @@ export default function EmployeeTimecardSettings({
     try {
       const { data, error } = await supabase
         .from('cost_codes')
-        .select('id, code, description')
+        .select('id, code, description, type')
         .eq('is_active', true)
         .order('code');
 
@@ -444,7 +444,7 @@ export default function EmployeeTimecardSettings({
                                 className="rounded"
                               />
                               <Label htmlFor={`costcode-${costCode.id}`} className="text-sm">
-                                {costCode.code} - {costCode.description}
+                                {costCode.code} - {costCode.description} {costCode.type && `(${costCode.type})`}
                               </Label>
                             </div>
                           </div>
@@ -467,7 +467,7 @@ export default function EmployeeTimecardSettings({
                           const costCode = costCodes.find(cc => cc.id === costCodeId);
                           return costCode ? (
                             <SelectItem key={costCode.id} value={costCode.id}>
-                              {costCode.code} - {costCode.description}
+                              {costCode.code} - {costCode.description} {costCode.type && `(${costCode.type})`}
                             </SelectItem>
                           ) : null;
                         })}

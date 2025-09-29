@@ -45,7 +45,7 @@ interface TimeCardDetail {
   correction_reason?: string;
   profiles?: { first_name: string; last_name: string; display_name: string };
   jobs?: { name: string; latitude?: number; longitude?: number };
-  cost_codes?: { code: string; description: string };
+  cost_codes?: { code: string; description: string; type?: string };
 }
 
 export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: TimeCardDetailViewProps) {
@@ -111,7 +111,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .single() : Promise.resolve({ data: null }),
         timeCardData.cost_code_id ? supabase
           .from('cost_codes')
-          .select('code, description')
+          .select('code, description, type')
           .eq('id', timeCardData.cost_code_id)
           .single() : Promise.resolve({ data: null }),
         // Fetch punch records with buffer time to capture actual punch records
@@ -465,6 +465,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <p className="text-sm text-muted-foreground">Cost Code</p>
                         <p className="font-medium">
                           {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                          {timeCard.cost_codes?.type && ` (${timeCard.cost_codes.type})`}
                         </p>
                       </div>
                     </div>

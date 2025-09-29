@@ -11,6 +11,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  type?: string;
 }
 
 interface JobCostCodeSelectorProps {
@@ -37,7 +38,7 @@ export default function JobCostCodeSelector({
     try {
       const { data, error } = await supabase
         .from('cost_codes')
-        .select('*')
+        .select('id, code, description, type')
         .is('job_id', null) // Get company master cost codes (not job-specific)
         .eq('is_active', true)
         .order('code');
@@ -125,7 +126,7 @@ export default function JobCostCodeSelector({
               <SelectContent>
                 {availableCostCodes.map((costCode) => (
                   <SelectItem key={costCode.id} value={costCode.id}>
-                    {costCode.code} - {costCode.description}
+                    {costCode.code} - {costCode.description} {costCode.type && `(${costCode.type})`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -150,6 +151,7 @@ export default function JobCostCodeSelector({
                 <Badge key={costCode.id} variant="secondary" className="flex items-center gap-2 pr-1">
                   <span className="font-mono text-xs">{costCode.code}</span>
                   <span className="text-xs">{costCode.description}</span>
+                  {costCode.type && <span className="text-xs opacity-70">({costCode.type})</span>}
                   <Button
                     size="sm"
                     variant="ghost"

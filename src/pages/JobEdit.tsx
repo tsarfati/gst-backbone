@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, UserCheck, QrCode, Settings } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Users, UserCheck, QrCode, Settings, Calculator, FileText } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -135,12 +136,12 @@ export default function JobEdit() {
           console.log('Loading cost codes for job:', id);
           const { data: codes, error: codesError } = await supabase
             .from('cost_codes')
-            .select('*')
+            .select('id, code, description, type, job_id, company_id, is_active')
             .eq('job_id', id)
             .eq('is_active', true);
 
           if (!codesError && codes) {
-            console.log('Loaded cost codes:', codes.map(c => ({ id: c.id, code: c.code })));
+            console.log('Loaded cost codes:', codes.map(c => ({ id: c.id, code: c.code, type: c.type })));
             setSelectedCostCodes(codes);
           } else if (codesError) {
             console.error('Error loading cost codes:', codesError);
@@ -289,6 +290,7 @@ export default function JobEdit() {
           job_id: id,
           code: code.code,
           description: code.description,
+          type: code.type || 'other',
           company_id: currentCompany?.id || '',
           is_active: true
         }));
@@ -751,19 +753,35 @@ export default function JobEdit() {
           </CardContent>
         </Card>
 
-        {/* Cost Codes */}
-        <JobCostCodeSelector
-          jobId={id}
-          selectedCostCodes={selectedCostCodes}
-          onSelectedCostCodesChange={setSelectedCostCodes}
-        />
-
-        {/* Job Budget Section */}
-        <JobBudgetManager 
-          jobId={id!} 
-          jobName={formData.name}
-          selectedCostCodes={selectedCostCodes}
-        />
+        {/* Budget and Cost Codes Tabs */}
+        <Tabs defaultValue="cost-codes" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="cost-codes" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Job Cost Codes
+            </TabsTrigger>
+            <TabsTrigger value="budget" className="flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Job Budget
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="cost-codes" className="mt-6">
+            <JobCostCodeSelector
+              jobId={id}
+              selectedCostCodes={selectedCostCodes}
+              onSelectedCostCodesChange={setSelectedCostCodes}
+            />
+          </TabsContent>
+          
+          <TabsContent value="budget" className="mt-6">
+            <JobBudgetManager 
+              jobId={id!} 
+              jobName={formData.name}
+              selectedCostCodes={selectedCostCodes}
+            />
+          </TabsContent>
+        </Tabs>
 
         {/* Visitor Log Settings */}
         <Card>
