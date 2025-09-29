@@ -36,11 +36,23 @@ export default function AddSubcontract() {
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [allowedVendorTypes, setAllowedVendorTypes] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Fetch payables settings for allowed vendor types
+        const { data: settingsData } = await supabase
+          .from('payables_settings')
+          .select('settings')
+          .eq('company_id', user?.id)
+          .single();
+
+        const allowedTypes = settingsData?.settings?.allowedSubcontractVendorTypes || 
+          ["Contractor", "Design Professional"];
+        setAllowedVendorTypes(allowedTypes);
+
         // Fetch jobs
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
@@ -50,12 +62,13 @@ export default function AddSubcontract() {
         if (jobsError) throw jobsError;
         setJobs(jobsData || []);
 
-        // Fetch vendors
+        // Fetch vendors filtered by allowed types
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
           .select('id, name, vendor_type')
           .eq('company_id', user?.id)
           .eq('is_active', true)
+          .in('vendor_type', allowedTypes)
           .order('name');
 
         if (vendorsError) throw vendorsError;
