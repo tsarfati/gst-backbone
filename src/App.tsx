@@ -70,6 +70,7 @@ import Subcontracts from "./pages/Subcontracts";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import SubcontractDetails from "./pages/SubcontractDetails";
 import SubcontractEdit from "./pages/SubcontractEdit";
+import AddChangeOrder from "./pages/AddChangeOrder";
 import JobReports from "./pages/JobReports";
 import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
@@ -252,6 +253,7 @@ function AuthenticatedRoutes() {
                 <Route path="subcontracts/add" element={<AddSubcontract />} />
                 <Route path="subcontracts/:id" element={<SubcontractDetails />} />
                 <Route path="subcontracts/:id/edit" element={<SubcontractEdit />} />
+                <Route path="subcontracts/add-change-order" element={<AddChangeOrder />} />
                 <Route path="purchase-orders" element={<PurchaseOrders />} />
                 <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
                 {/* Legacy routes for backwards compatibility */}

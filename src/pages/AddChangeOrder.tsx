@@ -216,7 +216,7 @@ export default function AddChangeOrder() {
     setIsSubmitting(true);
     try {
       const { data: changeOrder, error: insertError } = await supabase
-        .from('change_orders')
+        .from('change_orders' as any)
         .insert({
           subcontract_id: subcontractId,
           change_order_number: formData.change_order_number.trim(),
@@ -226,20 +226,20 @@ export default function AddChangeOrder() {
           reason: formData.reason.trim() || null,
           effective_date: formData.effective_date || null,
           created_by: user.id
-        })
+        } as any)
         .select()
         .single();
 
       if (insertError) throw insertError;
 
       // Upload attachments if any
-      if (attachments.length > 0 && changeOrder) {
-        const uploadedPaths = await uploadAttachments(changeOrder.id);
+      if (attachments.length > 0 && changeOrder && (changeOrder as any).id) {
+        const uploadedPaths = await uploadAttachments((changeOrder as any).id);
         if (uploadedPaths.length > 0) {
           await supabase
-            .from('change_orders')
-            .update({ attachment_urls: JSON.stringify(uploadedPaths) })
-            .eq('id', changeOrder.id);
+            .from('change_orders' as any)
+            .update({ attachment_urls: JSON.stringify(uploadedPaths) } as any)
+            .eq('id', (changeOrder as any).id);
         }
       }
 
