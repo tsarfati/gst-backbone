@@ -63,7 +63,7 @@ export default function AccountAssociationSettings() {
   // Selection states
   const [selectedJob, setSelectedJob] = useState<string>('');
   const [selectedRevenueAccount, setSelectedRevenueAccount] = useState<string>('');
-  const [selectedCostCode, setSelectedCostCode] = useState<string>('');
+  const [selectedJobForCostCodes, setSelectedJobForCostCodes] = useState<string>('');
   const [selectedConstructionAccount, setSelectedConstructionAccount] = useState<string>('');
   const [selectedBankAccount, setSelectedBankAccount] = useState<string>('');
   const [selectedGLAccount, setSelectedGLAccount] = useState<string>('');
@@ -176,26 +176,46 @@ export default function AccountAssociationSettings() {
   };
 
   const handleCostCodeAssociation = async () => {
-    if (!selectedCostCode || !selectedConstructionAccount || !currentCompany) return;
+    if (!selectedJobForCostCodes || !selectedConstructionAccount || !currentCompany) return;
 
     try {
       const { data: userData } = await supabase.auth.getUser();
       
-      // Update cost code chart account
-      const { error: costCodeError } = await supabase
+      // Get all cost codes for the selected job
+      const { data: jobCostCodes, error: costCodesError } = await supabase
+        .from('cost_codes')
+        .select('id')
+        .eq('job_id', selectedJobForCostCodes)
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (costCodesError) throw costCodesError;
+
+      if (!jobCostCodes || jobCostCodes.length === 0) {
+        toast({
+          title: "No Cost Codes Found",
+          description: "This job has no active cost codes to associate",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update all cost codes for this job
+      const { error: updateError } = await supabase
         .from('cost_codes')
         .update({ chart_account_id: selectedConstructionAccount })
-        .eq('id', selectedCostCode);
+        .eq('job_id', selectedJobForCostCodes)
+        .eq('company_id', currentCompany.id);
 
-      if (costCodeError) throw costCodeError;
+      if (updateError) throw updateError;
 
-      // Create/update association record
+      // Create/update association record for the job
       const { error: assocError } = await supabase
         .from('account_associations')
         .upsert({
           company_id: currentCompany.id,
-          association_type: 'cost_code_construction',
-          cost_code_id: selectedCostCode,
+          association_type: 'job_cost_codes_construction',
+          job_id: selectedJobForCostCodes,
           account_id: selectedConstructionAccount,
           created_by: userData.user?.id
         });
@@ -204,17 +224,17 @@ export default function AccountAssociationSettings() {
 
       toast({
         title: "Association Created",
-        description: "Cost code construction account association has been saved",
+        description: `All cost codes for this job have been associated with the construction account`,
       });
 
-      setSelectedCostCode('');
+      setSelectedJobForCostCodes('');
       setSelectedConstructionAccount('');
       loadData();
     } catch (error) {
-      console.error('Error creating cost code association:', error);
+      console.error('Error creating job cost codes association:', error);
       toast({
         title: "Error",
-        description: "Failed to create cost code association",
+        description: "Failed to create job cost codes association",
         variant: "destructive",
       });
     }
@@ -268,6 +288,16 @@ export default function AccountAssociationSettings() {
             .from('jobs')
             .update({ revenue_account_id: null })
             .eq('id', association.job_id);
+        }
+      } else if (type === 'job_cost_codes_construction') {
+        const association = associations.find(a => a.id === associationId);
+        if (association?.job_id && currentCompany) {
+          // Clear chart_account_id for all cost codes of this job
+          await supabase
+            .from('cost_codes')
+            .update({ chart_account_id: null })
+            .eq('job_id', association.job_id)
+            .eq('company_id', currentCompany.id);
         }
       } else if (type === 'cost_code_construction') {
         const association = associations.find(a => a.id === associationId);
@@ -450,20 +480,20 @@ export default function AccountAssociationSettings() {
         <TabsContent value="cost-codes" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Link Cost Codes to Construction Accounts (51000-59970)</CardTitle>
+              <CardTitle>Link Job Cost Codes to Construction Accounts (51000-59970)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="cost-code-select">Select Cost Code</Label>
-                  <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                  <Label htmlFor="job-for-cost-codes-select">Select Job</Label>
+                  <Select value={selectedJobForCostCodes} onValueChange={setSelectedJobForCostCodes}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a cost code" />
+                      <SelectValue placeholder="Choose a job" />
                     </SelectTrigger>
                     <SelectContent>
-                      {costCodes.map((costCode) => (
-                        <SelectItem key={costCode.id} value={costCode.id}>
-                          {costCode.code} - {costCode.description}
+                      {jobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name} - {job.client}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -487,46 +517,53 @@ export default function AccountAssociationSettings() {
                 <div className="flex items-end">
                   <Button 
                     onClick={handleCostCodeAssociation}
-                    disabled={!selectedCostCode || !selectedConstructionAccount}
+                    disabled={!selectedJobForCostCodes || !selectedConstructionAccount}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Associate
+                    Associate All Cost Codes
                   </Button>
                 </div>
               </div>
 
               <div className="mt-6">
-                <h4 className="font-medium mb-3">Current Cost Code Associations</h4>
+                <h4 className="font-medium mb-3">Current Job Cost Code Associations</h4>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Cost Code</TableHead>
+                      <TableHead>Job</TableHead>
                       <TableHead>Construction Account</TableHead>
+                      <TableHead>Cost Codes Count</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {costCodes.filter(cc => cc.chart_account_id).map((costCode) => {
-                      const account = accounts.find(acc => acc.id === costCode.chart_account_id);
-                      const association = associations.find(a => a.cost_code_id === costCode.id && a.association_type === 'cost_code_construction');
-                      return (
-                        <TableRow key={costCode.id}>
-                          <TableCell>{costCode.code} - {costCode.description}</TableCell>
-                          <TableCell>
-                            {account ? `${account.account_number} - ${account.account_name}` : 'Unknown Account'}
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => association && removeAssociation(association.id, 'cost_code_construction')}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {associations
+                      .filter(assoc => assoc.association_type === 'job_cost_codes_construction')
+                      .map((association) => {
+                        const job = jobs.find(j => j.id === association.job_id);
+                        const account = accounts.find(acc => acc.id === association.account_id);
+                        const jobCostCodesCount = costCodes.filter(cc => cc.job_id === association.job_id && cc.chart_account_id).length;
+                        return (
+                          <TableRow key={association.id}>
+                            <TableCell>{job ? `${job.name} - ${job.client}` : 'Unknown Job'}</TableCell>
+                            <TableCell>
+                              {account ? `${account.account_number} - ${account.account_name}` : 'Unknown Account'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{jobCostCodesCount} cost codes</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => removeAssociation(association.id, 'job_cost_codes_construction')}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </div>
