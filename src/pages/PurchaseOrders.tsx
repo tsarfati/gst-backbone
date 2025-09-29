@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search, Filter, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
+import PayablesViewSelector from "@/components/PayablesViewSelector";
+import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
@@ -26,6 +28,8 @@ export default function PurchaseOrders() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [jobFilter, setJobFilter] = useState("all");
+  
+  const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('purchase_orders');
 
   useEffect(() => {
     fetchData();
@@ -121,10 +125,18 @@ export default function PurchaseOrders() {
           <h1 className="text-3xl font-bold text-foreground">Purchase Orders</h1>
           <p className="text-muted-foreground">Manage your purchase orders</p>
         </div>
-        <Button onClick={() => navigate('/purchase-orders/add')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Purchase Order
-        </Button>
+        <div className="flex gap-2">
+          <PayablesViewSelector
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            onSetDefault={setAsDefault}
+            isDefault={isDefault}
+          />
+          <Button onClick={() => navigate('/purchase-orders/add')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Purchase Order
+          </Button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -190,9 +202,14 @@ export default function PurchaseOrders() {
               </div>
             </CardContent>
           </Card>
-        ) : (
+        ) : currentView === 'list' ? (
+          // List View
           filteredPurchaseOrders.map((po) => (
-            <Card key={po.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card 
+              key={po.id} 
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/purchase-orders/${po.id}`)}
+            >
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div className="md:col-span-2">
@@ -232,6 +249,59 @@ export default function PurchaseOrders() {
                 {po.description && (
                   <p className="text-sm text-muted-foreground mt-4">{po.description}</p>
                 )}
+              </CardContent>
+            </Card>
+          ))
+        ) : currentView === 'compact' ? (
+          // Compact View
+          filteredPurchaseOrders.map((po) => (
+            <Card 
+              key={po.id} 
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/purchase-orders/${po.id}`)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-foreground">PO #{po.po_number}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {po.vendors?.name} • {po.jobs?.name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-foreground">${formatNumber(po.amount)}</p>
+                    <Badge className={`${getStatusColor(po.status)} text-white mt-1 text-xs`}>
+                      {po.status}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          // Super Compact View
+          filteredPurchaseOrders.map((po) => (
+            <Card 
+              key={po.id} 
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/purchase-orders/${po.id}`)}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Badge className={`${getStatusColor(po.status)} text-white flex-shrink-0 text-xs`}>
+                      {po.status}
+                    </Badge>
+                    <span className="font-medium text-foreground truncate">PO #{po.po_number}</span>
+                    <span className="text-sm text-muted-foreground truncate">{po.vendors?.name}</span>
+                  </div>
+                  <span className="font-semibold text-foreground whitespace-nowrap">
+                    ${formatNumber(po.amount)}
+                  </span>
+                </div>
               </CardContent>
             </Card>
           ))

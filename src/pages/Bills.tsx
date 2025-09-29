@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import UnifiedViewSelector from "@/components/ui/unified-view-selector";
+import PayablesViewSelector from "@/components/PayablesViewSelector";
 import VendorAvatar from "@/components/VendorAvatar";
-import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
+import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -71,7 +71,7 @@ export default function Bills() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('bills-view');
+  const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('bills');
 
   useEffect(() => {
     if (currentCompany) {
@@ -244,10 +244,10 @@ export default function Bills() {
             <p className="text-muted-foreground">Manage vendor bills and payments</p>
           </div>
           <div className="flex items-center gap-4">
-            <UnifiedViewSelector
+            <PayablesViewSelector
               currentView={currentView}
               onViewChange={setCurrentView}
-              onSetDefault={setDefaultView}
+              onSetDefault={setAsDefault}
               isDefault={isDefault}
             />
             <Button onClick={() => navigate("/bills/add")}>
@@ -315,72 +315,148 @@ export default function Bills() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
-                    onCheckedChange={handleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>Vendor</TableHead>
-                <TableHead>Job</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Issue Date</TableHead>
-                <TableHead>Due Date</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBills.length === 0 ? (
+          {currentView === 'list' ? (
+            // List View (Table)
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <div className="text-muted-foreground">
-                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium">No bills found</p>
-                      <p className="text-sm">Upload your first bill to get started</p>
-                    </div>
-                  </TableCell>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Issue Date</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredBills.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="text-muted-foreground">
+                        <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg font-medium">No bills found</p>
+                        <p className="text-sm">Upload your first bill to get started</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredBills.map((bill) => (
+                    <TableRow 
+                      key={bill.id} 
+                      className={`cursor-pointer hover:bg-muted/50 ${
+                        bill.status === 'overdue' ? 'animate-pulse-red' : ''
+                      }`}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedBills.includes(bill.id)}
+                          onCheckedChange={() => handleSelectBill(bill.id)}
+                        />
+                      </TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                         <div className="flex items-center gap-3">
+                           <VendorAvatar 
+                             name={bill.vendor_name}
+                             logoUrl={bill.vendor_logo_url}
+                             size="sm"
+                           />
+                           <span className="font-medium">{bill.vendor_name}</span>
+                         </div>
+                       </TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{bill.job_name}</TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                         <Badge variant={getStatusVariant(bill.status)}>
+                           {getStatusDisplayName(bill.status)}
+                         </Badge>
+                       </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          ) : currentView === 'compact' ? (
+            // Compact View
+            <div className="space-y-2">
+              {filteredBills.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No bills found</p>
+                  <p className="text-sm">Upload your first bill to get started</p>
+                </div>
               ) : (
                 filteredBills.map((bill) => (
-                  <TableRow 
+                  <div 
                     key={bill.id} 
-                    className={`cursor-pointer hover:bg-muted/50 ${
-                      bill.status === 'overdue' ? 'animate-pulse-red' : ''
-                    }`}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/bills/${bill.id}`)}
                   >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={selectedBills.includes(bill.id)}
                         onCheckedChange={() => handleSelectBill(bill.id)}
                       />
-                    </TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
-                       <div className="flex items-center gap-3">
-                         <VendorAvatar 
-                           name={bill.vendor_name}
-                           logoUrl={bill.vendor_logo_url}
-                           size="sm"
-                         />
-                         <span className="font-medium">{bill.vendor_name}</span>
-                       </div>
-                     </TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{bill.job_name}</TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
-                       <Badge variant={getStatusVariant(bill.status)}>
-                         {getStatusDisplayName(bill.status)}
-                       </Badge>
-                     </TableCell>
-                  </TableRow>
+                      <Receipt className="h-8 w-8 text-muted-foreground" />
+                      <div className="flex-1">
+                        <p className="font-semibold text-foreground">{bill.invoice_number || 'No Invoice #'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {bill.vendor_name} • {bill.job_name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-foreground">${bill.amount.toLocaleString()}</p>
+                      <Badge variant={getStatusVariant(bill.status)} className="mt-1 text-xs">
+                        {getStatusDisplayName(bill.status)}
+                      </Badge>
+                    </div>
+                  </div>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </div>
+          ) : (
+            // Super Compact View
+            <div className="space-y-1">
+              {filteredBills.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No bills found</p>
+                  <p className="text-sm">Upload your first bill to get started</p>
+                </div>
+              ) : (
+                filteredBills.map((bill) => (
+                  <div 
+                    key={bill.id} 
+                    className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/bills/${bill.id}`)}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedBills.includes(bill.id)}
+                        onCheckedChange={() => handleSelectBill(bill.id)}
+                      />
+                      <Badge variant={getStatusVariant(bill.status)} className="flex-shrink-0 text-xs">
+                        {getStatusDisplayName(bill.status)}
+                      </Badge>
+                      <span className="font-medium text-foreground truncate">{bill.invoice_number || 'No Invoice #'}</span>
+                      <span className="text-sm text-muted-foreground truncate">{bill.vendor_name}</span>
+                    </div>
+                    <span className="font-semibold text-foreground whitespace-nowrap ml-4">
+                      ${bill.amount.toLocaleString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
