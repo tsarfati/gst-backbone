@@ -334,11 +334,11 @@ export default function AddSubcontract() {
         description: "Subcontract created successfully",
       });
 
-      // Navigate back to job details or commitments page
+      // Navigate back to job details or payables dashboard
       if (jobId) {
         navigate(`/jobs/${jobId}`);
       } else {
-        navigate(`/commitments/contracts`);
+        navigate(`/payables-dashboard`);
       }
     } catch (error) {
       console.error('Error creating subcontract:', error);
