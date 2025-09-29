@@ -42,8 +42,11 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   }, [jobId]);
 
   useEffect(() => {
-    // Auto-populate budget lines for selected cost codes
-    populateBudgetLines();
+    // Auto-populate budget lines when selected cost codes change
+    if (selectedCostCodes.length > 0) {
+      console.log('Selected cost codes changed, populating budget lines:', selectedCostCodes.length);
+      populateBudgetLines();
+    }
   }, [selectedCostCodes]);
 
   const loadData = async () => {
@@ -78,7 +81,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   };
 
   const populateBudgetLines = () => {
+    console.log('populateBudgetLines called with', selectedCostCodes.length, 'cost codes');
+    
     if (selectedCostCodes.length === 0) {
+      console.log('No cost codes selected, clearing budget lines');
       setBudgetLines([]);
       return;
     }
@@ -87,6 +93,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       // Check if we already have a budget line for this cost code
       const existingLine = budgetLines.find(bl => bl.cost_code_id === costCode.id);
       
+      console.log('Processing cost code:', costCode.code, 'existing:', !!existingLine);
+      
       if (existingLine) {
         return {
           ...existingLine,
@@ -94,7 +102,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         };
       }
       
-      // Create new budget line
+      // Create new budget line with zero amounts
       return {
         cost_code_id: costCode.id,
         budgeted_amount: 0,
@@ -104,6 +112,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       };
     });
 
+    console.log('Setting', newBudgetLines.length, 'budget lines');
     setBudgetLines(newBudgetLines);
   };
 
