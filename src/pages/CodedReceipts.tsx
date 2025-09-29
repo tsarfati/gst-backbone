@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts, CodedReceipt } from "@/contexts/ReceiptContext";
-import { Calendar, DollarSign, Building, Code, Receipt as ReceiptIcon, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Download, Search, Filter, X, LayoutGrid, List, AlignJustify, Grid3X3 } from "lucide-react";
+import { Calendar, DollarSign, Building, Code, Receipt as ReceiptIcon, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Download, Search, Filter, X, LayoutGrid, List, AlignJustify, Grid3X3, Trash2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
@@ -444,6 +444,32 @@ export default function CodedReceipts() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    try {
+      // Get the selected receipts data
+      const selectedReceiptsData = filteredReceipts.filter(r => selectedReceipts.includes(r.id));
+      
+      // Delete each selected receipt (this will depend on your ReceiptContext implementation)
+      for (const receipt of selectedReceiptsData) {
+        await uncodeReceipt(receipt.id); // This moves them back to uncoded, effectively "deleting" from coded
+      }
+
+      toast({
+        title: "Receipts deleted",
+        description: `${selectedReceipts.length} receipt(s) have been moved to uncoded receipts`,
+      });
+
+      setSelectedReceipts([]);
+    } catch (error) {
+      console.error('Error deleting receipts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete receipts",
+        variant: "destructive",
+      });
+    }
+  };
+
   const clearFilters = () => {
     setSearchTerm("");
     setFilterJob("all");
@@ -596,6 +622,14 @@ export default function CodedReceipts() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export Selected ({selectedReceipts.length})
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={handleBulkDelete}
+            disabled={selectedReceipts.length === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedReceipts.length})
           </Button>
         </div>
       </div>

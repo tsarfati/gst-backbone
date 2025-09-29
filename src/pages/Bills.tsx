@@ -3,12 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Trash2, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import VendorAvatar from "@/components/VendorAvatar";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
+import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,16 +66,22 @@ const getStatusDisplayName = (status: string) => {
 export default function Bills() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [jobFilter, setJobFilter] = useState("all");
   const [bills, setBills] = useState<Bill[]>([]);
+  const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('bills-view');
 
   useEffect(() => {
-    loadBills();
-  }, []);
+    if (currentCompany) {
+      loadBills();
+    }
+  }, [currentCompany]);
 
   const loadBills = async () => {
+    if (!currentCompany) return;
+    
     try {
       setLoading(true);
       
@@ -87,10 +96,11 @@ export default function Bills() {
           due_date,
           description,
           payment_terms,
-          vendors(name, logo_url),
+          vendors!inner(name, logo_url, company_id),
           jobs(name),
           cost_codes(description)
         `)
+        .eq('vendors.company_id', currentCompany.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -148,7 +158,75 @@ export default function Bills() {
   const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalPaidThisMonth = paidThisMonthBills.reduce((sum, bill) => sum + bill.amount, 0);
 
-  if (loading) {
+  const handleSelectAll = () => {
+    if (selectedBills.length === filteredBills.length) {
+      setSelectedBills([]);
+    } else {
+      setSelectedBills(filteredBills.map(b => b.id));
+    }
+  };
+
+  const handleSelectBill = (billId: string) => {
+    setSelectedBills(prev => 
+      prev.includes(billId) 
+        ? prev.filter(id => id !== billId)
+        : [...prev, billId]
+    );
+  };
+
+  const handleBulkApprove = async () => {
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ status: 'pending_payment' })
+        .in('id', selectedBills);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bills approved",
+        description: `${selectedBills.length} bill(s) have been approved`,
+      });
+
+      setSelectedBills([]);
+      loadBills();
+    } catch (error) {
+      console.error('Error approving bills:', error);
+      toast({
+        title: "Error",
+        description: "Failed to approve bills",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .delete()
+        .in('id', selectedBills);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bills deleted",
+        description: `${selectedBills.length} bill(s) have been deleted`,
+      });
+
+      setSelectedBills([]);
+      loadBills();
+    } catch (error) {
+      console.error('Error deleting bills:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete bills",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading || !currentCompany) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -179,6 +257,40 @@ export default function Bills() {
           </div>
         </div>
 
+        {/* Bulk Actions */}
+        {selectedBills.length > 0 && (
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="select-all-bills"
+                checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label htmlFor="select-all-bills">
+                Select All ({selectedBills.length} of {filteredBills.length})
+              </Label>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleBulkApprove}
+                disabled={selectedBills.length === 0}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Approve Selected ({selectedBills.length})
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleBulkDelete}
+                disabled={selectedBills.length === 0}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected ({selectedBills.length})
+              </Button>
+            </div>
+          </div>
+        )}
 
       <Card>
         <CardHeader>
@@ -206,6 +318,12 @@ export default function Bills() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Job</TableHead>
                 <TableHead>Amount</TableHead>
@@ -217,7 +335,7 @@ export default function Bills() {
             <TableBody>
               {filteredBills.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <div className="text-muted-foreground">
                       <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium">No bills found</p>
@@ -232,9 +350,14 @@ export default function Bills() {
                     className={`cursor-pointer hover:bg-muted/50 ${
                       bill.status === 'overdue' ? 'animate-pulse-red' : ''
                     }`}
-                    onClick={() => navigate(`/bills/${bill.id}`)}
                   >
-                     <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedBills.includes(bill.id)}
+                        onCheckedChange={() => handleSelectBill(bill.id)}
+                      />
+                    </TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
                        <div className="flex items-center gap-3">
                          <VendorAvatar 
                            name={bill.vendor_name}
@@ -244,11 +367,11 @@ export default function Bills() {
                          <span className="font-medium">{bill.vendor_name}</span>
                        </div>
                      </TableCell>
-                     <TableCell>{bill.job_name}</TableCell>
-                     <TableCell className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                     <TableCell>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                     <TableCell>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                     <TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{bill.job_name}</TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
                        <Badge variant={getStatusVariant(bill.status)}>
                          {getStatusDisplayName(bill.status)}
                        </Badge>
