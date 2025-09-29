@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, Upload, Shield, Key, Trash2, Lock } from 'lucide-react';
+import { Download, Upload, Shield, Key, Trash2, Lock, FileText } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
 import DevelopmentFreeze from '@/components/DevelopmentFreeze';
+import AuditLog from '@/components/AuditLog';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
@@ -62,6 +63,7 @@ export default function SecuritySettings() {
           <TabsList>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="data">Data & Privacy</TabsTrigger>
+            <TabsTrigger value="audit">Audit Log</TabsTrigger>
             <TabsTrigger value="development">Development Freeze</TabsTrigger>
           </TabsList>
 
@@ -188,6 +190,23 @@ export default function SecuritySettings() {
                 <div className="text-sm text-muted-foreground mt-2">
                   Once you delete your account, there is no going back. Please be certain.
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="audit" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Company Audit Log
+                </CardTitle>
+                <CardDescription>
+                  Track all user actions and changes within your company
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AuditLog />
               </CardContent>
             </Card>
           </TabsContent>

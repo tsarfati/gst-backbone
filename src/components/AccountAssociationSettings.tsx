@@ -321,7 +321,9 @@ export default function AccountAssociationSettings() {
   };
 
   // Filter accounts by type
-  const revenueAccounts = accounts.filter(acc => acc.account_type === 'revenue');
+  const revenueAccounts = accounts.filter(acc => 
+    acc.account_number >= '41000' && acc.account_number <= '49970'
+  );
   const constructionAccounts = accounts.filter(acc => 
     acc.account_number >= '51000' && acc.account_number <= '59970'
   );
@@ -361,7 +363,7 @@ export default function AccountAssociationSettings() {
         <TabsContent value="job-revenue" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Link Jobs to Revenue Accounts</CardTitle>
+              <CardTitle>Link Jobs to Revenue Accounts (41000-49970)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
