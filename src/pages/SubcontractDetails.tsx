@@ -3,23 +3,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Trash2, FileText, Download } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import FullPagePdfViewer from "@/components/FullPagePdfViewer";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -29,7 +20,9 @@ export default function SubcontractDetails() {
   
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [changeOrders, setChangeOrders] = useState<any[]>([]);
+  const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -52,6 +45,17 @@ export default function SubcontractDetails() {
 
       if (error) throw error;
       setSubcontract(data);
+
+      // Fetch invoices for this subcontract
+      if (data) {
+        const { data: invoiceData } = await supabase
+          .from('invoices')
+          .select('*')
+          .eq('subcontract_id', id)
+          .order('created_at', { ascending: false });
+        
+        setInvoices(invoiceData || []);
+      }
     } catch (error) {
       console.error('Error fetching subcontract:', error);
       toast({
@@ -64,33 +68,22 @@ export default function SubcontractDetails() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!id) return;
-
+  const handleViewFile = async (filePath: string, fileName: string) => {
     try {
-      setDeleting(true);
-      const { error } = await supabase
-        .from('subcontracts')
-        .delete()
-        .eq('id', id);
+      const { data, error } = await supabase.storage
+        .from('subcontract-files')
+        .download(filePath);
 
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Subcontract deleted successfully",
-      });
-
-      navigate('/subcontracts');
+      setViewingFile({ file: data as File, name: fileName });
     } catch (error) {
-      console.error('Error deleting subcontract:', error);
+      console.error('Error downloading file:', error);
       toast({
         title: "Error",
-        description: "Failed to delete subcontract",
+        description: "Failed to load file",
         variant: "destructive",
       });
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -124,6 +117,28 @@ export default function SubcontractDetails() {
     );
   }
 
+  if (viewingFile) {
+    return (
+      <FullPagePdfViewer 
+        file={viewingFile.file} 
+        onBack={() => setViewingFile(null)} 
+      />
+    );
+  }
+
+  const getFileNameFromPath = (path: string) => {
+    return path.split('/').pop() || 'Contract Document';
+  };
+
+  let contractFiles: string[] = [];
+  if (subcontract.contract_file_url) {
+    try {
+      contractFiles = JSON.parse(subcontract.contract_file_url);
+    } catch {
+      contractFiles = [subcontract.contract_file_url];
+    }
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -138,28 +153,10 @@ export default function SubcontractDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={deleting}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Subcontract</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this subcontract? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button onClick={() => navigate(`/subcontracts/${id}/edit`)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
         </div>
       </div>
 
@@ -231,26 +228,110 @@ export default function SubcontractDetails() {
       )}
 
       {/* Contract Files */}
-      {subcontract.contract_file_url && (
+      {contractFiles.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Contract Documents</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-3 p-3 border rounded-lg">
-              <FileText className="h-8 w-8 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="font-medium text-foreground">Contract File</p>
-                <p className="text-sm text-muted-foreground">Click to view or download</p>
+          <CardContent className="space-y-2">
+            {contractFiles.map((filePath, index) => (
+              <div 
+                key={index}
+                className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => handleViewFile(filePath, getFileNameFromPath(filePath))}
+              >
+                <FileText className="h-8 w-8 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">{getFileNameFromPath(filePath)}</p>
+                  <p className="text-sm text-muted-foreground">Click to view</p>
+                </div>
               </div>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </Button>
-            </div>
+            ))}
           </CardContent>
         </Card>
       )}
+
+      {/* Change Orders Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Change Orders</CardTitle>
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Change Order
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {changeOrders.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No change orders yet</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Number</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {changeOrders.map((co) => (
+                  <TableRow key={co.id}>
+                    <TableCell>{co.number}</TableCell>
+                    <TableCell>{co.description}</TableCell>
+                    <TableCell>${formatNumber(co.amount)}</TableCell>
+                    <TableCell>{co.status}</TableCell>
+                    <TableCell>{format(new Date(co.date), 'MMM d, yyyy')}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Invoices Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Invoices</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {invoices.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No invoices submitted yet</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Due Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoices.map((invoice) => (
+                  <TableRow 
+                    key={invoice.id}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => navigate(`/bills/${invoice.id}`)}
+                  >
+                    <TableCell className="font-medium">{invoice.invoice_number || invoice.id.substring(0, 8)}</TableCell>
+                    <TableCell>{format(new Date(invoice.issue_date), 'MMM d, yyyy')}</TableCell>
+                    <TableCell>${formatNumber(invoice.amount)}</TableCell>
+                    <TableCell>
+                      <Badge variant={invoice.status === 'paid' ? 'default' : 'secondary'}>
+                        {invoice.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

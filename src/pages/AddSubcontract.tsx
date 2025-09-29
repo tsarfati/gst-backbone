@@ -36,7 +36,9 @@ export default function AddSubcontract() {
     start_date: "",
     end_date: "",
     status: "active",
-    contract_file_url: ""
+    contract_file_url: "",
+    apply_retainage: false,
+    retainage_percentage: ""
   });
 
   const [jobs, setJobs] = useState<any[]>([]);
@@ -324,6 +326,8 @@ export default function AddSubcontract() {
           end_date: formData.end_date || null,
           status: formData.status,
           contract_file_url: fileUrlString,
+          apply_retainage: formData.apply_retainage,
+          retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
           created_by: user.id
         });
 
@@ -508,6 +512,52 @@ export default function AddSubcontract() {
                   </Select>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Financial Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Financial Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="apply_retainage"
+                  checked={formData.apply_retainage}
+                  onChange={(e) => handleInputChange("apply_retainage", e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="apply_retainage" className="cursor-pointer">
+                  Apply retainage to payments
+                </Label>
+              </div>
+              
+              {formData.apply_retainage && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="retainage_percentage">Retainage Percentage *</Label>
+                    <div className="relative">
+                      <Input
+                        id="retainage_percentage"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={formData.retainage_percentage}
+                        onChange={(e) => handleInputChange("retainage_percentage", e.target.value)}
+                        placeholder="0.00"
+                        required={formData.apply_retainage}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Typical retainage is 5-10%
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
