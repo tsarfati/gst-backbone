@@ -17,6 +17,7 @@ import { geocodeAddress } from "@/utils/geocoding";
 import { JobQRCode } from "@/components/JobQRCode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VisitorLogSettings } from "@/components/VisitorLogSettings";
+import { formatCurrency } from "@/utils/formatNumber";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -229,12 +230,11 @@ export default function JobEdit() {
         }
       }
 
-      // Update job details
+      // Update job details (excluding budget - it's managed from Cost Budget page)
       const { error } = await supabase
         .from('jobs')
         .update({
           name: formData.name,
-          budget: formData.budget ? parseFloat(formData.budget) : null,
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
           status: formData.status,
@@ -482,14 +482,19 @@ export default function JobEdit() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="budget">Budget</Label>
-                <Input
-                  id="budget"
-                  type="number"
-                  value={formData.budget}
-                  onChange={(e) => handleInputChange("budget", e.target.value)}
-                  placeholder="Enter budget amount"
-                />
+                <Label htmlFor="budget">Total Budget</Label>
+                <div className="relative">
+                  <Input
+                    id="budget"
+                    type="text"
+                    value={formatCurrency(job.budget_total || 0)}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Calculated from Cost Codes & Budget page
+                  </p>
+                </div>
               </div>
             </div>
             
