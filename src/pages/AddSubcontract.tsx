@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Upload, FileText, X, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -580,13 +581,31 @@ export default function AddSubcontract() {
                   {/* File List */}
                   <div className="space-y-2">
                     {contractFiles.map((file, index) => (
-                      <div key={index} className="flex items-start justify-between p-3 border rounded-lg">
+                      <div 
+                        key={index} 
+                        className={cn(
+                          "flex items-start justify-between p-3 border rounded-lg transition-colors",
+                          file.type === 'application/pdf' 
+                            ? "cursor-pointer hover:bg-accent hover:border-primary/50" 
+                            : ""
+                        )}
+                        onClick={() => {
+                          if (file.type === 'application/pdf') {
+                            setViewingPdf(file);
+                          }
+                        }}
+                      >
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           <div className="flex items-center justify-center w-10 h-10 bg-success/10 rounded flex-shrink-0">
                             <FileText className="h-5 w-5 text-success" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate text-sm">{file.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate text-sm">{file.name}</p>
+                              {file.type === 'application/pdf' && (
+                                <Badge variant="secondary" className="text-xs">Click to view</Badge>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {(file.size / 1024 / 1024).toFixed(2)} MB
                             </p>
@@ -596,7 +615,10 @@ export default function AddSubcontract() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeFile(file)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile(file);
+                          }}
                           className="flex-shrink-0"
                         >
                           <X className="h-4 w-4" />
@@ -605,27 +627,15 @@ export default function AddSubcontract() {
                     ))}
                   </div>
 
-                  {/* File Previews */}
-                  {filePreviewUrls.length > 0 && (
+                  {/* Image Previews Only */}
+                  {filePreviewUrls.filter(p => p.file.type.startsWith('image/')).length > 0 && (
                     <div className="space-y-4">
-                      <p className="text-sm font-medium">Previews:</p>
-                      {filePreviewUrls.map((preview, index) => (
-                        <div key={index} className="border rounded-lg p-4 bg-muted/50">
-                          <p className="text-sm font-medium mb-2">{preview.file.name}</p>
-                          {preview.file.type === 'application/pdf' ? (
-                            <div className="space-y-2">
-                              <PdfInlinePreview file={preview.file} className="w-full" height={200} />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => setViewingPdf(preview.file)}
-                              >
-                                View Full PDF
-                              </Button>
-                            </div>
-                          ) : preview.file.type.startsWith('image/') ? (
+                      <p className="text-sm font-medium">Image Previews:</p>
+                      {filePreviewUrls
+                        .filter(preview => preview.file.type.startsWith('image/'))
+                        .map((preview, index) => (
+                          <div key={index} className="border rounded-lg p-4 bg-muted/50">
+                            <p className="text-sm font-medium mb-2">{preview.file.name}</p>
                             <div className="flex justify-center">
                               <img
                                 src={preview.url}
@@ -636,9 +646,8 @@ export default function AddSubcontract() {
                                 }}
                               />
                             </div>
-                          ) : null}
-                        </div>
-                      ))}
+                          </div>
+                        ))}
                     </div>
                   )}
 
