@@ -86,7 +86,7 @@ export default function Jobs() {
         id: j.id,
         name: j.name,
         client: j.client,
-        budget: j.budget ? `$${Number(j.budget).toLocaleString()}` : "$0",
+        budget: j.budget_total ? `$${Number(j.budget_total).toLocaleString()}` : "$0",
         spent: "$0",
         receipts: 0,
         startDate: j.start_date || "-",
