@@ -287,14 +287,14 @@ export default function UserManagement() {
         </Card>
       )}
 
-      {/* All Users */}
+      {/* System Users */}
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>System Users</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
-            {users.map((user) => (
+            {users.filter(u => !(u as any).isPinEmployee).map((user) => (
               <div 
                 key={user.user_id} 
                 onClick={() => navigate(`/settings/users/${user.user_id}`)}

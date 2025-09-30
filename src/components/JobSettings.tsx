@@ -286,24 +286,11 @@ export default function JobSettings() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Job Management Settings</h3>
-              <p className="text-sm text-muted-foreground">
-                Configure job creation, budget approvals, time tracking, and workflow settings for your company
-              </p>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                console.log('Job Cost Setup button clicked - navigating to /settings/company/job-cost-setup');
-                navigate('/settings/company/job-cost-setup');
-              }}
-              className="flex items-center gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Job Cost Setup
-            </Button>
+          <CardTitle>
+            <h3 className="text-lg font-semibold">Job Management Settings</h3>
+            <p className="text-sm text-muted-foreground">
+              Configure job creation, budget approvals, time tracking, and workflow settings for your company
+            </p>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -376,7 +363,7 @@ export default function JobSettings() {
           </div>
           <Button 
             variant="outline" 
-            onClick={() => navigate('/settings/company?tab=job-cost-setup')}
+            onClick={() => navigate('/settings/company/job-cost-setup')}
             className="flex items-center gap-2"
           >
             <Settings className="h-4 w-4" />
