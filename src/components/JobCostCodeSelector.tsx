@@ -90,62 +90,130 @@ export default function JobCostCodeSelector({
     }
   };
 
-  const handleAddCostCode = (costCodeId?: string) => {
+  // Ensure a job-specific cost code exists for this job based on a master cost code id
+  const ensureJobCostCode = async (masterCostCodeId: string) => {
+    if (!jobId || !currentCompany) return null;
+    const master = masterCostCodes.find(cc => cc.id === masterCostCodeId);
+    if (!master) return null;
+
+    // Check if a job-specific code already exists (by code+type)
+    const { data: existing } = await supabase
+      .from('cost_codes')
+      .select('id, code, description, type')
+      .eq('job_id', jobId)
+      .eq('code', master.code)
+      .eq('type', (master.type || null) as any)
+      .maybeSingle();
+
+    if (existing) {
+      // Reactivate if needed
+      await supabase.from('cost_codes').update({ is_active: true }).eq('id', existing.id);
+      return existing as CostCode;
+    }
+
+    // Create job-specific record cloned from master
+    const { data: created, error: createErr } = await supabase
+      .from('cost_codes')
+      .insert([
+        {
+          company_id: currentCompany.id,
+          job_id: jobId,
+          code: master.code,
+          description: master.description,
+          type: (master.type || null) as any,
+          is_active: true,
+        } as any
+      ] as any)
+      .select('id, code, description, type')
+      .maybeSingle();
+    if (createErr) {
+      console.error('Error creating job cost code', createErr);
+      toast({ title: 'Error', description: 'Failed to add cost code to job', variant: 'destructive' });
+      return null;
+    }
+    return created as CostCode;
+  };
+
+  // Ensure by code/type (used when copying from previous job)
+  const ensureJobCostCodeByCodeType = async (code: string, type?: string | null, description?: string | null) => {
+    if (!jobId || !currentCompany) return null;
+    const { data: existing } = await supabase
+      .from('cost_codes')
+      .select('id, code, description, type')
+      .eq('job_id', jobId)
+      .eq('code', code)
+      .eq('type', (type || null) as any)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('cost_codes').update({ is_active: true }).eq('id', existing.id);
+      return existing as CostCode;
+    }
+
+    const { data: created, error } = await supabase
+      .from('cost_codes')
+      .insert([
+        {
+          company_id: currentCompany.id,
+          job_id: jobId,
+          code,
+          description,
+          type: (type || null) as any,
+          is_active: true,
+        } as any
+      ] as any)
+      .select('id, code, description, type')
+      .maybeSingle();
+    if (error) {
+      console.error('Error creating job cost code', error);
+      toast({ title: 'Error', description: 'Failed to add cost code to job', variant: 'destructive' });
+      return null;
+    }
+    return created as CostCode;
+  };
+
+  const handleAddCostCode = async (costCodeId?: string) => {
     const codeId = costCodeId || selectedCodeId;
     if (!codeId) return;
 
-    const costCode = masterCostCodes.find(cc => cc.id === codeId);
-    if (!costCode) return;
+    const jobCode = await ensureJobCostCode(codeId);
+    if (!jobCode) return;
 
-    // Check if already selected
-    if (selectedCostCodes.some(sc => sc.id === costCode.id)) {
-      toast({
-        title: "Already Selected",
-        description: "This cost code is already selected for this job",
-        variant: "destructive",
-      });
+    if (selectedCostCodes.some(sc => sc.id === jobCode.id)) {
+      toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
       return;
     }
 
-    onSelectedCostCodesChange([...selectedCostCodes, costCode]);
+    onSelectedCostCodesChange([...selectedCostCodes, jobCode]);
     setSelectedCodeId("");
     setCostCodePopoverOpen(false);
-    
-    toast({
-      title: "Cost Code Added",
-      description: `${costCode.code} - ${costCode.description} added to job`,
-    });
+
+    toast({ title: 'Cost Code Added', description: `${jobCode.code} - ${jobCode.description} added to job` });
   };
 
-  const handleRemoveCostCode = (costCodeId: string) => {
+  const handleRemoveCostCode = async (costCodeId: string) => {
+    if (!jobId) return;
+    await supabase.from('cost_codes').update({ is_active: true ? false : false }).eq('id', costCodeId).eq('job_id', jobId);
     const updatedCodes = selectedCostCodes.filter(cc => cc.id !== costCodeId);
     onSelectedCostCodesChange(updatedCodes);
-    
     const removedCode = selectedCostCodes.find(cc => cc.id === costCodeId);
-    toast({
-      title: "Cost Code Removed",
-      description: `${removedCode?.code} removed from job`,
-    });
+    toast({ title: 'Cost Code Removed', description: `${removedCode?.code} removed from job` });
   };
 
-  const handleSelectAll = () => {
-    const newCodes = masterCostCodes.filter(
-      mc => !selectedCostCodes.some(sc => sc.id === mc.id)
+  const handleSelectAll = async () => {
+    const candidates = masterCostCodes.filter(
+      mc => !selectedCostCodes.some(sc => sc.code === mc.code && sc.type === mc.type)
     );
-    
-    if (newCodes.length === 0) {
-      toast({
-        title: "All Selected",
-        description: "All cost codes are already selected",
-      });
+
+    if (candidates.length === 0) {
+      toast({ title: 'All Selected', description: 'All cost codes are already selected' });
       return;
     }
 
-    onSelectedCostCodesChange([...selectedCostCodes, ...newCodes]);
-    toast({
-      title: "Cost Codes Added",
-      description: `${newCodes.length} cost codes added to job`,
-    });
+    const created = (await Promise.all(candidates.map(c => ensureJobCostCode(c.id)))).filter(Boolean) as CostCode[];
+    const merged = [...selectedCostCodes, ...created.filter(c => !selectedCostCodes.some(sc => sc.id === c.id))];
+    onSelectedCostCodesChange(merged);
+    toast({ title: 'Cost Codes Added', description: `${created.length} cost codes added to job` });
   };
 
   const handleCopyFromPreviousJob = async () => {
@@ -200,7 +268,7 @@ export default function JobCostCodeSelector({
   };
 
   const availableCostCodes = masterCostCodes.filter(
-    mc => !selectedCostCodes.some(sc => sc.id === mc.id)
+    mc => !selectedCostCodes.some(sc => sc.code === mc.code && sc.type === mc.type)
   );
 
   if (loading) {
