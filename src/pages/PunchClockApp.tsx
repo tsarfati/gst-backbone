@@ -345,9 +345,23 @@ function PunchClockApp() {
           assignedCostCodes = settings?.assigned_cost_codes || [];
         }
 
-        const filteredJobs = assignedJobs.length > 0
-          ? (json.jobs || []).filter((j: any) => assignedJobs.includes(j.id))
-          : [];
+        let filteredJobs: any[] = [];
+        if (assignedJobs.length > 0) {
+          const jobsQuery = supabase
+            .from('jobs')
+            .select('id, name, address, status')
+            .in('id', assignedJobs)
+            .order('name');
+          if (companyId) {
+            jobsQuery.eq('company_id', companyId);
+          }
+          const { data: assignedJobsData, error: jobsErr } = await jobsQuery;
+          if (!jobsErr) {
+            filteredJobs = assignedJobsData || [];
+          } else {
+            console.error('Error loading assigned jobs:', jobsErr);
+          }
+        }
         setJobs(filteredJobs);
 
         // Cost codes will be reloaded when a job is selected; set initial filtered pool
