@@ -374,7 +374,7 @@ export default function Bills() {
                   filteredBills.map((bill) => (
                     <TableRow 
                       key={bill.id} 
-                      className={`cursor-pointer hover:bg-muted/50 ${
+                      className={`cursor-pointer hover:bg-muted/50 hover:shadow-sm hover:scale-[1.005] transition-all duration-200 ${
                         bill.status === 'overdue' ? 'animate-pulse-red' : ''
                       }`}
                     >
@@ -425,7 +425,7 @@ export default function Bills() {
                 filteredBills.map((bill) => (
                   <div 
                     key={bill.id} 
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
                     onClick={() => navigate(`/bills/${bill.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -464,7 +464,7 @@ export default function Bills() {
                 filteredBills.map((bill) => (
                   <div 
                     key={bill.id} 
-                    className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
                     onClick={() => navigate(`/bills/${bill.id}`)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>

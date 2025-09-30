@@ -351,7 +351,7 @@ export default function SubcontractEdit() {
             <CardHeader>
               <CardTitle>Financial Section</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="contract_amount">Contract Amount *</Label>
                 <CurrencyInput
@@ -363,55 +363,60 @@ export default function SubcontractEdit() {
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="apply_retainage"
-                  checked={formData.apply_retainage}
-                  onChange={(e) => handleInputChange("apply_retainage", e.target.checked)}
-                  className="h-4 w-4 rounded border-input"
-                />
-                <Label htmlFor="apply_retainage" className="cursor-pointer">
-                  Apply retainage to payments
-                </Label>
-              </div>
-              
-              {formData.apply_retainage && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="retainage_percentage">Retainage Percentage *</Label>
-                    <div className="relative">
-                      <Input
-                        id="retainage_percentage"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={formData.retainage_percentage}
-                        onChange={(e) => handleInputChange("retainage_percentage", e.target.value)}
-                        placeholder="0.00"
-                        required={formData.apply_retainage}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="apply_retainage"
+                    checked={formData.apply_retainage}
+                    onChange={(e) => handleInputChange("apply_retainage", e.target.checked)}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  <Label htmlFor="apply_retainage" className="cursor-pointer">
+                    Apply retainage to payments
+                  </Label>
+                </div>
+                
+                {formData.apply_retainage && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="retainage_percentage">Retainage Percentage *</Label>
+                      <div className="relative">
+                        <Input
+                          id="retainage_percentage"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={formData.retainage_percentage}
+                          onChange={(e) => handleInputChange("retainage_percentage", e.target.value)}
+                          placeholder="0.00"
+                          required={formData.apply_retainage}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Typical retainage is 5-10%
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Typical retainage is 5-10%
-                    </p>
                   </div>
+                )}
+              </div>
+
+              {/* Job Costing Distribution - Integrated */}
+              {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h4 className="text-base font-semibold">Job Costing Distribution</h4>
+                  <JobCostingDistribution
+                    contractAmount={parseFloat(formData.contract_amount)}
+                    initialDistribution={costDistribution}
+                    onChange={setCostDistribution}
+                    disabled={isSubmitting}
+                  />
                 </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Job Costing Distribution */}
-          {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
-            <JobCostingDistribution
-              contractAmount={parseFloat(formData.contract_amount)}
-              initialDistribution={costDistribution}
-              onChange={setCostDistribution}
-              disabled={isSubmitting}
-            />
-          )}
 
           <div className="flex gap-4 justify-end">
             <Button 
