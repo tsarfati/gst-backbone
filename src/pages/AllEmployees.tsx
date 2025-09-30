@@ -65,7 +65,7 @@ export default function AllEmployees() {
     if (!currentCompany?.id) return;
 
     try {
-      // Get user IDs for this company
+      // Get user IDs for this company (includes both regular users and PIN employees)
       const { data: accessData, error: accessError } = await supabase
         .from('user_company_access')
         .select('user_id')
@@ -85,12 +85,12 @@ export default function AllEmployees() {
 
       if (profileError) throw profileError;
 
-      // Fetch PIN-only employees created by users in this company
+      // Fetch PIN employees that have access to this company (their IDs are in user_company_access)
       const { data: pinEmployeeData, error: pinError } = await supabase
         .from('pin_employees')
         .select('*')
         .eq('is_active', true)
-        .in('created_by', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+        .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
 
       if (pinError) throw pinError;
 
