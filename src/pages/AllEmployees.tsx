@@ -85,13 +85,12 @@ export default function AllEmployees() {
 
       if (profileError) throw profileError;
 
-      // Fetch PIN-only employees for this company (using type assertion for complex types)
-      const pinQuery: any = supabase
+      // Fetch PIN-only employees created by users in this company
+      const { data: pinEmployeeData, error: pinError } = await supabase
         .from('pin_employees')
         .select('*')
-        .eq('is_active', true);
-      
-      const { data: pinEmployeeData, error: pinError } = await pinQuery.eq('company_id', currentCompany.id);
+        .eq('is_active', true)
+        .in('created_by', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
 
       if (pinError) throw pinError;
 

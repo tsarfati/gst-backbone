@@ -29,7 +29,6 @@ interface AccessRequest {
     first_name: string;
     last_name: string;
     display_name: string;
-    email?: string;
   };
 }
 
@@ -51,34 +50,38 @@ export default function CompanyAccessRequests() {
     if (!currentCompany) return;
 
     try {
-      const { data, error } = await supabase
+      // Fetch access requests
+      const { data: requestsData, error } = await supabase
         .from('company_access_requests')
-        .select(`
-          id,
-          user_id,
-          status,
-          requested_at,
-          notes,
-          profiles (
-            first_name,
-            last_name,
-            display_name,
-            email
-          )
-        `)
+        .select('id, user_id, status, requested_at, notes')
         .eq('company_id', currentCompany.id)
         .order('requested_at', { ascending: false });
 
       if (error) throw error;
-      
-      setRequests(data?.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        status: item.status,
-        requested_at: item.requested_at,
-        notes: item.notes,
-        profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
-      })) || []);
+
+      // Fetch profiles for all user_ids
+      const userIds = requestsData?.map(r => r.user_id) || [];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name')
+        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+
+      // Combine the data
+      setRequests(requestsData?.map(request => {
+        const profile = profilesData?.find(p => p.user_id === request.user_id);
+        return {
+          id: request.id,
+          user_id: request.user_id,
+          status: request.status,
+          requested_at: request.requested_at,
+          notes: request.notes,
+          profiles: profile ? {
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            display_name: profile.display_name || ''
+          } : undefined
+        };
+      }) || []);
     } catch (error) {
       console.error('Error fetching access requests:', error);
       toast({
@@ -186,7 +189,6 @@ export default function CompanyAccessRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -199,9 +201,6 @@ export default function CompanyAccessRequests() {
                       {request.profiles?.display_name || 
                        `${request.profiles?.first_name || ''} ${request.profiles?.last_name || ''}`.trim() ||
                        'Unknown User'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {request.profiles?.email || 'N/A'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(request.requested_at).toLocaleDateString()}
@@ -251,7 +250,6 @@ export default function CompanyAccessRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Notes</TableHead>
@@ -264,9 +262,6 @@ export default function CompanyAccessRequests() {
                       {request.profiles?.display_name || 
                        `${request.profiles?.first_name || ''} ${request.profiles?.last_name || ''}`.trim() ||
                        'Unknown User'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {request.profiles?.email || 'N/A'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(request.requested_at).toLocaleDateString()}
