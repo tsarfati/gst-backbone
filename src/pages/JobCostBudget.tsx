@@ -52,7 +52,7 @@ export default function JobCostBudget() {
   }, [id]);
 
   useEffect(() => {
-    if (selectedCostCodes.length > 0) {
+    if (selectedCostCodes.length >= 0) {
       populateBudgetLines();
     }
   }, [selectedCostCodes]);
@@ -137,14 +137,20 @@ export default function JobCostBudget() {
   };
 
   const populateBudgetLines = () => {
-    if (selectedCostCodes.length === 0) {
-      setBudgetLines([]);
-      return;
-    }
-
     setBudgetLines(currentLines => {
+      // If no cost codes selected, clear budget lines
+      if (selectedCostCodes.length === 0) {
+        return [];
+      }
+
+      // Remove budget lines for cost codes that are no longer selected
+      const filteredLines = currentLines.filter(line => 
+        selectedCostCodes.some(code => code.id === line.cost_code_id)
+      );
+
+      // Add new budget lines for newly selected cost codes
       const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
-        const existingLine = currentLines.find(bl => bl.cost_code_id === costCode.id);
+        const existingLine = filteredLines.find(bl => bl.cost_code_id === costCode.id);
         
         if (existingLine) {
           return {
