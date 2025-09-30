@@ -150,6 +150,27 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
+      // Get company_id for the user
+      let companyId: string | null = null;
+      if (userRow.is_pin_employee) {
+        const { data: companyAccess } = await supabaseAdmin
+          .from('user_company_access')
+          .select('company_id')
+          .eq('user_id', userRow.user_id)
+          .limit(1)
+          .maybeSingle();
+        companyId = companyAccess?.company_id || null;
+      } else {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('current_company_id')
+          .eq('user_id', userRow.user_id)
+          .maybeSingle();
+        companyId = profile?.current_company_id || null;
+      }
+
+      if (!companyId) return errorResponse("Unable to determine company", 400);
+
       const now = new Date().toISOString();
 
       if (action === "in") {
@@ -210,6 +231,7 @@ serve(async (req) => {
 
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
+          company_id: companyId,
           job_id,
           cost_code_id,
           punch_type: "punched_in",
@@ -322,6 +344,7 @@ serve(async (req) => {
         // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
+          company_id: companyId,
           job_id: currentPunch?.job_id ?? null,
           cost_code_id: currentPunch?.cost_code_id ?? null,
           punch_type: "punched_out",
@@ -367,6 +390,7 @@ serve(async (req) => {
             .from('time_cards')
             .insert({
               user_id: userRow.user_id,
+              company_id: companyId,
               job_id: currentPunch.job_id,
               cost_code_id: currentPunch.cost_code_id,
               punch_in_time: currentPunch.punch_in_time,
