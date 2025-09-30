@@ -428,6 +428,7 @@ export type Database = {
           id: string
           is_active: boolean
           job_id: string | null
+          parent_cost_code_id: string | null
           type: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at: string
         }
@@ -441,6 +442,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          parent_cost_code_id?: string | null
           type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }
@@ -454,6 +456,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          parent_cost_code_id?: string | null
           type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }
@@ -485,6 +488,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jobs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_codes_parent_cost_code_id_fkey"
+            columns: ["parent_cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_codes_parent_cost_code_id_fkey"
+            columns: ["parent_cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
           },
         ]
       }
@@ -1167,7 +1184,9 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          is_dynamic: boolean | null
           job_id: string
+          parent_budget_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1178,7 +1197,9 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          is_dynamic?: boolean | null
           job_id: string
+          parent_budget_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1189,7 +1210,9 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          is_dynamic?: boolean | null
           job_id?: string
+          parent_budget_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1219,6 +1242,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_budgets_parent_budget_id_fkey"
+            columns: ["parent_budget_id"]
+            isOneToOne: false
+            referencedRelation: "dynamic_budget_summary"
+            referencedColumns: ["parent_budget_id"]
+          },
+          {
+            foreignKeyName: "job_budgets_parent_budget_id_fkey"
+            columns: ["parent_budget_id"]
+            isOneToOne: false
+            referencedRelation: "job_budgets"
             referencedColumns: ["id"]
           },
         ]
@@ -3285,6 +3322,48 @@ export type Database = {
       }
     }
     Views: {
+      dynamic_budget_summary: {
+        Row: {
+          dynamic_budget: number | null
+          is_over_budget: boolean | null
+          job_id: string | null
+          parent_budget_id: string | null
+          parent_cost_code_id: string | null
+          remaining_budget: number | null
+          total_actual_from_children: number | null
+          total_committed_from_children: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_budgets_cost_code_id_fkey"
+            columns: ["parent_cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_budgets_cost_code_id_fkey"
+            columns: ["parent_cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "job_budgets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_budgets_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_cost_summary: {
         Row: {
           cost_code: string | null

@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/formatNumber";
+import DynamicBudgetManager from "./DynamicBudgetManager";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -187,17 +189,27 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Job Budget - {jobName}</span>
-          <Button onClick={saveBudget} disabled={saving} size="sm">
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Budget'}
-          </Button>
-        </CardTitle>
+        <CardTitle>Job Budget - {jobName}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <Table>
+        <Tabs defaultValue="regular" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="regular" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Regular Budget
+            </TabsTrigger>
+            <TabsTrigger value="dynamic" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Dynamic Budgets
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="regular" className="space-y-4">
+            <div className="flex justify-end">
+              <Button onClick={saveBudget} disabled={saving} size="sm">
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Budget'}
+              </Button>
+            </div>
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Cost Code</TableHead>
@@ -262,7 +274,12 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
               Total Budget: {formatCurrency(totalBudget)}
             </div>
           </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="dynamic">
+            <DynamicBudgetManager jobId={jobId} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
