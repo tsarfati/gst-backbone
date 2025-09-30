@@ -14,11 +14,15 @@ import {
   Shield, 
   ArrowLeft,
   Edit,
-  MapPin
+  MapPin,
+  Menu,
+  Clock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import UserMenuPermissions from "@/components/UserMenuPermissions";
+import UserJobAccess from "@/components/UserJobAccess";
 
 interface UserProfile {
   user_id: string;
@@ -42,6 +46,13 @@ interface Job {
   name: string;
 }
 
+interface LoginAudit {
+  id: string;
+  login_time: string;
+  logout_time?: string;
+  ip_address?: string;
+}
+
 export default function UserDetails() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -49,6 +60,7 @@ export default function UserDetails() {
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
+  const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
   const [loading, setLoading] = useState(true);
 
   const roleColors: Record<string, string> = {
@@ -68,6 +80,7 @@ export default function UserDetails() {
     if (userId && currentCompany) {
       fetchUserDetails();
       fetchUserJobs();
+      fetchLoginAudit();
     }
   }, [userId, currentCompany]);
 
@@ -108,6 +121,22 @@ export default function UserDetails() {
       setUserJobs(jobs);
     } catch (error) {
       console.error('Error fetching user jobs:', error);
+    }
+  };
+
+  const fetchLoginAudit = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_login_audit')
+        .select('*')
+        .eq('user_id', userId)
+        .order('login_time', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      setLoginAudit(data || []);
+    } catch (error) {
+      console.error('Error fetching login audit:', error);
     }
   };
 
@@ -213,39 +242,67 @@ export default function UserDetails() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Access & Permissions
+            Job Access
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <span className="font-medium">Global Job Access</span>
-            <Badge variant={user.has_global_job_access ? "default" : "secondary"}>
-              {user.has_global_job_access ? "Enabled" : "Disabled"}
-            </Badge>
-          </div>
+          <UserJobAccess userId={userId!} userRole={user.role} />
+        </CardContent>
+      </Card>
 
-          {!user.has_global_job_access && userJobs.length > 0 && (
-            <div>
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Briefcase className="h-4 w-4" />
-                Assigned Jobs ({userJobs.length})
-              </h3>
-              <div className="grid gap-2">
-                {userJobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                  >
-                    <span>{job.name}</span>
+      {/* Menu Access */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Menu className="h-5 w-5" />
+            Menu Access Permissions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UserMenuPermissions userId={userId!} userRole={user.role} />
+        </CardContent>
+      </Card>
+
+      {/* Login Audit Trail */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Login History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loginAudit.length > 0 ? (
+            <div className="space-y-2">
+              {loginAudit.map((audit) => (
+                <div
+                  key={audit.id}
+                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {new Date(audit.login_time).toLocaleString()}
+                      </p>
+                      {audit.logout_time && (
+                        <p className="text-xs text-muted-foreground">
+                          Logged out: {new Date(audit.logout_time).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
+                  {audit.ip_address && (
+                    <Badge variant="outline" className="text-xs">
+                      {audit.ip_address}
+                    </Badge>
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-
-          {!user.has_global_job_access && userJobs.length === 0 && (
+          ) : (
             <div className="text-center py-6 text-muted-foreground">
-              No specific jobs assigned
+              No login history available
             </div>
           )}
         </CardContent>

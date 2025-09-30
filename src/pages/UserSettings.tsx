@@ -26,6 +26,8 @@ interface UserProfile {
   role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
   created_at: string;
   pin_code?: string;
+  jobs?: { id: string; name: string; }[];
+  has_global_job_access?: boolean;
 }
 
 const roleColors = {
@@ -93,12 +95,28 @@ export default function UserSettings() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code')
+        .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code, has_global_job_access')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Fetch jobs for each user
+      const usersWithJobs = await Promise.all((data || []).map(async (user) => {
+        if (user.has_global_job_access) {
+          return { ...user, jobs: [] };
+        }
+        
+        const { data: userJobs } = await supabase
+          .from('user_job_access')
+          .select('job_id, jobs(id, name)')
+          .eq('user_id', user.user_id);
+        
+        const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
+        return { ...user, jobs };
+      }));
+      
+      setUsers(usersWithJobs);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -204,22 +222,29 @@ export default function UserSettings() {
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="font-semibold">
                               {user.display_name || `${user.first_name} ${user.last_name}`}
                             </h3>
                             <p className="text-sm text-muted-foreground">
                               Created: {new Date(user.created_at).toLocaleDateString()}
                             </p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <Badge 
+                                variant={roleColors[user.role as keyof typeof roleColors]}
+                              >
+                                {roleLabels[user.role as keyof typeof roleLabels]}
+                              </Badge>
+                              {user.has_global_job_access && (
+                                <Badge variant="outline">All Jobs Access</Badge>
+                              )}
+                              {!user.has_global_job_access && user.jobs && user.jobs.length > 0 && (
+                                <Badge variant="secondary">{user.jobs.length} Job{user.jobs.length !== 1 ? 's' : ''}</Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-
-                      <Badge 
-                        variant={roleColors[user.role as keyof typeof roleColors]}
-                      >
-                        {roleLabels[user.role as keyof typeof roleLabels]}
-                      </Badge>
                     </div>
                   ))}
                 </div>

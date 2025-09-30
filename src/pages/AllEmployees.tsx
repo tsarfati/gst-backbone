@@ -14,7 +14,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
 import EmployeeViews from '@/components/EmployeeViews';
 import EmployeeGroupManager from '@/components/EmployeeGroupManager';
-import UserManagement from '@/components/UserManagement';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
 import EmployeeDetailDialog from '@/components/EmployeeDetailDialog';
 
@@ -160,14 +159,11 @@ export default function AllEmployees() {
       </div>
 
       <Tabs defaultValue="employees" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="employees">All Employees</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
           {canManageEmployees && (
-            <>
-              <TabsTrigger value="management">User Management</TabsTrigger>
-              <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
-            </>
+            <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
           )}
         </TabsList>
 
@@ -222,15 +218,9 @@ export default function AllEmployees() {
         </TabsContent>
 
         {canManageEmployees && (
-          <>
-            <TabsContent value="management">
-              <UserManagement />
-            </TabsContent>
-
-            <TabsContent value="permissions">
-              <RolePermissionsManager />
-            </TabsContent>
-          </>
+          <TabsContent value="permissions">
+            <RolePermissionsManager />
+          </TabsContent>
         )}
       </Tabs>
 
