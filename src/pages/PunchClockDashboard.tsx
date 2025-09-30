@@ -69,12 +69,28 @@ export default function PunchClockDashboard() {
 
   useEffect(() => {
     const load = async () => {
-      console.log('PunchClockDashboard: loading data');
-      // Load active punches
+      if (!currentCompany?.id) return;
+      
+      console.log('PunchClockDashboard: loading data for company', currentCompany.id);
+      
+      // Get user IDs for this company first
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const companyUserIds = (companyUsers || []).map(u => u.user_id);
+      if (companyUserIds.length === 0) {
+        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      }
+      
+      // Load active punches for users in this company
       const { data: activeData } = await supabase
         .from('current_punch_status')
         .select('*')
         .eq('is_active', true)
+        .in('user_id', companyUserIds)
         .order('punch_in_time', { ascending: false });
 
       setActive(activeData || []);
@@ -114,6 +130,7 @@ export default function PunchClockDashboard() {
         const { data: jobsData } = await supabase
           .from('jobs')
           .select('id, name, latitude, longitude, address')
+          .eq('company_id', currentCompany.id)
           .in('id', jobIds);
         const jobMap: Record<string, Job> = {};
         (jobsData || []).forEach(j => { jobMap[j.id] = j; });
@@ -121,10 +138,11 @@ export default function PunchClockDashboard() {
       }
 
       // Load recent punch outs - get all employees who are NOT currently punched in
-      // First get the most recent punch record for each user
+      // First get the most recent punch record for each user in this company
       const { data: allPunchData } = await supabase
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
+        .in('user_id', companyUserIds)
         .order('punch_time', { ascending: false });
 
       // Get the most recent punch for each user
@@ -178,6 +196,7 @@ export default function PunchClockDashboard() {
         const { data: outJobsData } = await supabase
           .from('jobs')
           .select('id, name, latitude, longitude, address')
+          .eq('company_id', currentCompany.id)
           .in('id', outJobIds);
         const jobMap: Record<string, Job> = {};
         (outJobsData || []).forEach(j => { jobMap[j.id] = j; });
@@ -194,6 +213,7 @@ export default function PunchClockDashboard() {
         const { data: costCodesData } = await supabase
           .from('cost_codes')
           .select('id, code, description')
+          .eq('company_id', currentCompany.id)
           .in('id', allCostCodeIds);
         const ccMap: Record<string, { code: string; description: string }> = {};
         (costCodesData || []).forEach(cc => { ccMap[cc.id] = { code: cc.code, description: cc.description }; });
@@ -242,7 +262,7 @@ export default function PunchClockDashboard() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentCompany?.id]);
 
   const openDetailForActive = (row: CurrentStatus) => {
     const prof = profiles[row.user_id];

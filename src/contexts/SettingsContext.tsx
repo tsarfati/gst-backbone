@@ -85,11 +85,39 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  const hexToHsl = (hex: string): string => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+  };
+
+  const toHslToken = (val: string) => (val?.trim().startsWith('#') ? hexToHsl(val.trim()) : val?.trim());
+
   // Load settings from database when company or user changes
   useEffect(() => {
     const loadSettings = async () => {
       if (!currentCompany?.id || !user?.id) {
         setSettings(defaultSettings);
+        // Apply default colors
+        const root = document.documentElement;
+        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+          const hsl = toHslToken(value);
+          root.style.setProperty(`--${key}`, hsl);
+        });
         setIsLoaded(true);
         return;
       }
@@ -105,15 +133,40 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.warn('Failed to load company settings:', error);
           setSettings(defaultSettings);
+          // Apply default colors on error
+          const root = document.documentElement;
+          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+            const hsl = toHslToken(value);
+            root.style.setProperty(`--${key}`, hsl);
+          });
         } else if (data?.settings && typeof data.settings === 'object') {
           const mergedSettings = { ...defaultSettings, ...(data.settings as Partial<AppSettings>) };
           setSettings(mergedSettings);
+          // Apply colors immediately after loading
+          const root = document.documentElement;
+          const colors = mergedSettings.customColors || defaultSettings.customColors;
+          Object.entries(colors).forEach(([key, value]) => {
+            const hsl = toHslToken(value);
+            root.style.setProperty(`--${key}`, hsl);
+          });
         } else {
           setSettings(defaultSettings);
+          // Apply default colors
+          const root = document.documentElement;
+          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+            const hsl = toHslToken(value);
+            root.style.setProperty(`--${key}`, hsl);
+          });
         }
       } catch (error) {
         console.warn('Error loading settings:', error);
         setSettings(defaultSettings);
+        // Apply default colors on error
+        const root = document.documentElement;
+        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+          const hsl = toHslToken(value);
+          root.style.setProperty(`--${key}`, hsl);
+        });
       } finally {
         setIsLoaded(true);
       }
@@ -162,13 +215,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeoutId);
   }, [settings, currentCompany?.id, user?.id, isLoaded]);
 
-  // Apply custom colors on mount
-  useEffect(() => {
-    const root = document.documentElement;
-    Object.entries(settings.customColors).forEach(([key, value]) => {
-      root.style.setProperty(`--${key}`, value);
-    });
-  }, []);
 
   const updateSettings = (updates: Partial<AppSettings>) => {
     setSettings(prev => ({
@@ -185,27 +231,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const hexToHsl = (hex: string): string => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = 0, s = 0, l = (max + min) / 2;
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-      h /= 6;
-    }
-    return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-  };
-
-  const toHslToken = (val: string) => (val?.trim().startsWith('#') ? hexToHsl(val.trim()) : val?.trim());
 
   const applyCustomColors = () => {
     const root = document.documentElement;

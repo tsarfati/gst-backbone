@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Download, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { startOfWeek, endOfWeek, subDays } from 'date-fns';
@@ -54,6 +55,7 @@ interface FilterState {
 
 export default function TimecardReports() {
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [records, setRecords] = useState<TimeCardRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -87,22 +89,43 @@ export default function TimecardReports() {
   };
 
   const loadEmployees = async () => {
+    if (!currentCompany?.id) return;
+    
     try {
-      const [profilesRes, pinRes] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('user_id, display_name, first_name, last_name')
-          .order('display_name'),
-        supabase
-          .from('pin_employees')
-          .select('id, display_name, first_name, last_name')
-          .eq('is_active', true)
-          .order('display_name')
-      ]);
+      // Get user IDs for this company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const companyUserIds = (companyUsers || []).map(u => u.user_id);
+      if (companyUserIds.length === 0) {
+        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      }
+      
+      const profilesRes: any = await (supabase as any)
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name')
+        .in('user_id', companyUserIds);
+      
+      const pinRes: any = await (supabase as any)
+        .from('pin_employees')
+        .select('id, display_name, first_name, last_name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
 
       const list: Employee[] = [];
 
-      (profilesRes.data || []).forEach(p => {
+      // Sort profiles and PIN employees before adding to list
+      const sortedProfiles = (profilesRes.data || []).sort((a, b) => 
+        (a.display_name || '').localeCompare(b.display_name || '')
+      );
+      const sortedPins = (pinRes.data || []).sort((a, b) => 
+        (a.display_name || '').localeCompare(b.display_name || '')
+      );
+
+      sortedProfiles.forEach(p => {
         list.push({
           id: p.user_id,
           user_id: p.user_id,
@@ -112,20 +135,15 @@ export default function TimecardReports() {
         });
       });
 
-      (pinRes.data || []).forEach(p => {
+      sortedPins.forEach(p => {
         list.push({
           id: p.id,
-          user_id: p.id, // use PIN employee id as user identifier in reports
+          user_id: p.id,
           display_name: p.display_name,
           first_name: p.first_name,
           last_name: p.last_name,
         });
       });
-
-      // Sort by display name for nicer UX
-      list.sort((a, b) => (a.display_name || `${a.first_name} ${a.last_name || ''}`).localeCompare(
-        b.display_name || `${b.first_name} ${b.last_name || ''}`
-      ));
 
       setEmployees(list);
     } catch (error) {
@@ -134,10 +152,13 @@ export default function TimecardReports() {
   };
 
   const loadJobs = async () => {
+    if (!currentCompany?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('id, name, address')
+        .eq('company_id', currentCompany.id)
         .order('name');
 
       if (error) throw error;
@@ -175,8 +196,22 @@ export default function TimecardReports() {
   };
 
   const loadTimecardRecords = async () => {
+    if (!currentCompany?.id) return;
+    
     try {
       setLoading(true);
+      
+      // Get user IDs for this company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const companyUserIds = (companyUsers || []).map(u => u.user_id);
+      if (companyUserIds.length === 0) {
+        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      }
       
       let query = supabase
         .from('time_cards')
@@ -197,6 +232,7 @@ export default function TimecardReports() {
           punch_out_location_lat,
           punch_out_location_lng
         `)
+        .in('user_id', companyUserIds)
         .order('punch_in_time', { ascending: false });
 
       // Apply filters

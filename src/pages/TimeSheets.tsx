@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
@@ -79,6 +80,7 @@ export default function TimeSheets() {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const { profile, user } = useAuth();
+  const { currentCompany } = useCompany();
   const navigate = useNavigate();
   
   // Use view preference hook with local storage
@@ -88,10 +90,12 @@ export default function TimeSheets() {
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
   useEffect(() => {
-    if (isManager) {
-      loadEmployees();
+    if (currentCompany?.id) {
+      if (isManager) {
+        loadEmployees();
+      }
+      loadTimeCards();
     }
-    loadTimeCards();
 
     // Set up real-time subscription for time cards
     const channel = supabase
@@ -114,7 +118,7 @@ export default function TimeSheets() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, profile]);
+  }, [user, profile, currentCompany?.id]);
 
   useEffect(() => {
     if (selectedEmployeeId) {
@@ -123,27 +127,41 @@ export default function TimeSheets() {
   }, [selectedEmployeeId]);
 
   const loadEmployees = async () => {
-    if (!user) return;
+    if (!user || !currentCompany?.id) return;
 
     try {
-      // Load both regular users and PIN employees
-      const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name')
-          .order('first_name'),
-        supabase
-          .from('pin_employees')
-          .select('id, first_name, last_name, display_name')
-          .eq('is_active', true)
-          .order('first_name')
-      ]);
+      // Get user IDs for this company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const companyUserIds = (companyUsers || []).map(u => u.user_id);
+      if (companyUserIds.length === 0) {
+        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      }
+      
+      // Load both regular users and PIN employees for this company
+      const profilesResponse: any = await (supabase as any)
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name')
+        .in('user_id', companyUserIds);
+      
+      const pinEmployeesResponse: any = await (supabase as any)
+        .from('pin_employees')
+        .select('id, first_name, last_name, display_name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
 
       const employeeOptions = [];
 
       // Add regular users
       if (profilesResponse.data) {
-        employeeOptions.push(...profilesResponse.data.map(emp => ({
+        const sorted = [...profilesResponse.data].sort((a, b) => 
+          (a.first_name || '').localeCompare(b.first_name || '')
+        );
+        employeeOptions.push(...sorted.map(emp => ({
           id: emp.user_id,
           name: emp.display_name || 
                 (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
@@ -153,7 +171,10 @@ export default function TimeSheets() {
 
       // Add PIN employees
       if (pinEmployeesResponse.data) {
-        employeeOptions.push(...pinEmployeesResponse.data.map(emp => ({
+        const sorted = [...pinEmployeesResponse.data].sort((a, b) => 
+          (a.first_name || '').localeCompare(b.first_name || '')
+        );
+        employeeOptions.push(...sorted.map(emp => ({
           id: emp.id,
           name: emp.display_name || 
                 (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
@@ -171,10 +192,22 @@ export default function TimeSheets() {
   };
 
   const loadTimeCards = async () => {
-    if (!user) return;
+    if (!user || !currentCompany?.id) return;
 
     try {
       setLoading(true);
+      
+      // Get user IDs for this company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const companyUserIds = (companyUsers || []).map(u => u.user_id);
+      if (companyUserIds.length === 0) {
+        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      }
       
       let query = supabase
         .from('time_cards')
@@ -198,6 +231,7 @@ export default function TimeSheets() {
           punch_out_location_lng
         `)
         .neq('status', 'deleted')
+        .in('user_id', companyUserIds)
         .order('punch_in_time', { ascending: false })
         .limit(100);
 
