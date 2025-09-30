@@ -88,7 +88,6 @@ export default function JobCostSetup() {
   // Settings state
   const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
   const [requireChartAccount, setRequireChartAccount] = useState(false);
-  const [defaultCostCodePrefix, setDefaultCostCodePrefix] = useState('CC-');
 
   const [newTemplate, setNewTemplate] = useState<{
     code: string;
@@ -123,7 +122,7 @@ export default function JobCostSetup() {
     }
     
     try {
-      // Load general cost codes (not job-specific) for current company - ONLY dynamic codes
+      // Load general cost codes (not job-specific) for current company - ALL codes
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
         .select(`
@@ -136,7 +135,6 @@ export default function JobCostSetup() {
         .is('job_id', null)
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
-        .or('is_dynamic_group.eq.true,type.in.(dynamic_group,dynamic_parent)')
         .order('code');
 
       if (costCodesError) throw costCodesError;
@@ -408,6 +406,69 @@ export default function JobCostSetup() {
     window.URL.revokeObjectURL(url);
   };
 
+  const exportCostCodesToCsv = async () => {
+    try {
+      if (!currentCompany?.id) return;
+
+      // Fetch all cost codes for the current company
+      const { data: costCodesData, error } = await supabase
+        .from('cost_codes')
+        .select('code, description, type, is_dynamic_group')
+        .is('job_id', null)
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('code');
+
+      if (error) throw error;
+
+      if (!costCodesData || costCodesData.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No cost codes found to export",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['code', 'description', 'type', 'is_dynamic_group'];
+      const csvRows = [headers.join(',')];
+      
+      costCodesData.forEach(code => {
+        const row = [
+          code.code,
+          `"${code.description.replace(/"/g, '""')}"`, // Escape quotes in description
+          code.type,
+          code.is_dynamic_group || false
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cost_codes_backup_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: `Exported ${costCodesData.length} cost codes to CSV`,
+      });
+    } catch (error) {
+      console.error('Error exporting cost codes:', error);
+      toast({
+        title: "Export Error",
+        description: "Failed to export cost codes",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -472,16 +533,18 @@ export default function JobCostSetup() {
                   <Separator />
 
                   <div className="space-y-2">
-                    <Label htmlFor="cost-code-prefix">Default Cost Code Prefix</Label>
-                    <Input
-                      id="cost-code-prefix"
-                      value={defaultCostCodePrefix}
-                      onChange={(e) => setDefaultCostCodePrefix(e.target.value)}
-                      placeholder="e.g., CC-, JC-"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Prefix used when auto-generating cost codes
+                    <Label>Backup Cost Codes</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Export all cost codes for this company to a CSV file
                     </p>
+                    <Button
+                      variant="outline"
+                      onClick={exportCostCodesToCsv}
+                      className="w-full"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Cost Codes to CSV
+                    </Button>
                   </div>
                 </div>
 
