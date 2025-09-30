@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 import { Loader2, Save, Building, Calendar } from "lucide-react";
 
 interface UserJobAccessProps {
@@ -25,6 +26,7 @@ interface Job {
 
 export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -33,15 +35,18 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
 
   useEffect(() => {
     loadJobAccess();
-  }, [userId]);
+  }, [userId, currentCompany?.id]);
 
   const loadJobAccess = async () => {
+    if (!currentCompany?.id) return;
+    
     setLoading(true);
     try {
-      // Load all jobs
+      // Load jobs for current company only
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, name, client, status, start_date, end_date, project_manager_user_id')
+        .eq('company_id', currentCompany.id)
         .order('name');
 
       if (jobsError) throw jobsError;
