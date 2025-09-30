@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,7 @@ export default function CompanyManagement() {
   const { currentCompany, userCompanies, refreshCompanies } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<CompanyUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -713,9 +715,9 @@ export default function CompanyManagement() {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => {
                       if (companyUser.is_pin_employee) {
-                        window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
+                        navigate(`/pin-employees/${companyUser.user_id}/edit`);
                       } else {
-                        window.location.href = `/settings/users/${companyUser.user_id}`;
+                        navigate(`/settings/users/${companyUser.user_id}`);
                       }
                     }}
                   >
@@ -785,9 +787,9 @@ export default function CompanyManagement() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (companyUser.is_pin_employee) {
-                                window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
+                                navigate(`/pin-employees/${companyUser.user_id}/edit`);
                               } else {
-                                window.location.href = `/settings/users/${companyUser.user_id}`;
+                                navigate(`/settings/users/${companyUser.user_id}`);
                               }
                             }}
                           >
