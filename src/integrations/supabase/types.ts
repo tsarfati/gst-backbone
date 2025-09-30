@@ -3471,7 +3471,14 @@ export type Database = {
       }
     }
     Enums: {
-      cost_code_type: "material" | "labor" | "sub" | "equipment" | "other"
+      cost_code_type:
+        | "material"
+        | "labor"
+        | "sub"
+        | "equipment"
+        | "other"
+        | "dynamic_group"
+        | "dynamic_parent"
       job_status: "planning" | "active" | "on-hold" | "completed"
       job_type:
         | "residential"
@@ -3615,7 +3622,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      cost_code_type: ["material", "labor", "sub", "equipment", "other"],
+      cost_code_type: [
+        "material",
+        "labor",
+        "sub",
+        "equipment",
+        "other",
+        "dynamic_group",
+        "dynamic_parent",
+      ],
       job_status: ["planning", "active", "on-hold", "completed"],
       job_type: [
         "residential",
