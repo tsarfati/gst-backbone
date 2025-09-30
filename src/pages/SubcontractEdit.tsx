@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import JobCostingDistribution from "@/components/JobCostingDistribution";
+import SubcontractCostDistribution from "@/components/SubcontractCostDistribution";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -439,11 +439,11 @@ export default function SubcontractEdit() {
               </div>
 
               {/* Job Costing Distribution - Integrated */}
-              {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
+              {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && formData.job_id && (
                 <div className="space-y-4 pt-4 border-t">
-                  <h4 className="text-base font-semibold">Job Costing Distribution</h4>
-                  <JobCostingDistribution
+                  <SubcontractCostDistribution
                     contractAmount={parseFloat(formData.contract_amount)}
+                    jobId={formData.job_id}
                     initialDistribution={costDistribution}
                     onChange={setCostDistribution}
                     disabled={isSubmitting || formData.status !== "planning"}
