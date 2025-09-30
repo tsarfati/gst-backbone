@@ -197,7 +197,12 @@ export default function AddBill() {
     if (selectedSubcontract) {
       handleInputChange("vendor_id", selectedSubcontract.vendor_id);
       handleInputChange("job_id", selectedSubcontract.job_id);
-      setCommitmentDistribution(selectedSubcontract.cost_distribution || []);
+      
+      // Ensure cost_distribution is always an array
+      const costDist = selectedSubcontract.cost_distribution;
+      const distribution = Array.isArray(costDist) ? costDist : [];
+      setCommitmentDistribution(distribution);
+      
       await fetchPreviouslyBilledAmount('subcontract', subcontractId);
     }
   };
@@ -209,7 +214,12 @@ export default function AddBill() {
     if (selectedPO) {
       handleInputChange("vendor_id", selectedPO.vendor_id);
       handleInputChange("job_id", selectedPO.job_id);
-      setCommitmentDistribution(selectedPO.cost_distribution || []);
+      
+      // Ensure cost_distribution is always an array
+      const costDist = selectedPO.cost_distribution;
+      const distribution = Array.isArray(costDist) ? costDist : [];
+      setCommitmentDistribution(distribution);
+      
       await fetchPreviouslyBilledAmount('purchase_order', poId);
     }
   };
