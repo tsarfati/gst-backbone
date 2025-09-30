@@ -274,7 +274,15 @@ serve(async (req) => {
             .eq('id', userRow.user_id);
         }
 
-        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        // Return the updated current punch status
+        const { data: updatedPunch } = await supabaseAdmin
+          .from("current_punch_status")
+          .select("*")
+          .eq("user_id", userRow.user_id)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        return new Response(JSON.stringify({ ok: true, current_punch: updatedPunch }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
       if (action === "out") {
@@ -418,7 +426,7 @@ serve(async (req) => {
           console.error('Exception while creating time card:', tcCatchErr);
         }
 
-        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ ok: true, current_punch: null }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
       return errorResponse("Invalid action. Use 'in' or 'out'", 400);

@@ -862,13 +862,17 @@ function PunchClockApp() {
           throw new Error(errorMessage);
         }
 
+        // Get updated punch status from response
+        const result = await res.json();
+        if (result.current_punch !== undefined) {
+          setCurrentPunch(result.current_punch);
+          console.log('Updated current punch from response:', result.current_punch);
+        }
         
         // Clear form data
         setPhotoBlob(null);
         setPunchOutNote('');
         
-        // Refresh punch status after successful operation (only once)
-        await loadFromEdge();
         toast({ title: action === 'in' ? 'Punched In' : 'Punched Out' });
         return;
       }
