@@ -144,7 +144,7 @@ function PunchClockApp() {
       if (!user) return;
       
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
-      const companyId = (user as any).company_id;
+      const companyId = (profile as any)?.current_company_id;
       
       // First, check if user has assigned jobs in their settings
       let assignedJobs: string[] | null = null;
@@ -183,16 +183,15 @@ function PunchClockApp() {
       if (hasGlobal) {
         const result = await supabase
           .from('jobs')
-          .select('id, name, address')
-          .eq('status', 'active')
+          .select('id, name, address, status')
+          .in('status', ['active', 'planning'])
           .order('name');
         data = result.data;
         error = result.error;
       } else if (assignedJobs && assignedJobs.length > 0) {
         const result = await supabase
           .from('jobs')
-          .select('id, name, address')
-          .eq('status', 'active')
+          .select('id, name, address, status')
           .in('id', assignedJobs)
           .order('name');
         data = result.data;
@@ -218,7 +217,7 @@ function PunchClockApp() {
       }
       
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
-      const companyId = (user as any).company_id;
+      const companyId = (profile as any)?.current_company_id;
       
       // First, check if user has assigned cost codes in their settings
       let assignedCostCodes: string[] | null = null;
@@ -328,7 +327,7 @@ function PunchClockApp() {
       if (res.ok) {
         // Filter jobs and cost codes based on pin employee settings
         const userId = (user as any)?.user_id;
-        const companyId = (user as any)?.company_id;
+        const companyId = (profile as any)?.current_company_id;
         let assignedJobs: string[] = [];
         let assignedCostCodes: string[] = [];
         if (userId) {
