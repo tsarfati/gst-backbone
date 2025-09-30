@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code } from 'lucide-react';
+import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code, Building2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import PinEmployeeCompanyAccess from '@/components/PinEmployeeCompanyAccess';
 
 interface PinEmployee {
   id: string;
@@ -730,6 +731,19 @@ export default function PinEmployeeEdit() {
           </Card>
         </div>
       </div>
+
+      {/* Company Access Section */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Company Access
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PinEmployeeCompanyAccess pinEmployeeId={employeeId!} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
