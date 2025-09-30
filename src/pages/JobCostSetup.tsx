@@ -23,7 +23,6 @@ import {
   Truck, 
   Package, 
   Search,
-  Link,
   Building,
   Settings,
   DollarSign,
@@ -54,13 +53,6 @@ interface Job {
   job_number?: string;
 }
 
-interface ChartAccount {
-  id: string;
-  account_number: string;
-  account_name: string;
-  account_type: string;
-}
-
 interface CostCodeTemplate {
   id: string;
   code: string;
@@ -74,7 +66,6 @@ export default function JobCostSetup() {
   const { currentCompany } = useCompany();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [chartAccounts, setChartAccounts] = useState<ChartAccount[]>([]);
   const [costCodeTemplates, setCostCodeTemplates] = useState<CostCodeTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,7 +79,6 @@ export default function JobCostSetup() {
   
   // Settings state
   const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
-  const [requireChartAccount, setRequireChartAccount] = useState(false);
   const [csvUploadMode, setCsvUploadMode] = useState<'replace' | 'add' | 'update'>('add');
 
   const [newTemplate, setNewTemplate] = useState<{
@@ -127,28 +117,14 @@ export default function JobCostSetup() {
       // Load general cost codes (not job-specific) for current company - ALL codes
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
-        .select(`
-          *,
-          chart_of_accounts:chart_account_id (
-            account_number,
-            account_name
-          )
-        `)
+        .select('*')
         .is('job_id', null)
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
         .order('code');
 
       if (costCodesError) throw costCodesError;
-
-      // Transform the data to include chart account info
-      const transformedCostCodes = costCodesData?.map(code => ({
-        ...code,
-        chart_account_number: code.chart_of_accounts?.account_number || code.chart_account_number,
-        chart_account_name: code.chart_of_accounts?.account_name
-      })) || [];
-
-      setCostCodes(transformedCostCodes);
+      setCostCodes(costCodesData || []);
 
       // Load jobs for current company
       const { data: jobsData, error: jobsError } = await supabase
@@ -159,18 +135,6 @@ export default function JobCostSetup() {
 
       if (jobsError) throw jobsError;
       setJobs(jobsData || []);
-
-      // Load chart of accounts for current company
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('chart_of_accounts')
-        .select('id, account_number, account_name, account_type')
-        .eq('company_id', currentCompany?.id)
-        .eq('is_active', true)
-        .in('account_type', ['expense', 'cost_of_goods_sold'])
-        .order('account_number');
-
-      if (accountsError) throw accountsError;
-      setChartAccounts(accountsData || []);
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -584,21 +548,6 @@ export default function JobCostSetup() {
 
                   <Separator />
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Require chart of account assignment</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Make chart of account assignment mandatory for all cost codes
-                      </p>
-                    </div>
-                    <Switch
-                      checked={requireChartAccount}
-                      onCheckedChange={setRequireChartAccount}
-                    />
-                  </div>
-
-                  <Separator />
-
                   <div className="space-y-2">
                     <Label>Backup Cost Codes</Label>
                     <p className="text-sm text-muted-foreground mb-2">
@@ -928,7 +877,6 @@ export default function JobCostSetup() {
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Chart Account</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -945,17 +893,7 @@ export default function JobCostSetup() {
                       </span>
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {code.chart_account_number ? (
-                      <Badge variant="outline">
-                        <Link className="h-3 w-3 mr-1" />
-                        {code.chart_account_number}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                   <TableCell className="text-center">
+                  <TableCell className="text-center">
                     <div className="flex items-center justify-center space-x-2">
                       <Button
                         variant="ghost"
