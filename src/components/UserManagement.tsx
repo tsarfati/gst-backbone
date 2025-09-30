@@ -341,6 +341,46 @@ export default function UserManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* PIN Employees */}
+      {users.filter(u => (u as any).isPinEmployee).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>PIN Employees</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              {users.filter(u => (u as any).isPinEmployee).map((user) => (
+                <div 
+                  key={user.user_id} 
+                  onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                  className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                >
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-lg font-semibold text-primary">
+                      {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'P'}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed Employee'}</h3>
+                      <Badge variant="outline" className="bg-purple-500">
+                        PIN Employee
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                      {user.status === 'approved' && (
+                        <span className="text-green-600">✓ Active</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
