@@ -295,7 +295,10 @@ export default function JobSettings() {
             </div>
             <Button 
               variant="outline" 
-              onClick={() => navigate('/job-cost-setup')}
+              onClick={() => {
+                console.log('Job Cost Setup button clicked - navigating to /settings/company/job-cost-setup');
+                navigate('/settings/company/job-cost-setup');
+              }}
               className="flex items-center gap-2"
             >
               <Settings className="h-4 w-4" />
