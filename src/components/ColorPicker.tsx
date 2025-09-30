@@ -13,9 +13,18 @@ interface ColorPickerProps {
 const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => {
   const [inputValue, setInputValue] = useState(value);
 
+  const normalizeToHsl = (str: string): string => {
+    const val = str.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+      return hexToHsl(val);
+    }
+    return val;
+  };
+
   const handleColorChange = (newValue: string) => {
-    setInputValue(newValue);
-    onChange(newValue);
+    const normalized = normalizeToHsl(newValue);
+    setInputValue(normalized);
+    onChange(normalized);
   };
 
   const hslToHex = (hslString: string): string => {
