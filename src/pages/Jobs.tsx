@@ -24,6 +24,23 @@ export default function Jobs() {
       // Clear previous company's jobs to avoid cross-company bleed
       setJobs([]);
       loadJobs();
+
+      // Live updates for job budget changes
+      const channel = supabase
+        .channel('jobs-budget-updates')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'jobs',
+          filter: currentCompany ? `company_id=eq.${currentCompany.id}` : undefined,
+        }, () => {
+          loadJobs();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user, currentCompany]);
 

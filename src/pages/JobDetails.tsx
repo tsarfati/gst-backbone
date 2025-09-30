@@ -72,6 +72,23 @@ export default function JobDetails() {
     };
 
     fetchJob();
+
+    // Realtime updates for this job
+    const channel = supabase
+      .channel('job-details-updates')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'jobs',
+        filter: id ? `id=eq.${id}` : undefined,
+      }, (payload) => {
+        if (payload.new) setJob(payload.new as Job);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id, toast]);
 
   if (loading) {
@@ -172,12 +189,10 @@ export default function JobDetails() {
                 </Badge>
               </div>
 
-              {job.budget_total && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Budget</label>
-                  <p className="text-foreground">${Number(job.budget_total).toLocaleString()}</p>
-                </div>
-              )}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Budget</label>
+                <p className="text-foreground">${Number(job.budget_total || 0).toLocaleString()}</p>
+              </div>
 
               {(job.start_date || job.end_date) && (
                 <div>
