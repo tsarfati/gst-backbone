@@ -1,57 +1,67 @@
 code,description,type,is_dynamic_group,chart_account_number,notes
-1,Labor Group,labor,true,5000,Top-level dynamic group for all labor cost codes
-1.09,General Labor,labor,false,5010,Dynamic parent for general labor subcategories
-1.09.01,Carpenters,labor,false,5011,Carpenter labor costs
-1.09.02,Electricians,labor,false,5012,Electrician labor costs
-1.09.03,Plumbers,labor,false,5013,Plumber labor costs
-1.10,Skilled Labor,labor,false,5020,Dynamic parent for skilled labor subcategories
-1.10.01,Welders,labor,false,5021,Welder labor costs
-1.10.02,Heavy Equipment Operators,labor,false,5022,Heavy equipment operator costs
-2,Materials Group,material,true,6000,Top-level dynamic group for all material cost codes
+1.0,Labor Group,labor,true,5000,Top-level dynamic group for all labor cost codes
+1.09,General Labor,labor,false,5010,Dynamic parent for general labor categories
+1.09-labor,General Labor - Labor,labor,false,5011,Labor costs for general labor
+1.09-material,General Labor - Materials,material,false,5012,Materials used by general labor
+1.09-equipment,General Labor - Equipment,equipment,false,5013,Equipment used by general labor
+1.10,Skilled Labor,labor,false,5020,Dynamic parent for skilled labor categories
+1.10-labor,Skilled Labor - Labor,labor,false,5021,Labor costs for skilled labor
+1.10-material,Skilled Labor - Materials,material,false,5022,Materials used by skilled labor
+1.10-equipment,Skilled Labor - Equipment,equipment,false,5023,Equipment used by skilled labor
+2.0,Materials Group,material,true,6000,Top-level dynamic group for all material cost codes
 2.01,Concrete & Masonry,material,false,6010,Dynamic parent for concrete materials
-2.01.01,Ready Mix Concrete,material,false,6011,Ready mix concrete purchases
-2.01.02,Rebar & Reinforcement,material,false,6012,Rebar and steel reinforcement
-2.01.03,Block & Brick,material,false,6013,Block and brick materials
+2.01-labor,Concrete & Masonry - Labor,labor,false,6011,Labor for concrete work
+2.01-material,Concrete & Masonry - Materials,material,false,6012,Concrete materials and supplies
+2.01-equipment,Concrete & Masonry - Equipment,equipment,false,6013,Equipment for concrete work
 2.05,Lumber & Wood,material,false,6050,Dynamic parent for lumber materials
-2.05.01,Framing Lumber,material,false,6051,Dimensional lumber for framing
-2.05.02,Plywood & Sheathing,material,false,6052,Plywood and sheathing materials
-2.05.03,Finish Lumber,material,false,6053,Finish lumber and trim
-3,Equipment Group,equipment,true,7000,Top-level dynamic group for all equipment cost codes
+2.05-labor,Lumber & Wood - Labor,labor,false,6051,Labor for lumber work
+2.05-material,Lumber & Wood - Materials,material,false,6052,Lumber and wood materials
+2.05-equipment,Lumber & Wood - Equipment,equipment,false,6053,Equipment for lumber work
+3.0,Equipment Group,equipment,true,7000,Top-level dynamic group for all equipment cost codes
 3.01,Heavy Equipment,equipment,false,7010,Dynamic parent for heavy equipment
-3.01.01,Excavators,equipment,false,7011,Excavator rental and operation
-3.01.02,Loaders,equipment,false,7012,Loader rental and operation
-3.01.03,Cranes,equipment,false,7013,Crane rental and operation
+3.01-labor,Heavy Equipment - Labor,labor,false,7011,Labor for operating heavy equipment
+3.01-material,Heavy Equipment - Materials,material,false,7012,Materials for heavy equipment
+3.01-equipment,Heavy Equipment - Equipment,equipment,false,7013,Heavy equipment rental and operation
 3.05,Small Tools,equipment,false,7050,Dynamic parent for small tools
-3.05.01,Power Tools,equipment,false,7051,Power tool purchases and rentals
-3.05.02,Hand Tools,equipment,false,7052,Hand tool purchases
-4,Subcontractor Group,subcontractor,true,8000,Top-level dynamic group for all subcontractor cost codes
+3.05-labor,Small Tools - Labor,labor,false,7051,Labor using small tools
+3.05-material,Small Tools - Materials,material,false,7052,Materials for small tools
+3.05-equipment,Small Tools - Equipment,equipment,false,7053,Small tool purchases and rentals
+4.0,Subcontractor Group,subcontractor,true,8000,Top-level dynamic group for all subcontractor cost codes
 4.01,Concrete Subs,subcontractor,false,8010,Dynamic parent for concrete subcontractors
-4.01.01,Foundation Contractors,subcontractor,false,8011,Foundation and concrete work
-4.01.02,Flatwork Contractors,subcontractor,false,8012,Flatwork and finishing
+4.01-labor,Concrete Subs - Labor,labor,false,8011,Subcontractor labor for concrete
+4.01-material,Concrete Subs - Materials,material,false,8012,Materials provided by concrete subs
+4.01-equipment,Concrete Subs - Equipment,equipment,false,8013,Equipment provided by concrete subs
 4.05,MEP Subs,subcontractor,false,8050,Dynamic parent for MEP subcontractors
-4.05.01,HVAC Contractors,subcontractor,false,8051,HVAC installation and service
-4.05.02,Electrical Contractors,subcontractor,false,8052,Electrical installation
-4.05.03,Plumbing Contractors,subcontractor,false,8053,Plumbing installation
-5,Other Costs Group,other,true,9000,Top-level dynamic group for miscellaneous costs
+4.05-labor,MEP Subs - Labor,labor,false,8051,Subcontractor labor for MEP work
+4.05-material,MEP Subs - Materials,material,false,8052,Materials provided by MEP subs
+4.05-equipment,MEP Subs - Equipment,equipment,false,8053,Equipment provided by MEP subs
+5.0,Other Costs Group,other,true,9000,Top-level dynamic group for miscellaneous costs
 5.01,Permits & Fees,other,false,9010,Dynamic parent for permits and fees
-5.01.01,Building Permits,other,false,9011,Building permit costs
-5.01.02,Inspection Fees,other,false,9012,Inspection and testing fees
+5.01-labor,Permits & Fees - Labor,labor,false,9011,Labor for permit applications
+5.01-material,Permits & Fees - Materials,material,false,9012,Materials for permit compliance
+5.01-equipment,Permits & Fees - Equipment,equipment,false,9013,Equipment for permit compliance
 5.05,Insurance,other,false,9050,Dynamic parent for insurance costs
-5.05.01,General Liability,other,false,9051,General liability insurance
-5.05.02,Workers Compensation,other,false,9052,Workers compensation insurance
+5.05-labor,Insurance - Labor,labor,false,9051,Labor-related insurance costs
+5.05-material,Insurance - Materials,material,false,9052,Material-related insurance costs
+5.05-equipment,Insurance - Equipment,equipment,false,9053,Equipment-related insurance costs
 
 USAGE NOTES:
 =============
 Dynamic Group Structure:
-- Level 1 (e.g., "1"): Dynamic cost code GROUP - parents all codes starting with that number
-- Level 2 (e.g., "1.09"): Dynamic cost code PARENT - accumulates costs from child codes
-- Level 3 (e.g., "1.09.01"): Regular cost code CHILD - where actual costs are recorded
+- Level 1 (e.g., "1.0"): Dynamic cost code GROUP - parents all codes starting with 1.x
+- Level 2 (e.g., "1.09"): Dynamic cost code PARENT - accumulates costs from all category variants
+- Level 3 (e.g., "1.09-labor"): Regular cost code CHILD - where actual costs are recorded
 
 Budget Flow:
-1. Create dynamic budget for group "1" with total labor budget (e.g., $500,000)
+1. Create dynamic budget for group "1.0" with total labor budget (e.g., $500,000)
 2. Create dynamic budget for parent "1.09" with general labor budget (e.g., $200,000)
-3. As invoices are coded to "1.09.01", "1.09.02", etc., costs automatically roll up to "1.09"
-4. All costs from "1.09", "1.10", etc. roll up to group "1"
+3. As invoices are coded to "1.09-labor", "1.09-material", etc., costs automatically roll up to "1.09"
+4. All costs from "1.09", "1.10", etc. roll up to group "1.0"
+
+Multi-Category Tracking:
+- Each work item (e.g., "1.09") can track labor, materials, and equipment separately
+- This allows detailed cost analysis by category within each work breakdown item
+- Perfect for tracking: "How much labor vs materials did we spend on general labor?"
 
 Chart of Accounts Integration:
 - Each cost code links to a chart of accounts number
@@ -61,7 +71,7 @@ Chart of Accounts Integration:
 - Children use detailed accounts (e.g., 5011, 5012)
 
 Import Instructions:
-1. First import dynamic groups (is_dynamic_group = true)
-2. Then import dynamic parents (middle level codes)
-3. Finally import child codes
+1. First import dynamic groups (is_dynamic_group = true, codes ending in .0)
+2. Then import dynamic parents (middle level codes like 1.09, 2.01)
+3. Finally import child codes (codes with dash suffix like 1.09-labor)
 4. The trigger will automatically set parent relationships based on code patterns
