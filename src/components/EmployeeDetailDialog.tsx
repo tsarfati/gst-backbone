@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { User, Mail, Phone, Building, Key, Edit, Calendar, Shield } from 'lucide-react';
+import { User, Mail, Phone, Building, Key, Edit, Calendar, Shield, Briefcase } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useCompany } from '@/contexts/CompanyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Employee {
   id: string;
@@ -49,9 +51,39 @@ const roleLabels = {
 
 export default function EmployeeDetailDialog({ open, onOpenChange, employee }: EmployeeDetailDialogProps) {
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const navigate = useNavigate();
+  const [assignedJobs, setAssignedJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
+
+  useEffect(() => {
+    if (open && employee && currentCompany) {
+      fetchAssignedJobs();
+    }
+  }, [open, employee, currentCompany]);
+
+  const fetchAssignedJobs = async () => {
+    if (!employee || !currentCompany) return;
+    
+    setLoading(true);
+    try {
+      const userId = employee.user_id || employee.id;
+      const { data, error } = await supabase
+        .from('user_job_access')
+        .select('job_id, jobs(name)')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      setAssignedJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching assigned jobs:', error);
+      setAssignedJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!employee) return null;
 
@@ -173,6 +205,31 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
                     </span>
                   </div>
                 </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Job Assignments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Job Assignments
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-sm text-muted-foreground">Loading job assignments...</p>
+              ) : assignedJobs.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {assignedJobs.map((access) => (
+                    <Badge key={access.job_id} variant="secondary">
+                      {access.jobs?.name || 'Unknown Job'}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No job assignments</p>
               )}
             </CardContent>
           </Card>

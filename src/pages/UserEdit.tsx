@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -64,6 +64,8 @@ export default function UserEdit() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
 
   const isAdmin = profile?.role === 'admin';
@@ -76,6 +78,8 @@ export default function UserEdit() {
       fetchUser();
       fetchJobs();
       fetchUserJobAccess();
+      fetchCostCodes();
+      fetchAssignedCostCodes();
       fetchLoginHistory();
     }
   }, [userId, currentCompany]);
@@ -138,6 +142,42 @@ export default function UserEdit() {
     }
   };
 
+  const fetchCostCodes = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('cost_codes')
+        .select('id, code, description, type')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null) // Only company-level cost codes
+        .eq('is_active', true)
+        .order('code');
+
+      if (error) throw error;
+      setCostCodes(data || []);
+    } catch (error) {
+      console.error('Error fetching cost codes:', error);
+    }
+  };
+
+  const fetchAssignedCostCodes = async () => {
+    if (!userId) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_cost_codes')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      setAssignedCostCodes(data?.assigned_cost_codes || []);
+    } catch (error) {
+      console.error('Error fetching assigned cost codes:', error);
+    }
+  };
+
   const fetchLoginHistory = async () => {
     if (!userId) return;
 
@@ -168,11 +208,12 @@ export default function UserEdit() {
   };
 
   const handleSave = async () => {
-    if (!user || !canManageUsers) return;
+    if (!user || !canManageUsers || !currentCompany) return;
 
     try {
       setSaving(true);
       
+      // Update user profile
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -186,6 +227,20 @@ export default function UserEdit() {
         .eq('user_id', user.user_id);
 
       if (error) throw error;
+
+      // Update cost code assignments
+      const { error: settingsError } = await supabase
+        .from('employee_timecard_settings')
+        .upsert({
+          user_id: user.user_id,
+          company_id: currentCompany.id,
+          assigned_cost_codes: assignedCostCodes,
+          created_by: profile?.user_id
+        }, {
+          onConflict: 'user_id,company_id'
+        });
+
+      if (settingsError) throw settingsError;
 
       toast({
         title: 'Success',
@@ -203,6 +258,14 @@ export default function UserEdit() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleCostCodeAssignment = (costCodeId: string) => {
+    setAssignedCostCodes(prev => 
+      prev.includes(costCodeId) 
+        ? prev.filter(id => id !== costCodeId)
+        : [...prev, costCodeId]
+    );
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -539,6 +602,39 @@ export default function UserEdit() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cost Code Assignments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
+                Cost Code Assignments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select which cost codes this user can use
+              </p>
+              {costCodes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No cost codes available</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
+                  {costCodes.map((costCode) => (
+                    <div key={costCode.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                      <div className="flex-1">
+                        <div className="font-mono font-medium">{costCode.code}</div>
+                        <div className="text-sm text-muted-foreground">{costCode.description}</div>
+                      </div>
+                      <Switch
+                        checked={assignedCostCodes.includes(costCode.id)}
+                        onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
+                      />
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

@@ -8,8 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Save, User, Key, Camera } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -38,10 +41,15 @@ export default function PinEmployeeEdit() {
   const { employeeId } = useParams<{ employeeId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   const [employee, setEmployee] = useState<PinEmployee | null>(null);
   const [groups, setGroups] = useState<EmployeeGroup[]>([]);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [assignedJobs, setAssignedJobs] = useState<string[]>([]);
+  const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -49,11 +57,14 @@ export default function PinEmployeeEdit() {
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
 
   useEffect(() => {
-    if (employeeId) {
+    if (employeeId && currentCompany) {
       fetchEmployee();
       fetchGroups();
+      fetchJobs();
+      fetchCostCodes();
+      fetchAssignments();
     }
-  }, [employeeId]);
+  }, [employeeId, currentCompany]);
 
   const fetchEmployee = async () => {
     if (!employeeId) return;
@@ -94,13 +105,77 @@ export default function PinEmployeeEdit() {
     }
   };
 
+  const fetchJobs = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, name, client, status')
+        .eq('company_id', currentCompany.id)
+        .order('name');
+
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    }
+  };
+
+  const fetchCostCodes = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('cost_codes')
+        .select('id, code, description, type')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null) // Only company-level cost codes
+        .eq('is_active', true)
+        .order('code');
+
+      if (error) throw error;
+      setCostCodes(data || []);
+    } catch (error) {
+      console.error('Error fetching cost codes:', error);
+    }
+  };
+
+  const fetchAssignments = async () => {
+    if (!employeeId) return;
+    
+    try {
+      // Fetch job assignments
+      const { data: jobData, error: jobError } = await supabase
+        .from('user_job_access')
+        .select('job_id')
+        .eq('user_id', employeeId);
+
+      if (jobError) throw jobError;
+      setAssignedJobs(jobData?.map(item => item.job_id) || []);
+
+      // Fetch cost code assignments
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_cost_codes')
+        .eq('user_id', employeeId)
+        .maybeSingle();
+
+      if (settingsError) throw settingsError;
+      setAssignedCostCodes(settingsData?.assigned_cost_codes || []);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+    }
+  };
+
   const handleSave = async () => {
-    if (!employee || !canManageEmployees) return;
+    if (!employee || !canManageEmployees || !currentCompany) return;
 
     try {
       setSaving(true);
       
-      const { error } = await supabase
+      // Update employee profile
+      const { error: employeeError } = await supabase
         .from('pin_employees')
         .update({
           first_name: employee.first_name,
@@ -115,7 +190,43 @@ export default function PinEmployeeEdit() {
         })
         .eq('id', employee.id);
 
-      if (error) throw error;
+      if (employeeError) throw employeeError;
+
+      // Update job assignments
+      // Delete existing assignments
+      await supabase
+        .from('user_job_access')
+        .delete()
+        .eq('user_id', employee.id);
+
+      // Insert new assignments
+      if (assignedJobs.length > 0) {
+        const jobAccessData = assignedJobs.map(jobId => ({
+          user_id: employee.id,
+          job_id: jobId,
+          granted_by: profile?.user_id || employee.id
+        }));
+
+        const { error: jobAccessError } = await supabase
+          .from('user_job_access')
+          .insert(jobAccessData);
+
+        if (jobAccessError) throw jobAccessError;
+      }
+
+      // Update cost code assignments
+      const { error: settingsError } = await supabase
+        .from('employee_timecard_settings')
+        .upsert({
+          user_id: employee.id,
+          company_id: currentCompany.id,
+          assigned_cost_codes: assignedCostCodes,
+          created_by: profile?.user_id
+        }, {
+          onConflict: 'user_id,company_id'
+        });
+
+      if (settingsError) throw settingsError;
 
       toast({
         title: 'Success',
@@ -133,6 +244,22 @@ export default function PinEmployeeEdit() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleJobAssignment = (jobId: string) => {
+    setAssignedJobs(prev => 
+      prev.includes(jobId) 
+        ? prev.filter(id => id !== jobId)
+        : [...prev, jobId]
+    );
+  };
+
+  const toggleCostCodeAssignment = (costCodeId: string) => {
+    setAssignedCostCodes(prev => 
+      prev.includes(costCodeId) 
+        ? prev.filter(id => id !== costCodeId)
+        : [...prev, costCodeId]
+    );
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -404,6 +531,82 @@ export default function PinEmployeeEdit() {
                   rows={3}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Job Assignments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Job Assignments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select which jobs this employee can access
+              </p>
+              {jobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No jobs available</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {jobs.map((job) => (
+                    <div key={job.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`job-${job.id}`}
+                        checked={assignedJobs.includes(job.id)}
+                        onCheckedChange={() => toggleJobAssignment(job.id)}
+                      />
+                      <Label
+                        htmlFor={`job-${job.id}`}
+                        className="text-sm font-normal cursor-pointer flex-1"
+                      >
+                        {job.name}
+                        {job.client && (
+                          <span className="text-muted-foreground ml-2">({job.client})</span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cost Code Assignments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
+                Cost Code Assignments
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select which cost codes this employee can use
+              </p>
+              {costCodes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No cost codes available</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {costCodes.map((costCode) => (
+                    <div key={costCode.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`costcode-${costCode.id}`}
+                        checked={assignedCostCodes.includes(costCode.id)}
+                        onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
+                      />
+                      <Label
+                        htmlFor={`costcode-${costCode.id}`}
+                        className="text-sm font-normal cursor-pointer flex-1"
+                      >
+                        <span className="font-mono">{costCode.code}</span>
+                        <span className="text-muted-foreground ml-2">- {costCode.description}</span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

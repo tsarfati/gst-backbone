@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Building2, Clock, Save, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Job { id: string; name: string }
@@ -61,6 +62,7 @@ const defaultJobSettings: JobSettings = {
 
 export default function JobPunchClockSettings() {
   const { profile, user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
@@ -71,8 +73,10 @@ export default function JobPunchClockSettings() {
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    if (currentCompany) {
+      loadJobs();
+    }
+  }, [currentCompany]);
 
   useEffect(() => {
     if (selectedJobId) {
@@ -81,10 +85,13 @@ export default function JobPunchClockSettings() {
   }, [selectedJobId]);
 
   const loadJobs = async () => {
+    if (!currentCompany) return;
+    
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('id, name')
+        .eq('company_id', currentCompany.id)
         .order('name');
       if (error) throw error;
       setJobs(data || []);
