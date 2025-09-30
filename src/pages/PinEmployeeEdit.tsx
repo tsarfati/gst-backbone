@@ -158,19 +158,22 @@ export default function PinEmployeeEdit() {
   };
 
   const fetchAssignments = async () => {
-    if (!employeeId) return;
+    if (!employeeId || !currentCompany) return;
     
     try {
-      // Fetch job assignments
-      const { data: jobData, error: jobError } = await supabase
-        .from('user_job_access')
-        .select('job_id')
-        .eq('user_id', employeeId);
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_jobs, assigned_cost_codes')
+        .eq('user_id', employeeId)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
 
-      if (jobError) throw jobError;
-      setAssignedJobs(jobData?.map(item => item.job_id) || []);
+      if (settingsError) throw settingsError;
 
-      // Don't fetch cost codes here - they're job-specific
+      setAssignedJobs(settingsData?.assigned_jobs || []);
+      if (settingsData?.assigned_cost_codes) {
+        setAssignedCostCodes(settingsData.assigned_cost_codes);
+      }
     } catch (error) {
       console.error('Error fetching assignments:', error);
     }
@@ -224,27 +227,7 @@ export default function PinEmployeeEdit() {
 
       if (employeeError) throw employeeError;
 
-      // Update job assignments
-      // Delete existing assignments
-      await supabase
-        .from('user_job_access')
-        .delete()
-        .eq('user_id', employee.id);
-
-      // Insert new assignments
-      if (assignedJobs.length > 0) {
-        const jobAccessData = assignedJobs.map(jobId => ({
-          user_id: employee.id,
-          job_id: jobId,
-          granted_by: profile?.user_id || employee.id
-        }));
-
-        const { error: jobAccessError } = await supabase
-          .from('user_job_access')
-          .insert(jobAccessData);
-
-        if (jobAccessError) throw jobAccessError;
-      }
+      // Job assignments are saved via employee_timecard_settings below
 
       // Update cost code assignments
       const { error: settingsError } = await supabase
@@ -252,6 +235,7 @@ export default function PinEmployeeEdit() {
         .upsert({
           user_id: employee.id,
           company_id: currentCompany.id,
+          assigned_jobs: assignedJobs,
           assigned_cost_codes: assignedCostCodes,
           created_by: profile?.user_id
         }, {
