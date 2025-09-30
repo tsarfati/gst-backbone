@@ -229,18 +229,40 @@ export default function PinEmployeeEdit() {
 
       // Job assignments are saved via employee_timecard_settings below
 
-      // Update cost code assignments
-      const { error: settingsError } = await supabase
+      // Update cost code and job assignments in employee_timecard_settings
+      let settingsError: any = null;
+
+      const { data: existingSettings, error: fetchSettingsError } = await supabase
         .from('employee_timecard_settings')
-        .upsert({
-          user_id: employee.id,
-          company_id: currentCompany.id,
-          assigned_jobs: assignedJobs,
-          assigned_cost_codes: assignedCostCodes,
-          created_by: profile?.user_id
-        }, {
-          onConflict: 'user_id,company_id'
-        });
+        .select('id')
+        .eq('user_id', employee.id)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+
+      if (fetchSettingsError) throw fetchSettingsError;
+
+      if (existingSettings) {
+        const { error } = await supabase
+          .from('employee_timecard_settings')
+          .update({
+            assigned_jobs: assignedJobs,
+            assigned_cost_codes: assignedCostCodes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingSettings.id);
+        settingsError = error;
+      } else {
+        const { error } = await supabase
+          .from('employee_timecard_settings')
+          .insert({
+            user_id: employee.id,
+            company_id: currentCompany.id,
+            assigned_jobs: assignedJobs,
+            assigned_cost_codes: assignedCostCodes,
+            created_by: profile?.user_id
+          });
+        settingsError = error;
+      }
 
       if (settingsError) throw settingsError;
 
