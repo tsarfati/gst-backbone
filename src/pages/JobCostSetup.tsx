@@ -31,6 +31,7 @@ import {
   Upload,
   Download
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -88,6 +89,7 @@ export default function JobCostSetup() {
   // Settings state
   const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
   const [requireChartAccount, setRequireChartAccount] = useState(false);
+  const [csvUploadMode, setCsvUploadMode] = useState<'replace' | 'add' | 'update'>('add');
 
   const [newTemplate, setNewTemplate] = useState<{
     code: string;
@@ -345,7 +347,7 @@ export default function JobCostSetup() {
         return;
       }
 
-      const costCodesToInsert = [];
+      const costCodesToProcess = [];
 
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
@@ -356,7 +358,7 @@ export default function JobCostSetup() {
         });
 
         if (costCode.code && costCode.description && costCode.type) {
-          costCodesToInsert.push({
+          costCodesToProcess.push({
             code: costCode.code,
             description: costCode.description,
             type: costCode.type,
@@ -367,17 +369,82 @@ export default function JobCostSetup() {
         }
       }
 
-      if (costCodesToInsert.length > 0) {
-        const { error } = await supabase
-          .from('cost_codes')
-          .insert(costCodesToInsert);
+      if (costCodesToProcess.length > 0) {
+        // Handle different upload modes
+        if (csvUploadMode === 'replace') {
+          // Replace: Deactivate all existing cost codes, then insert new ones
+          const { error: deactivateError } = await supabase
+            .from('cost_codes')
+            .update({ is_active: false })
+            .is('job_id', null)
+            .eq('company_id', currentCompany?.id);
 
-        if (error) throw error;
+          if (deactivateError) throw deactivateError;
 
-        toast({
-          title: "CSV Uploaded Successfully",
-          description: `${costCodesToInsert.length} cost code templates imported`,
-        });
+          const { error: insertError } = await supabase
+            .from('cost_codes')
+            .insert(costCodesToProcess);
+
+          if (insertError) throw insertError;
+
+          toast({
+            title: "Cost Codes Replaced",
+            description: `All existing cost codes deactivated and ${costCodesToProcess.length} new cost codes imported`,
+          });
+        } else if (csvUploadMode === 'add') {
+          // Add: Insert new cost codes (ignore duplicates)
+          const { error } = await supabase
+            .from('cost_codes')
+            .insert(costCodesToProcess);
+
+          if (error) throw error;
+
+          toast({
+            title: "Cost Codes Added",
+            description: `${costCodesToProcess.length} new cost code templates added`,
+          });
+        } else if (csvUploadMode === 'update') {
+          // Update: Update existing cost codes based on code, insert new ones
+          let updatedCount = 0;
+          let insertedCount = 0;
+
+          for (const costCode of costCodesToProcess) {
+            // Check if cost code exists
+            const { data: existing } = await supabase
+              .from('cost_codes')
+              .select('id')
+              .eq('code', costCode.code)
+              .is('job_id', null)
+              .eq('company_id', currentCompany?.id)
+              .single();
+
+            if (existing) {
+              // Update existing
+              const { error } = await supabase
+                .from('cost_codes')
+                .update({
+                  description: costCode.description,
+                  type: costCode.type,
+                  is_active: true
+                })
+                .eq('id', existing.id);
+
+              if (!error) updatedCount++;
+            } else {
+              // Insert new
+              const { error } = await supabase
+                .from('cost_codes')
+                .insert(costCode);
+
+              if (!error) insertedCount++;
+            }
+          }
+
+          toast({
+            title: "Cost Codes Updated",
+            description: `${updatedCount} cost codes updated, ${insertedCount} new cost codes added`,
+          });
+        }
 
         setCsvUploadDialogOpen(false);
         setCsvFile(null);
@@ -545,6 +612,54 @@ export default function JobCostSetup() {
                       <Download className="h-4 w-4 mr-2" />
                       Export Cost Codes to CSV
                     </Button>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <Label>CSV Upload Mode</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Choose how CSV uploads should handle existing cost codes
+                    </p>
+                    <RadioGroup value={csvUploadMode} onValueChange={(value: any) => setCsvUploadMode(value)}>
+                      <div className="space-y-3">
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="add" id="mode-add" className="mt-1" />
+                          <div className="space-y-1 flex-1">
+                            <Label htmlFor="mode-add" className="font-medium cursor-pointer">
+                              Add to Current List
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Adds new cost codes from CSV to your existing list. Duplicate codes will cause an error.
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="update" id="mode-update" className="mt-1" />
+                          <div className="space-y-1 flex-1">
+                            <Label htmlFor="mode-update" className="font-medium cursor-pointer">
+                              Update Current List
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Updates existing cost codes that match by code, and adds any new codes not found in your list.
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="replace" id="mode-replace" className="mt-1" />
+                          <div className="space-y-1 flex-1">
+                            <Label htmlFor="mode-replace" className="font-medium cursor-pointer">
+                              Replace Current List
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Deactivates all existing cost codes and replaces them completely with the codes from the CSV file.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </RadioGroup>
                   </div>
                 </div>
 
