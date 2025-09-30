@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Plus, Trash2, Calculator, Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +15,7 @@ interface CostDistribution {
   id?: string;
   cost_code_id: string;
   amount: number;
+  description?: string;
   cost_code_description?: string;
 }
 
@@ -28,6 +31,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  type: string;
 }
 
 export default function SubcontractCostDistribution({ 
@@ -41,6 +45,7 @@ export default function SubcontractCostDistribution({
   const [distribution, setDistribution] = useState<CostDistribution[]>(initialDistribution);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     loadCostCodes();
@@ -56,11 +61,12 @@ export default function SubcontractCostDistribution({
     try {
       setLoading(true);
 
-      // Load cost codes for this job
+      // Load cost codes for this job (subcontractor category only)
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
-        .select('id, code, description')
+        .select('id, code, description, type')
         .or(`job_id.eq.${jobId},job_id.is.null`)
+        .eq('type', 'sub')
         .eq('is_active', true)
         .order('code');
 
@@ -84,7 +90,8 @@ export default function SubcontractCostDistribution({
     const newDistribution: CostDistribution = {
       id: newId,
       cost_code_id: '',
-      amount: 0
+      amount: 0,
+      description: ''
     };
     setDistribution(prev => [...prev, newDistribution]);
   };
@@ -153,36 +160,83 @@ export default function SubcontractCostDistribution({
           <p>No cost code distributions added yet.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {distribution.map((dist, index) => {
             const costCode = costCodes.find(cc => cc.id === dist.cost_code_id);
             return (
-              <div key={dist.id} className="flex items-center gap-3 p-3 border rounded-md bg-muted/30">
-                <div className="flex-1 grid grid-cols-3 gap-3 items-center">
+              <div key={dist.id} className="p-4 border rounded-md bg-muted/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Distribution #{index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeDistribution(dist.id!)}
+                    disabled={disabled}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <Select
-                      value={dist.cost_code_id}
-                      onValueChange={(value) => updateDistribution(dist.id!, 'cost_code_id', value)}
-                      disabled={disabled}
+                    <Label className="text-xs">Cost Code</Label>
+                    <Popover 
+                      open={openDropdowns[dist.id!] || false} 
+                      onOpenChange={(open) => setOpenDropdowns(prev => ({ ...prev, [dist.id!]: open }))}
                     >
-                      <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Cost code" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {costCodes.map((costCode) => (
-                          <SelectItem key={costCode.id} value={costCode.id}>
-                            {costCode.code}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="text-sm text-muted-foreground">
-                    {costCode?.description || "Select cost code"}
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openDropdowns[dist.id!] || false}
+                          className="w-full justify-between h-8"
+                          disabled={disabled}
+                        >
+                          {dist.cost_code_id
+                            ? costCodes.find((cc) => cc.id === dist.cost_code_id)?.code
+                            : "Select cost code..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[300px] p-0 bg-background border shadow-md z-50">
+                        <Command>
+                          <CommandInput placeholder="Search cost codes..." className="h-9" />
+                          <CommandList>
+                            <CommandEmpty>No cost codes found.</CommandEmpty>
+                            <CommandGroup>
+                              {costCodes.map((costCode) => (
+                                <CommandItem
+                                  key={costCode.id}
+                                  value={`${costCode.code} ${costCode.description}`}
+                                  onSelect={() => {
+                                    updateDistribution(dist.id!, 'cost_code_id', costCode.id);
+                                    setOpenDropdowns(prev => ({ ...prev, [dist.id!]: false }));
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      dist.cost_code_id === costCode.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div>
+                                    <div className="font-medium">{costCode.code}</div>
+                                    <div className="text-sm text-muted-foreground">{costCode.description}</div>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   
                   <div>
+                    <Label className="text-xs">Amount</Label>
                     <CurrencyInput
                       value={dist.amount?.toString() || ''}
                       onChange={(value) => updateDistribution(dist.id!, 'amount', parseFloat(value) || 0)}
@@ -193,16 +247,16 @@ export default function SubcontractCostDistribution({
                   </div>
                 </div>
                 
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeDistribution(dist.id!)}
-                  disabled={disabled}
-                  className="h-8 w-8 p-0"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <div>
+                  <Label className="text-xs">Description</Label>
+                  <Input
+                    value={dist.description || ''}
+                    onChange={(e) => updateDistribution(dist.id!, 'description', e.target.value)}
+                    placeholder="Enter description for this cost item..."
+                    disabled={disabled}
+                    className="h-8"
+                  />
+                </div>
               </div>
             );
           })}
