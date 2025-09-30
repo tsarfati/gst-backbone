@@ -26,6 +26,7 @@ export default function AddBill() {
     job_id: "",
     cost_code_id: "",
     subcontract_id: "",
+    purchase_order_id: "",
     amount: "",
     invoice_number: "",
     dueDate: "",
@@ -33,6 +34,8 @@ export default function AddBill() {
     payment_terms: "",
     description: "",
     is_subcontract_invoice: false,
+    is_commitment: false,
+    commitment_type: "",
     is_reimbursement: false,
     use_terms: true // toggle between due date and terms
   });
@@ -43,6 +46,7 @@ export default function AddBill() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +58,7 @@ export default function AddBill() {
     if (formData.job_id) {
       fetchCostCodesForJob(formData.job_id);
       fetchSubcontractsForJob(formData.job_id);
+      fetchPurchaseOrdersForJob(formData.job_id);
     }
   }, [formData.job_id]);
 
@@ -71,9 +76,10 @@ export default function AddBill() {
     if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
     
     try {
+      const companyId = currentCompany?.id || profile?.current_company_id;
       const [vendorsRes, jobsRes] = await Promise.all([
-        supabase.from('vendors').select('id, name, logo_url').eq('company_id', currentCompany?.id || profile?.current_company_id),
-        supabase.from('jobs').select('*')
+        supabase.from('vendors').select('id, name, logo_url').eq('company_id', companyId),
+        supabase.from('jobs').select('*').eq('company_id', companyId)
       ]);
 
       if (vendorsRes.data) setVendors(vendorsRes.data);
@@ -115,6 +121,20 @@ export default function AddBill() {
       setSubcontracts(data || []);
     } catch (error) {
       console.error('Error fetching subcontracts:', error);
+    }
+  };
+
+  const fetchPurchaseOrdersForJob = async (jobId: string) => {
+    try {
+      const { data } = await supabase
+        .from('purchase_orders')
+        .select('*, vendors(name)')
+        .eq('job_id', jobId)
+        .eq('status', 'approved');
+      
+      setPurchaseOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
     }
   };
 
@@ -215,14 +235,15 @@ export default function AddBill() {
           vendor_id: formData.vendor_id,
           job_id: formData.job_id,
           cost_code_id: formData.cost_code_id || null,
-          subcontract_id: formData.subcontract_id || null,
+          subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
+          purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
           amount: parseFloat(formData.amount),
           invoice_number: formData.invoice_number || null,
           issue_date: formData.issueDate,
           due_date: dueDate,
           payment_terms: formData.use_terms ? formData.payment_terms : null,
           description: formData.description,
-          is_subcontract_invoice: formData.is_subcontract_invoice,
+          is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
           is_reimbursement: formData.is_reimbursement,
           created_by: user.data.user.id
         });
@@ -479,11 +500,18 @@ export default function AddBill() {
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
-                  id="is_subcontract_invoice"
-                  checked={formData.is_subcontract_invoice}
-                  onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
+                  id="is_commitment"
+                  checked={formData.is_commitment}
+                  onCheckedChange={(checked) => {
+                    handleInputChange("is_commitment", checked);
+                    if (!checked) {
+                      handleInputChange("commitment_type", "");
+                      handleInputChange("subcontract_id", "");
+                      handleInputChange("purchase_order_id", "");
+                    }
+                  }}
                 />
-                <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
+                <Label htmlFor="is_commitment">This bill is for a commitment</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -495,21 +523,60 @@ export default function AddBill() {
               </div>
             </div>
 
-            {formData.is_subcontract_invoice && (
-              <div className="space-y-2">
-                <Label htmlFor="subcontract">Subcontract *</Label>
-                <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a subcontract" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subcontracts.map((subcontract) => (
-                      <SelectItem key={subcontract.id} value={subcontract.id}>
-                        {subcontract.name} - {subcontract.vendors?.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {formData.is_commitment && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="commitment_type">Commitment Type *</Label>
+                  <Select value={formData.commitment_type} onValueChange={(value) => {
+                    handleInputChange("commitment_type", value);
+                    handleInputChange("subcontract_id", "");
+                    handleInputChange("purchase_order_id", "");
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select commitment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="subcontract">Subcontract</SelectItem>
+                      <SelectItem value="purchase_order">Purchase Order</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.commitment_type === 'subcontract' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="subcontract">Subcontract *</Label>
+                    <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a subcontract" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subcontracts.map((subcontract) => (
+                          <SelectItem key={subcontract.id} value={subcontract.id}>
+                            {subcontract.name} - {subcontract.vendors?.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {formData.commitment_type === 'purchase_order' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="purchase_order">Purchase Order *</Label>
+                    <Select value={formData.purchase_order_id} onValueChange={(value) => handleInputChange("purchase_order_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a purchase order" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {purchaseOrders.map((po) => (
+                          <SelectItem key={po.id} value={po.id}>
+                            {po.po_number} - {po.vendors?.name} (${Number(po.amount).toLocaleString()})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
