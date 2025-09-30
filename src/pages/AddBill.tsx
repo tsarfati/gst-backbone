@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,6 +40,8 @@ export default function AddBill() {
     is_reimbursement: false,
     use_terms: true // toggle between due date and terms
   });
+  
+  const [billType, setBillType] = useState<"non_commitment" | "commitment">("non_commitment");
   
   const [billFile, setBillFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -372,159 +375,204 @@ export default function AddBill() {
           <CardHeader>
             <CardTitle>Bill Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="vendor">Vendor *</Label>
-                <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a vendor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendors.map((vendor) => (
-                      <SelectItem key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="job">Job *</Label>
-                <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a job" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount *</Label>
-                <CurrencyInput
-                  id="amount"
-                  value={formData.amount}
-                  onChange={(value) => handleInputChange("amount", value)}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="invoice_number">Invoice #</Label>
-                <Input
-                  id="invoice_number"
-                  value={formData.invoice_number}
-                  onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                  placeholder="Enter invoice number (optional)"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="cost_code">Cost Code</Label>
-                <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cost code (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {costCodes.map((code) => (
-                      <SelectItem key={code.id} value={code.id}>
-                        {code.code} - {code.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="issueDate">Issue Date *</Label>
-                <Input
-                  id="issueDate"
-                  type="date"
-                  value={formData.issueDate}
-                  onChange={(e) => handleInputChange("issueDate", e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Checkbox
-                    id="use_terms"
-                    checked={formData.use_terms}
-                    onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
-                  />
-                  <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
-                </div>
-                {formData.use_terms ? (
-                  <div>
-                    <Label htmlFor="payment_terms">Payment Terms *</Label>
-                    <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
+          <CardContent>
+            <Tabs value={billType} onValueChange={(value) => {
+              setBillType(value as "non_commitment" | "commitment");
+              const isCommitment = value === "commitment";
+              handleInputChange("is_commitment", isCommitment);
+              if (!isCommitment) {
+                handleInputChange("commitment_type", "");
+                handleInputChange("subcontract_id", "");
+                handleInputChange("purchase_order_id", "");
+              }
+            }}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="non_commitment">Non Commitment</TabsTrigger>
+                <TabsTrigger value="commitment">Commitment</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="non_commitment" className="space-y-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vendor">Vendor *</Label>
+                    <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select payment terms" />
+                        <SelectValue placeholder="Select a vendor" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="asap">ASAP</SelectItem>
-                        <SelectItem value="15">Net 15</SelectItem>
-                        <SelectItem value="30">Net 30</SelectItem>
-                        <SelectItem value="45">Net 45</SelectItem>
-                        <SelectItem value="60">Net 60</SelectItem>
+                        {vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            {vendor.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                ) : (
-                  <div>
-                    <Label htmlFor="dueDate">Due Date *</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      value={formData.dueDate}
-                      onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                  <div className="space-y-2">
+                    <Label htmlFor="job">Job *</Label>
+                    <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a job" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={job.id}>
+                            {job.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount *</Label>
+                    <CurrencyInput
+                      id="amount"
+                      value={formData.amount}
+                      onChange={(value) => handleInputChange("amount", value)}
+                      placeholder="0.00"
                       required
                     />
                   </div>
-                )}
-              </div>
-            </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invoice_number">Invoice #</Label>
+                    <Input
+                      id="invoice_number"
+                      value={formData.invoice_number}
+                      onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                      placeholder="Enter invoice number (optional)"
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="is_commitment"
-                  checked={formData.is_commitment}
-                  onCheckedChange={(checked) => {
-                    handleInputChange("is_commitment", checked);
-                    if (!checked) {
-                      handleInputChange("commitment_type", "");
-                      handleInputChange("subcontract_id", "");
-                      handleInputChange("purchase_order_id", "");
-                    }
-                  }}
-                />
-                <Label htmlFor="is_commitment">This bill is for a commitment</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="is_reimbursement"
-                  checked={formData.is_reimbursement}
-                  onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
-                />
-                <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
-              </div>
-            </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cost_code">Cost Code</Label>
+                    <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select cost code (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {costCodes.map((code) => (
+                          <SelectItem key={code.id} value={code.id}>
+                            {code.code} - {code.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            {formData.is_commitment && (
-              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="issueDate">Issue Date *</Label>
+                    <Input
+                      id="issueDate"
+                      type="date"
+                      value={formData.issueDate}
+                      onChange={(e) => handleInputChange("issueDate", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Checkbox
+                        id="use_terms"
+                        checked={formData.use_terms}
+                        onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
+                      />
+                      <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
+                    </div>
+                    {formData.use_terms ? (
+                      <div>
+                        <Label htmlFor="payment_terms">Payment Terms *</Label>
+                        <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment terms" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asap">ASAP</SelectItem>
+                            <SelectItem value="15">Net 15</SelectItem>
+                            <SelectItem value="30">Net 30</SelectItem>
+                            <SelectItem value="45">Net 45</SelectItem>
+                            <SelectItem value="60">Net 60</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label htmlFor="dueDate">Due Date *</Label>
+                        <Input
+                          id="dueDate"
+                          type="date"
+                          value={formData.dueDate}
+                          onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="is_reimbursement"
+                      checked={formData.is_reimbursement}
+                      onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                    />
+                    <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    placeholder="Enter invoice description or notes"
+                    rows={3}
+                  />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="commitment" className="space-y-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vendor">Vendor *</Label>
+                    <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a vendor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            {vendor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="job">Job *</Label>
+                    <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a job" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={job.id}>
+                            {job.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="commitment_type">Commitment Type *</Label>
                   <Select value={formData.commitment_type} onValueChange={(value) => {
@@ -577,19 +625,121 @@ export default function AddBill() {
                     </Select>
                   </div>
                 )}
-              </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Enter invoice description or notes"
-                rows={3}
-              />
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount *</Label>
+                    <CurrencyInput
+                      id="amount"
+                      value={formData.amount}
+                      onChange={(value) => handleInputChange("amount", value)}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invoice_number">Invoice #</Label>
+                    <Input
+                      id="invoice_number"
+                      value={formData.invoice_number}
+                      onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                      placeholder="Enter invoice number (optional)"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cost_code">Cost Code</Label>
+                    <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select cost code (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {costCodes.map((code) => (
+                          <SelectItem key={code.id} value={code.id}>
+                            {code.code} - {code.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="issueDate">Issue Date *</Label>
+                    <Input
+                      id="issueDate"
+                      type="date"
+                      value={formData.issueDate}
+                      onChange={(e) => handleInputChange("issueDate", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Checkbox
+                        id="use_terms"
+                        checked={formData.use_terms}
+                        onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
+                      />
+                      <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
+                    </div>
+                    {formData.use_terms ? (
+                      <div>
+                        <Label htmlFor="payment_terms">Payment Terms *</Label>
+                        <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment terms" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asap">ASAP</SelectItem>
+                            <SelectItem value="15">Net 15</SelectItem>
+                            <SelectItem value="30">Net 30</SelectItem>
+                            <SelectItem value="45">Net 45</SelectItem>
+                            <SelectItem value="60">Net 60</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label htmlFor="dueDate">Due Date *</Label>
+                        <Input
+                          id="dueDate"
+                          type="date"
+                          value={formData.dueDate}
+                          onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="is_reimbursement"
+                      checked={formData.is_reimbursement}
+                      onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                    />
+                    <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    placeholder="Enter invoice description or notes"
+                    rows={3}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
