@@ -162,9 +162,9 @@ export default function PinEmployeeEdit() {
     
     try {
       const { data: settingsData, error: settingsError } = await supabase
-        .from('employee_timecard_settings')
+        .from('pin_employee_timecard_settings')
         .select('assigned_jobs, assigned_cost_codes')
-        .eq('user_id', employeeId)
+        .eq('pin_employee_id', employeeId)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
 
@@ -229,13 +229,13 @@ export default function PinEmployeeEdit() {
 
       // Job assignments are saved via employee_timecard_settings below
 
-      // Update cost code and job assignments in employee_timecard_settings
+      // Update cost code and job assignments for PIN employee
       let settingsError: any = null;
 
       const { data: existingSettings, error: fetchSettingsError } = await supabase
-        .from('employee_timecard_settings')
+        .from('pin_employee_timecard_settings')
         .select('id')
-        .eq('user_id', employee.id)
+        .eq('pin_employee_id', employee.id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
 
@@ -243,7 +243,7 @@ export default function PinEmployeeEdit() {
 
       if (existingSettings) {
         const { error } = await supabase
-          .from('employee_timecard_settings')
+          .from('pin_employee_timecard_settings')
           .update({
             assigned_jobs: assignedJobs,
             assigned_cost_codes: assignedCostCodes,
@@ -253,9 +253,9 @@ export default function PinEmployeeEdit() {
         settingsError = error;
       } else {
         const { error } = await supabase
-          .from('employee_timecard_settings')
+          .from('pin_employee_timecard_settings')
           .insert({
-            user_id: employee.id,
+            pin_employee_id: employee.id,
             company_id: currentCompany.id,
             assigned_jobs: assignedJobs,
             assigned_cost_codes: assignedCostCodes,
