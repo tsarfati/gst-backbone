@@ -75,157 +75,126 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Committed Costs
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Subcontracts Section */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">Subcontracts</h3>
-            {subcontracts.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No subcontracts for this job</p>
-            ) : (
-              <div className="space-y-3">
-                {subcontracts.map((subcontract) => {
-                  const billing = calculateBillingStatus(
-                    parseFloat(subcontract.contract_amount), 
-                    subcontract.id, 
-                    true
-                  );
-                  
-                  return (
-                    <Card key={subcontract.id} className="border border-muted">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="font-medium">{subcontract.name}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {subcontract.vendors?.name}
-                            </p>
-                          </div>
-                          <Badge variant="outline">{subcontract.status}</Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-3 gap-4 mb-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Contract Amount</p>
-                            <p className="font-medium">${parseFloat(subcontract.contract_amount).toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Billed</p>
-                            <p className="font-medium">${billing.totalBilled.toLocaleString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Remaining</p>
-                            <p className="font-medium">${billing.remaining.toLocaleString()}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span>Billing Progress</span>
-                            <span>{billing.percentageBilled.toFixed(1)}%</span>
-                          </div>
-                          <Progress value={billing.percentageBilled} className="h-2" />
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3">
-                          {subcontract.contract_file_url ? (
-                            <Button size="sm" variant="outline" asChild>
-                              <a href={subcontract.contract_file_url} target="_blank" rel="noopener noreferrer">
-                                <FileText className="h-3 w-3 mr-1" />
-                                View Contract
-                              </a>
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="outline" disabled>
-                              <FileText className="h-3 w-3 mr-1" />
-                              No Contract File
-                            </Button>
-                          )}
-                          <Button size="sm" variant="ghost">
-                            Edit
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Purchase Orders Section */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">Purchase Orders</h3>
-            {purchaseOrders.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No purchase orders for this job</p>
-            ) : (
-              <div className="space-y-3">
-                {purchaseOrders.map((po) => (
-                  <Card key={po.id} className="border border-muted">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-medium">PO #{po.po_number}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {po.vendors?.name}
-                          </p>
-                          {po.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {po.description}
-                            </p>
-                          )}
-                        </div>
-                        <Badge variant="outline">{po.status}</Badge>
+    <div className="space-y-4">
+      {/* Subcontracts Section */}
+      <div>
+        <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
+          <DollarSign className="h-4 w-4" />
+          Subcontracts ({subcontracts.length})
+        </h3>
+        {subcontracts.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No subcontracts for this job</p>
+        ) : (
+          <div className="space-y-2">
+            {subcontracts.map((subcontract) => {
+              const billing = calculateBillingStatus(
+                parseFloat(subcontract.contract_amount), 
+                subcontract.id, 
+                true
+              );
+              
+              return (
+                <div key={subcontract.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{subcontract.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {subcontract.vendors?.name}
+                        </p>
                       </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 mb-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">PO Amount</p>
-                          <p className="font-medium">${parseFloat(po.amount).toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Order Date</p>
-                          <p className="font-medium">{po.order_date}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Expected Delivery</p>
-                          <p className="font-medium">{po.expected_delivery || 'N/A'}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-3">
-                        {po.po_file_url ? (
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={po.po_file_url} target="_blank" rel="noopener noreferrer">
-                              <FileText className="h-3 w-3 mr-1" />
-                              View PO
-                            </a>
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline" disabled>
-                            <FileText className="h-3 w-3 mr-1" />
-                            No PO File
-                          </Button>
-                        )}
-                        <Button size="sm" variant="ghost">
-                          Edit
+                      <Badge variant="outline" className="shrink-0">{subcontract.status}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 ml-4">
+                    <div className="text-right">
+                      <p className="font-medium">${parseFloat(subcontract.contract_amount).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ${billing.totalBilled.toLocaleString()} billed ({billing.percentageBilled.toFixed(0)}%)
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      {subcontract.contract_file_url && (
+                        <Button size="sm" variant="ghost" asChild>
+                          <a href={subcontract.contract_file_url} target="_blank" rel="noopener noreferrer">
+                            <FileText className="h-3 w-3" />
+                          </a>
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      {/* Purchase Orders Section */}
+      <div>
+        <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Purchase Orders ({purchaseOrders.length})
+        </h3>
+        {purchaseOrders.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No purchase orders for this job</p>
+        ) : (
+          <div className="space-y-2">
+            {purchaseOrders.map((po) => (
+              <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">PO #{po.po_number}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {po.vendors?.name}
+                      </p>
+                      {po.description && (
+                        <p className="text-xs text-muted-foreground truncate mt-1">
+                          {po.description}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="shrink-0">{po.status}</Badge>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 ml-4">
+                  <div className="text-right">
+                    <p className="font-medium">${parseFloat(po.amount).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {po.expected_delivery ? `Due: ${po.expected_delivery}` : 'No delivery date'}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    {po.po_file_url && (
+                      <Button size="sm" variant="ghost" asChild>
+                        <a href={po.po_file_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-3 w-3" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Summary */}
+      {(subcontracts.length > 0 || purchaseOrders.length > 0) && (
+        <div className="pt-3 border-t">
+          <div className="flex justify-between items-center text-sm">
+            <span className="font-medium">Total Committed:</span>
+            <span className="font-semibold">
+              ${(
+                subcontracts.reduce((sum, s) => sum + parseFloat(s.contract_amount), 0) +
+                purchaseOrders.reduce((sum, po) => sum + parseFloat(po.amount), 0)
+              ).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

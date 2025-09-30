@@ -20,6 +20,7 @@ interface Job {
   job_type?: string;
   status?: string;
   budget?: number;
+  budget_total?: number;
   start_date?: string;
   end_date?: string;
   description?: string;
@@ -171,10 +172,10 @@ export default function JobDetails() {
                 </Badge>
               </div>
 
-              {job.budget && (
+              {job.budget_total && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Budget</label>
-                  <p className="text-foreground">${Number(job.budget).toLocaleString()}</p>
+                  <p className="text-foreground">${Number(job.budget_total).toLocaleString()}</p>
                 </div>
               )}
 
