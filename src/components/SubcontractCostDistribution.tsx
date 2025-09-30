@@ -34,6 +34,14 @@ interface CostCode {
   type: string;
 }
 
+interface JobBudget {
+  id: string;
+  cost_code_id: string;
+  budgeted_amount: number;
+  actual_amount: number;
+  committed_amount: number;
+}
+
 export default function SubcontractCostDistribution({ 
   contractAmount, 
   jobId,
@@ -44,6 +52,7 @@ export default function SubcontractCostDistribution({
   const { toast } = useToast();
   const [distribution, setDistribution] = useState<CostDistribution[]>(initialDistribution);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
+  const [jobBudgets, setJobBudgets] = useState<JobBudget[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdowns, setOpenDropdowns] = useState<{ [key: string]: boolean }>({});
 
@@ -61,17 +70,26 @@ export default function SubcontractCostDistribution({
     try {
       setLoading(true);
 
-      // Load cost codes for this job that are appropriate for subcontracts
+      // Load cost codes for this job (subcontractor category only)
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
         .select('id, code, description, type')
         .eq('job_id', jobId)
-        .in('type', ['sub', 'other']) // Include sub and other types for subcontract distributions
+        .eq('type', 'sub') // Only subcontractor cost codes
         .eq('is_active', true)
         .order('code');
 
+      // Load job budgets for budget validation
+      const { data: budgetData, error: budgetError } = await supabase
+        .from('job_budgets')
+        .select('id, cost_code_id, budgeted_amount, actual_amount, committed_amount')
+        .eq('job_id', jobId);
+
       if (costCodesError) throw costCodesError;
+      if (budgetError) throw budgetError;
+      
       setCostCodes(costCodesData || []);
+      setJobBudgets(budgetData || []);
 
     } catch (error) {
       console.error('Error loading cost codes:', error);
@@ -122,6 +140,22 @@ export default function SubcontractCostDistribution({
 
   const totalDistributed = distribution.reduce((sum, d) => sum + (d.amount || 0), 0);
   const remaining = contractAmount - totalDistributed;
+
+  // Helper function to get budget warning for a cost code
+  const getBudgetWarning = (costCodeId: string, amount: number) => {
+    const budget = jobBudgets.find(b => b.cost_code_id === costCodeId);
+    if (!budget) return null;
+    
+    const availableBudget = budget.budgeted_amount - budget.actual_amount - budget.committed_amount;
+    if (amount > availableBudget) {
+      return {
+        type: 'over-budget' as const,
+        message: `Exceeds available budget by $${(amount - availableBudget).toLocaleString()}`,
+        availableBudget
+      };
+    }
+    return null;
+  };
 
   if (loading) {
     return <div className="text-center text-muted-foreground py-4">Loading cost codes...</div>;
@@ -225,7 +259,7 @@ export default function SubcontractCostDistribution({
                                   <div className="flex items-center gap-2 flex-1">
                                     <span className="font-medium text-sm">{costCode.code}</span>
                                     <span className="text-sm text-muted-foreground flex-1">{costCode.description}</span>
-                                    <Badge variant="secondary" className="text-xs">sub</Badge>
+                                    <Badge variant="secondary" className="text-xs">{costCode.type}</Badge>
                                   </div>
                                 </CommandItem>
                               ))}
@@ -245,6 +279,21 @@ export default function SubcontractCostDistribution({
                       disabled={disabled}
                       className="h-8"
                     />
+                    {/* Budget warning */}
+                    {dist.cost_code_id && dist.amount > 0 && (() => {
+                      const warning = getBudgetWarning(dist.cost_code_id, dist.amount);
+                      if (warning) {
+                        return (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Badge variant="destructive" className="text-xs">
+                              Budget Warning
+                            </Badge>
+                            <span className="text-xs text-destructive">{warning.message}</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
                 
