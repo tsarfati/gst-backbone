@@ -110,6 +110,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Load settings from database when company or user changes
   useEffect(() => {
     const loadSettings = async () => {
+      // Reset loaded state to prevent saving old settings during switch
+      setIsLoaded(false);
+      
       if (!currentCompany?.id || !user?.id) {
         setSettings(defaultSettings);
         // Apply default colors
