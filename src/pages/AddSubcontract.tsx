@@ -423,14 +423,17 @@ export default function AddSubcontract() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contract_amount">Contract Amount *</Label>
-                  <CurrencyInput
-                    id="contract_amount"
-                    value={formData.contract_amount}
-                    onChange={(value) => handleInputChange("contract_amount", value)}
-                    placeholder="0.00"
-                    required
-                  />
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -444,15 +447,7 @@ export default function AddSubcontract() {
                   rows={3}
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Job and Vendor Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Job and Vendor Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="job">Job *</Label>
@@ -486,16 +481,8 @@ export default function AddSubcontract() {
                   </Select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Timeline and Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline and Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start_date">Start Date</Label>
                   <Input
@@ -514,29 +501,27 @@ export default function AddSubcontract() {
                     onChange={(e) => handleInputChange("end_date", e.target.value)}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Financial Settings */}
+          {/* Financial Section */}
           <Card>
             <CardHeader>
-              <CardTitle>Financial Settings</CardTitle>
+              <CardTitle>Financial Section</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="contract_amount">Contract Amount *</Label>
+                <CurrencyInput
+                  id="contract_amount"
+                  value={formData.contract_amount}
+                  onChange={(value) => handleInputChange("contract_amount", value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"

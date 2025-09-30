@@ -46,7 +46,6 @@ export default function SubcontractEdit() {
   });
 
   const [costDistribution, setCostDistribution] = useState<any[]>([]);
-
   const [jobs, setJobs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +130,7 @@ export default function SubcontractEdit() {
         console.error('Error fetching data:', error);
         toast({
           title: "Error",
-          description: "Failed to load subcontract details",
+          description: "Failed to load subcontract data",
           variant: "destructive",
         });
       } finally {
@@ -139,10 +138,10 @@ export default function SubcontractEdit() {
       }
     };
 
-    if (user && id) {
+    if (user && (currentCompany?.id || profile?.current_company_id)) {
       fetchData();
     }
-  }, [user, id, currentCompany, profile, toast]);
+  }, [id, user, currentCompany, profile, toast]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -198,8 +197,6 @@ export default function SubcontractEdit() {
   };
 
   const handleDelete = async () => {
-    if (!id) return;
-
     try {
       setDeleting(true);
       const { error } = await supabase
@@ -237,6 +234,7 @@ export default function SubcontractEdit() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(`/subcontracts/${id}`)}>
           <ArrowLeft className="h-4 w-4" />
@@ -249,6 +247,7 @@ export default function SubcontractEdit() {
 
       <form onSubmit={handleSubmit}>
         <div className="space-y-6">
+          {/* Basic Information */}
           <Card>
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
@@ -261,36 +260,36 @@ export default function SubcontractEdit() {
                     id="name"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
+                    placeholder="Enter subcontract name"
                     required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contract_amount">Contract Amount *</Label>
-                  <CurrencyInput
-                    id="contract_amount"
-                    value={formData.contract_amount}
-                    onChange={(value) => handleInputChange("contract_amount", value)}
-                    required
-                  />
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+
               <div>
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
+                  placeholder="Enter subcontract description"
                   rows={3}
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Job and Vendor Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="job">Job *</Label>
@@ -323,15 +322,8 @@ export default function SubcontractEdit() {
                   </Select>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline and Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start_date">Start Date</Label>
                   <Input
@@ -350,29 +342,27 @@ export default function SubcontractEdit() {
                     onChange={(e) => handleInputChange("end_date", e.target.value)}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Financial Settings */}
+          {/* Financial Section */}
           <Card>
             <CardHeader>
-              <CardTitle>Financial Settings</CardTitle>
+              <CardTitle>Financial Section</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="contract_amount">Contract Amount *</Label>
+                <CurrencyInput
+                  id="contract_amount"
+                  value={formData.contract_amount}
+                  onChange={(value) => handleInputChange("contract_amount", value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -455,17 +445,17 @@ export default function SubcontractEdit() {
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" disabled={deleting}>
+                      <Button variant="destructive" size="sm" disabled={deleting}>
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
+                        {deleting ? "Deleting..." : "Delete"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete the subcontract and all associated data.
-                          This action cannot be undone.
+                          This action cannot be undone. This will permanently delete the 
+                          subcontract and all associated data.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -474,7 +464,7 @@ export default function SubcontractEdit() {
                           onClick={handleDelete}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          {deleting ? "Deleting..." : "Delete Subcontract"}
+                          Delete Subcontract
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

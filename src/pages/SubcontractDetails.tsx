@@ -167,24 +167,24 @@ export default function SubcontractDetails() {
         </div>
       </div>
 
-      {/* Main Info */}
+      {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Subcontract Information</CardTitle>
+            <CardTitle>Basic Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">Vendor</p>
-              <p className="font-semibold text-foreground">{subcontract.vendors?.name || 'N/A'}</p>
+              <p className="text-sm text-muted-foreground">Subcontract Name</p>
+              <p className="font-semibold text-foreground">{subcontract.name}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Job</p>
               <p className="font-semibold text-foreground">{subcontract.jobs?.name || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Contract Amount</p>
-              <p className="font-semibold text-foreground text-xl">${formatNumber(subcontract.contract_amount)}</p>
+              <p className="text-sm text-muted-foreground">Vendor</p>
+              <p className="font-semibold text-foreground">{subcontract.vendors?.name || 'N/A'}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Status</p>
@@ -192,14 +192,6 @@ export default function SubcontractDetails() {
                 {subcontract.status}
               </Badge>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Timeline</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Start Date</p>
               <p className="font-semibold text-foreground">
@@ -212,6 +204,32 @@ export default function SubcontractDetails() {
                 {subcontract.end_date ? format(new Date(subcontract.end_date), 'MMMM d, yyyy') : 'Not set'}
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Financial Section</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Contract Amount</p>
+              <p className="font-semibold text-foreground text-xl">${formatNumber(subcontract.contract_amount)}</p>
+            </div>
+            {subcontract.apply_retainage && (
+              <div>
+                <p className="text-sm text-muted-foreground">Retainage</p>
+                <p className="font-semibold text-foreground">{subcontract.retainage_percentage}% applied</p>
+              </div>
+            )}
+            {subcontract.cost_distribution && JSON.parse(subcontract.cost_distribution || '[]').length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground">Cost Distribution</p>
+                <p className="font-semibold text-foreground">
+                  ${formatNumber(subcontract.total_distributed_amount || 0)} distributed across {JSON.parse(subcontract.cost_distribution || '[]').length} allocation(s)
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-sm text-muted-foreground">Created</p>
               <p className="font-semibold text-foreground">
