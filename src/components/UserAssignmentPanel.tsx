@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { UserCheck, Users, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface User {
   id: string;
@@ -28,13 +29,32 @@ export default function UserAssignmentPanel({
 }: UserAssignmentPanelProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const { currentCompany } = useCompany();
 
   useEffect(() => {
     const fetchUsers = async () => {
+      if (!currentCompany?.id) {
+        setLoading(false);
+        return;
+      }
+
       try {
+        // Get user IDs for this company
+        const { data: accessData, error: accessError } = await supabase
+          .from('user_company_access')
+          .select('user_id')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true);
+
+        if (accessError) throw accessError;
+
+        const userIds = (accessData || []).map(a => a.user_id);
+
+        // Fetch profiles for users in this company
         const { data, error } = await supabase
           .from('profiles')
           .select('user_id, display_name, role')
+          .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
           .order('display_name');
 
         if (error) throw error;
@@ -55,7 +75,7 @@ export default function UserAssignmentPanel({
     };
 
     fetchUsers();
-  }, []);
+  }, [currentCompany?.id]);
 
   const handleAssignUser = (userId: string) => {
     const user = users.find(u => u.id === userId);

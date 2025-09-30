@@ -52,10 +52,28 @@ export default function JobEdit() {
 
   useEffect(() => {
     const fetchProjectManagers = async () => {
+      if (!currentCompany?.id) return;
+      
       try {
+        // Get user IDs for this company
+        const { data: accessData, error: accessError } = await supabase
+          .from('user_company_access')
+          .select('user_id')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true);
+
+        if (accessError) {
+          console.error('Error fetching company access:', accessError);
+          return;
+        }
+
+        const userIds = (accessData || []).map(a => a.user_id);
+
+        // Fetch profiles for users in this company with manager roles
         const { data, error } = await supabase
           .from('profiles')
           .select('user_id, first_name, last_name, display_name, role, status')
+          .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
           .in('role', ['admin', 'controller', 'project_manager']);
 
         if (error) {
@@ -147,7 +165,7 @@ export default function JobEdit() {
 
     fetchProjectManagers();
     fetchJob();
-  }, [id, toast]);
+  }, [id, toast, currentCompany?.id]);
 
   if (loading) {
     return (

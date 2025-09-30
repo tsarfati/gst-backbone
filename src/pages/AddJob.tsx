@@ -44,16 +44,37 @@ export default function AddJob() {
 
   useEffect(() => {
     const fetchManagers = async () => {
+      if (!currentCompany?.id) return;
+      
       setLoadingManagers(true);
+      
+      // Get user IDs for this company
+      const { data: accessData, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (accessError) {
+        console.error('Error fetching company access:', accessError);
+        setLoadingManagers(false);
+        return;
+      }
+
+      const userIds = (accessData || []).map(a => a.user_id);
+
+      // Fetch profiles for users in this company with manager roles
       const { data, error } = await supabase
         .from('profiles')
         .select('user_id, display_name, first_name, last_name, role')
-        .in('role', ['admin', 'controller']);
+        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
+        .in('role', ['admin', 'controller', 'project_manager']);
+        
       if (!error && data) setManagers(data as any);
       setLoadingManagers(false);
     };
     fetchManagers();
-  }, []);
+  }, [currentCompany?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,7 +300,7 @@ export default function AddJob() {
                   <SelectTrigger id="projectManager">
                     <SelectValue placeholder={loadingManagers ? "Loading..." : "Select a project manager"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-background border-border backdrop-blur-sm z-50">
                     {managers.map((m) => (
                       <SelectItem key={m.user_id} value={m.user_id}>
                         {m.display_name || `${m.first_name || ''} ${m.last_name || ''}`.trim()} ({m.role})
