@@ -70,13 +70,51 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
     setLoading(true);
     try {
       const userId = employee.user_id || employee.id;
-      const { data, error } = await supabase
-        .from('user_job_access')
-        .select('job_id, jobs(name)')
-        .eq('user_id', userId);
+      
+      // Check timecard settings for job assignments first
+      let settings: { assigned_jobs?: string[] } | null = null;
+      
+      if (employee.is_pin_employee) {
+        const { data, error } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('pin_employee_id', userId)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+        settings = data;
+      } else {
+        const { data, error } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+        settings = data;
+      }
+      
+      // If we have assigned jobs in settings, fetch those job details
+      if (settings?.assigned_jobs && settings.assigned_jobs.length > 0) {
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', settings.assigned_jobs);
+        
+        if (jobsError) throw jobsError;
+        setAssignedJobs(jobsData?.map(j => ({ job_id: j.id, jobs: { name: j.name } })) || []);
+      } else {
+        // Fallback to user_job_access table for regular users
+        if (employee.user_id) {
+          const { data, error } = await supabase
+            .from('user_job_access')
+            .select('job_id, jobs(name)')
+            .eq('user_id', userId);
 
-      if (error) throw error;
-      setAssignedJobs(data || []);
+          if (error) throw error;
+          setAssignedJobs(data || []);
+        } else {
+          setAssignedJobs([]);
+        }
+      }
     } catch (error) {
       console.error('Error fetching assigned jobs:', error);
       setAssignedJobs([]);

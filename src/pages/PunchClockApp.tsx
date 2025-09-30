@@ -119,11 +119,50 @@ function PunchClockApp() {
 
   const loadJobs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id, name, address')
-        .eq('status', 'active')
-        .order('name');
+      if (!user) return;
+      
+      const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+      
+      // First, check if user has assigned jobs in their settings
+      let assignedJobs: string[] | null = null;
+      
+      if (isPinAuthenticated) {
+        const { data: settings } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('pin_employee_id', userId)
+          .maybeSingle();
+        assignedJobs = settings?.assigned_jobs;
+      } else {
+        const { data: settings } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('user_id', userId)
+          .maybeSingle();
+        assignedJobs = settings?.assigned_jobs;
+      }
+      
+      // Load jobs - filter by assigned if available
+      let data, error;
+      
+      if (assignedJobs && assignedJobs.length > 0) {
+        const result = await supabase
+          .from('jobs')
+          .select('id, name, address')
+          .eq('status', 'active')
+          .in('id', assignedJobs)
+          .order('name');
+        data = result.data;
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from('jobs')
+          .select('id, name, address')
+          .eq('status', 'active')
+          .order('name');
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
       setJobs(data || []);

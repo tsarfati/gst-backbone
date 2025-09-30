@@ -65,7 +65,9 @@ export default function UserEdit() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
-  const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
+  const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]); // For current job only
+  const [allAssignedCostCodes, setAllAssignedCostCodes] = useState<string[]>([]); // All codes across all jobs
+  const [assignedJobs, setAssignedJobs] = useState<string[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [costCodeSearch, setCostCodeSearch] = useState('');
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
@@ -81,6 +83,7 @@ export default function UserEdit() {
       fetchJobs();
       fetchUserJobAccess();
       fetchLoginHistory();
+      fetchTimecardSettings();
     }
   }, [userId, currentCompany]);
 
@@ -176,28 +179,34 @@ export default function UserEdit() {
     }
   };
 
-  const fetchAssignedCostCodesForJob = async () => {
-    if (!userId || !selectedJobId) return;
+  const fetchTimecardSettings = async () => {
+    if (!userId) return;
     
     try {
       const { data, error } = await supabase
         .from('employee_timecard_settings')
-        .select('assigned_cost_codes')
+        .select('assigned_jobs, assigned_cost_codes')
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       
-      // Filter to show only codes from the current job's cost codes
-      const allAssignedCodes = data?.assigned_cost_codes || [];
-      const jobCodes = costCodes
-        .filter(cc => allAssignedCodes.includes(cc.id))
-        .map(cc => cc.id);
-      
-      setAssignedCostCodes(jobCodes);
+      setAssignedJobs(data?.assigned_jobs || []);
+      setAllAssignedCostCodes(data?.assigned_cost_codes || []);
     } catch (error) {
-      console.error('Error fetching assigned cost codes:', error);
+      console.error('Error fetching timecard settings:', error);
     }
+  };
+
+  const fetchAssignedCostCodesForJob = async () => {
+    if (!selectedJobId) return;
+    
+    // Filter to show only codes from the current job
+    const jobCodes = costCodes
+      .filter(cc => allAssignedCostCodes.includes(cc.id))
+      .map(cc => cc.id);
+    
+    setAssignedCostCodes(jobCodes);
   };
 
   const fetchLoginHistory = async () => {
@@ -250,13 +259,14 @@ export default function UserEdit() {
 
       if (error) throw error;
 
-      // Update cost code assignments
+      // Update job and cost code assignments
       const { error: settingsError } = await supabase
         .from('employee_timecard_settings')
         .upsert({
           user_id: user.user_id,
           company_id: currentCompany.id,
-          assigned_cost_codes: assignedCostCodes,
+          assigned_jobs: assignedJobs,
+          assigned_cost_codes: allAssignedCostCodes,
           created_by: profile?.user_id
         }, {
           onConflict: 'user_id,company_id'
@@ -283,10 +293,25 @@ export default function UserEdit() {
   };
 
   const toggleCostCodeAssignment = (costCodeId: string) => {
+    // Update both current job codes and all codes
     setAssignedCostCodes(prev => 
       prev.includes(costCodeId) 
         ? prev.filter(id => id !== costCodeId)
         : [...prev, costCodeId]
+    );
+    
+    setAllAssignedCostCodes(prev =>
+      prev.includes(costCodeId)
+        ? prev.filter(id => id !== costCodeId)
+        : [...prev, costCodeId]
+    );
+  };
+
+  const toggleJobAssignment = (jobId: string) => {
+    setAssignedJobs(prev =>
+      prev.includes(jobId)
+        ? prev.filter(id => id !== jobId)
+        : [...prev, jobId]
     );
   };
 
@@ -608,21 +633,47 @@ export default function UserEdit() {
               </div>
 
               {!user.has_global_job_access && jobs.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Specific Job Access</Label>
-                  <div className="border rounded-lg divide-y max-h-80 overflow-y-auto">
-                    {jobs.map((job) => (
-                      <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
-                        <div className="flex-1">
-                          <div className="font-medium">{job.name}</div>
-                          <div className="text-sm text-muted-foreground">{job.client}</div>
+                <div className="space-y-4">
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Job Assignments (for Timecard/Punch Clock)</Label>
+                    <p className="text-sm text-muted-foreground">Select which jobs this employee can punch in/out from</p>
+                    <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
+                      {jobs.map((job) => (
+                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                          <div className="flex-1">
+                            <div className="font-medium">{job.name}</div>
+                            <div className="text-sm text-muted-foreground">{job.client}</div>
+                          </div>
+                          <Switch
+                            checked={assignedJobs.includes(job.id)}
+                            onCheckedChange={() => toggleJobAssignment(job.id)}
+                          />
                         </div>
-                        <Switch
-                          checked={userJobAccess.includes(job.id)}
-                          onCheckedChange={(checked) => toggleJobAccess(job.id, checked)}
-                        />
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Specific Job Access (Full System Access)</Label>
+                    <p className="text-sm text-muted-foreground">Jobs this employee can view/manage in the system</p>
+                    <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
+                      {jobs.map((job) => (
+                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                          <div className="flex-1">
+                            <div className="font-medium">{job.name}</div>
+                            <div className="text-sm text-muted-foreground">{job.client}</div>
+                          </div>
+                          <Switch
+                            checked={userJobAccess.includes(job.id)}
+                            onCheckedChange={(checked) => toggleJobAccess(job.id, checked)}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
