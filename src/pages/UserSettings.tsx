@@ -10,11 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck } from 'lucide-react';
+import { Users, UserCheck, UserPlus } from 'lucide-react';
 import RolePermissionsManager from "@/components/RolePermissionsManager";
 import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
+import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
 
 interface UserProfile {
@@ -192,6 +193,10 @@ export default function UserSettings() {
             <Users className="h-4 w-4 mr-2" />
             Users
           </TabsTrigger>
+          <TabsTrigger value="access-requests">
+            <UserPlus className="h-4 w-4 mr-2" />
+            Access Requests
+          </TabsTrigger>
           <TabsTrigger value="roles">
             <UserCheck className="h-4 w-4 mr-2" />
             Role Definitions
@@ -251,6 +256,10 @@ export default function UserSettings() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="access-requests">
+          <CompanyAccessRequests />
         </TabsContent>
 
         <TabsContent value="roles">

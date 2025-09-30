@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,12 +58,15 @@ interface LoginAudit {
 export default function UserDetails() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const fromCompanyManagement = location.state?.fromCompanyManagement || false;
 
   const roleColors: Record<string, string> = {
     admin: 'bg-destructive',
@@ -148,11 +151,11 @@ export default function UserDetails() {
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
-          onClick={() => navigate('/settings/users')}
+          onClick={() => navigate(fromCompanyManagement ? '/settings/company' : '/settings/users')}
           className="flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Users
+          {fromCompanyManagement ? 'Back to Company Management' : 'Back to Users'}
         </Button>
         <Button
           onClick={() => navigate(`/settings/users/${userId}/edit`)}
@@ -228,18 +231,20 @@ export default function UserDetails() {
         </CardContent>
       </Card>
 
-      {/* Company Access */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Company Access
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <UserCompanyAccess userId={userId!} />
-        </CardContent>
-      </Card>
+      {/* Company Access - Only show when accessed from Company Management */}
+      {fromCompanyManagement && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Company Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <UserCompanyAccess userId={userId!} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Access & Permissions */}
       <Card>

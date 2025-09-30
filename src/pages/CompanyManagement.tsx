@@ -717,7 +717,7 @@ export default function CompanyManagement() {
                       if (companyUser.is_pin_employee) {
                         navigate(`/pin-employees/${companyUser.user_id}/edit`);
                       } else {
-                        navigate(`/settings/users/${companyUser.user_id}`);
+                        navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
                       }
                     }}
                   >
@@ -789,7 +789,7 @@ export default function CompanyManagement() {
                               if (companyUser.is_pin_employee) {
                                 navigate(`/pin-employees/${companyUser.user_id}/edit`);
                               } else {
-                                navigate(`/settings/users/${companyUser.user_id}`);
+                                navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
                               }
                             }}
                           >
