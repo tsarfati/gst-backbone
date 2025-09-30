@@ -269,7 +269,8 @@ function PunchClockApp() {
     }
     
     const interval = setInterval(async () => {
-      if (!videoRef.current || !canvasRef.current || isCapturing) return;
+      // Check if already capturing or punching to prevent double submission
+      if (!videoRef.current || !canvasRef.current || isCapturing || isPunching) return;
       
       try {
         await detectAndCapture();
@@ -282,7 +283,8 @@ function PunchClockApp() {
   };
 
   const detectAndCapture = async () => {
-    if (!videoRef.current || !canvasRef.current || isCapturing) return;
+    // Guard against concurrent operations
+    if (!videoRef.current || !canvasRef.current || isCapturing || isPunching) return;
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -304,12 +306,13 @@ function PunchClockApp() {
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
 
-    if (faceResult.hasFace && !isPunching) {
-      // Face detected with good confidence - automatically capture
+    // Check again after async face detection completes
+    if (faceResult.hasFace && !isPunching && !isCapturing) {
+      // Immediately set flags to prevent double submission
       setIsCapturing(true);
-      setIsPunching(true); // Prevent concurrent punch attempts
+      setIsPunching(true);
       
-      // Clear the detection interval
+      // Clear the detection interval immediately
       if (faceDetectionInterval) {
         clearInterval(faceDetectionInterval);
         setFaceDetectionInterval(null);
@@ -321,6 +324,10 @@ function PunchClockApp() {
           setPhotoBlob(blob);
           stopCamera();
           handlePunch();
+        } else {
+          // Reset flags if capture failed
+          setIsCapturing(false);
+          setIsPunching(false);
         }
       }, 'image/jpeg', 0.8);
     }
@@ -474,14 +481,28 @@ function PunchClockApp() {
   };
 
   const captureNow = () => {
-    if (!videoRef.current || !canvasRef.current || isCapturing) return;
+    // Prevent multiple captures or punches
+    if (!videoRef.current || !canvasRef.current || isCapturing || isPunching) return;
+    
     setIsCapturing(true);
+    setIsPunching(true);
+    
+    // Clear face detection interval
+    if (faceDetectionInterval) {
+      clearInterval(faceDetectionInterval);
+      setFaceDetectionInterval(null);
+    }
+    
     const canvas = canvasRef.current;
     const video = videoRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    if (!ctx) { setIsCapturing(false); return; }
+    if (!ctx) { 
+      setIsCapturing(false); 
+      setIsPunching(false);
+      return; 
+    }
     ctx.drawImage(video, 0, 0);
     canvas.toBlob((blob) => {
       if (blob) {
@@ -490,6 +511,7 @@ function PunchClockApp() {
         handlePunch();
       } else {
         setIsCapturing(false);
+        setIsPunching(false);
       }
     }, 'image/jpeg', 0.8);
   };
@@ -554,7 +576,11 @@ function PunchClockApp() {
   };
 
   const handlePunch = async () => {
-    if (!user || isPunching) return;
+    // Guard against concurrent submissions at the very start
+    if (!user || isPunching || isLoading) {
+      console.log('Punch blocked - already in progress');
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -580,6 +606,8 @@ function PunchClockApp() {
             description: 'Please select both a job and cost code before punching in.',
             variant: 'destructive'
           });
+          setIsLoading(false);
+          setIsPunching(false);
           return;
         }
 
@@ -616,6 +644,8 @@ function PunchClockApp() {
             });
             // Refresh the data to sync state
             await loadFromEdge();
+            setIsLoading(false);
+            setIsPunching(false);
             return;
           } else if (errorMessage.includes('not currently punched in')) {
             toast({
@@ -625,6 +655,8 @@ function PunchClockApp() {
             });
             // Refresh the data to sync state
             await loadFromEdge();
+            setIsLoading(false);
+            setIsPunching(false);
             return;
           } else if (errorMessage.includes('Photo is required')) {
             toast({
@@ -632,6 +664,8 @@ function PunchClockApp() {
               description: 'Please take a photo before punching. Tap the camera icon to capture a photo.',
               variant: 'destructive'
             });
+            setIsLoading(false);
+            setIsPunching(false);
             return;
           } else if (errorMessage.includes('Location is required')) {
             toast({
@@ -639,6 +673,8 @@ function PunchClockApp() {
               description: 'Location access is required for this job. Please enable location services.',
               variant: 'destructive'
             });
+            setIsLoading(false);
+            setIsPunching(false);
             return;
           }
           
@@ -661,6 +697,8 @@ function PunchClockApp() {
       } else {
         if (!selectedJob || !selectedCostCode) {
           toast({ title: 'Missing Information', description: 'Please select both a job and cost code before punching in.', variant: 'destructive' });
+          setIsLoading(false);
+          setIsPunching(false);
           return;
         }
         await punchIn(photoUrl);
