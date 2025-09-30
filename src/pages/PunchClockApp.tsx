@@ -88,12 +88,20 @@ function PunchClockApp() {
         getCurrentLocation();
       } else {
         loadJobs();
-        loadCostCodes();
         loadCurrentPunchStatus();
         getCurrentLocation();
       }
     }
   }, [user, isPinAuthenticated]);
+
+  // Reload cost codes when job selection changes
+  useEffect(() => {
+    if (selectedJob) {
+      loadCostCodes(selectedJob);
+    } else {
+      setCostCodes([]);
+    }
+  }, [selectedJob, user, isPinAuthenticated]);
 
   const loadLoginSettings = async () => {
     try {
@@ -171,9 +179,12 @@ function PunchClockApp() {
     }
   };
 
-  const loadCostCodes = async () => {
+  const loadCostCodes = async (jobId?: string) => {
     try {
-      if (!user) return;
+      if (!user || !jobId) {
+        setCostCodes([]);
+        return;
+      }
       
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
       
@@ -196,7 +207,7 @@ function PunchClockApp() {
         assignedCostCodes = settings?.assigned_cost_codes;
       }
       
-      // Load cost codes - filter by assigned if available
+      // Load cost codes for the selected job - filter by assigned if available
       let data, error;
       
       if (assignedCostCodes && assignedCostCodes.length > 0) {
@@ -204,6 +215,7 @@ function PunchClockApp() {
           .from('cost_codes')
           .select('id, code, description')
           .eq('is_active', true)
+          .eq('job_id', jobId)
           .in('id', assignedCostCodes)
           .order('code');
         data = result.data;
@@ -213,6 +225,7 @@ function PunchClockApp() {
           .from('cost_codes')
           .select('id, code, description')
           .eq('is_active', true)
+          .eq('job_id', jobId)
           .order('code');
         data = result.data;
         error = result.error;

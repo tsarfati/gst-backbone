@@ -12,6 +12,7 @@ import { User, MapPin, Clock, Settings, Save, Building } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useCompany } from '@/contexts/CompanyContext';
 
 interface Employee {
   id: string;
@@ -62,6 +63,7 @@ export default function EmployeeTimecardSettings({
 }: EmployeeTimecardSettingsProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<{ id: string; code: string; description: string; type?: string; }[]>([]);
@@ -141,6 +143,7 @@ export default function EmployeeTimecardSettings({
         .from('employee_timecard_settings')
         .select('*')
         .eq('user_id', employeeId)
+        .eq('company_id', currentCompany?.id || '')
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;

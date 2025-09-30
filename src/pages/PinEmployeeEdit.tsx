@@ -72,16 +72,20 @@ export default function PinEmployeeEdit() {
   useEffect(() => {
     if (selectedJobId) {
       fetchCostCodes();
-      // Load cost codes for this specific job from all assigned cost codes
-      const jobSpecificCodes = costCodes
-        .filter(cc => allAssignedCostCodes.includes(cc.id))
-        .map(cc => cc.id);
-      setAssignedCostCodes(jobSpecificCodes);
     } else {
       setCostCodes([]);
       setAssignedCostCodes([]);
     }
   }, [selectedJobId]);
+
+  // Sync current job's assigned codes when cost codes or master list changes
+  useEffect(() => {
+    if (!selectedJobId) return;
+    const jobSpecificCodes = costCodes
+      .filter(cc => allAssignedCostCodes.includes(cc.id))
+      .map(cc => cc.id);
+    setAssignedCostCodes(jobSpecificCodes);
+  }, [costCodes, allAssignedCostCodes, selectedJobId]);
 
   const fetchEmployee = async () => {
     if (!employeeId) return;
