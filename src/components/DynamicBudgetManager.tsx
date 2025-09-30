@@ -46,6 +46,7 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
   const { toast } = useToast();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
+  const [dynamicGroups, setDynamicGroups] = useState<CostCode[]>([]);
   const [dynamicSummaries, setDynamicSummaries] = useState<Record<string, DynamicBudgetSummary>>({});
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [newDynamicBudget, setNewDynamicBudget] = useState({
@@ -84,6 +85,31 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
   };
 
   const fetchCostCodes = async () => {
+    // Get company_id from job
+    const { data: jobData } = await supabase
+      .from('jobs')
+      .select('company_id')
+      .eq('id', jobId)
+      .single();
+
+    if (!jobData) return;
+
+    // Fetch dynamic groups (top-level like "1", "2")
+    const { data: groupsData, error: groupsError } = await supabase
+      .from('cost_codes')
+      .select('*')
+      .eq('company_id', jobData.company_id)
+      .eq('is_dynamic_group', true)
+      .eq('is_active', true)
+      .order('code', { ascending: true });
+
+    if (groupsError) {
+      console.error('Error fetching dynamic groups:', groupsError);
+    } else {
+      setDynamicGroups(groupsData || []);
+    }
+
+    // Fetch all cost codes for this job
     const { data, error } = await supabase
       .from('cost_codes')
       .select('*')
@@ -258,12 +284,43 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
 
   return (
     <div className="space-y-6">
+      {/* Dynamic Groups Overview */}
+      {dynamicGroups.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dynamic Budget Groups</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                Top-level groups automatically accumulate costs from all child cost codes. 
+                For example, Group "1" accumulates all costs from codes like "1.09", "1.10", etc.
+              </p>
+              <div className="grid gap-2">
+                {dynamicGroups.map((group) => (
+                  <div key={group.id} className="flex items-center justify-between p-3 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20">
+                    <div>
+                      <span className="font-mono font-bold text-lg">{group.code}</span>
+                      <span className="ml-3 text-sm">{group.description}</span>
+                    </div>
+                    <Badge variant="outline" className="bg-primary/10">Top-Level Group</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Create New Dynamic Budget */}
       <Card>
         <CardHeader>
-          <CardTitle>Create Dynamic Budget Group</CardTitle>
+          <CardTitle>Create Dynamic Budget</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Create a dynamic budget for a parent cost code (e.g., "1.09"). Child codes will automatically roll up to this budget.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Parent Cost Code</Label>

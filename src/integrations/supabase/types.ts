@@ -427,6 +427,7 @@ export type Database = {
           description: string
           id: string
           is_active: boolean
+          is_dynamic_group: boolean | null
           job_id: string | null
           parent_cost_code_id: string | null
           type: Database["public"]["Enums"]["cost_code_type"] | null
@@ -441,6 +442,7 @@ export type Database = {
           description: string
           id?: string
           is_active?: boolean
+          is_dynamic_group?: boolean | null
           job_id?: string | null
           parent_cost_code_id?: string | null
           type?: Database["public"]["Enums"]["cost_code_type"] | null
@@ -455,6 +457,7 @@ export type Database = {
           description?: string
           id?: string
           is_active?: boolean
+          is_dynamic_group?: boolean | null
           job_id?: string | null
           parent_cost_code_id?: string | null
           type?: Database["public"]["Enums"]["cost_code_type"] | null
@@ -3324,7 +3327,11 @@ export type Database = {
     Views: {
       dynamic_budget_summary: {
         Row: {
+          child_count: number | null
+          cost_code: string | null
+          cost_code_description: string | null
           dynamic_budget: number | null
+          is_dynamic_group: boolean | null
           is_over_budget: boolean | null
           job_id: string | null
           parent_budget_id: string | null
