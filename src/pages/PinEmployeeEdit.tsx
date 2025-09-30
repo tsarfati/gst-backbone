@@ -50,6 +50,8 @@ export default function PinEmployeeEdit() {
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [assignedJobs, setAssignedJobs] = useState<string[]>([]);
   const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [costCodeSearch, setCostCodeSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -61,10 +63,18 @@ export default function PinEmployeeEdit() {
       fetchEmployee();
       fetchGroups();
       fetchJobs();
-      fetchCostCodes();
       fetchAssignments();
     }
   }, [employeeId, currentCompany]);
+
+  useEffect(() => {
+    if (selectedJobId) {
+      fetchCostCodes();
+    } else {
+      setCostCodes([]);
+      setAssignedCostCodes([]);
+    }
+  }, [selectedJobId]);
 
   const fetchEmployee = async () => {
     if (!employeeId) return;
@@ -123,14 +133,19 @@ export default function PinEmployeeEdit() {
   };
 
   const fetchCostCodes = async () => {
-    if (!currentCompany) return;
+    if (!currentCompany || !selectedJobId) {
+      setCostCodes([]);
+      return;
+    }
     
     try {
+      // Fetch job-specific labor cost codes
       const { data, error } = await supabase
         .from('cost_codes')
         .select('id, code, description, type')
         .eq('company_id', currentCompany.id)
-        .is('job_id', null) // Only company-level cost codes
+        .eq('job_id', selectedJobId)
+        .eq('type', 'labor')
         .eq('is_active', true)
         .order('code');
 
@@ -154,17 +169,33 @@ export default function PinEmployeeEdit() {
       if (jobError) throw jobError;
       setAssignedJobs(jobData?.map(item => item.job_id) || []);
 
-      // Fetch cost code assignments
+      // Don't fetch cost codes here - they're job-specific
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+    }
+  };
+
+  const fetchAssignedCostCodesForJob = async (jobId: string) => {
+    if (!employeeId) return;
+    
+    try {
       const { data: settingsData, error: settingsError } = await supabase
         .from('employee_timecard_settings')
-        .select('assigned_cost_codes')
+        .select('assigned_cost_codes, assigned_jobs')
         .eq('user_id', employeeId)
         .maybeSingle();
 
       if (settingsError) throw settingsError;
-      setAssignedCostCodes(settingsData?.assigned_cost_codes || []);
+      
+      // Filter cost codes to only those for the selected job
+      const allAssignedCodes = settingsData?.assigned_cost_codes || [];
+      const jobCodes = costCodes
+        .filter(cc => allAssignedCodes.includes(cc.id))
+        .map(cc => cc.id);
+      
+      setAssignedCostCodes(jobCodes);
     } catch (error) {
-      console.error('Error fetching assignments:', error);
+      console.error('Error fetching assigned cost codes:', error);
     }
   };
 
@@ -578,34 +609,77 @@ export default function PinEmployeeEdit() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Code className="h-5 w-5" />
-                Cost Code Assignments
+                Cost Code Assignments (Job-Specific Labor Codes)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select which cost codes this employee can use
-              </p>
-              {costCodes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No cost codes available</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {costCodes.map((costCode) => (
-                    <div key={costCode.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`costcode-${costCode.id}`}
-                        checked={assignedCostCodes.includes(costCode.id)}
-                        onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
-                      />
-                      <Label
-                        htmlFor={`costcode-${costCode.id}`}
-                        className="text-sm font-normal cursor-pointer flex-1"
-                      >
-                        <span className="font-mono">{costCode.code}</span>
-                        <span className="text-muted-foreground ml-2">- {costCode.description}</span>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-2">
+                <Label>Select Job First</Label>
+                <Select value={selectedJobId} onValueChange={(value) => {
+                  setSelectedJobId(value);
+                  setAssignedCostCodes([]);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job to view cost codes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                        {job.client && <span className="text-muted-foreground ml-2">({job.client})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
+              {selectedJobId && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Search Cost Codes</Label>
+                    <Input
+                      placeholder="Search by code or description..."
+                      value={costCodeSearch}
+                      onChange={(e) => setCostCodeSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">
+                      Showing labor cost codes for selected job
+                    </Label>
+                    {costCodes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No labor cost codes available for this job</p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
+                        {costCodes
+                          .filter(costCode => 
+                            costCodeSearch === '' ||
+                            costCode.code.toLowerCase().includes(costCodeSearch.toLowerCase()) ||
+                            costCode.description.toLowerCase().includes(costCodeSearch.toLowerCase())
+                          )
+                          .map((costCode) => (
+                            <div key={costCode.id} className="flex items-center space-x-2 p-3">
+                              <Checkbox
+                                id={`costcode-${costCode.id}`}
+                                checked={assignedCostCodes.includes(costCode.id)}
+                                onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
+                              />
+                              <Label
+                                htmlFor={`costcode-${costCode.id}`}
+                                className="text-sm font-normal cursor-pointer flex-1"
+                              >
+                                <span className="font-mono font-medium">{costCode.code}</span>
+                                <span className="text-muted-foreground ml-2">- {costCode.description}</span>
+                              </Label>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

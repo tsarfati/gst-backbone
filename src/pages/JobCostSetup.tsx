@@ -123,7 +123,7 @@ export default function JobCostSetup() {
     }
     
     try {
-      // Load general cost codes (not job-specific) for current company
+      // Load general cost codes (not job-specific) for current company - ONLY dynamic codes
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
         .select(`
@@ -136,6 +136,7 @@ export default function JobCostSetup() {
         .is('job_id', null)
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
+        .or('is_dynamic_group.eq.true,type.in.(dynamic_group,dynamic_parent)')
         .order('code');
 
       if (costCodesError) throw costCodesError;

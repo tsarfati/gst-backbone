@@ -66,6 +66,8 @@ export default function UserEdit() {
   const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [costCodeSearch, setCostCodeSearch] = useState('');
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
 
   const isAdmin = profile?.role === 'admin';
@@ -78,11 +80,19 @@ export default function UserEdit() {
       fetchUser();
       fetchJobs();
       fetchUserJobAccess();
-      fetchCostCodes();
-      fetchAssignedCostCodes();
       fetchLoginHistory();
     }
   }, [userId, currentCompany]);
+
+  useEffect(() => {
+    if (selectedJobId) {
+      fetchCostCodes();
+      fetchAssignedCostCodesForJob();
+    } else {
+      setCostCodes([]);
+      setAssignedCostCodes([]);
+    }
+  }, [selectedJobId]);
 
   const fetchUser = async () => {
     if (!userId) return;
@@ -143,14 +153,19 @@ export default function UserEdit() {
   };
 
   const fetchCostCodes = async () => {
-    if (!currentCompany) return;
+    if (!currentCompany || !selectedJobId) {
+      setCostCodes([]);
+      return;
+    }
     
     try {
+      // Fetch job-specific labor cost codes
       const { data, error } = await supabase
         .from('cost_codes')
         .select('id, code, description, type')
         .eq('company_id', currentCompany.id)
-        .is('job_id', null) // Only company-level cost codes
+        .eq('job_id', selectedJobId)
+        .eq('type', 'labor')
         .eq('is_active', true)
         .order('code');
 
@@ -161,8 +176,8 @@ export default function UserEdit() {
     }
   };
 
-  const fetchAssignedCostCodes = async () => {
-    if (!userId) return;
+  const fetchAssignedCostCodesForJob = async () => {
+    if (!userId || !selectedJobId) return;
     
     try {
       const { data, error } = await supabase
@@ -172,7 +187,14 @@ export default function UserEdit() {
         .maybeSingle();
 
       if (error) throw error;
-      setAssignedCostCodes(data?.assigned_cost_codes || []);
+      
+      // Filter to show only codes from the current job's cost codes
+      const allAssignedCodes = data?.assigned_cost_codes || [];
+      const jobCodes = costCodes
+        .filter(cc => allAssignedCodes.includes(cc.id))
+        .map(cc => cc.id);
+      
+      setAssignedCostCodes(jobCodes);
     } catch (error) {
       console.error('Error fetching assigned cost codes:', error);
     }
@@ -612,30 +634,73 @@ export default function UserEdit() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Code className="h-5 w-5" />
-                Cost Code Assignments
+                Cost Code Assignments (Job-Specific Labor Codes)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select which cost codes this user can use
-              </p>
-              {costCodes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No cost codes available</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
-                  {costCodes.map((costCode) => (
-                    <div key={costCode.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
-                      <div className="flex-1">
-                        <div className="font-mono font-medium">{costCode.code}</div>
-                        <div className="text-sm text-muted-foreground">{costCode.description}</div>
+              <div className="space-y-2">
+                <Label>Select Job First</Label>
+                <Select value={selectedJobId} onValueChange={(value) => {
+                  setSelectedJobId(value);
+                  setAssignedCostCodes([]);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a job to view cost codes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                        {job.client && <span className="text-muted-foreground ml-2">({job.client})</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
+              {selectedJobId && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Search Cost Codes</Label>
+                    <Input
+                      placeholder="Search by code or description..."
+                      value={costCodeSearch}
+                      onChange={(e) => setCostCodeSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">
+                      Showing labor cost codes for selected job
+                    </Label>
+                    {costCodes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No labor cost codes available for this job</p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
+                        {costCodes
+                          .filter(costCode => 
+                            costCodeSearch === '' ||
+                            costCode.code.toLowerCase().includes(costCodeSearch.toLowerCase()) ||
+                            costCode.description.toLowerCase().includes(costCodeSearch.toLowerCase())
+                          )
+                          .map((costCode) => (
+                            <div key={costCode.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                              <div className="flex-1">
+                                <div className="font-mono font-medium">{costCode.code}</div>
+                                <div className="text-sm text-muted-foreground">{costCode.description}</div>
+                              </div>
+                              <Switch
+                                checked={assignedCostCodes.includes(costCode.id)}
+                                onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
+                              />
+                            </div>
+                          ))}
                       </div>
-                      <Switch
-                        checked={assignedCostCodes.includes(costCode.id)}
-                        onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
