@@ -27,6 +27,7 @@ import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
 import VendorReports from "./pages/VendorReports";
 import UserEdit from "./pages/UserEdit";
+import UserDetails from "./pages/UserDetails";
 import AppSettings from "./pages/AppSettings";
 import UserSettings from "./pages/UserSettings";
 import Bills from "./pages/Bills";
@@ -200,6 +201,7 @@ function AuthenticatedRoutes() {
                 
                 <Route path="profile-settings" element={<ProfileSettings />} />
                 <Route path="settings/users" element={<UserSettings />} />
+                <Route path="settings/users/:userId" element={<UserDetails />} />
                 <Route path="settings/users/:userId/edit" element={<UserEdit />} />
                 <Route path="employees" element={<AllEmployees />} />
                 <Route path="employees/add" element={<AddEmployee />} />

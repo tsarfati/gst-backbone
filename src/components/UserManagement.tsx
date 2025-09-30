@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, User, Settings, Mail } from "lucide-react";
+import { CheckCircle, XCircle, User, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -295,55 +295,46 @@ export default function UserManagement() {
         <CardContent>
           <div className="grid gap-4">
             {users.map((user) => (
-              <div key={user.user_id} className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                    ) : (
-                      <span className="text-lg font-semibold text-primary">
-                        {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
-                      </span>
+              <div 
+                key={user.user_id} 
+                onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+              >
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                  ) : (
+                    <span className="text-lg font-semibold text-primary">
+                      {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+                    <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
+                      {user.status || 'pending'}
+                    </Badge>
+                    <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
+                      {user.role}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {user.user_id}
+                    </span>
+                    <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                    {user.approved_at && (
+                      <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
-                      <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
-                        {user.status || 'pending'}
-                      </Badge>
-                      <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
-                        {user.role}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {user.user_id}
-                      </span>
-                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                      {user.approved_at && (
-                        <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
-                      {user.status === 'approved' && (
-                        <span className="text-green-600">✓ Active</span>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                    <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
+                    {user.status === 'approved' && (
+                      <span className="text-green-600">✓ Active</span>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/settings/users/${user.user_id}/edit`)}
-                    className="flex items-center gap-2"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Edit
-                  </Button>
                 </div>
               </div>
             ))}
