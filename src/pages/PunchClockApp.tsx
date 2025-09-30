@@ -103,6 +103,20 @@ function PunchClockApp() {
     }
   }, [selectedJob, user, isPinAuthenticated]);
 
+  // Ensure selections stay valid when lists change
+  useEffect(() => {
+    if (selectedJob && !jobs.some(j => j.id === selectedJob)) {
+      setSelectedJob('');
+      setSelectedCostCode('');
+    }
+  }, [jobs, selectedJob]);
+
+  useEffect(() => {
+    if (selectedCostCode && !costCodes.some(c => c.id === selectedCostCode)) {
+      setSelectedCostCode('');
+    }
+  }, [costCodes, selectedCostCode]);
+
   const loadLoginSettings = async () => {
     try {
       const { data, error } = await supabase
@@ -150,10 +164,20 @@ function PunchClockApp() {
         assignedJobs = settings?.assigned_jobs;
       }
       
-      // Load jobs - filter by assigned if available
+      // Determine global access for regular users
+      const hasGlobal = !isPinAuthenticated && (profile as any)?.has_global_job_access;
+
+      // Load jobs based on access
       let data, error;
-      
-      if (assignedJobs && assignedJobs.length > 0) {
+      if (hasGlobal) {
+        const result = await supabase
+          .from('jobs')
+          .select('id, name, address')
+          .eq('status', 'active')
+          .order('name');
+        data = result.data;
+        error = result.error;
+      } else if (assignedJobs && assignedJobs.length > 0) {
         const result = await supabase
           .from('jobs')
           .select('id, name, address')
@@ -163,13 +187,9 @@ function PunchClockApp() {
         data = result.data;
         error = result.error;
       } else {
-        const result = await supabase
-          .from('jobs')
-          .select('id, name, address')
-          .eq('status', 'active')
-          .order('name');
-        data = result.data;
-        error = result.error;
+        // No global access and no specific assignments -> no jobs available
+        setJobs([]);
+        return;
       }
 
       if (error) throw error;
@@ -207,10 +227,21 @@ function PunchClockApp() {
         assignedCostCodes = settings?.assigned_cost_codes;
       }
       
-      // Load cost codes for the selected job - filter by assigned if available
+      // Determine global access for regular users
+      const hasGlobal = !isPinAuthenticated && (profile as any)?.has_global_job_access;
+
+      // Load cost codes for the selected job
       let data, error;
-      
-      if (assignedCostCodes && assignedCostCodes.length > 0) {
+      if (hasGlobal) {
+        const result = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('is_active', true)
+          .eq('job_id', jobId)
+          .order('code');
+        data = result.data;
+        error = result.error;
+      } else if (assignedCostCodes && assignedCostCodes.length > 0) {
         const result = await supabase
           .from('cost_codes')
           .select('id, code, description')
@@ -221,14 +252,9 @@ function PunchClockApp() {
         data = result.data;
         error = result.error;
       } else {
-        const result = await supabase
-          .from('cost_codes')
-          .select('id, code, description')
-          .eq('is_active', true)
-          .eq('job_id', jobId)
-          .order('code');
-        data = result.data;
-        error = result.error;
+        // No global access and no assigned codes -> none available
+        setCostCodes([]);
+        return;
       }
 
       if (error) throw error;
@@ -278,8 +304,31 @@ function PunchClockApp() {
       });
       const json = await res.json();
       if (res.ok) {
-        setJobs(json.jobs || []);
-        setCostCodes(json.cost_codes || []);
+        // Filter jobs and cost codes based on pin employee settings
+        const userId = (user as any)?.user_id;
+        let assignedJobs: string[] = [];
+        let assignedCostCodes: string[] = [];
+        if (userId) {
+          const { data: settings } = await supabase
+            .from('pin_employee_timecard_settings')
+            .select('assigned_jobs, assigned_cost_codes')
+            .eq('pin_employee_id', userId)
+            .maybeSingle();
+          assignedJobs = settings?.assigned_jobs || [];
+          assignedCostCodes = settings?.assigned_cost_codes || [];
+        }
+
+        const filteredJobs = assignedJobs.length > 0
+          ? (json.jobs || []).filter((j: any) => assignedJobs.includes(j.id))
+          : [];
+        setJobs(filteredJobs);
+
+        // Cost codes will be reloaded when a job is selected; set initial filtered pool
+        const filteredCodes = assignedCostCodes.length > 0
+          ? (json.cost_codes || []).filter((c: any) => assignedCostCodes.includes(c.id))
+          : [];
+        setCostCodes(filteredCodes);
+
         setCurrentPunch(json.current_punch || null);
         console.log('Edge data loaded - current punch:', json.current_punch);
       } else {
