@@ -51,6 +51,8 @@ export default function AddBill() {
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
+  const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -125,7 +127,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('subcontracts')
-        .select('*, vendors(name), jobs!inner(company_id)')
+        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount')
         .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
         .eq('status', 'active');
       
@@ -141,7 +143,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('purchase_orders')
-        .select('*, vendors(name), jobs!inner(company_id)')
+        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount')
         .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
         .eq('status', 'approved');
       
@@ -180,22 +182,26 @@ export default function AddBill() {
   };
 
   // Handle subcontract selection to auto-populate vendor and job
-  const handleSubcontractChange = (subcontractId: string) => {
+  const handleSubcontractChange = async (subcontractId: string) => {
     handleInputChange("subcontract_id", subcontractId);
     const selectedSubcontract = subcontracts.find(s => s.id === subcontractId);
     if (selectedSubcontract) {
       handleInputChange("vendor_id", selectedSubcontract.vendor_id);
       handleInputChange("job_id", selectedSubcontract.job_id);
+      setCommitmentDistribution(selectedSubcontract.cost_distribution || []);
+      await fetchPreviouslyBilledAmount('subcontract', subcontractId);
     }
   };
 
   // Handle purchase order selection to auto-populate vendor and job
-  const handlePurchaseOrderChange = (poId: string) => {
+  const handlePurchaseOrderChange = async (poId: string) => {
     handleInputChange("purchase_order_id", poId);
     const selectedPO = purchaseOrders.find(po => po.id === poId);
     if (selectedPO) {
       handleInputChange("vendor_id", selectedPO.vendor_id);
       handleInputChange("job_id", selectedPO.job_id);
+      setCommitmentDistribution(selectedPO.cost_distribution || []);
+      await fetchPreviouslyBilledAmount('purchase_order', poId);
     }
   };
 
@@ -215,6 +221,24 @@ export default function AddBill() {
       const matchesJob = !formData.job_id || po.job_id === formData.job_id;
       return matchesVendor && matchesJob;
     });
+  };
+
+  // Fetch previously billed amount for commitment
+  const fetchPreviouslyBilledAmount = async (type: 'subcontract' | 'purchase_order', commitmentId: string) => {
+    try {
+      const column = type === 'subcontract' ? 'subcontract_id' : 'purchase_order_id';
+      const { data } = await supabase
+        .from('invoices')
+        .select('amount')
+        .eq(column, commitmentId)
+        .neq('status', 'rejected');
+      
+      const total = data?.reduce((sum, invoice) => sum + Number(invoice.amount), 0) || 0;
+      setPreviouslyBilled(total);
+    } catch (error) {
+      console.error('Error fetching previously billed amount:', error);
+      setPreviouslyBilled(0);
+    }
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -463,8 +487,8 @@ export default function AddBill() {
               }
             }}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="non_commitment">Non Commitment</TabsTrigger>
-                <TabsTrigger value="commitment">Commitment</TabsTrigger>
+                <TabsTrigger value="non_commitment" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Non Commitment</TabsTrigger>
+                <TabsTrigger value="commitment" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Commitment</TabsTrigger>
               </TabsList>
               
               <TabsContent value="non_commitment" className="space-y-4 mt-4">
@@ -724,23 +748,45 @@ export default function AddBill() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cost_code">Cost Code</Label>
-                    <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cost code (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {costCodes.map((code) => (
-                          <SelectItem key={code.id} value={code.id}>
-                            {code.code} - {code.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {/* Cost Distribution Display */}
+                {commitmentDistribution.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="border rounded-lg p-4">
+                      <Label className="text-sm font-medium mb-3 block">Cost Code Distribution</Label>
+                      <div className="space-y-2">
+                        {commitmentDistribution.map((dist: any, index: number) => {
+                          const billAmount = parseFloat(formData.amount) || 0;
+                          const distributedAmount = billAmount * (dist.percentage / 100);
+                          return (
+                            <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                              <span className="text-sm">{dist.cost_code} - {dist.description}</span>
+                              <div className="text-right">
+                                <div className="text-sm font-medium">${distributedAmount.toLocaleString()}</div>
+                                <div className="text-xs text-muted-foreground">{dist.percentage}%</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {previouslyBilled > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="flex justify-between text-sm">
+                            <span>Previously Billed:</span>
+                            <span>${previouslyBilled.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-medium">
+                            <span>Current Bill:</span>
+                            <span>${(parseFloat(formData.amount) || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-medium border-t pt-1">
+                            <span>Total Billed:</span>
+                            <span>${((parseFloat(formData.amount) || 0) + previouslyBilled).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -793,16 +839,7 @@ export default function AddBill() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="is_reimbursement"
-                      checked={formData.is_reimbursement}
-                      onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
-                    />
-                    <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
-                  </div>
-                </div>
+                {/* Reimbursement checkbox removed from commitment tab */}
 
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
