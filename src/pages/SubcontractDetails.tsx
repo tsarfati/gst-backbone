@@ -133,15 +133,24 @@ export default function SubcontractDetails() {
   let contractFiles: {path: string, name: string}[] = [];
   if (subcontract.contract_file_url) {
     try {
-      const parsed = JSON.parse(subcontract.contract_file_url);
-      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
-        contractFiles = parsed;
-      } else if (Array.isArray(parsed)) {
-        contractFiles = parsed.map(p => ({ path: p, name: getFileNameFromPath(p) }));
+      // Only parse if it looks like JSON (starts with '[' or '{')
+      const fileUrl = subcontract.contract_file_url.trim();
+      if (fileUrl.startsWith('[') || fileUrl.startsWith('{')) {
+        const parsed = JSON.parse(fileUrl);
+        if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
+          contractFiles = parsed;
+        } else if (Array.isArray(parsed)) {
+          contractFiles = parsed.map(p => ({ path: p, name: getFileNameFromPath(p) }));
+        } else {
+          contractFiles = [{ path: subcontract.contract_file_url, name: getFileNameFromPath(subcontract.contract_file_url) }];
+        }
       } else {
+        // Treat as a simple URL string
         contractFiles = [{ path: subcontract.contract_file_url, name: getFileNameFromPath(subcontract.contract_file_url) }];
       }
-    } catch {
+    } catch (error) {
+      console.error('Error parsing contract file URL:', error);
+      // Fallback to treating it as a simple URL
       contractFiles = [{ path: subcontract.contract_file_url, name: getFileNameFromPath(subcontract.contract_file_url) }];
     }
   }
@@ -222,14 +231,25 @@ export default function SubcontractDetails() {
                 <p className="font-semibold text-foreground">{subcontract.retainage_percentage}% applied</p>
               </div>
             )}
-            {subcontract.cost_distribution && JSON.parse(subcontract.cost_distribution || '[]').length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground">Cost Distribution</p>
-                <p className="font-semibold text-foreground">
-                  ${formatNumber(subcontract.total_distributed_amount || 0)} distributed across {JSON.parse(subcontract.cost_distribution || '[]').length} allocation(s)
-                </p>
-              </div>
-            )}
+            {(() => {
+              try {
+                const distributionData = subcontract.cost_distribution 
+                  ? JSON.parse(subcontract.cost_distribution) 
+                  : [];
+                
+                return Array.isArray(distributionData) && distributionData.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cost Distribution</p>
+                    <p className="font-semibold text-foreground">
+                      ${formatNumber(subcontract.total_distributed_amount || 0)} distributed across {distributionData.length} allocation(s)
+                    </p>
+                  </div>
+                );
+              } catch (error) {
+                console.error('Error parsing cost distribution:', error);
+                return null;
+              }
+            })()}
             <div>
               <p className="text-sm text-muted-foreground">Created</p>
               <p className="font-semibold text-foreground">
