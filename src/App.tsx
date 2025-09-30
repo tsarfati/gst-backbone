@@ -35,6 +35,8 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AllEmployees from "./pages/AllEmployees";
 import AddEmployee from "./pages/AddEmployee";
+import EmployeePayroll from "./pages/EmployeePayroll";
+import EmployeePerformance from "./pages/EmployeePerformance";
 
 import TimeSheets from "./pages/TimeSheets";
 import TimecardReports from "./pages/TimecardReports";
@@ -205,6 +207,8 @@ function AuthenticatedRoutes() {
                 <Route path="settings/users/:userId/edit" element={<UserEdit />} />
                 <Route path="employees" element={<AllEmployees />} />
                 <Route path="employees/add" element={<AddEmployee />} />
+                <Route path="employees/payroll" element={<EmployeePayroll />} />
+                <Route path="employees/performance" element={<EmployeePerformance />} />
                 <Route path="pin-employees/:employeeId/edit" element={<PinEmployeeEdit />} />
                 <Route path="manual-punch-out" element={<ManualPunchOut />} />
                 <Route path="manual-time-entry" element={<ManualTimeEntry />} />
