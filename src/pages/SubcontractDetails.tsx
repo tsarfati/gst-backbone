@@ -21,8 +21,9 @@ export default function SubcontractDetails() {
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [changeOrders, setChangeOrders] = useState<any[]>([]);
-  const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
+const [changeOrders, setChangeOrders] = useState<any[]>([]);
+const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
+const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
 
   useEffect(() => {
     if (id) {
@@ -46,14 +47,38 @@ export default function SubcontractDetails() {
       if (error) throw error;
       setSubcontract(data);
 
-      // Fetch invoices for this subcontract
+      // Resolve cost codes used in cost_distribution for display
+      try {
+        const distribution: any[] = (() => {
+          try {
+            const raw = (data as any)?.cost_distribution as any;
+            if (!raw) return [];
+            if (typeof raw === 'string') return JSON.parse(raw);
+            if (Array.isArray(raw)) return raw as any[];
+            return [];
+          } catch { return []; }
+        })();
+        const ids: string[] = distribution.map((d: any) => d?.cost_code_id).filter(Boolean);
+        if (ids.length > 0) {
+          const { data: codes } = await supabase
+            .from('cost_codes')
+            .select('id, code, description, type')
+            .in('id', ids);
+          const map: Record<string, {code: string; description: string; type?: string}> = {};
+          (codes || []).forEach(cc => { map[cc.id] = { code: cc.code, description: cc.description, type: cc.type }; });
+          setCostCodeLookup(map);
+        } else {
+          setCostCodeLookup({});
+        }
+      } catch {
+        setCostCodeLookup({});
+      }
       if (data) {
         const { data: invoiceData } = await supabase
           .from('invoices')
           .select('*')
           .eq('subcontract_id', id)
           .order('created_at', { ascending: false });
-        
         setInvoices(invoiceData || []);
       }
     } catch (error) {
@@ -246,10 +271,10 @@ export default function SubcontractDetails() {
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="font-semibold text-sm">{item.cost_code_number || 'N/A'}</span>
+                                <span className="font-semibold text-sm">{costCodeLookup[item.cost_code_id]?.code || 'N/A'}</span>
                                 <span className="text-sm text-muted-foreground">•</span>
-                                <span className="text-sm font-medium">{item.cost_code_description || 'Cost Code'}</span>
-                                <Badge variant="secondary" className="text-xs">sub</Badge>
+                                <span className="text-sm font-medium">{costCodeLookup[item.cost_code_id]?.description || 'Cost Code'}</span>
+                                <Badge variant="secondary" className="text-xs">{costCodeLookup[item.cost_code_id]?.type || 'sub'}</Badge>
                               </div>
                               {item.description && (
                                 <p className="text-sm text-muted-foreground mt-2 p-2 bg-background/50 rounded border-l-2 border-muted">
