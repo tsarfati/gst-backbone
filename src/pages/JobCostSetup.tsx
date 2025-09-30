@@ -79,9 +79,11 @@ export default function JobCostSetup() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [addTemplateDialogOpen, setAddTemplateDialogOpen] = useState(false);
+  const [editTemplateDialogOpen, setEditTemplateDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [csvUploadDialogOpen, setCsvUploadDialogOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [editingCode, setEditingCode] = useState<CostCode | null>(null);
   
   // Settings state
   const [autoCreateCostCodes, setAutoCreateCostCodes] = useState(true);
@@ -226,6 +228,49 @@ export default function JobCostSetup() {
       toast({
         title: "Error",
         description: "Failed to add cost code template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditTemplate = async () => {
+    if (!editingCode || !editingCode.code || !editingCode.description) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updateData: any = {
+        code: editingCode.code,
+        description: editingCode.description,
+        type: editingCode.type,
+        is_dynamic_group: editingCode.type === 'dynamic_group',
+      };
+
+      const { error } = await supabase
+        .from('cost_codes')
+        .update(updateData)
+        .eq('id', editingCode.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Cost Code Template Updated",
+        description: "Cost code template has been updated successfully",
+      });
+
+      setEditingCode(null);
+      setEditTemplateDialogOpen(false);
+      loadData();
+    } catch (error) {
+      console.error('Error updating cost code template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update cost code template",
         variant: "destructive",
       });
     }
@@ -569,6 +614,74 @@ export default function JobCostSetup() {
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Template Dialog */}
+          <Dialog open={editTemplateDialogOpen} onOpenChange={setEditTemplateDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Cost Code Template</DialogTitle>
+              </DialogHeader>
+              {editingCode && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_code">Code *</Label>
+                      <Input
+                        id="edit_code"
+                        value={editingCode.code}
+                        onChange={(e) => setEditingCode({ ...editingCode, code: e.target.value })}
+                        placeholder="e.g., MAT-001"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_type">Type</Label>
+                      <Select 
+                        value={editingCode.type} 
+                        onValueChange={(value: any) => setEditingCode({ ...editingCode, type: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {costTypeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex items-center space-x-2">
+                                <option.icon className="h-4 w-4" />
+                                <span>{option.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_description">Description *</Label>
+                    <Textarea
+                      id="edit_description"
+                      value={editingCode.description}
+                      onChange={(e) => setEditingCode({ ...editingCode, description: e.target.value })}
+                      placeholder="Enter description"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => {
+                      setEditTemplateDialogOpen(false);
+                      setEditingCode(null);
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEditTemplate}>
+                      Save Changes
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -663,13 +776,14 @@ export default function JobCostSetup() {
                       <span className="text-muted-foreground">None</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-center">
+                   <TableCell className="text-center">
                     <div className="flex items-center justify-center space-x-2">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          // Edit functionality would go here
+                          setEditingCode(code);
+                          setEditTemplateDialogOpen(true);
                         }}
                       >
                         <Edit className="h-4 w-4" />

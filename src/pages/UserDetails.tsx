@@ -125,19 +125,8 @@ export default function UserDetails() {
   };
 
   const fetchLoginAudit = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_login_audit')
-        .select('*')
-        .eq('user_id', userId)
-        .order('login_time', { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      setLoginAudit(data || []);
-    } catch (error) {
-      console.error('Error fetching login audit:', error);
-    }
+    // TODO: Implement after user_login_audit table is created
+    setLoginAudit([]);
   };
 
   if (loading) {
