@@ -55,15 +55,21 @@ export default function AddBill() {
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+    if (billType === "commitment") {
+      fetchAllSubcontracts();
+      fetchAllPurchaseOrders();
+    }
+  }, [billType]);
 
   useEffect(() => {
     if (formData.job_id) {
       fetchCostCodesForJob(formData.job_id);
-      fetchSubcontractsForJob(formData.job_id);
-      fetchPurchaseOrdersForJob(formData.job_id);
+      if (billType === "commitment") {
+        fetchSubcontractsForJob(formData.job_id);
+        fetchPurchaseOrdersForJob(formData.job_id);
+      }
     }
-  }, [formData.job_id]);
+  }, [formData.job_id, billType]);
 
   useEffect(() => {
     if (formData.vendor_id) {
@@ -113,6 +119,38 @@ export default function AddBill() {
     }
   };
 
+  const fetchAllSubcontracts = async () => {
+    if (!currentCompany?.id && !profile?.current_company_id) return;
+    
+    try {
+      const { data } = await supabase
+        .from('subcontracts')
+        .select('*, vendors(name), jobs!inner(company_id)')
+        .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
+        .eq('status', 'active');
+      
+      setSubcontracts(data || []);
+    } catch (error) {
+      console.error('Error fetching subcontracts:', error);
+    }
+  };
+
+  const fetchAllPurchaseOrders = async () => {
+    if (!currentCompany?.id && !profile?.current_company_id) return;
+    
+    try {
+      const { data } = await supabase
+        .from('purchase_orders')
+        .select('*, vendors(name), jobs!inner(company_id)')
+        .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
+        .eq('status', 'approved');
+      
+      setPurchaseOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
+    }
+  };
+
   const fetchSubcontractsForJob = async (jobId: string) => {
     try {
       const { data } = await supabase
@@ -139,6 +177,44 @@ export default function AddBill() {
     } catch (error) {
       console.error('Error fetching purchase orders:', error);
     }
+  };
+
+  // Handle subcontract selection to auto-populate vendor and job
+  const handleSubcontractChange = (subcontractId: string) => {
+    handleInputChange("subcontract_id", subcontractId);
+    const selectedSubcontract = subcontracts.find(s => s.id === subcontractId);
+    if (selectedSubcontract) {
+      handleInputChange("vendor_id", selectedSubcontract.vendor_id);
+      handleInputChange("job_id", selectedSubcontract.job_id);
+    }
+  };
+
+  // Handle purchase order selection to auto-populate vendor and job
+  const handlePurchaseOrderChange = (poId: string) => {
+    handleInputChange("purchase_order_id", poId);
+    const selectedPO = purchaseOrders.find(po => po.id === poId);
+    if (selectedPO) {
+      handleInputChange("vendor_id", selectedPO.vendor_id);
+      handleInputChange("job_id", selectedPO.job_id);
+    }
+  };
+
+  // Filter subcontracts based on selected vendor and job
+  const getFilteredSubcontracts = () => {
+    return subcontracts.filter(subcontract => {
+      const matchesVendor = !formData.vendor_id || subcontract.vendor_id === formData.vendor_id;
+      const matchesJob = !formData.job_id || subcontract.job_id === formData.job_id;
+      return matchesVendor && matchesJob;
+    });
+  };
+
+  // Filter purchase orders based on selected vendor and job
+  const getFilteredPurchaseOrders = () => {
+    return purchaseOrders.filter(po => {
+      const matchesVendor = !formData.vendor_id || po.vendor_id === formData.vendor_id;
+      const matchesJob = !formData.job_id || po.job_id === formData.job_id;
+      return matchesVendor && matchesJob;
+    });
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
@@ -593,12 +669,12 @@ export default function AddBill() {
                 {formData.commitment_type === 'subcontract' && (
                   <div className="space-y-2">
                     <Label htmlFor="subcontract">Subcontract *</Label>
-                    <Select value={formData.subcontract_id} onValueChange={(value) => handleInputChange("subcontract_id", value)}>
+                    <Select value={formData.subcontract_id} onValueChange={handleSubcontractChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a subcontract" />
                       </SelectTrigger>
                       <SelectContent>
-                        {subcontracts.map((subcontract) => (
+                        {getFilteredSubcontracts().map((subcontract) => (
                           <SelectItem key={subcontract.id} value={subcontract.id}>
                             {subcontract.name} - {subcontract.vendors?.name}
                           </SelectItem>
@@ -611,12 +687,12 @@ export default function AddBill() {
                 {formData.commitment_type === 'purchase_order' && (
                   <div className="space-y-2">
                     <Label htmlFor="purchase_order">Purchase Order *</Label>
-                    <Select value={formData.purchase_order_id} onValueChange={(value) => handleInputChange("purchase_order_id", value)}>
+                    <Select value={formData.purchase_order_id} onValueChange={handlePurchaseOrderChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a purchase order" />
                       </SelectTrigger>
                       <SelectContent>
-                        {purchaseOrders.map((po) => (
+                        {getFilteredPurchaseOrders().map((po) => (
                           <SelectItem key={po.id} value={po.id}>
                             {po.po_number} - {po.vendors?.name} (${Number(po.amount).toLocaleString()})
                           </SelectItem>
