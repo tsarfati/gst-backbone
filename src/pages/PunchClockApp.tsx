@@ -144,23 +144,34 @@ function PunchClockApp() {
       if (!user) return;
       
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+      const companyId = (user as any).company_id;
       
       // First, check if user has assigned jobs in their settings
       let assignedJobs: string[] | null = null;
       
       if (isPinAuthenticated) {
-        const { data: settings } = await supabase
+        const query = supabase
           .from('pin_employee_timecard_settings')
           .select('assigned_jobs')
-          .eq('pin_employee_id', userId)
-          .maybeSingle();
+          .eq('pin_employee_id', userId);
+        
+        if (companyId) {
+          query.eq('company_id', companyId);
+        }
+        
+        const { data: settings } = await query.maybeSingle();
         assignedJobs = settings?.assigned_jobs;
       } else {
-        const { data: settings } = await supabase
+        const query = supabase
           .from('employee_timecard_settings')
           .select('assigned_jobs')
-          .eq('user_id', userId)
-          .maybeSingle();
+          .eq('user_id', userId);
+        
+        if (companyId) {
+          query.eq('company_id', companyId);
+        }
+        
+        const { data: settings } = await query.maybeSingle();
         assignedJobs = settings?.assigned_jobs;
       }
       
@@ -207,23 +218,34 @@ function PunchClockApp() {
       }
       
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+      const companyId = (user as any).company_id;
       
       // First, check if user has assigned cost codes in their settings
       let assignedCostCodes: string[] | null = null;
       
       if (isPinAuthenticated) {
-        const { data: settings } = await supabase
+        const query = supabase
           .from('pin_employee_timecard_settings')
           .select('assigned_cost_codes')
-          .eq('pin_employee_id', userId)
-          .maybeSingle();
+          .eq('pin_employee_id', userId);
+        
+        if (companyId) {
+          query.eq('company_id', companyId);
+        }
+        
+        const { data: settings } = await query.maybeSingle();
         assignedCostCodes = settings?.assigned_cost_codes;
       } else {
-        const { data: settings } = await supabase
+        const query = supabase
           .from('employee_timecard_settings')
           .select('assigned_cost_codes')
-          .eq('user_id', userId)
-          .maybeSingle();
+          .eq('user_id', userId);
+        
+        if (companyId) {
+          query.eq('company_id', companyId);
+        }
+        
+        const { data: settings } = await query.maybeSingle();
         assignedCostCodes = settings?.assigned_cost_codes;
       }
       
@@ -306,14 +328,20 @@ function PunchClockApp() {
       if (res.ok) {
         // Filter jobs and cost codes based on pin employee settings
         const userId = (user as any)?.user_id;
+        const companyId = (user as any)?.company_id;
         let assignedJobs: string[] = [];
         let assignedCostCodes: string[] = [];
         if (userId) {
-          const { data: settings } = await supabase
+          const query = supabase
             .from('pin_employee_timecard_settings')
             .select('assigned_jobs, assigned_cost_codes')
-            .eq('pin_employee_id', userId)
-            .maybeSingle();
+            .eq('pin_employee_id', userId);
+          
+          if (companyId) {
+            query.eq('company_id', companyId);
+          }
+          
+          const { data: settings } = await query.maybeSingle();
           assignedJobs = settings?.assigned_jobs || [];
           assignedCostCodes = settings?.assigned_cost_codes || [];
         }
