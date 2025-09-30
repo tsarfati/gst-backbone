@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet } from "lucide-react";
+import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet, Building, Calculator } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +17,10 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
   is_active: boolean;
   job_id?: string | null;
+  is_dynamic_group?: boolean;
 }
 
 export default function CostCodes() {
@@ -33,7 +34,7 @@ export default function CostCodes() {
   const [newCode, setNewCode] = useState<{
     code: string;
     description: string;
-    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
   }>({
     code: "",
     description: "",
@@ -41,6 +42,8 @@ export default function CostCodes() {
   });
 
   const costTypeOptions = [
+    { value: 'dynamic_group', label: 'Dynamic Group', icon: Building, color: 'bg-indigo-100 text-indigo-800' },
+    { value: 'dynamic_parent', label: 'Dynamic Parent', icon: Calculator, color: 'bg-cyan-100 text-cyan-800' },
     { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
     { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
     { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
@@ -97,6 +100,7 @@ export default function CostCodes() {
           type: newCode.type,
           company_id: currentCompany?.id || '',
           is_active: true,
+          is_dynamic_group: newCode.type === 'dynamic_group',
           job_id: null // Company-wide cost code
         })
         .select()

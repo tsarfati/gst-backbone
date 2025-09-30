@@ -39,11 +39,12 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
   is_active: boolean;
   job_id?: string | null;
   chart_account_id?: string | null;
   chart_account_number?: string | null;
+  is_dynamic_group?: boolean;
 }
 
 interface Job {
@@ -90,7 +91,7 @@ export default function JobCostSetup() {
   const [newTemplate, setNewTemplate] = useState<{
     code: string;
     description: string;
-    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
     is_default: boolean;
   }>({
     code: "",
@@ -100,6 +101,8 @@ export default function JobCostSetup() {
   });
 
   const costTypeOptions = [
+    { value: 'dynamic_group', label: 'Dynamic Group', icon: Building, color: 'bg-indigo-100 text-indigo-800' },
+    { value: 'dynamic_parent', label: 'Dynamic Parent', icon: Calculator, color: 'bg-cyan-100 text-cyan-800' },
     { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
     { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
     { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
@@ -195,6 +198,7 @@ export default function JobCostSetup() {
         type: newTemplate.type,
         company_id: currentCompany?.id,
         is_active: true,
+        is_dynamic_group: newTemplate.type === 'dynamic_group',
         job_id: null // General cost code template
       };
 
@@ -346,7 +350,7 @@ export default function JobCostSetup() {
   };
 
   const downloadCsvTemplate = () => {
-    const csvContent = "code,description,type\nLABOR-001,General Labor,labor\nMATERIAL-001,Construction Materials,material\nSUB-001,Electrical Subcontractor,sub\nEQUIP-001,Heavy Equipment,equipment\nOTHER-001,Miscellaneous,other";
+    const csvContent = "code,description,type,is_dynamic_group\n1.0,Labor Group,labor,true\n1.09,General Labor,labor,false\n1.09-labor,General Labor - Labor,labor,false\n1.09-material,General Labor - Materials,material,false\n2.0,Materials Group,material,true\n2.01,Concrete & Masonry,material,false";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -486,7 +490,7 @@ export default function JobCostSetup() {
                   <p className="text-sm text-muted-foreground">
                     Required columns: code, description, type
                     <br />
-                    Valid types: material, labor, sub, equipment, other
+                    Valid types: dynamic_group, dynamic_parent, material, labor, sub, equipment, other
                   </p>
                 </div>
                 <div className="flex justify-end space-x-2">
