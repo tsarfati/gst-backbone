@@ -4,14 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ArrowLeft, Save, User, Shield, Eye, Camera } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { UserPinSettings } from '@/components/UserPinSettings';
@@ -60,16 +62,23 @@ export default function UserEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
+  const [loginHistory, setLoginHistory] = useState<any[]>([]);
 
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
   const canManageUsers = isAdmin || isController;
+  const { currentCompany } = useCompany();
 
   useEffect(() => {
-    if (userId) {
+    if (userId && currentCompany) {
       fetchUser();
+      fetchJobs();
+      fetchUserJobAccess();
+      fetchLoginHistory();
     }
-  }, [userId]);
+  }, [userId, currentCompany]);
 
   const fetchUser = async () => {
     if (!userId) return;
@@ -93,6 +102,68 @@ export default function UserEdit() {
       navigate('/settings/users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchJobs = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('id, name, client, status')
+        .eq('company_id', currentCompany.id)
+        .order('name');
+
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    }
+  };
+
+  const fetchUserJobAccess = async () => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_job_access')
+        .select('job_id')
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      setUserJobAccess(data?.map(item => item.job_id) || []);
+    } catch (error) {
+      console.error('Error fetching user job access:', error);
+    }
+  };
+
+  const fetchLoginHistory = async () => {
+    if (!userId) return;
+
+    try {
+      // For now, just show account creation
+      // In a production system, you would query auth audit logs
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('created_at, updated_at')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+      
+      if (profileData) {
+        const history = [
+          {
+            timestamp: profileData.created_at,
+            event_type: 'user_created'
+          }
+        ];
+        setLoginHistory(history);
+      }
+    } catch (error) {
+      console.error('Error fetching login history:', error);
+      setLoginHistory([]);
     }
   };
 
@@ -194,6 +265,43 @@ export default function UserEdit() {
       });
     } finally {
       setUploadingAvatar(false);
+    }
+  };
+
+  const toggleJobAccess = async (jobId: string, hasAccess: boolean) => {
+    if (!userId || !profile) return;
+
+    try {
+      if (hasAccess) {
+        const { error } = await supabase
+          .from('user_job_access')
+          .insert({
+            user_id: userId,
+            job_id: jobId,
+            granted_by: profile.user_id
+          });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('user_job_access')
+          .delete()
+          .eq('user_id', userId)
+          .eq('job_id', jobId);
+        if (error) throw error;
+      }
+
+      fetchUserJobAccess();
+      toast({
+        title: "Job Access Updated",
+        description: `Job access ${hasAccess ? 'granted' : 'revoked'}`,
+      });
+    } catch (error) {
+      console.error('Error updating job access:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update job access",
+        variant: "destructive",
+      });
     }
   };
 
@@ -392,6 +500,87 @@ export default function UserEdit() {
               </CardContent>
             </Card>
           )}
+
+          {/* Job Access Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Job Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2 p-4 bg-muted rounded-lg">
+                <Switch
+                  id="global_job_access"
+                  checked={user.has_global_job_access}
+                  onCheckedChange={(checked) => setUser(prev => prev ? { ...prev, has_global_job_access: !!checked } : null)}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="global_job_access" className="font-medium">Global Job Access</Label>
+                  <p className="text-sm text-muted-foreground">Access to all jobs automatically</p>
+                </div>
+              </div>
+
+              {!user.has_global_job_access && jobs.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Specific Job Access</Label>
+                  <div className="border rounded-lg divide-y max-h-80 overflow-y-auto">
+                    {jobs.map((job) => (
+                      <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                        <div className="flex-1">
+                          <div className="font-medium">{job.name}</div>
+                          <div className="text-sm text-muted-foreground">{job.client}</div>
+                        </div>
+                        <Switch
+                          checked={userJobAccess.includes(job.id)}
+                          onCheckedChange={(checked) => toggleJobAccess(job.id, checked)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Login History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Login History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loginHistory.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Event</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loginHistory.slice(0, 10).map((entry, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{new Date(entry.timestamp).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {entry.event_type === 'sign_in' ? 'Sign In' : 'Account Created'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center text-muted-foreground py-6">
+                  No login history available
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* User Info & Actions */}

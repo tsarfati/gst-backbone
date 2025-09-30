@@ -2,16 +2,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { CheckCircle, XCircle, User, Settings, Briefcase, Mail } from "lucide-react";
+import { CheckCircle, XCircle, User, Settings, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useNavigate } from "react-router-dom";
 
 interface UserProfile {
   user_id: string;
@@ -38,12 +34,10 @@ export default function UserManagement() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
-  const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
 
   const roleColors = {
     admin: 'bg-red-500',
@@ -156,20 +150,6 @@ export default function UserManagement() {
     }
   };
 
-  const fetchUserJobAccess = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_job_access')
-        .select('job_id')
-        .eq('user_id', userId);
-
-      if (error) throw error;
-      setUserJobAccess(data?.map(item => item.job_id) || []);
-    } catch (error) {
-      console.error('Error fetching user job access:', error);
-    }
-  };
-
   const approveUser = async (userId: string) => {
     if (!user) return;
 
@@ -220,123 +200,6 @@ export default function UserManagement() {
       toast({
         title: "Error",
         description: "Failed to reject user",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateUserRole = async (userId: string, newRole: string) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole as any })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Role Updated",
-        description: "User role has been updated successfully",
-      });
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update user role",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const toggleGlobalJobAccess = async (userId: string, hasAccess: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ has_global_job_access: hasAccess })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Job Access Updated",
-        description: `Global job access ${hasAccess ? 'granted' : 'revoked'}`,
-      });
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating job access:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update job access",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const toggleJobAccess = async (userId: string, jobId: string, hasAccess: boolean) => {
-    if (!user) return;
-
-    try {
-      if (hasAccess) {
-        const { error } = await supabase
-          .from('user_job_access')
-          .insert({
-            user_id: userId,
-            job_id: jobId,
-            granted_by: user.id
-          });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('user_job_access')
-          .delete()
-          .eq('user_id', userId)
-          .eq('job_id', jobId);
-        if (error) throw error;
-      }
-
-      fetchUserJobAccess(userId);
-      toast({
-        title: "Job Access Updated",
-        description: `Job access ${hasAccess ? 'granted' : 'revoked'}`,
-      });
-    } catch (error) {
-      console.error('Error updating job access:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update job access",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateUser = async (userProfile: UserProfile) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          first_name: userProfile.first_name,
-          last_name: userProfile.last_name,
-          display_name: userProfile.display_name,
-          role: userProfile.role as any,
-          status: userProfile.status,
-          has_global_job_access: userProfile.has_global_job_access
-        })
-        .eq('user_id', userProfile.user_id);
-
-      if (error) throw error;
-
-      toast({
-        title: "User Updated",
-        description: "User details have been updated successfully",
-      });
-      fetchUsers();
-      setEditingUser(null);
-    } catch (error) {
-      console.error('Error updating user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update user",
         variant: "destructive",
       });
     }
@@ -475,11 +338,11 @@ export default function UserManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEditingUser(user)}
+                    onClick={() => navigate(`/settings/users/${user.user_id}/edit`)}
                     className="flex items-center gap-2"
                   >
                     <Settings className="h-4 w-4" />
-                    Manage
+                    Edit
                   </Button>
                 </div>
               </div>
@@ -487,177 +350,6 @@ export default function UserManagement() {
           </div>
         </CardContent>
       </Card>
-
-      {/* User Edit Dialog */}
-      {editingUser && (
-        <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Manage User</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="first_name">First Name</Label>
-                  <Input
-                    id="first_name"
-                    value={editingUser?.first_name || ''}
-                    onChange={(e) => setEditingUser(prev => prev ? { ...prev, first_name: e.target.value } : null)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="last_name">Last Name</Label>
-                  <Input
-                    id="last_name"
-                    value={editingUser?.last_name || ''}
-                    onChange={(e) => setEditingUser(prev => prev ? { ...prev, last_name: e.target.value } : null)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="display_name">Display Name</Label>
-                <Input
-                  id="display_name"
-                  value={editingUser?.display_name || ''}
-                  onChange={(e) => setEditingUser(prev => prev ? { ...prev, display_name: e.target.value } : null)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <Select
-                    value={editingUser?.role || 'employee'}
-                    onValueChange={(value) => setEditingUser(prev => prev ? { ...prev, role: value as any } : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="controller">Controller</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={editingUser?.status || 'pending'}
-                    onValueChange={(value) => setEditingUser(prev => prev ? { ...prev, status: value } : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="global_access"
-                  checked={editingUser?.has_global_job_access || false}
-                  onCheckedChange={(checked) => setEditingUser(prev => prev ? { ...prev, has_global_job_access: checked } : null)}
-                />
-                <Label htmlFor="global_access" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Global Job Access
-                </Label>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">User Information</Label>
-                <div className="text-sm text-muted-foreground space-y-1 mt-2">
-                  <p>User ID: {editingUser?.user_id}</p>
-                  <p>Created: {editingUser?.created_at && new Date(editingUser.created_at).toLocaleString()}</p>
-                  {editingUser?.approved_at && (
-                    <p>Approved: {new Date(editingUser.approved_at).toLocaleString()}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="flex justify-between">
-              <div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedUser(editingUser);
-                    fetchUserJobAccess(editingUser.user_id);
-                  }}
-                >
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Job Access
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingUser(null)}>
-                  Cancel
-                </Button>
-                <Button onClick={() => updateUser(editingUser)}>
-                  Save Changes
-                </Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-      {/* Job Access Modal */}
-      {selectedUser && (
-        <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Job Access for {selectedUser.display_name}</DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-                <Switch
-                  checked={selectedUser.has_global_job_access}
-                  onCheckedChange={(checked) => {
-                    toggleGlobalJobAccess(selectedUser.user_id, checked);
-                    setSelectedUser({ ...selectedUser, has_global_job_access: checked });
-                  }}
-                />
-                <span className="font-medium">Global Job Access</span>
-                <span className="text-sm text-muted-foreground">
-                  (Access to all jobs automatically)
-                </span>
-              </div>
-
-              {!selectedUser.has_global_job_access && (
-                <div className="space-y-2">
-                  <h4 className="font-medium">Specific Job Access</h4>
-                  <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                    {jobs.map((job) => (
-                      <div key={job.id} className="flex items-center justify-between p-2 border rounded">
-                        <div>
-                          <span className="font-medium">{job.name}</span>
-                          <span className="text-sm text-muted-foreground ml-2">({job.client})</span>
-                        </div>
-                        <Switch
-                          checked={userJobAccess.includes(job.id)}
-                          onCheckedChange={(checked) => toggleJobAccess(selectedUser.user_id, job.id, checked)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button onClick={() => setSelectedUser(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
