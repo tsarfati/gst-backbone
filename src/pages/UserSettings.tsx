@@ -10,11 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, Edit3, Trash2 } from 'lucide-react';
+import { Users, UserCheck } from 'lucide-react';
 import RolePermissionsManager from "@/components/RolePermissionsManager";
 import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
+import { useNavigate } from 'react-router-dom';
 
 interface UserProfile {
   id: string;
@@ -54,6 +55,7 @@ export default function UserSettings() {
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
@@ -197,7 +199,8 @@ export default function UserSettings() {
                   {users.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
@@ -212,69 +215,11 @@ export default function UserSettings() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        {editingUser === user.user_id ? (
-                          <div className="flex items-center gap-2">
-                            <Select value={editRole} onValueChange={setEditRole}>
-                              <SelectTrigger className="w-40">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Administrator</SelectItem>
-                                <SelectItem value="controller">Controller</SelectItem>
-                                <SelectItem value="project_manager">Project Manager</SelectItem>
-                                <SelectItem value="employee">Employee</SelectItem>
-                                <SelectItem value="view_only">View Only</SelectItem>
-                                <SelectItem value="company_admin">Company Admin</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Button
-                              size="sm"
-                              onClick={() => updateUserRole(user.user_id, editRole as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin')}
-                            >
-                              Save
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={cancelEdit}>
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Badge 
-                              variant={roleColors[user.role as keyof typeof roleColors]}
-                            >
-                              {roleLabels[user.role as keyof typeof roleLabels]}
-                            </Badge>
-                            {isAdmin && user.user_id !== profile?.user_id && (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => window.location.href = `/settings/users/${user.user_id}/edit`}
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => setSelectedUserForPermissions(user.user_id)}
-                                >
-                                  Permissions
-                                </Button>
-                                {user.role === 'employee' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setEditingUser(user.user_id)}
-                                  >
-                                    Set PIN
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
+                      <Badge 
+                        variant={roleColors[user.role as keyof typeof roleColors]}
+                      >
+                        {roleLabels[user.role as keyof typeof roleLabels]}
+                      </Badge>
                     </div>
                   ))}
                 </div>

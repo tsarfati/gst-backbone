@@ -31,7 +31,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
   is_active: boolean;
   job_id?: string | null;
   chart_account_id?: string | null;
