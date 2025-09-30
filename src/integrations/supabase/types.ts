@@ -1032,6 +1032,7 @@ export type Database = {
           issue_date: string
           job_id: string
           payment_terms: string | null
+          purchase_order_id: string | null
           status: string
           subcontract_id: string | null
           updated_at: string
@@ -1053,6 +1054,7 @@ export type Database = {
           issue_date: string
           job_id: string
           payment_terms?: string | null
+          purchase_order_id?: string | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string
@@ -1074,6 +1076,7 @@ export type Database = {
           issue_date?: string
           job_id?: string
           payment_terms?: string | null
+          purchase_order_id?: string | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string
@@ -1106,6 +1109,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
             referencedColumns: ["id"]
           },
           {
