@@ -387,7 +387,13 @@ export default function SubcontractEdit() {
                   onChange={(value) => handleInputChange("contract_amount", value)}
                   placeholder="0.00"
                   required
+                  disabled={formData.status !== "planning"}
                 />
+                {formData.status !== "planning" && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Financial details cannot be changed once subcontract is out of planning status
+                  </p>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -398,6 +404,7 @@ export default function SubcontractEdit() {
                     checked={formData.apply_retainage}
                     onChange={(e) => handleInputChange("apply_retainage", e.target.checked)}
                     className="h-4 w-4 rounded border-input"
+                    disabled={formData.status !== "planning"}
                   />
                   <Label htmlFor="apply_retainage" className="cursor-pointer">
                     Apply retainage to payments
@@ -419,6 +426,7 @@ export default function SubcontractEdit() {
                           onChange={(e) => handleInputChange("retainage_percentage", e.target.value)}
                           placeholder="0.00"
                           required={formData.apply_retainage}
+                          disabled={formData.status !== "planning"}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
                       </div>
@@ -438,7 +446,7 @@ export default function SubcontractEdit() {
                     contractAmount={parseFloat(formData.contract_amount)}
                     initialDistribution={costDistribution}
                     onChange={setCostDistribution}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || formData.status !== "planning"}
                   />
                 </div>
               )}
