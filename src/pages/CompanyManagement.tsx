@@ -715,7 +715,7 @@ export default function CompanyManagement() {
                       if (companyUser.is_pin_employee) {
                         window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
                       } else {
-                        window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                        window.location.href = `/settings/users/${companyUser.user_id}`;
                       }
                     }}
                   >
@@ -787,7 +787,7 @@ export default function CompanyManagement() {
                               if (companyUser.is_pin_employee) {
                                 window.location.href = `/pin-employees/${companyUser.user_id}/edit`;
                               } else {
-                                window.location.href = `/settings/users/${companyUser.user_id}/edit`;
+                                window.location.href = `/settings/users/${companyUser.user_id}`;
                               }
                             }}
                           >

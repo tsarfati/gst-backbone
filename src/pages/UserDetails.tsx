@@ -16,13 +16,15 @@ import {
   Edit,
   MapPin,
   Menu,
-  Clock
+  Clock,
+  Building2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
+import UserCompanyAccess from "@/components/UserCompanyAccess";
 
 interface UserProfile {
   user_id: string;
@@ -223,6 +225,19 @@ export default function UserDetails() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Company Access */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Company Access
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <UserCompanyAccess userId={userId!} />
         </CardContent>
       </Card>
 
