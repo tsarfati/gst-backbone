@@ -239,32 +239,34 @@ export default function SubcontractDetails() {
                 
                 return Array.isArray(distributionData) && distributionData.length > 0 && (
                   <div>
-                    <p className="text-sm text-muted-foreground mb-2">Cost Distribution</p>
-                    <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground mb-3">Cost Distribution</p>
+                    <div className="space-y-3">
                       {distributionData.map((item: any, index: number) => (
-                        <div key={index} className="bg-muted/50 p-3 rounded-md">
+                        <div key={index} className="bg-muted/50 p-4 rounded-md border">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">{item.cost_code_number || 'N/A'}</span>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-semibold text-sm">{item.cost_code_number || 'N/A'}</span>
                                 <span className="text-sm text-muted-foreground">•</span>
-                                <span className="text-sm">{item.cost_code_description || 'Cost Code'}</span>
+                                <span className="text-sm font-medium">{item.cost_code_description || 'Cost Code'}</span>
                                 <Badge variant="secondary" className="text-xs">sub</Badge>
                               </div>
                               {item.description && (
-                                <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                                <p className="text-sm text-muted-foreground mt-2 p-2 bg-background/50 rounded border-l-2 border-muted">
+                                  {item.description}
+                                </p>
                               )}
                             </div>
-                            <div className="text-right">
-                              <p className="font-semibold">${formatNumber(item.amount || 0)}</p>
+                            <div className="text-right ml-4">
+                              <p className="font-semibold text-lg">${formatNumber(item.amount || 0)}</p>
                             </div>
                           </div>
                         </div>
                       ))}
-                      <div className="mt-3 pt-2 border-t border-muted">
+                      <div className="mt-4 pt-3 border-t border-muted">
                         <div className="flex justify-between items-center">
                           <p className="text-sm font-medium">Total Distributed:</p>
-                          <p className="font-semibold text-foreground">
+                          <p className="font-semibold text-foreground text-lg">
                             ${formatNumber(subcontract.total_distributed_amount || 0)}
                           </p>
                         </div>

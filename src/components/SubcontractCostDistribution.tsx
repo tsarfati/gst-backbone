@@ -61,11 +61,11 @@ export default function SubcontractCostDistribution({
     try {
       setLoading(true);
 
-      // Load cost codes for this job (subcontractor category only)
+      // Load cost codes for this job (subcontractor category only, job-specific)
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
         .select('id, code, description, type')
-        .or(`job_id.eq.${jobId},job_id.is.null`)
+        .eq('job_id', jobId)
         .eq('type', 'sub')
         .eq('is_active', true)
         .order('code');
