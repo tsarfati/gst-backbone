@@ -52,6 +52,7 @@ export default function SubcontractEdit() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
+  const [hasPaidBills, setHasPaidBills] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,7 +71,18 @@ export default function SubcontractEdit() {
 
         // Check if user is admin or controller
         const isAdminOrController = profile?.role === 'admin' || profile?.role === 'controller';
-        setCanDelete(isAdminOrController);
+        
+        // Check for paid bills against this subcontract
+        const { data: paidBills, error: billsError } = await supabase
+          .from('invoices')
+          .select('id')
+          .eq('subcontract_id', id)
+          .eq('status', 'paid');
+        
+        if (billsError) throw billsError;
+        const hasPaid = (paidBills || []).length > 0;
+        setHasPaidBills(hasPaid);
+        setCanDelete(isAdminOrController && !hasPaid);
 
         // Fetch subcontract data
         const { data: subcontractData, error: subcontractError } = await supabase
@@ -157,6 +169,20 @@ export default function SubcontractEdit() {
     setIsSubmitting(true);
     try {
       const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+      const contractAmount = parseFloat(formData.contract_amount);
+      
+      // Validate status change requirements
+      if (['active', 'completed', 'cancelled'].includes(formData.status)) {
+        if (Math.abs(totalDistributedAmount - contractAmount) > 0.01) {
+          toast({
+            title: "Validation Error",
+            description: "Job distribution must equal contract amount for active, completed, or cancelled status",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       const { error } = await supabase
         .from('subcontracts')
@@ -270,11 +296,12 @@ export default function SubcontractEdit() {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
+                     <SelectContent>
+                       <SelectItem value="planning">Planning</SelectItem>
+                       <SelectItem value="active">Active</SelectItem>
+                       <SelectItem value="completed">Completed</SelectItem>
+                       <SelectItem value="cancelled">Cancelled</SelectItem>
+                     </SelectContent>
                   </Select>
                 </div>
               </div>
@@ -444,24 +471,29 @@ export default function SubcontractEdit() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Delete Subcontract</p>
-                    <p className="text-sm text-muted-foreground">
-                      This action cannot be undone. All data will be permanently deleted.
-                    </p>
+                     <p className="text-sm text-muted-foreground">
+                       {hasPaidBills 
+                         ? "Cannot delete subcontract with paid bills against it."
+                         : "This action cannot be undone. All data will be permanently deleted."
+                       }
+                     </p>
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" disabled={deleting}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        {deleting ? "Deleting..." : "Delete"}
-                      </Button>
+                       <Button variant="destructive" size="sm" disabled={deleting || hasPaidBills}>
+                         <Trash2 className="h-4 w-4 mr-2" />
+                         {deleting ? "Deleting..." : "Delete"}
+                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the 
-                          subcontract and all associated data.
-                        </AlertDialogDescription>
+                         <AlertDialogDescription>
+                           {hasPaidBills 
+                             ? "Cannot delete this subcontract because it has paid bills associated with it."
+                             : "This action cannot be undone. This will permanently delete the subcontract and all associated data."
+                           }
+                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
