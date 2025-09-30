@@ -260,6 +260,39 @@ export default function CostCodes() {
     window.URL.revokeObjectURL(url);
   };
 
+  const exportCostCodes = () => {
+    if (costCodes.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "There are no cost codes to export",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const csvContent = [
+      "code,description,type",
+      ...costCodes.map(code => 
+        `"${code.code}","${code.description}","${code.type}"`
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cost_codes_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${costCodes.length} cost codes`,
+    });
+  };
+
   const handleDeleteCode = async (id: string) => {
     try {
       const { error } = await supabase
@@ -447,7 +480,17 @@ export default function CostCodes() {
       {/* Cost Codes Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Company Cost Codes ({costCodes.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Company Cost Codes ({costCodes.length})</CardTitle>
+            <Button 
+              variant="outline" 
+              onClick={exportCostCodes}
+              disabled={costCodes.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (

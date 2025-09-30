@@ -365,6 +365,39 @@ export default function ChartOfAccounts() {
     window.URL.revokeObjectURL(url);
   };
 
+  const exportChartOfAccounts = () => {
+    if (filteredAccounts.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "There are no accounts to export",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const csvContent = [
+      "account_number,account_name,account_type,account_category,normal_balance,current_balance",
+      ...filteredAccounts.map(account => 
+        `"${account.account_number}","${account.account_name}","${account.account_type}","${account.account_category || ''}","${account.normal_balance}",${account.current_balance}`
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chart_of_accounts_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${filteredAccounts.length} accounts`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -628,6 +661,14 @@ export default function ChartOfAccounts() {
                 ))}
               </SelectContent>
             </Select>
+            <Button 
+              variant="outline" 
+              onClick={exportChartOfAccounts}
+              disabled={filteredAccounts.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
           </div>
         </CardContent>
       </Card>
