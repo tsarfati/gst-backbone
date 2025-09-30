@@ -245,7 +245,12 @@ export default function SubcontractDetails() {
                         <div key={index} className="bg-muted/50 p-3 rounded-md">
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <p className="font-medium text-sm">{item.cost_code_description || 'Cost Code'}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">{item.cost_code_number || 'N/A'}</span>
+                                <span className="text-sm text-muted-foreground">•</span>
+                                <span className="text-sm">{item.cost_code_description || 'Cost Code'}</span>
+                                <Badge variant="secondary" className="text-xs">sub</Badge>
+                              </div>
                               {item.description && (
                                 <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
                               )}

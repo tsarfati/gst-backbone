@@ -222,9 +222,10 @@ export default function SubcontractCostDistribution({
                                       dist.cost_code_id === costCode.id ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  <div>
-                                    <div className="font-medium">{costCode.code}</div>
-                                    <div className="text-sm text-muted-foreground">{costCode.description}</div>
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span className="font-medium text-sm">{costCode.code}</span>
+                                    <span className="text-sm text-muted-foreground flex-1">{costCode.description}</span>
+                                    <Badge variant="secondary" className="text-xs">sub</Badge>
                                   </div>
                                 </CommandItem>
                               ))}
