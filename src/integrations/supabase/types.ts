@@ -2617,6 +2617,7 @@ export type Database = {
           apply_retainage: boolean | null
           contract_amount: number
           contract_file_url: string | null
+          cost_distribution: Json | null
           created_at: string
           created_by: string
           description: string | null
@@ -2627,6 +2628,7 @@ export type Database = {
           retainage_percentage: number | null
           start_date: string | null
           status: string
+          total_distributed_amount: number | null
           updated_at: string
           vendor_id: string
         }
@@ -2634,6 +2636,7 @@ export type Database = {
           apply_retainage?: boolean | null
           contract_amount: number
           contract_file_url?: string | null
+          cost_distribution?: Json | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -2644,6 +2647,7 @@ export type Database = {
           retainage_percentage?: number | null
           start_date?: string | null
           status?: string
+          total_distributed_amount?: number | null
           updated_at?: string
           vendor_id: string
         }
@@ -2651,6 +2655,7 @@ export type Database = {
           apply_retainage?: boolean | null
           contract_amount?: number
           contract_file_url?: string | null
+          cost_distribution?: Json | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -2661,6 +2666,7 @@ export type Database = {
           retainage_percentage?: number | null
           start_date?: string | null
           status?: string
+          total_distributed_amount?: number | null
           updated_at?: string
           vendor_id?: string
         }

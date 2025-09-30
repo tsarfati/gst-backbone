@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import JobCostingDistribution from "@/components/JobCostingDistribution";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +44,8 @@ export default function SubcontractEdit() {
     apply_retainage: false,
     retainage_percentage: ""
   });
+
+  const [costDistribution, setCostDistribution] = useState<any[]>([]);
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -91,6 +94,18 @@ export default function SubcontractEdit() {
           apply_retainage: subcontractData.apply_retainage || false,
           retainage_percentage: subcontractData.retainage_percentage?.toString() || ""
         });
+
+        // Set cost distribution data
+        if (subcontractData.cost_distribution) {
+          try {
+            const parsedDistribution = typeof subcontractData.cost_distribution === 'string' 
+              ? JSON.parse(subcontractData.cost_distribution) 
+              : subcontractData.cost_distribution;
+            setCostDistribution(parsedDistribution || []);
+          } catch {
+            setCostDistribution([]);
+          }
+        }
 
         // Fetch jobs
         const { data: jobsData, error: jobsError } = await supabase
@@ -142,6 +157,8 @@ export default function SubcontractEdit() {
 
     setIsSubmitting(true);
     try {
+      const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+
       const { error } = await supabase
         .from('subcontracts')
         .update({
@@ -152,7 +169,11 @@ export default function SubcontractEdit() {
           contract_amount: parseFloat(formData.contract_amount),
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
-          status: formData.status
+          status: formData.status,
+          apply_retainage: formData.apply_retainage,
+          retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
+          cost_distribution: costDistribution.length > 0 ? JSON.stringify(costDistribution) : null,
+          total_distributed_amount: totalDistributedAmount
         })
         .eq('id', id);
 
@@ -345,6 +366,62 @@ export default function SubcontractEdit() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Financial Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Financial Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="apply_retainage"
+                  checked={formData.apply_retainage}
+                  onChange={(e) => handleInputChange("apply_retainage", e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label htmlFor="apply_retainage" className="cursor-pointer">
+                  Apply retainage to payments
+                </Label>
+              </div>
+              
+              {formData.apply_retainage && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="retainage_percentage">Retainage Percentage *</Label>
+                    <div className="relative">
+                      <Input
+                        id="retainage_percentage"
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={formData.retainage_percentage}
+                        onChange={(e) => handleInputChange("retainage_percentage", e.target.value)}
+                        placeholder="0.00"
+                        required={formData.apply_retainage}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Typical retainage is 5-10%
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Job Costing Distribution */}
+          {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
+            <JobCostingDistribution
+              contractAmount={parseFloat(formData.contract_amount)}
+              initialDistribution={costDistribution}
+              onChange={setCostDistribution}
+              disabled={isSubmitting}
+            />
+          )}
 
           <div className="flex gap-4 justify-end">
             <Button 

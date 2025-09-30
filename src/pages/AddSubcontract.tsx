@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
+import JobCostingDistribution from "@/components/JobCostingDistribution";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
@@ -40,6 +41,8 @@ export default function AddSubcontract() {
     apply_retainage: false,
     retainage_percentage: ""
   });
+
+  const [costDistribution, setCostDistribution] = useState<any[]>([]);
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -323,6 +326,8 @@ export default function AddSubcontract() {
       // Store file data as JSON array
       const fileDataString = fileData.length > 0 ? JSON.stringify(fileData) : formData.contract_file_url || null;
 
+      const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+
       const { error } = await supabase
         .from('subcontracts')
         .insert({
@@ -337,6 +342,8 @@ export default function AddSubcontract() {
           contract_file_url: fileDataString,
           apply_retainage: formData.apply_retainage,
           retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
+          cost_distribution: costDistribution.length > 0 ? JSON.stringify(costDistribution) : null,
+          total_distributed_amount: totalDistributedAmount,
           created_by: user.id
         });
 
@@ -569,6 +576,16 @@ export default function AddSubcontract() {
               )}
             </CardContent>
           </Card>
+
+          {/* Job Costing Distribution */}
+          {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
+            <JobCostingDistribution
+              contractAmount={parseFloat(formData.contract_amount)}
+              initialDistribution={costDistribution}
+              onChange={setCostDistribution}
+              disabled={isSubmitting}
+            />
+          )}
 
           {/* Contract File Upload */}
           <Card>
