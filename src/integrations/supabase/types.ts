@@ -2051,6 +2051,66 @@ export type Database = {
           },
         ]
       }
+      pin_employee_timecard_settings: {
+        Row: {
+          assigned_cost_codes: string[]
+          assigned_jobs: string[]
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          notification_preferences: Json
+          pin_employee_id: string
+          require_location: boolean
+          require_photo: boolean
+          updated_at: string
+        }
+        Insert: {
+          assigned_cost_codes?: string[]
+          assigned_jobs?: string[]
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          notification_preferences?: Json
+          pin_employee_id: string
+          require_location?: boolean
+          require_photo?: boolean
+          updated_at?: string
+        }
+        Update: {
+          assigned_cost_codes?: string[]
+          assigned_jobs?: string[]
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          notification_preferences?: Json
+          pin_employee_id?: string
+          require_location?: boolean
+          require_photo?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_employee_timecard_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_employee_timecard_settings_pin_employee_id_fkey"
+            columns: ["pin_employee_id"]
+            isOneToOne: false
+            referencedRelation: "pin_employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pin_employees: {
         Row: {
           avatar_url: string | null
