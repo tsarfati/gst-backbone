@@ -13,7 +13,6 @@ interface CostDistribution {
   id?: string;
   cost_code_id: string;
   amount: number;
-  percentage: number;
   cost_code_description?: string;
 }
 
@@ -85,8 +84,7 @@ export default function SubcontractCostDistribution({
     const newDistribution: CostDistribution = {
       id: newId,
       cost_code_id: '',
-      amount: 0,
-      percentage: 0
+      amount: 0
     };
     setDistribution(prev => [...prev, newDistribution]);
   };
@@ -100,17 +98,6 @@ export default function SubcontractCostDistribution({
       if (d.id !== id) return d;
       
       const updated = { ...d, [field]: value };
-      
-      // If amount changes, recalculate percentage
-      if (field === 'amount' && contractAmount > 0) {
-        updated.percentage = (parseFloat(value) / contractAmount) * 100;
-      }
-      
-      // If percentage changes, recalculate amount
-      if (field === 'percentage' && contractAmount > 0) {
-        updated.amount = (contractAmount * parseFloat(value)) / 100;
-      }
-
       return updated;
     }));
   };
@@ -119,17 +106,14 @@ export default function SubcontractCostDistribution({
     if (distribution.length === 0) return;
     
     const amountPerDistribution = contractAmount / distribution.length;
-    const percentagePerDistribution = 100 / distribution.length;
     
     setDistribution(prev => prev.map(d => ({
       ...d,
-      amount: amountPerDistribution,
-      percentage: percentagePerDistribution
+      amount: amountPerDistribution
     })));
   };
 
   const totalDistributed = distribution.reduce((sum, d) => sum + (d.amount || 0), 0);
-  const totalPercentage = distribution.reduce((sum, d) => sum + (d.percentage || 0), 0);
   const remaining = contractAmount - totalDistributed;
 
   if (loading) {
@@ -174,24 +158,28 @@ export default function SubcontractCostDistribution({
             const costCode = costCodes.find(cc => cc.id === dist.cost_code_id);
             return (
               <div key={dist.id} className="flex items-center gap-3 p-3 border rounded-md bg-muted/30">
-                <div className="flex-1 grid grid-cols-4 gap-3 items-center">
-                  <div className="col-span-2">
+                <div className="flex-1 grid grid-cols-3 gap-3 items-center">
+                  <div>
                     <Select
                       value={dist.cost_code_id}
                       onValueChange={(value) => updateDistribution(dist.id!, 'cost_code_id', value)}
                       disabled={disabled}
                     >
                       <SelectTrigger className="h-8">
-                        <SelectValue placeholder="Select cost code" />
+                        <SelectValue placeholder="Cost code" />
                       </SelectTrigger>
                       <SelectContent>
                         {costCodes.map((costCode) => (
                           <SelectItem key={costCode.id} value={costCode.id}>
-                            {costCode.code} - {costCode.description}
+                            {costCode.code}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    {costCode?.description || "Select cost code"}
                   </div>
                   
                   <div>
@@ -202,21 +190,6 @@ export default function SubcontractCostDistribution({
                       disabled={disabled}
                       className="h-8"
                     />
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={dist.percentage?.toFixed(1) || ''}
-                      onChange={(e) => updateDistribution(dist.id!, 'percentage', parseFloat(e.target.value) || 0)}
-                      placeholder="0.0"
-                      disabled={disabled}
-                      className="h-8"
-                    />
-                    <span className="text-xs text-muted-foreground">%</span>
                   </div>
                 </div>
                 
@@ -238,15 +211,9 @@ export default function SubcontractCostDistribution({
 
       {/* Compact Summary */}
       <div className="flex items-center justify-between text-sm bg-muted/50 p-3 rounded-md">
-        <div className="flex gap-4">
-          <span>
-            <span className="text-muted-foreground">Total:</span>{" "}
-            <span className="font-medium">${totalDistributed.toLocaleString()}</span>
-          </span>
-          <span>
-            <span className="text-muted-foreground">%:</span>{" "}
-            <span className="font-medium">{totalPercentage.toFixed(1)}%</span>
-          </span>
+        <div>
+          <span className="text-muted-foreground">Total Distributed:</span>{" "}
+          <span className="font-medium">${totalDistributed.toLocaleString()}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Remaining:</span>
@@ -255,7 +222,7 @@ export default function SubcontractCostDistribution({
           </span>
           {Math.abs(remaining) > 0.01 && (
             <Badge variant={remaining < 0 ? 'destructive' : 'secondary'} className="text-xs">
-              {remaining < 0 ? 'Over' : 'Under'}
+              {remaining < 0 ? 'Over-allocated' : 'Under-allocated'}
             </Badge>
           )}
         </div>
