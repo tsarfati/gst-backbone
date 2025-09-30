@@ -69,9 +69,18 @@ export default function AddBill() {
       if (billType === "commitment") {
         fetchSubcontractsForJob(formData.job_id);
         fetchPurchaseOrdersForJob(formData.job_id);
+        // Auto-select commitment type based on available commitments for job
+        autoSelectCommitmentType();
       }
     }
   }, [formData.job_id, billType]);
+
+  useEffect(() => {
+    if (formData.vendor_id && billType === "commitment") {
+      // Auto-select commitment type based on available commitments for vendor
+      autoSelectCommitmentType();
+    }
+  }, [formData.vendor_id, billType, subcontracts, purchaseOrders]);
 
   useEffect(() => {
     if (formData.vendor_id) {
@@ -221,6 +230,48 @@ export default function AddBill() {
       const matchesJob = !formData.job_id || po.job_id === formData.job_id;
       return matchesVendor && matchesJob;
     });
+  };
+
+  // Get vendors that have commitments for the selected job
+  const getFilteredVendors = () => {
+    if (!formData.job_id || billType !== "commitment") {
+      return vendors;
+    }
+    
+    const vendorIds = new Set([
+      ...subcontracts.filter(s => s.job_id === formData.job_id).map(s => s.vendor_id),
+      ...purchaseOrders.filter(po => po.job_id === formData.job_id).map(po => po.vendor_id)
+    ]);
+    
+    return vendors.filter(vendor => vendorIds.has(vendor.id));
+  };
+
+  // Auto-select commitment type based on available commitments
+  const autoSelectCommitmentType = () => {
+    const filteredSubcontracts = getFilteredSubcontracts();
+    const filteredPOs = getFilteredPurchaseOrders();
+    
+    const hasSubcontracts = filteredSubcontracts.length > 0;
+    const hasPOs = filteredPOs.length > 0;
+    
+    if (hasSubcontracts && !hasPOs) {
+      handleInputChange("commitment_type", "subcontract");
+    } else if (hasPOs && !hasSubcontracts) {
+      handleInputChange("commitment_type", "purchase_order");
+    }
+    // If both exist or neither exist, let user choose
+  };
+
+  // Get available commitment types for current selection
+  const getAvailableCommitmentTypes = () => {
+    const filteredSubcontracts = getFilteredSubcontracts();
+    const filteredPOs = getFilteredPurchaseOrders();
+    
+    const types = [];
+    if (filteredSubcontracts.length > 0) types.push({ value: "subcontract", label: "Subcontract" });
+    if (filteredPOs.length > 0) types.push({ value: "purchase_order", label: "Purchase Order" });
+    
+    return types;
   };
 
   // Fetch previously billed amount for commitment
@@ -643,12 +694,19 @@ export default function AddBill() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vendor">Vendor *</Label>
-                    <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                    <Select value={formData.vendor_id} onValueChange={(value) => {
+                      handleInputChange("vendor_id", value);
+                      // Reset commitment selections when vendor changes
+                      handleInputChange("subcontract_id", "");
+                      handleInputChange("purchase_order_id", "");
+                      setCommitmentDistribution([]);
+                      setPreviouslyBilled(0);
+                    }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a vendor" />
                       </SelectTrigger>
                       <SelectContent>
-                        {vendors.map((vendor) => (
+                        {getFilteredVendors().map((vendor) => (
                           <SelectItem key={vendor.id} value={vendor.id}>
                             {vendor.name}
                           </SelectItem>
@@ -658,7 +716,14 @@ export default function AddBill() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="job">Job *</Label>
-                    <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                    <Select value={formData.job_id} onValueChange={(value) => {
+                      handleInputChange("job_id", value);
+                      // Reset commitment selections when job changes
+                      handleInputChange("subcontract_id", "");
+                      handleInputChange("purchase_order_id", "");
+                      setCommitmentDistribution([]);
+                      setPreviouslyBilled(0);
+                    }}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a job" />
                       </SelectTrigger>
@@ -675,17 +740,26 @@ export default function AddBill() {
 
                 <div className="space-y-2">
                   <Label htmlFor="commitment_type">Commitment Type *</Label>
-                  <Select value={formData.commitment_type} onValueChange={(value) => {
-                    handleInputChange("commitment_type", value);
-                    handleInputChange("subcontract_id", "");
-                    handleInputChange("purchase_order_id", "");
-                  }}>
+                  <Select 
+                    value={formData.commitment_type} 
+                    onValueChange={(value) => {
+                      handleInputChange("commitment_type", value);
+                      handleInputChange("subcontract_id", "");
+                      handleInputChange("purchase_order_id", "");
+                      setCommitmentDistribution([]);
+                      setPreviouslyBilled(0);
+                    }}
+                    disabled={getAvailableCommitmentTypes().length <= 1}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select commitment type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="subcontract">Subcontract</SelectItem>
-                      <SelectItem value="purchase_order">Purchase Order</SelectItem>
+                      {getAvailableCommitmentTypes().map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -860,7 +934,7 @@ export default function AddBill() {
         <div className="flex gap-3">
           <Button type="submit" disabled={!isFormValid}>
             <FileText className="h-4 w-4 mr-2" />
-            Create Invoice
+            Add Bill
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
             Cancel
