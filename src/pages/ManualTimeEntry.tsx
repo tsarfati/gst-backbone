@@ -57,9 +57,27 @@ export default function ManualTimeEntry() {
 
   const loadData = async () => {
     try {
+      // Check if user has assigned cost codes
+      const { data: settings } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_cost_codes')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+      
+      // Build cost codes query
+      let costCodesQuery = supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('is_active', true);
+      
+      // Filter by assigned cost codes if user has assignments
+      if (settings?.assigned_cost_codes && settings.assigned_cost_codes.length > 0) {
+        costCodesQuery = costCodesQuery.in('id', settings.assigned_cost_codes);
+      }
+      
       const [jobsResponse, costCodesResponse, employeesResponse] = await Promise.all([
         supabase.from('jobs').select('id, name').order('name'),
-        supabase.from('cost_codes').select('id, code, description').eq('is_active', true).order('code'),
+        costCodesQuery.order('code'),
         isManager ? supabase.from('profiles').select('user_id, display_name').order('display_name') : Promise.resolve({ data: [] })
       ]);
 

@@ -134,11 +134,50 @@ function PunchClockApp() {
 
   const loadCostCodes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('cost_codes')
-        .select('id, code, description')
-        .eq('is_active', true)
-        .order('code');
+      if (!user) return;
+      
+      const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+      
+      // First, check if user has assigned cost codes in their settings
+      let assignedCostCodes: string[] | null = null;
+      
+      if (isPinAuthenticated) {
+        const { data: settings } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('pin_employee_id', userId)
+          .maybeSingle();
+        assignedCostCodes = settings?.assigned_cost_codes;
+      } else {
+        const { data: settings } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('user_id', userId)
+          .maybeSingle();
+        assignedCostCodes = settings?.assigned_cost_codes;
+      }
+      
+      // Load cost codes - filter by assigned if available
+      let data, error;
+      
+      if (assignedCostCodes && assignedCostCodes.length > 0) {
+        const result = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('is_active', true)
+          .in('id', assignedCostCodes)
+          .order('code');
+        data = result.data;
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('is_active', true)
+          .order('code');
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
       setCostCodes(data || []);
