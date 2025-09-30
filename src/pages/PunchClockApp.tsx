@@ -21,6 +21,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  job_id?: string;
 }
 
 interface PunchStatus {
@@ -216,40 +217,52 @@ function PunchClockApp() {
         return;
       }
       
-      const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
-      const companyId = (profile as any)?.current_company_id;
-      
-      // First, check if user has assigned cost codes in their settings
-      let assignedCostCodes: string[] | null = null;
-      
+      // For PIN-authenticated users, we need to reload cost codes for the specific job
+      // since the edge function returns all assigned cost codes, not job-specific ones
       if (isPinAuthenticated) {
-        const query = supabase
-          .from('pin_employee_timecard_settings')
-          .select('assigned_cost_codes')
-          .eq('pin_employee_id', userId);
+        // Re-fetch cost codes from edge for this specific job
+        const pin = getPin();
+        if (!pin) return;
         
-        if (companyId) {
-          query.eq('company_id', companyId);
+        try {
+          const res = await fetch(`${FUNCTION_BASE}/init?pin=${pin}`, { 
+            headers: { 
+              apikey: ANON_KEY, 
+              Authorization: `Bearer ${ANON_KEY}` 
+            } 
+          });
+          const json = await res.json();
+          if (res.ok) {
+            // Filter cost codes for the selected job
+            const jobCostCodes = (json.cost_codes || []).filter((cc: any) => cc.job_id === jobId);
+            setCostCodes(jobCostCodes);
+          }
+        } catch (e) { 
+          console.error('Error loading cost codes for job:', e); 
         }
-        
-        const { data: settings } = await query.maybeSingle();
-        assignedCostCodes = settings?.assigned_cost_codes;
-      } else {
-        const query = supabase
-          .from('employee_timecard_settings')
-          .select('assigned_cost_codes')
-          .eq('user_id', userId);
-        
-        if (companyId) {
-          query.eq('company_id', companyId);
-        }
-        
-        const { data: settings } = await query.maybeSingle();
-        assignedCostCodes = settings?.assigned_cost_codes;
+        return;
       }
       
+      const userId = (user as any).id;
+      const companyId = (profile as any)?.current_company_id;
+      
+      // For regular authenticated users, query database
+      let assignedCostCodes: string[] | null = null;
+      
+      const query = supabase
+        .from('employee_timecard_settings')
+        .select('assigned_cost_codes')
+        .eq('user_id', userId);
+      
+      if (companyId) {
+        query.eq('company_id', companyId);
+      }
+      
+      const { data: settings } = await query.maybeSingle();
+      assignedCostCodes = settings?.assigned_cost_codes;
+      
       // Determine global access for regular users
-      const hasGlobal = !isPinAuthenticated && (profile as any)?.has_global_job_access;
+      const hasGlobal = (profile as any)?.has_global_job_access;
 
       // Load cost codes for the selected job
       let data, error;
@@ -325,53 +338,11 @@ function PunchClockApp() {
       });
       const json = await res.json();
       if (res.ok) {
-        // Filter jobs and cost codes based on pin employee settings
-        const userId = (user as any)?.user_id;
-        const companyId = (profile as any)?.current_company_id;
-        let assignedJobs: string[] = [];
-        let assignedCostCodes: string[] = [];
-        if (userId) {
-          const query = supabase
-            .from('pin_employee_timecard_settings')
-            .select('assigned_jobs, assigned_cost_codes')
-            .eq('pin_employee_id', userId);
-          
-          if (companyId) {
-            query.eq('company_id', companyId);
-          }
-          
-          const { data: settings } = await query.maybeSingle();
-          assignedJobs = settings?.assigned_jobs || [];
-          assignedCostCodes = settings?.assigned_cost_codes || [];
-        }
-
-        let filteredJobs: any[] = [];
-        if (assignedJobs.length > 0) {
-          const jobsQuery = supabase
-            .from('jobs')
-            .select('id, name, address, status')
-            .in('id', assignedJobs)
-            .order('name');
-          if (companyId) {
-            jobsQuery.eq('company_id', companyId);
-          }
-          const { data: assignedJobsData, error: jobsErr } = await jobsQuery;
-          if (!jobsErr) {
-            filteredJobs = assignedJobsData || [];
-          } else {
-            console.error('Error loading assigned jobs:', jobsErr);
-          }
-        }
-        setJobs(filteredJobs);
-
-        // Cost codes will be reloaded when a job is selected; set initial filtered pool
-        const filteredCodes = assignedCostCodes.length > 0
-          ? (json.cost_codes || []).filter((c: any) => assignedCostCodes.includes(c.id))
-          : [];
-        setCostCodes(filteredCodes);
-
+        // Edge function now returns pre-filtered data based on user permissions
+        setJobs(json.jobs || []);
+        setCostCodes(json.cost_codes || []);
         setCurrentPunch(json.current_punch || null);
-        console.log('Edge data loaded - current punch:', json.current_punch);
+        console.log('Edge data loaded - jobs:', json.jobs?.length, 'cost codes:', json.cost_codes?.length, 'current punch:', json.current_punch);
       } else {
         console.error('Edge init error:', json);
       }

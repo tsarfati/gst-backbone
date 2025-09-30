@@ -85,12 +85,75 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Load active jobs and cost codes
-      const [{ data: jobs, error: jobsErr }, { data: costCodes, error: ccErr }] = await Promise.all([
-        supabaseAdmin.from("jobs").select("id, name, address").eq("status", "active").order("name"),
-        supabaseAdmin.from("cost_codes").select("id, code, description").eq("is_active", true).order("code"),
-      ]);
+      // Get company_id for filtering
+      let companyId: string | null = null;
+      if (userRow.is_pin_employee) {
+        const { data: companyAccess } = await supabaseAdmin
+          .from('user_company_access')
+          .select('company_id')
+          .eq('user_id', userRow.user_id)
+          .limit(1)
+          .maybeSingle();
+        companyId = companyAccess?.company_id || null;
+      } else {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('current_company_id')
+          .eq('user_id', userRow.user_id)
+          .maybeSingle();
+        companyId = profile?.current_company_id || null;
+      }
+
+      // Load user's assigned jobs and cost codes if they're a PIN employee
+      let assignedJobs: string[] = [];
+      let assignedCostCodes: string[] = [];
+      
+      if (userRow.is_pin_employee && companyId) {
+        const { data: settings } = await supabaseAdmin
+          .from('pin_employee_timecard_settings')
+          .select('assigned_jobs, assigned_cost_codes')
+          .eq('pin_employee_id', userRow.user_id)
+          .eq('company_id', companyId)
+          .maybeSingle();
+        
+        assignedJobs = settings?.assigned_jobs || [];
+        assignedCostCodes = settings?.assigned_cost_codes || [];
+      }
+
+      // Load jobs - filter by company and assignments if applicable
+      let jobsQuery = supabaseAdmin
+        .from("jobs")
+        .select("id, name, address, status")
+        .in("status", ["active", "planning"])
+        .order("name");
+      
+      if (companyId) {
+        jobsQuery = jobsQuery.eq("company_id", companyId);
+      }
+      
+      if (userRow.is_pin_employee && assignedJobs.length > 0) {
+        jobsQuery = jobsQuery.in("id", assignedJobs);
+      }
+      
+      const { data: jobs, error: jobsErr } = await jobsQuery;
       if (jobsErr) return errorResponse(jobsErr.message, 500);
+
+      // Load cost codes - filter by company and assignments if applicable
+      let costCodesQuery = supabaseAdmin
+        .from("cost_codes")
+        .select("id, code, description, job_id")
+        .eq("is_active", true)
+        .order("code");
+      
+      if (companyId) {
+        costCodesQuery = costCodesQuery.eq("company_id", companyId);
+      }
+      
+      if (userRow.is_pin_employee && assignedCostCodes.length > 0) {
+        costCodesQuery = costCodesQuery.in("id", assignedCostCodes);
+      }
+      
+      const { data: costCodes, error: ccErr } = await costCodesQuery;
       if (ccErr) return errorResponse(ccErr.message, 500);
 
       const { data: currentPunch, error: curErr } = await supabaseAdmin
@@ -101,7 +164,11 @@ serve(async (req) => {
         .maybeSingle();
       if (curErr) return errorResponse(curErr.message, 500);
 
-      return new Response(JSON.stringify({ jobs: jobs || [], cost_codes: costCodes || [], current_punch: currentPunch || null }), {
+      return new Response(JSON.stringify({ 
+        jobs: jobs || [], 
+        cost_codes: costCodes || [], 
+        current_punch: currentPunch || null 
+      }), {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
