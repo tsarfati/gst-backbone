@@ -138,9 +138,9 @@ export default function JobCostBudget() {
 
   const populateBudgetLines = () => {
     setBudgetLines(currentLines => {
-      // If no cost codes selected, clear budget lines
+      // If no cost codes selected, preserve existing lines (don't clear)
       if (selectedCostCodes.length === 0) {
-        return [];
+        return currentLines;
       }
 
       // Remove budget lines for cost codes that are no longer selected
@@ -148,27 +148,18 @@ export default function JobCostBudget() {
         selectedCostCodes.some(code => code.id === line.cost_code_id)
       );
 
-      // Add new budget lines for newly selected cost codes
-      const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
-        const existingLine = filteredLines.find(bl => bl.cost_code_id === costCode.id);
-        
-        if (existingLine) {
-          return {
-            ...existingLine,
-            cost_code: costCode
-          };
-        }
-        
-        return {
-          cost_code_id: costCode.id,
+      // Add missing lines for newly selected cost codes
+      const missingLines = selectedCostCodes
+        .filter(code => !filteredLines.some(line => line.cost_code_id === code.id))
+        .map(code => ({
+          cost_code_id: code.id,
           budgeted_amount: 0,
           actual_amount: 0,
           committed_amount: 0,
-          cost_code: costCode
-        };
-      });
+          cost_code: code
+        }));
 
-      return newBudgetLines;
+      return [...filteredLines, ...missingLines];
     });
   };
 
@@ -198,10 +189,60 @@ export default function JobCostBudget() {
         .delete()
         .eq('job_id', id);
 
-      // Insert new budget lines
+      // Prepare cost code mapping to ensure job-specific cost codes
+      const { data: codeRecords, error: codesFetchError } = await supabase
+        .from('cost_codes')
+        .select('id, code, type, job_id, description, company_id')
+        .in('id', budgetLines.map(l => l.cost_code_id));
+      if (codesFetchError) throw codesFetchError;
+
+      const { data: jobCodes, error: jobCodesError } = await supabase
+        .from('cost_codes')
+        .select('id, code, type')
+        .eq('job_id', id);
+      if (jobCodesError) throw jobCodesError;
+
+      const jobCodeIndex = new Map<string, string>();
+      (jobCodes || []).forEach(jc => jobCodeIndex.set(`${jc.code}|${jc.type}`, jc.id));
+
+      // Resolve to job-specific cost code ids (create if missing)
+      const resolvedIds: Record<string, string> = {};
+      for (const rec of codeRecords || []) {
+        if (rec.job_id) {
+          resolvedIds[rec.id] = rec.id;
+          continue;
+        }
+        const key = `${rec.code}|${rec.type}`;
+        const existingJobCodeId = jobCodeIndex.get(key);
+        if (existingJobCodeId) {
+          resolvedIds[rec.id] = existingJobCodeId;
+          continue;
+        }
+        // Create a job-specific cost code cloned from the master
+        const { data: created, error: createErr } = await supabase
+          .from('cost_codes')
+          .insert({
+            code: rec.code,
+            description: rec.description,
+            type: rec.type,
+            company_id: rec.company_id,
+            job_id: id,
+            is_active: true,
+            created_by: user.data.user?.id,
+          })
+          .select('id')
+          .maybeSingle();
+        if (createErr) throw createErr;
+        if (created?.id) {
+          jobCodeIndex.set(key, created.id);
+          resolvedIds[rec.id] = created.id;
+        }
+      }
+
+      // Insert new budget lines using resolved job-specific cost code ids
       const budgetInserts = budgetLines.map(line => ({
         job_id: id,
-        cost_code_id: line.cost_code_id,
+        cost_code_id: resolvedIds[line.cost_code_id] || line.cost_code_id,
         budgeted_amount: line.budgeted_amount,
         actual_amount: line.actual_amount || 0,
         committed_amount: line.committed_amount || 0,
