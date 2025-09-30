@@ -262,10 +262,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Apply custom colors when settings change
+  // Apply custom colors when settings change or when loaded
   useEffect(() => {
-    applyCustomColors();
-  }, [settings.customColors]);
+    if (isLoaded) {
+      applyCustomColors();
+    }
+  }, [settings.customColors, isLoaded]);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, applyCustomColors }}>
