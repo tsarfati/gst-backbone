@@ -9,6 +9,7 @@ import { Users, Plus, Search, Mail, Phone, Building, Settings, Shield } from 'lu
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
 import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Link } from 'react-router-dom';
@@ -48,31 +49,49 @@ export default function AllEmployees() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('employees-view');
 
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (currentCompany?.id) {
+      fetchEmployees();
+    }
+  }, [currentCompany?.id]);
 
   const fetchEmployees = async () => {
+    if (!currentCompany?.id) return;
+
     try {
+      // Get user IDs for this company
+      const { data: accessData, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+
+      const userIds = (accessData || []).map(a => a.user_id);
+
       // Fetch regular employees from profiles
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, user_id, first_name, last_name, display_name, role, avatar_url, created_at, group_id')
+        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
         .order('created_at', { ascending: false });
 
       if (profileError) throw profileError;
 
-      // Fetch PIN-only employees
-      const { data: pinEmployeeData, error: pinError } = await supabase
+      // Fetch PIN-only employees for this company (using type assertion for complex types)
+      const pinQuery: any = supabase
         .from('pin_employees')
         .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .eq('is_active', true);
+      
+      const { data: pinEmployeeData, error: pinError } = await pinQuery.eq('company_id', currentCompany.id);
 
       if (pinError) throw pinError;
 
@@ -80,17 +99,17 @@ export default function AllEmployees() {
       const allEmployees: Employee[] = [
         ...(profileData || []).map(profile => ({
           id: profile.id,
-          user_id: profile.user_id,
+          user_id: profile.user_id || undefined,
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
           display_name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`,
-          role: profile.role,
-          avatar_url: profile.avatar_url,
+          role: profile.role || 'employee',
+          avatar_url: profile.avatar_url || undefined,
           created_at: profile.created_at,
           is_pin_employee: false,
-          group_id: profile.group_id
+          group_id: profile.group_id || undefined
         })),
-        ...(pinEmployeeData || []).map(pinEmployee => ({
+        ...(pinEmployeeData || []).map((pinEmployee: any) => ({
           id: pinEmployee.id,
           user_id: undefined,
           first_name: pinEmployee.first_name,
