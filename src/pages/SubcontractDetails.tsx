@@ -156,7 +156,7 @@ export default function SubcontractDetails() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -239,10 +239,32 @@ export default function SubcontractDetails() {
                 
                 return Array.isArray(distributionData) && distributionData.length > 0 && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Cost Distribution</p>
-                    <p className="font-semibold text-foreground">
-                      ${formatNumber(subcontract.total_distributed_amount || 0)} distributed across {distributionData.length} allocation(s)
-                    </p>
+                    <p className="text-sm text-muted-foreground mb-2">Cost Distribution</p>
+                    <div className="space-y-2">
+                      {distributionData.map((item: any, index: number) => (
+                        <div key={index} className="bg-muted/50 p-3 rounded-md">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{item.cost_code_description || 'Cost Code'}</p>
+                              {item.description && (
+                                <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">${formatNumber(item.amount || 0)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="mt-3 pt-2 border-t border-muted">
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm font-medium">Total Distributed:</p>
+                          <p className="font-semibold text-foreground">
+                            ${formatNumber(subcontract.total_distributed_amount || 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 );
               } catch (error) {

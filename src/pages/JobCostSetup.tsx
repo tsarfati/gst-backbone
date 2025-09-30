@@ -568,52 +568,25 @@ export default function JobCostSetup() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-blue-500" />
-              <div>
-                <p className="text-sm font-medium">Cost Code Templates</p>
-                <p className="text-2xl font-bold">{costCodes.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Building className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-sm font-medium">Active Jobs</p>
-                <p className="text-2xl font-bold">{jobs.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5 text-purple-500" />
-              <div>
-                <p className="text-sm font-medium">Chart Accounts</p>
-                <p className="text-2xl font-bold">{chartAccounts.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Link className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="text-sm font-medium">Linked Codes</p>
-                <p className="text-2xl font-bold">{costCodes.filter(c => c.chart_account_id).length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* View Selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <h3 className="text-lg font-semibold">Cost Code Templates ({filteredCostCodes.length})</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">View:</label>
+          <Select value="list" onValueChange={() => {}}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="list">List</SelectItem>
+              <SelectItem value="compact">Compact List</SelectItem>
+              <SelectItem value="very-compact">Very Compact List</SelectItem>
+              <SelectItem value="default">Default View</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Filters */}
@@ -651,7 +624,6 @@ export default function JobCostSetup() {
       {/* Cost Code Templates Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Cost Code Templates ({filteredCostCodes.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>

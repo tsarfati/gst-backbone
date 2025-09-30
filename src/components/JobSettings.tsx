@@ -283,13 +283,33 @@ export default function JobSettings() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Budget Approval Section */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-green-600" />
-          <h3 className="text-lg font-semibold">Budget Approval Settings</h3>
-        </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Job Management Settings</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure job creation, budget approvals, time tracking, and workflow settings for your company
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate('/job-cost-setup')}
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Job Cost Setup
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {/* Budget Approval Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              <h3 className="text-lg font-semibold">Budget Approval Settings</h3>
+            </div>
         
         <div className="grid gap-6">
           <div className="flex items-center justify-between">
@@ -626,6 +646,8 @@ export default function JobSettings() {
           {saving ? 'Saving...' : 'Save Job Settings'}
         </Button>
       </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

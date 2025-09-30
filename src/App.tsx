@@ -55,6 +55,7 @@ import ChartOfAccounts from "./pages/ChartOfAccounts";
 import CostCodes from "./pages/CostCodes";
 import JobCostManagement from "./pages/JobCostManagement";
 import JobCostSetup from "./pages/JobCostSetup";
+import JobCostSetupStandalone from "./pages/JobCostSetupStandalone";
 import JobCostBudget from "./pages/JobCostBudget";
 import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
@@ -190,7 +191,8 @@ function AuthenticatedRoutes() {
                 <Route path="settings/theme" element={<ThemeSettings />} />
                 <Route path="settings/company" element={<CompanySettingsPage />} />
                 <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
-                <Route path="settings/company/job-cost-setup" element={<JobCostSetup />} />
+                <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
+                <Route path="job-cost-setup" element={<JobCostSetupStandalone />} />
                 <Route path="settings/company-management" element={<CompanyManagement />} />
                 <Route path="settings/notifications" element={<NotificationSettings />} />
                 <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
