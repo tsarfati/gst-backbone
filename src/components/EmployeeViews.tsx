@@ -20,6 +20,7 @@ interface Employee {
   department?: string;
   phone?: string;
   group_id?: string;
+  assigned_jobs?: Array<{ id: string; name: string }>;
 }
 
 interface EmployeeViewsProps {
@@ -72,7 +73,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   <CardTitle className="text-lg">
                     {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                   </CardTitle>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge variant={roleColors[employee.role as keyof typeof roleColors]}>
                       {employee.role.replace('_', ' ').toUpperCase()}
                     </Badge>
@@ -80,6 +81,18 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                       <Badge variant="secondary" className="flex items-center gap-1">
                         <Key className="h-3 w-3" />
                         PIN Only
+                      </Badge>
+                    )}
+                    {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
+                      employee.assigned_jobs.slice(0, 3).map(job => (
+                        <Badge key={job.id} variant="outline" className="text-xs">
+                          {job.name}
+                        </Badge>
+                      ))
+                    )}
+                    {employee.assigned_jobs && employee.assigned_jobs.length > 3 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{employee.assigned_jobs.length - 3} more
                       </Badge>
                     )}
                   </div>
@@ -153,7 +166,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                   {employee.role.replace('_', ' ').toUpperCase()}
                 </Badge>
@@ -161,6 +174,18 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   <Badge variant="secondary" className="text-xs flex items-center gap-1">
                     <Key className="h-3 w-3" />
                     PIN
+                  </Badge>
+                )}
+                {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
+                  employee.assigned_jobs.slice(0, 2).map(job => (
+                    <Badge key={job.id} variant="outline" className="text-xs">
+                      {job.name}
+                    </Badge>
+                  ))
+                )}
+                {employee.assigned_jobs && employee.assigned_jobs.length > 2 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{employee.assigned_jobs.length - 2}
                   </Badge>
                 )}
               </div>
@@ -210,7 +235,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <h3 className="font-medium text-sm">
                   {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                 </h3>
-                <div className="flex flex-col items-center gap-1 mt-1">
+               <div className="flex flex-col items-center gap-1 mt-1">
                   <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                     {employee.role.replace('_', ' ').toUpperCase()}
                   </Badge>
@@ -218,6 +243,11 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     <Badge variant="secondary" className="text-xs flex items-center gap-1">
                       <Key className="h-3 w-3" />
                       PIN Only
+                    </Badge>
+                  )}
+                  {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {employee.assigned_jobs.length} {employee.assigned_jobs.length === 1 ? 'Job' : 'Jobs'}
                     </Badge>
                   )}
                 </div>

@@ -51,6 +51,7 @@ export default function PinEmployeeEdit() {
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [assignedJobs, setAssignedJobs] = useState<string[]>([]);
   const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
+  const [allAssignedCostCodes, setAllAssignedCostCodes] = useState<string[]>([]); // Track all cost codes across all jobs
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [costCodeSearch, setCostCodeSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,11 @@ export default function PinEmployeeEdit() {
   useEffect(() => {
     if (selectedJobId) {
       fetchCostCodes();
+      // Load cost codes for this specific job from all assigned cost codes
+      const jobSpecificCodes = costCodes
+        .filter(cc => allAssignedCostCodes.includes(cc.id))
+        .map(cc => cc.id);
+      setAssignedCostCodes(jobSpecificCodes);
     } else {
       setCostCodes([]);
       setAssignedCostCodes([]);
@@ -172,7 +178,7 @@ export default function PinEmployeeEdit() {
 
       setAssignedJobs(settingsData?.assigned_jobs || []);
       if (settingsData?.assigned_cost_codes) {
-        setAssignedCostCodes(settingsData.assigned_cost_codes);
+        setAllAssignedCostCodes(settingsData.assigned_cost_codes);
       }
     } catch (error) {
       console.error('Error fetching assignments:', error);
@@ -246,7 +252,7 @@ export default function PinEmployeeEdit() {
           .from('pin_employee_timecard_settings')
           .update({
             assigned_jobs: assignedJobs,
-            assigned_cost_codes: assignedCostCodes,
+            assigned_cost_codes: allAssignedCostCodes,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingSettings.id);
@@ -258,7 +264,7 @@ export default function PinEmployeeEdit() {
             pin_employee_id: employee.id,
             company_id: currentCompany.id,
             assigned_jobs: assignedJobs,
-            assigned_cost_codes: assignedCostCodes,
+            assigned_cost_codes: allAssignedCostCodes,
             created_by: profile?.user_id
           });
         settingsError = error;
@@ -293,7 +299,15 @@ export default function PinEmployeeEdit() {
   };
 
   const toggleCostCodeAssignment = (costCodeId: string) => {
+    // Update the current job's cost codes
     setAssignedCostCodes(prev => 
+      prev.includes(costCodeId) 
+        ? prev.filter(id => id !== costCodeId)
+        : [...prev, costCodeId]
+    );
+    
+    // Also update the master list of all cost codes
+    setAllAssignedCostCodes(prev => 
       prev.includes(costCodeId) 
         ? prev.filter(id => id !== costCodeId)
         : [...prev, costCodeId]
@@ -622,10 +636,7 @@ export default function PinEmployeeEdit() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Select Job First</Label>
-                <Select value={selectedJobId} onValueChange={(value) => {
-                  setSelectedJobId(value);
-                  setAssignedCostCodes([]);
-                }}>
+                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a job to view cost codes" />
                   </SelectTrigger>

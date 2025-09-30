@@ -32,6 +32,7 @@ interface Employee {
   department?: string;
   phone?: string;
   group_id?: string;
+  assigned_jobs?: Array<{ id: string; name: string }>;
 }
 
 const roleColors = {
@@ -94,6 +95,41 @@ export default function AllEmployees() {
 
       if (pinError) throw pinError;
 
+      // Fetch all jobs for this company
+      const { data: jobsData } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', currentCompany.id);
+
+      const jobsMap = new Map((jobsData || []).map(job => [job.id, job]));
+
+      // Fetch job assignments for regular employees
+      const { data: regularSettings } = await supabase
+        .from('employee_timecard_settings')
+        .select('user_id, assigned_jobs')
+        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+
+      // Fetch job assignments for PIN employees
+      const { data: pinSettings } = await supabase
+        .from('pin_employee_timecard_settings')
+        .select('pin_employee_id, assigned_jobs')
+        .in('pin_employee_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+
+      // Create maps for quick lookup
+      const regularJobsMap = new Map(
+        (regularSettings || []).map(s => [
+          s.user_id,
+          (s.assigned_jobs || []).map((jobId: string) => jobsMap.get(jobId)).filter(Boolean)
+        ])
+      );
+
+      const pinJobsMap = new Map(
+        (pinSettings || []).map(s => [
+          s.pin_employee_id,
+          (s.assigned_jobs || []).map((jobId: string) => jobsMap.get(jobId)).filter(Boolean)
+        ])
+      );
+
       // Combine both datasets
       const allEmployees: Employee[] = [
         ...(profileData || []).map(profile => ({
@@ -106,7 +142,8 @@ export default function AllEmployees() {
           avatar_url: profile.avatar_url || undefined,
           created_at: profile.created_at,
           is_pin_employee: false,
-          group_id: profile.group_id || undefined
+          group_id: profile.group_id || undefined,
+          assigned_jobs: regularJobsMap.get(profile.user_id) || []
         })),
         ...(pinEmployeeData || []).map((pinEmployee: any) => ({
           id: pinEmployee.id,
@@ -121,7 +158,8 @@ export default function AllEmployees() {
           pin_code: pinEmployee.pin_code,
           department: pinEmployee.department,
           phone: pinEmployee.phone,
-          group_id: pinEmployee.group_id
+          group_id: pinEmployee.group_id,
+          assigned_jobs: pinJobsMap.get(pinEmployee.id) || []
         }))
       ];
 
