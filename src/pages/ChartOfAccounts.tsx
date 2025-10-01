@@ -311,6 +311,9 @@ export default function ChartOfAccounts() {
       const { data: userData } = await supabase.auth.getUser();
       const accountsToInsert = [] as any[];
 
+      const validAccountTypes = ['asset', 'liability', 'equity', 'revenue', 'expense', 'cost_of_goods_sold', 'cash'];
+      const invalidRows: string[] = [];
+
       for (let i = 1; i < lines.length; i++) {
         const row = lines[i];
         if (!row) continue;
@@ -321,10 +324,17 @@ export default function ChartOfAccounts() {
         });
 
         if (account.account_number && account.account_name && account.account_type) {
+          // Validate account_type
+          const accountType = account.account_type.toLowerCase().trim();
+          if (!validAccountTypes.includes(accountType)) {
+            invalidRows.push(`Row ${i + 1}: Invalid account_type "${account.account_type}". Must be one of: ${validAccountTypes.join(', ')}`);
+            continue;
+          }
+
           accountsToInsert.push({
             account_number: account.account_number,
             account_name: account.account_name,
-            account_type: account.account_type,
+            account_type: accountType,
             account_category: account.account_category || null,
             normal_balance: account.normal_balance || 'debit',
             current_balance: parseFloat(account.current_balance || '0') || 0,
@@ -334,6 +344,15 @@ export default function ChartOfAccounts() {
             created_by: userData.user?.id
           });
         }
+      }
+
+      if (invalidRows.length > 0) {
+        toast({
+          title: "CSV Validation Errors",
+          description: `${invalidRows.length} invalid rows found. First error: ${invalidRows[0]}`,
+          variant: "destructive",
+        });
+        return;
       }
 
       if (accountsToInsert.length > 0) {

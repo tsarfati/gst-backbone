@@ -151,14 +151,16 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   };
 
   useEffect(() => {
-    if (user && profile) {
+    if (user?.id && profile) {
       fetchUserCompanies();
     } else {
       setCurrentCompany(null);
       setUserCompanies([]);
       setLoading(false);
     }
-  }, [user, profile]);
+    // Only depend on user.id to prevent unnecessary refetches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, profile?.current_company_id]);
 
   const value = {
     currentCompany,

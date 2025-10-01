@@ -75,7 +75,9 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     setChecking(false);
-  }, [user, profile, userCompanies, authLoading, companyLoading, navigate, location.pathname]);
+    // Only depend on essential IDs to avoid re-running on object reference changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, userCompanies.length, authLoading, companyLoading, location.pathname]);
 
   if (authLoading || companyLoading || checking) {
     return (

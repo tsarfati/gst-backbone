@@ -213,8 +213,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Debounce saving to avoid too many requests
-    const timeoutId = setTimeout(saveSettings, 500);
+    // Debounce saving to avoid too many requests - increase to 1 second
+    const timeoutId = setTimeout(saveSettings, 1000);
     return () => clearTimeout(timeoutId);
   }, [settings, currentCompany?.id, user?.id, isLoaded]);
 
