@@ -413,7 +413,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
                   <TableRow 
                     key={invoice.id}
                     className="cursor-pointer hover:bg-accent"
-                    onClick={() => navigate(`/bills/${invoice.id}`)}
+                    onClick={() => navigate(`/invoices/${invoice.id}`)}
                   >
                     <TableCell className="font-medium">{invoice.invoice_number || invoice.id.substring(0, 8)}</TableCell>
                     <TableCell>{format(new Date(invoice.issue_date), 'MMM d, yyyy')}</TableCell>

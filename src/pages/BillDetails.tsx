@@ -205,7 +205,7 @@ export default function BillDetails() {
     return (
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/bills")}>
+          <Button variant="ghost" onClick={() => navigate("/invoices")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -220,7 +220,7 @@ export default function BillDetails() {
             <p className="text-muted-foreground mb-4">
               This bill doesn&apos;t exist or you don&apos;t have permission to view it.
             </p>
-            <Button onClick={() => navigate("/bills")}>
+            <Button onClick={() => navigate("/invoices")}>
               Return to Bills
             </Button>
           </CardContent>
@@ -236,7 +236,7 @@ export default function BillDetails() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate("/bills")}>
+          <Button variant="ghost" onClick={() => navigate("/invoices")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -247,7 +247,7 @@ export default function BillDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate(`/bills/${id}/edit`)} variant="secondary">
+          <Button onClick={() => navigate(`/invoices/${id}/edit`)} variant="secondary">
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>

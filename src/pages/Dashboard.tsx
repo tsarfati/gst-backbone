@@ -282,7 +282,7 @@ export default function Dashboard() {
       value: "$0",
       icon: DollarSign,
       variant: "destructive" as const,
-      href: "/bills",
+      href: "/invoices",
     },
   ];
 

@@ -138,7 +138,7 @@ export default function PayablesDashboard() {
       icon: DollarSign,
       variant: "default" as const,
       description: "Amount owed to vendors",
-      onClick: () => navigate('/bills?status=outstanding')
+      onClick: () => navigate('/invoices?status=outstanding')
     },
     {
       title: "Pending Approval",
@@ -146,7 +146,7 @@ export default function PayablesDashboard() {
       icon: Clock,
       variant: "warning" as const,
       description: "Bills awaiting approval",
-      onClick: () => navigate('/bills?status=pending')
+      onClick: () => navigate('/invoices?status=pending')
     },
     {
       title: "Overdue Bills",
@@ -154,7 +154,7 @@ export default function PayablesDashboard() {
       icon: AlertTriangle,
       variant: "destructive" as const,
       description: "Past due payments",
-      onClick: () => navigate('/bills?status=overdue')
+      onClick: () => navigate('/invoices?status=overdue')
     },
     {
       title: "Paid This Month",

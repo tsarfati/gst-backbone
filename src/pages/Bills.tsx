@@ -275,7 +275,7 @@ export default function Bills() {
               onSetDefault={setAsDefault}
               isDefault={isDefault}
             />
-            <Button onClick={() => navigate("/bills/add")}>
+<Button onClick={() => navigate("/invoices/add")}>
               <Plus className="h-4 w-4 mr-2" />
               Add Bill
             </Button>
