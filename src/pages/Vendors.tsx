@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -11,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVendorViewPreference } from "@/hooks/useVendorViewPreference";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Vendors() {
   const navigate = useNavigate();
@@ -18,20 +19,11 @@ export default function Vendors() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView } = useVendorViewPreference();
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user && currentCompany) {
-      loadVendors();
-    }
-  }, [user, currentCompany]);
+  const fetchVendors = async () => {
+    if (!currentCompany) return [] as any[];
 
-  const loadVendors = async () => {
-    if (!user || !currentCompany) return;
-    
     try {
-      // Check if current company has shared vendor database enabled
       const { data: companyData } = await supabase
         .from('companies')
         .select('enable_shared_vendor_database')
@@ -44,44 +36,48 @@ export default function Vendors() {
         .eq('is_active', true);
 
       if (companyData?.enable_shared_vendor_database) {
-        // If shared database is enabled, get vendors from companies that also have it enabled
         const { data: sharedCompanies } = await supabase
           .from('companies')
           .select('id')
           .eq('enable_shared_vendor_database', true);
-        
-        const companyIds = sharedCompanies?.map(c => c.id) || [currentCompany.id];
+        const companyIds = sharedCompanies?.map((c) => c.id) || [currentCompany.id];
         query = query.in('company_id', companyIds);
       } else {
-        // Only show vendors from current company
         query = query.eq('company_id', currentCompany.id);
       }
 
       const { data, error } = await query.order('name');
-
       if (error) throw error;
-      setVendors(data || []);
+      return data || [];
     } catch (error) {
       console.error('Error loading vendors:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load vendors",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      toast({ title: 'Error', description: 'Failed to load vendors', variant: 'destructive' });
+      return [] as any[];
     }
   };
+
+  const { data: vendors = [], isLoading } = useQuery({
+    queryKey: ['vendors', currentCompany?.id],
+    queryFn: fetchVendors,
+    enabled: !!user && !!currentCompany,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleVendorClick = (vendor: any) => {
     navigate(`/vendors/${vendor.id}`);
   };
 
   const renderVendors = () => {
-    if (loading) {
+    if (isLoading) {
       return (
-        <div className="text-center py-12">
-          <div className="text-muted-foreground">Loading vendors...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-3">
+              <Skeleton className="h-40 w-full rounded-md" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
         </div>
       );
     }
