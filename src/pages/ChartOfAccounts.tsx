@@ -336,18 +336,21 @@ export default function ChartOfAccounts() {
           return;
         }
 
-        accountsToInsert.push({
-          account_number,
-          account_name,
-          account_type: account_type_raw,
-          account_category,
-          normal_balance,
-          current_balance,
-          is_system_account: false,
-          is_active: true,
-          company_id: currentCompany?.id || '',
-          created_by: userData.user?.id,
-        });
+          const isCashType = account_type_raw === 'cash';
+
+          accountsToInsert.push({
+            account_number,
+            account_name,
+            // Map 'cash' to 'asset' to satisfy DB check constraints but preserve category
+            account_type: isCashType ? 'asset' : account_type_raw,
+            account_category: account_category || (isCashType ? 'cash_accounts' : null),
+            normal_balance,
+            current_balance,
+            is_system_account: false,
+            is_active: true,
+            company_id: currentCompany?.id || '',
+            created_by: userData.user?.id,
+          });
       });
 
       if (invalidRows.length > 0) {
