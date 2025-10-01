@@ -13,14 +13,14 @@ export function AccessControl({ children }: AccessControlProps) {
   const { userCompanies, loading: companyLoading } = useCompany();
   const navigate = useNavigate();
   const location = useLocation();
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (authLoading || companyLoading) {
       return;
     }
 
-    setChecking(true);
+    // removed to avoid loader flash on route changes
 
     // Allow public access to punch clock routes
     const publicPaths = ['/punch-clock', '/punch-clock-login', '/punch-clock-app'];
