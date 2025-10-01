@@ -176,13 +176,16 @@ export default function ChartOfAccounts() {
     if (!editingAccount) return;
 
     try {
+      const isCashType = editingAccount.account_type === 'cash';
+      
       const { error } = await supabase
         .from('chart_of_accounts')
         .update({
           account_number: editingAccount.account_number,
           account_name: editingAccount.account_name,
-          account_type: editingAccount.account_type,
-          account_category: editingAccount.account_category || null,
+          // Map 'cash' to 'asset' to satisfy DB check constraints
+          account_type: isCashType ? 'asset' : editingAccount.account_type,
+          account_category: editingAccount.account_category || (isCashType ? 'cash_accounts' : null),
           normal_balance: editingAccount.normal_balance
         })
         .eq('id', editingAccount.id);
