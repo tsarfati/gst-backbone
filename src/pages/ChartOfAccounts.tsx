@@ -283,8 +283,17 @@ export default function ChartOfAccounts() {
 
     try {
       const text = await csvFile.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const rawLines = text.split(/\r?\n/);
+      const lines = rawLines.filter(line => line && line.trim());
+      if (lines.length < 2) {
+        toast({ title: "Invalid CSV", description: "No data rows found", variant: "destructive" });
+        return;
+      }
+
+      const headers = lines[0]
+        .replace(/^\uFEFF/, '') // remove BOM if present
+        .split(',')
+        .map(h => h.trim().toLowerCase());
       
       // Validate headers
       const requiredHeaders = ['account_number', 'account_name', 'account_type'];
@@ -300,14 +309,15 @@ export default function ChartOfAccounts() {
       }
 
       const { data: userData } = await supabase.auth.getUser();
-      const accountsToInsert = [];
+      const accountsToInsert = [] as any[];
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        const account: any = {};
-        
+        const row = lines[i];
+        if (!row) continue;
+        const values = row.split(',').map(v => v.replace(/\r/g, '').trim());
+        const account: Record<string, string> = {};
         headers.forEach((header, index) => {
-          account[header] = values[index];
+          account[header] = values[index] ?? '';
         });
 
         if (account.account_number && account.account_name && account.account_type) {
@@ -317,7 +327,7 @@ export default function ChartOfAccounts() {
             account_type: account.account_type,
             account_category: account.account_category || null,
             normal_balance: account.normal_balance || 'debit',
-            current_balance: parseFloat(account.current_balance || '0'),
+            current_balance: parseFloat(account.current_balance || '0') || 0,
             is_system_account: false,
             is_active: true,
             company_id: currentCompany?.id || '',
@@ -341,12 +351,14 @@ export default function ChartOfAccounts() {
         setCsvUploadDialogOpen(false);
         setCsvFile(null);
         loadAccounts();
+      } else {
+        toast({ title: "No valid rows", description: "Nothing to import", variant: "destructive" });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading CSV:', error);
       toast({
         title: "Upload Error",
-        description: "Failed to upload CSV file",
+        description: error?.message || "Failed to upload CSV file",
         variant: "destructive",
       });
     }

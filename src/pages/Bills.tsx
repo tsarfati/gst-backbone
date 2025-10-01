@@ -384,7 +384,7 @@ export default function Bills() {
                           onCheckedChange={() => handleSelectBill(bill.id)}
                         />
                       </TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                     <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
                          <div className="flex items-center gap-3">
                            <VendorAvatar 
                              name={bill.vendor_name}
@@ -394,15 +394,15 @@ export default function Bills() {
                        <span className="font-medium">{bill.vendor_name}</span>
                        </div>
                      </TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                     <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
                        <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                          {bill.job_name}
                        </Badge>
                      </TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
                          <Badge variant={getStatusVariant(bill.status)}>
                            {getStatusDisplayName(bill.status)}
                          </Badge>
@@ -426,7 +426,7 @@ export default function Bills() {
                   <div 
                     key={bill.id} 
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
-                    onClick={() => navigate(`/bills/${bill.id}`)}
+                    onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -465,7 +465,7 @@ export default function Bills() {
                   <div 
                     key={bill.id} 
                     className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
-                    onClick={() => navigate(`/bills/${bill.id}`)}
+                    onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                       <Checkbox

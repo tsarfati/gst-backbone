@@ -239,8 +239,8 @@ function AuthenticatedRoutes() {
                 <Route path="tasks" element={<AllTasks />} />
                 <Route path="tasks/projects" element={<ProjectTasks />} />
                 <Route path="tasks/deadlines" element={<TaskDeadlines />} />
-                <Route path="bills" element={<Bills />} />
-                <Route path="bills/add" element={<AddBill />} />
+                <Route path="bills" element={<Navigate to="/invoices" replace />} />
+                <Route path="bills/add" element={<Navigate to="/invoices/add" replace />} />
                 <Route path="bills/:id" element={
                   <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                     <BillDetails />

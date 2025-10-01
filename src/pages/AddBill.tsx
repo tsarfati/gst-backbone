@@ -577,7 +577,7 @@ export default function AddBill() {
           : "Bill has been successfully created",
       });
       
-      navigate("/bills");
+      navigate("/invoices");
     } catch (error) {
       console.error('Error creating bill:', error);
       toast({
