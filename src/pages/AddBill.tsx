@@ -25,6 +25,7 @@ export default function AddBill() {
   const [formData, setFormData] = useState({
     vendor_id: "",
     job_id: "",
+    expense_account_id: "", // New field for expense accounts
     cost_code_id: "",
     subcontract_id: "",
     purchase_order_id: "",
@@ -47,6 +48,7 @@ export default function AddBill() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]); // New state for expense accounts
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -91,13 +93,20 @@ export default function AddBill() {
     
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
-      const [vendorsRes, jobsRes] = await Promise.all([
+      const [vendorsRes, jobsRes, expenseAccountsRes] = await Promise.all([
         supabase.from('vendors').select('id, name, logo_url').eq('company_id', companyId),
-        supabase.from('jobs').select('*').eq('company_id', companyId)
+        supabase.from('jobs').select('*').eq('company_id', companyId),
+        supabase.from('chart_of_accounts')
+          .select('id, account_number, account_name, account_type')
+          .eq('company_id', companyId)
+          .eq('account_type', 'expense')
+          .eq('is_active', true)
+          .order('account_number')
       ]);
 
       if (vendorsRes.data) setVendors(vendorsRes.data);
       if (jobsRes.data) setJobs(jobsRes.data);
+      if (expenseAccountsRes.data) setExpenseAccounts(expenseAccountsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -116,7 +125,8 @@ export default function AddBill() {
         .from('cost_codes')
         .select('*')
         .eq('job_id', jobId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .neq('type', 'sub'); // Exclude subcontractor cost codes
       
       setCostCodes(data || []);
     } catch (error) {
@@ -412,7 +422,7 @@ export default function AddBill() {
     }
   };
 
-  const isFormValid = formData.vendor_id && formData.job_id && formData.amount && 
+  const isFormValid = formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
                      formData.issueDate && billFile &&
                      (formData.use_terms ? formData.payment_terms : formData.dueDate);
 
@@ -552,15 +562,37 @@ export default function AddBill() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="job">Job *</Label>
-                    <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                    <Label htmlFor="job_control">Job / Control *</Label>
+                    <Select 
+                      value={formData.job_id || formData.expense_account_id} 
+                      onValueChange={(value) => {
+                        // Determine if it's a job or expense account
+                        const isJob = jobs.find(j => j.id === value);
+                        if (isJob) {
+                          handleInputChange("job_id", value);
+                          handleInputChange("expense_account_id", "");
+                        } else {
+                          handleInputChange("expense_account_id", value);
+                          handleInputChange("job_id", "");
+                          handleInputChange("cost_code_id", ""); // Clear cost code when expense account is selected
+                          setCostCodes([]); // Clear cost codes list
+                        }
+                      }}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a job" />
+                        <SelectValue placeholder="Select job or expense account" />
                       </SelectTrigger>
                       <SelectContent>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
                         {jobs.map((job) => (
                           <SelectItem key={job.id} value={job.id}>
                             {job.name}
+                          </SelectItem>
+                        ))}
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
+                        {expenseAccounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.account_number} - {account.account_name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -590,23 +622,25 @@ export default function AddBill() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cost_code">Cost Code</Label>
-                    <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cost code (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {costCodes.map((code) => (
-                          <SelectItem key={code.id} value={code.id}>
-                            {code.code} - {code.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                {formData.job_id && (
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cost_code">Cost Code</Label>
+                      <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select cost code (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {costCodes.map((code) => (
+                            <SelectItem key={code.id} value={code.id}>
+                              {code.code} - {code.description}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
