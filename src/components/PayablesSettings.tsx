@@ -33,6 +33,7 @@ const payablesSettingsSchema = z.object({
   require_receipt_attachment: z.boolean(),
   allowed_subcontract_vendor_types: z.array(z.string()),
   allowed_po_vendor_types: z.array(z.string()),
+  show_vendor_compliance_warnings: z.boolean(),
 });
 
 interface PayablesSettingsData {
@@ -54,6 +55,7 @@ interface PayablesSettingsData {
   require_receipt_attachment: boolean;
   allowed_subcontract_vendor_types: string[];
   allowed_po_vendor_types: string[];
+  show_vendor_compliance_warnings: boolean;
 }
 
 const defaultSettings: PayablesSettingsData = {
@@ -75,6 +77,7 @@ const defaultSettings: PayablesSettingsData = {
   require_receipt_attachment: false,
   allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
   allowed_po_vendor_types: ['Supplier'],
+  show_vendor_compliance_warnings: true,
 };
 
 const availableRoles = [
@@ -156,6 +159,7 @@ export default function PayablesSettings() {
           require_receipt_attachment: data.require_receipt_attachment,
           allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
           allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
+          show_vendor_compliance_warnings: data.show_vendor_compliance_warnings ?? true,
         });
       }
     } catch (error) {
@@ -573,6 +577,17 @@ export default function PayablesSettings() {
             <Switch
               checked={settings.require_receipt_attachment}
               onCheckedChange={(checked) => updateSettings('require_receipt_attachment', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between md:col-span-2">
+            <div className="space-y-1">
+              <Label>Show Vendor Compliance Warnings</Label>
+              <p className="text-sm text-muted-foreground">Display warnings when entering bills for vendors with missing compliance documents</p>
+            </div>
+            <Switch
+              checked={settings.show_vendor_compliance_warnings}
+              onCheckedChange={(checked) => updateSettings('show_vendor_compliance_warnings', checked)}
             />
           </div>
         </div>
