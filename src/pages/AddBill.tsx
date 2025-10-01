@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
+import ReceiptLinkButton from "@/components/ReceiptLinkButton";
+import type { CodedReceipt } from "@/contexts/ReceiptContext";
 
 interface DistributionLineItem {
   id: string;
@@ -68,11 +70,12 @@ export default function AddBill() {
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
-  const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
-  const [payablesSettings, setPayablesSettings] = useState<any>(null);
-
-  const { missingCount: vendorComplianceMissing } = useVendorCompliance(formData.vendor_id);
+   const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
+   const [loading, setLoading] = useState(true);
+   const [payablesSettings, setPayablesSettings] = useState<any>(null);
+   const [attachedReceipt, setAttachedReceipt] = useState<CodedReceipt | null>(null);
+ 
+   const { missingCount: vendorComplianceMissing } = useVendorCompliance(formData.vendor_id);
 
   useEffect(() => {
     fetchInitialData();
@@ -474,10 +477,10 @@ export default function AddBill() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!billFile) {
+    if (!billFile && !attachedReceipt) {
       toast({
-        title: "Bill file required",
-        description: "Please upload a bill file before submitting",
+        title: "Attachment required",
+        description: "Upload a bill file or attach a coded receipt before submitting",
         variant: "destructive"
       });
       return;
@@ -520,14 +523,29 @@ export default function AddBill() {
           description: formData.description,
           is_subcontract_invoice: false,
           is_reimbursement: formData.is_reimbursement,
+          file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null,
           created_by: user.data.user.id
         }));
 
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('invoices')
-          .insert(invoicesToInsert);
-
+          .insert(invoicesToInsert)
+          .select('id');
+ 
         if (error) throw error;
+
+        if (attachedReceipt && inserted && inserted.length) {
+          const auditRows = inserted.map((row: any) => ({
+            invoice_id: row.id,
+            change_type: 'update',
+            field_name: 'attachment',
+            old_value: null,
+            new_value: attachedReceipt.id,
+            reason: 'Attached coded receipt',
+            changed_by: user.data.user!.id
+          }));
+          await supabase.from('invoice_audit_trail').insert(auditRows);
+        }
       } else {
         // For commitment bills, use the original single record approach
         const { error } = await supabase
@@ -573,7 +591,7 @@ export default function AddBill() {
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && billFile && (formData.use_terms ? formData.payment_terms : formData.dueDate)
-    : formData.vendor_id && formData.amount && formData.issueDate && billFile && 
+    : formData.vendor_id && formData.amount && formData.issueDate && (billFile || attachedReceipt) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && isDistributionValid();
 
   if (loading) {
@@ -664,10 +682,10 @@ export default function AddBill() {
                 </div>
               )}
             </div>
-            {!billFile && (
+            {!billFile && !attachedReceipt && (
               <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
-                <span>Bill file is required before saving</span>
+                <span>Bill file or receipt attachment is required before saving</span>
               </div>
             )}
           </CardContent>
@@ -734,7 +752,7 @@ export default function AddBill() {
                   </Alert>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoice_number">Invoice #</Label>
                     <Input
