@@ -79,41 +79,81 @@ export function PMReceiptScanner() {
   // Load data when component mounts
   const loadData = useCallback(async () => {
     try {
-      // Load jobs
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('id, name, address')
-        .eq('status', 'active')
-        .order('name');
-      
-      if (jobsData) setJobs(jobsData);
+      // Determine job access
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('has_global_job_access')
+        .eq('user_id', user?.id)
+        .maybeSingle();
 
-      // Load cost codes
-      const { data: costCodesData } = await supabase
-        .from('cost_codes')
-        .select('id, code, description')
-        .eq('is_active', true)
-        .order('code');
-      
-      if (costCodesData) setCostCodes(costCodesData);
+      let jobsData: Job[] = [];
+      if (profileData?.has_global_job_access) {
+        const { data } = await supabase
+          .from('jobs')
+          .select('id, name, address')
+          .eq('company_id', currentCompany?.id)
+          .eq('status', 'active')
+          .order('name');
+        jobsData = (data || []) as Job[];
+      } else {
+        // Fetch job ids from user_job_access then load those jobs for current company
+        const { data: access } = await supabase
+          .from('user_job_access')
+          .select('job_id')
+          .eq('user_id', user?.id);
+        const jobIds = (access || []).map((a: any) => a.job_id);
+        if (jobIds.length) {
+          const { data } = await supabase
+            .from('jobs')
+            .select('id, name, address')
+            .in('id', jobIds)
+            .eq('company_id', currentCompany?.id)
+            .eq('status', 'active')
+            .order('name');
+          jobsData = (data || []) as Job[];
+        } else {
+          jobsData = [];
+        }
+      }
+      setJobs(jobsData);
 
-      // Load vendors
+      // Vendors (unchanged)
       const { data: vendorsData } = await supabase
         .from('vendors')
         .select('id, name')
         .eq('is_active', true)
         .order('name');
-      
       if (vendorsData) setVendors(vendorsData);
-      
+
+      // Clear cost codes until a job is selected
+      setCostCodes([]);
     } catch (error) {
       console.error('Error loading data:', error);
     }
-  }, []);
+  }, [user?.id, currentCompany?.id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load cost codes for selected job: only Material, Equipment, Other
+  useEffect(() => {
+    const fetchCodes = async () => {
+      if (!selectedJob) {
+        setCostCodes([]);
+        return;
+      }
+      const { data } = await supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('job_id', selectedJob)
+        .eq('is_active', true)
+        .in('type', ['material','equipment','other'])
+        .order('code');
+      setCostCodes((data || []) as CostCode[]);
+    };
+    fetchCodes();
+  }, [selectedJob]);
 
   const startCamera = async () => {
     setShowCamera(true);

@@ -55,7 +55,7 @@ const navigationCategories = [
     icon: CreditCard,
     items: [
       { name: "Payables Dashboard", href: "/payables-dashboard", menuKey: "payables-dashboard" },
-      { name: "Bills", href: "/bills", menuKey: "vendors" },
+      { name: "Bills", href: "/invoices", menuKey: "vendors" },
       { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
       { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
       { name: "Make Payment", href: "/payables/make-payment", menuKey: "make-payment" },
