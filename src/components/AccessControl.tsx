@@ -68,8 +68,8 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // If user lacks access, force them to company-request
-    if (!hasApprovedAccess) {
+    // If user lacks access, force them to company-request (only once profile is known)
+    if (!hasApprovedAccess && profile) {
       if (location.pathname !== '/company-request') navigate('/company-request', { replace: true });
       return;
     }
