@@ -392,7 +392,7 @@ export default function Layout() {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="animate-fade-in">
           {!isPunchClockPage && (
             <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
               <div className="flex items-center gap-2 flex-1">

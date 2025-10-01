@@ -110,12 +110,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Load settings from database when company or user changes
   useEffect(() => {
     const loadSettings = async () => {
-      // Reset loaded state to prevent saving old settings during switch
       setIsLoaded(false);
-      
+
       if (!currentCompany?.id || !user?.id) {
+        // No scope → apply defaults once
         setSettings(defaultSettings);
-        // Apply default colors
         const root = document.documentElement;
         Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
           const hsl = toHslToken(value);
@@ -125,6 +124,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const cacheKey = `ui_settings_cache_${currentCompany.id}_${user.id}`;
+
+      // 1) Hydrate instantly from cache to avoid color flash
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw) as Partial<AppSettings>;
+          const mergedCached = { ...defaultSettings, ...cached } as AppSettings;
+          setSettings(mergedCached);
+          const root = document.documentElement;
+          const colors = mergedCached.customColors || defaultSettings.customColors;
+          Object.entries(colors).forEach(([key, value]) => {
+            const hsl = toHslToken(value as string);
+            root.style.setProperty(`--${key}`, hsl);
+          });
+          setIsLoaded(true);
+        } catch (_) {
+          // ignore cache parse errors
+        }
+      }
+
+      // 2) Fetch from DB and update (also refresh cache)
       try {
         const { data, error } = await supabase
           .from('company_ui_settings')
@@ -133,28 +154,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (error) {
-          console.warn('Failed to load company settings:', error);
-          setSettings(defaultSettings);
-          // Apply default colors on error
-          const root = document.documentElement;
-          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-            const hsl = toHslToken(value);
-            root.style.setProperty(`--${key}`, hsl);
-          });
-        } else if (data?.settings && typeof data.settings === 'object') {
-          const mergedSettings = { ...defaultSettings, ...(data.settings as Partial<AppSettings>) };
+        if (!error && data?.settings && typeof data.settings === 'object') {
+          const mergedSettings = { ...defaultSettings, ...(data.settings as Partial<AppSettings>) } as AppSettings;
           setSettings(mergedSettings);
-          // Apply colors immediately after loading
           const root = document.documentElement;
           const colors = mergedSettings.customColors || defaultSettings.customColors;
           Object.entries(colors).forEach(([key, value]) => {
-            const hsl = toHslToken(value);
+            const hsl = toHslToken(value as string);
             root.style.setProperty(`--${key}`, hsl);
           });
-        } else {
+          // refresh cache
+          localStorage.setItem(cacheKey, JSON.stringify(mergedSettings));
+        } else if (!cachedRaw) {
+          // No DB data and no cache → apply defaults
           setSettings(defaultSettings);
-          // Apply default colors
           const root = document.documentElement;
           Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
             const hsl = toHslToken(value);
@@ -163,13 +176,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.warn('Error loading settings:', error);
-        setSettings(defaultSettings);
-        // Apply default colors on error
-        const root = document.documentElement;
-        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-          const hsl = toHslToken(value);
-          root.style.setProperty(`--${key}`, hsl);
-        });
       } finally {
         setIsLoaded(true);
       }
@@ -207,6 +213,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         if (error) {
           console.warn('Failed to save settings:', error);
+        }
+        // Update local cache optimistically
+        const cacheKey = currentCompany ? `ui_settings_cache_${currentCompany.id}_${user.id}` : '';
+        if (cacheKey) {
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(settingsForStorage));
+          } catch (_) {}
         }
       } catch (error) {
         console.warn('Error saving settings:', error);
