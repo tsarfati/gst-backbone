@@ -1895,6 +1895,7 @@ export type Database = {
           payments_require_approval: boolean
           require_receipt_attachment: boolean
           send_payment_confirmations: boolean
+          show_vendor_compliance_warnings: boolean
           updated_at: string
         }
         Insert: {
@@ -1920,6 +1921,7 @@ export type Database = {
           payments_require_approval?: boolean
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
+          show_vendor_compliance_warnings?: boolean
           updated_at?: string
         }
         Update: {
@@ -1945,6 +1947,7 @@ export type Database = {
           payments_require_approval?: boolean
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
+          show_vendor_compliance_warnings?: boolean
           updated_at?: string
         }
         Relationships: []

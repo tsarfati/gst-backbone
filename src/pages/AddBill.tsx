@@ -9,12 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
 
 interface DistributionLineItem {
   id: string;
@@ -68,9 +70,13 @@ export default function AddBill() {
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
   const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [payablesSettings, setPayablesSettings] = useState<any>(null);
+
+  const { missingCount: vendorComplianceMissing } = useVendorCompliance(formData.vendor_id);
 
   useEffect(() => {
     fetchInitialData();
+    fetchPayablesSettings();
   }, []);
 
   useEffect(() => {
@@ -128,6 +134,22 @@ export default function AddBill() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPayablesSettings = async () => {
+    if (!currentCompany?.id) return;
+    
+    try {
+      const { data } = await supabase
+        .from('payables_settings')
+        .select('show_vendor_compliance_warnings')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      
+      setPayablesSettings(data);
+    } catch (error) {
+      console.error('Error fetching payables settings:', error);
     }
   };
 
@@ -701,6 +723,17 @@ export default function AddBill() {
                   </div>
                 </div>
 
+                {/* Vendor Compliance Warning */}
+                {payablesSettings?.show_vendor_compliance_warnings !== false && formData.vendor_id && vendorComplianceMissing > 0 && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      This vendor has {vendorComplianceMissing} missing required compliance document{vendorComplianceMissing !== 1 ? 's' : ''}. 
+                      Please review vendor compliance before proceeding.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoice_number">Invoice #</Label>
@@ -925,6 +958,7 @@ export default function AddBill() {
                 </div>
 
                 {formData.commitment_type && (
+                  <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="vendor">Vendor *</Label>
@@ -971,6 +1005,18 @@ export default function AddBill() {
                       </Select>
                     </div>
                   </div>
+
+                  {/* Vendor Compliance Warning */}
+                  {payablesSettings?.show_vendor_compliance_warnings !== false && formData.vendor_id && vendorComplianceMissing > 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        This vendor has {vendorComplianceMissing} missing required compliance document{vendorComplianceMissing !== 1 ? 's' : ''}. 
+                        Please review vendor compliance before proceeding.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  </>
                 )}
 
                 {formData.commitment_type === 'subcontract' && (
