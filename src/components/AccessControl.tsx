@@ -14,6 +14,7 @@ export function AccessControl({ children }: AccessControlProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [checking, setChecking] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (authLoading || companyLoading) {
@@ -75,11 +76,14 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     setChecking(false);
+    if (!initialized) {
+      setInitialized(true);
+    }
     // Only depend on essential IDs to avoid re-running on object reference changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profile?.profile_completed, profile?.current_company_id, userCompanies.length, authLoading, companyLoading, location.pathname]);
 
-  if (authLoading || companyLoading || checking) {
+  if (!initialized && (authLoading || companyLoading || checking)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
