@@ -30,6 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import AccountAssociationSettings from "@/components/AccountAssociationSettings";
+import Papa from 'papaparse';
 
 interface Account {
   id: string;
@@ -282,23 +283,27 @@ export default function ChartOfAccounts() {
     }
 
     try {
-      const text = await csvFile.text();
-      const rawLines = text.split(/\r?\n/);
-      const lines = rawLines.filter(line => line && line.trim());
-      if (lines.length < 2) {
+      const { data: userData } = await supabase.auth.getUser();
+
+      // Parse with Papa to handle quoted fields and BOMs
+      const parsed = await new Promise<Papa.ParseResult<Record<string, any>>>((resolve, reject) => {
+        Papa.parse<Record<string, any>>(csvFile, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.replace(/^\uFEFF/, '').trim().toLowerCase(),
+          complete: (results) => resolve(results),
+          error: (err) => reject(err),
+        });
+      });
+
+      if (!parsed.data || parsed.data.length === 0) {
         toast({ title: "Invalid CSV", description: "No data rows found", variant: "destructive" });
         return;
       }
 
-      const headers = lines[0]
-        .replace(/^\uFEFF/, '') // remove BOM if present
-        .split(',')
-        .map(h => h.trim().toLowerCase());
-      
-      // Validate headers
       const requiredHeaders = ['account_number', 'account_name', 'account_type'];
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-      
+      const headers = Object.keys(parsed.data[0] || {});
+      const missingHeaders = requiredHeaders.filter((h) => !headers.includes(h));
       if (missingHeaders.length > 0) {
         toast({
           title: "Invalid CSV format",
@@ -308,43 +313,42 @@ export default function ChartOfAccounts() {
         return;
       }
 
-      const { data: userData } = await supabase.auth.getUser();
-      const accountsToInsert = [] as any[];
-
       const validAccountTypes = ['asset', 'liability', 'equity', 'revenue', 'expense', 'cost_of_goods_sold', 'cash'];
+      const accountsToInsert: any[] = [];
       const invalidRows: string[] = [];
 
-      for (let i = 1; i < lines.length; i++) {
-        const row = lines[i];
-        if (!row) continue;
-        const values = row.split(',').map(v => v.replace(/\r/g, '').trim());
-        const account: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          account[header] = values[index] ?? '';
-        });
+      parsed.data.forEach((row, idx) => {
+        const rowIndex = idx + 2; // account for header row
+        const account_number = String(row.account_number ?? '').trim();
+        const account_name = String(row.account_name ?? '').trim();
+        const account_type_raw = String(row.account_type ?? '').trim().toLowerCase();
+        const account_category = row.account_category ? String(row.account_category).trim() : null;
+        const normal_balance = (String(row.normal_balance ?? 'debit').trim().toLowerCase() === 'credit') ? 'credit' : 'debit';
+        const current_balance = Number.parseFloat(String(row.current_balance ?? '0')) || 0;
 
-        if (account.account_number && account.account_name && account.account_type) {
-          // Validate account_type
-          const accountType = account.account_type.toLowerCase().trim();
-          if (!validAccountTypes.includes(accountType)) {
-            invalidRows.push(`Row ${i + 1}: Invalid account_type "${account.account_type}". Must be one of: ${validAccountTypes.join(', ')}`);
-            continue;
-          }
-
-          accountsToInsert.push({
-            account_number: account.account_number,
-            account_name: account.account_name,
-            account_type: accountType,
-            account_category: account.account_category || null,
-            normal_balance: account.normal_balance || 'debit',
-            current_balance: parseFloat(account.current_balance || '0') || 0,
-            is_system_account: false,
-            is_active: true,
-            company_id: currentCompany?.id || '',
-            created_by: userData.user?.id
-          });
+        if (!account_number || !account_name || !account_type_raw) {
+          // Skip empty/incomplete lines silently
+          return;
         }
-      }
+
+        if (!validAccountTypes.includes(account_type_raw)) {
+          invalidRows.push(`Row ${rowIndex}: Invalid account_type "${row.account_type}". Must be one of: ${validAccountTypes.join(', ')}`);
+          return;
+        }
+
+        accountsToInsert.push({
+          account_number,
+          account_name,
+          account_type: account_type_raw,
+          account_category,
+          normal_balance,
+          current_balance,
+          is_system_account: false,
+          is_active: true,
+          company_id: currentCompany?.id || '',
+          created_by: userData.user?.id,
+        });
+      });
 
       if (invalidRows.length > 0) {
         toast({
@@ -355,24 +359,22 @@ export default function ChartOfAccounts() {
         return;
       }
 
-      if (accountsToInsert.length > 0) {
-        const { error } = await supabase
-          .from('chart_of_accounts')
-          .insert(accountsToInsert);
-
-        if (error) throw error;
-
-        toast({
-          title: "CSV Uploaded Successfully",
-          description: `${accountsToInsert.length} accounts imported`,
-        });
-
-        setCsvUploadDialogOpen(false);
-        setCsvFile(null);
-        loadAccounts();
-      } else {
+      if (accountsToInsert.length === 0) {
         toast({ title: "No valid rows", description: "Nothing to import", variant: "destructive" });
+        return;
       }
+
+      const { error } = await supabase.from('chart_of_accounts').insert(accountsToInsert);
+      if (error) throw error;
+
+      toast({
+        title: "CSV Uploaded Successfully",
+        description: `${accountsToInsert.length} accounts imported`,
+      });
+
+      setCsvUploadDialogOpen(false);
+      setCsvFile(null);
+      loadAccounts();
     } catch (error: any) {
       console.error('Error uploading CSV:', error);
       toast({
