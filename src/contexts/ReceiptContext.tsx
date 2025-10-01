@@ -150,7 +150,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshReceipts();
-  }, [refreshReceipts]);
+    // Only refetch when auth user or company actually changes to avoid duplicate calls
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, currentCompany?.id]);
 
   const addReceipts = useCallback(async (files: FileList) => {
     if (!user || !currentCompany) {
