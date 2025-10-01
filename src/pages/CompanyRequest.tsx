@@ -189,8 +189,8 @@ export default function CompanyRequest() {
       // Switch to the company regardless (AccessControl will validate real access)
       await switchCompany(companyId);
       
-      // After successful switch, go to dashboard
-      window.location.href = '/';
+      // After successful switch, go to dashboard without full reload
+      navigate('/', { replace: true });
     } catch (error: any) {
       console.error('Error selecting company:', error);
       toast({
