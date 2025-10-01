@@ -9,12 +9,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ArrowLeft, FileText, AlertCircle } from "lucide-react";
+import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+
+interface DistributionLineItem {
+  id: string;
+  job_id?: string;
+  expense_account_id?: string;
+  cost_code_id?: string;
+  amount: string;
+}
 
 export default function AddBill() {
   const navigate = useNavigate();
@@ -24,9 +32,9 @@ export default function AddBill() {
   
   const [formData, setFormData] = useState({
     vendor_id: "",
-    job_id: "",
-    expense_account_id: "", // New field for expense accounts
-    cost_code_id: "",
+    job_id: "", // Used for commitment bills
+    expense_account_id: "", // Used for commitment bills
+    cost_code_id: "", // Used for commitment bills
     subcontract_id: "",
     purchase_order_id: "",
     amount: "",
@@ -43,12 +51,16 @@ export default function AddBill() {
   });
   
   const [billType, setBillType] = useState<"non_commitment" | "commitment">("non_commitment");
+  const [distributionItems, setDistributionItems] = useState<DistributionLineItem[]>([
+    { id: crypto.randomUUID(), job_id: "", expense_account_id: "", cost_code_id: "", amount: "" }
+  ]);
+  const [lineItemCostCodes, setLineItemCostCodes] = useState<Record<string, any[]>>({});
   
   const [billFile, setBillFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]); // New state for expense accounts
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -62,10 +74,10 @@ export default function AddBill() {
   }, []);
 
   useEffect(() => {
-    if (formData.job_id) {
+    if (formData.job_id && billType === "commitment") {
       fetchCostCodesForJob(formData.job_id);
     }
-  }, [formData.job_id]);
+  }, [formData.job_id, billType]);
 
   useEffect(() => {
     if (formData.commitment_type && billType === "commitment") {
@@ -132,6 +144,93 @@ export default function AddBill() {
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
+  };
+
+  const fetchCostCodesForLineItem = async (jobId: string, lineItemId: string) => {
+    try {
+      const { data } = await supabase
+        .from('cost_codes')
+        .select('*')
+        .eq('job_id', jobId)
+        .eq('is_active', true)
+        .neq('type', 'sub');
+      
+      setLineItemCostCodes(prev => ({
+        ...prev,
+        [lineItemId]: data || []
+      }));
+    } catch (error) {
+      console.error('Error fetching cost codes:', error);
+    }
+  };
+
+  const addDistributionItem = () => {
+    setDistributionItems([
+      ...distributionItems,
+      { id: crypto.randomUUID(), job_id: "", expense_account_id: "", cost_code_id: "", amount: "" }
+    ]);
+  };
+
+  const removeDistributionItem = (id: string) => {
+    if (distributionItems.length > 1) {
+      setDistributionItems(distributionItems.filter(item => item.id !== id));
+      setLineItemCostCodes(prev => {
+        const updated = { ...prev };
+        delete updated[id];
+        return updated;
+      });
+    }
+  };
+
+  const updateDistributionItem = (id: string, field: keyof DistributionLineItem, value: string) => {
+    setDistributionItems(items =>
+      items.map(item =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    );
+
+    // If job changed, fetch cost codes for this line item
+    if (field === 'job_id' && value) {
+      fetchCostCodesForLineItem(value, id);
+    }
+
+    // Clear cost code if switching to expense account
+    if (field === 'expense_account_id' && value) {
+      setDistributionItems(items =>
+        items.map(item =>
+          item.id === id ? { ...item, cost_code_id: "", job_id: "" } : item
+        )
+      );
+    }
+
+    // Clear expense account if switching to job
+    if (field === 'job_id' && value) {
+      setDistributionItems(items =>
+        items.map(item =>
+          item.id === id ? { ...item, expense_account_id: "" } : item
+        )
+      );
+    }
+  };
+
+  const getDistributionTotal = () => {
+    return distributionItems.reduce((sum, item) => {
+      return sum + (parseFloat(item.amount) || 0);
+    }, 0);
+  };
+
+  const isDistributionValid = () => {
+    const billAmount = parseFloat(formData.amount) || 0;
+    const distributionTotal = getDistributionTotal();
+    
+    // Check if all line items have job/control and amount
+    const allItemsValid = distributionItems.every(item => {
+      const hasJobOrAccount = item.job_id || item.expense_account_id;
+      const hasAmount = item.amount && parseFloat(item.amount) > 0;
+      return hasJobOrAccount && hasAmount;
+    });
+    
+    return allItemsValid && Math.abs(billAmount - distributionTotal) < 0.01;
   };
 
   const fetchAllSubcontracts = async () => {
@@ -385,46 +484,75 @@ export default function AddBill() {
         }
       }
 
-      const { data, error } = await supabase
-        .from('invoices')
-        .insert({
+      if (billType === "non_commitment") {
+        // For non-commitment bills with distribution, create multiple invoice records
+        const invoicesToInsert = distributionItems.map(item => ({
           vendor_id: formData.vendor_id,
-          job_id: formData.job_id,
-          cost_code_id: formData.cost_code_id || null,
-          subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
-          purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
-          amount: parseFloat(formData.amount),
+          job_id: item.job_id || null,
+          cost_code_id: item.cost_code_id || null,
+          amount: parseFloat(item.amount),
           invoice_number: formData.invoice_number || null,
           issue_date: formData.issueDate,
           due_date: dueDate,
           payment_terms: formData.use_terms ? formData.payment_terms : null,
           description: formData.description,
-          is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
+          is_subcontract_invoice: false,
           is_reimbursement: formData.is_reimbursement,
           created_by: user.data.user.id
-        });
+        }));
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('invoices')
+          .insert(invoicesToInsert);
+
+        if (error) throw error;
+      } else {
+        // For commitment bills, use the original single record approach
+        const { error } = await supabase
+          .from('invoices')
+          .insert({
+            vendor_id: formData.vendor_id,
+            job_id: formData.job_id,
+            cost_code_id: formData.cost_code_id || null,
+            subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
+            purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
+            amount: parseFloat(formData.amount),
+            invoice_number: formData.invoice_number || null,
+            issue_date: formData.issueDate,
+            due_date: dueDate,
+            payment_terms: formData.use_terms ? formData.payment_terms : null,
+            description: formData.description,
+            is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
+            is_reimbursement: formData.is_reimbursement,
+            created_by: user.data.user.id
+          });
+
+        if (error) throw error;
+      }
 
       toast({
-        title: "Invoice created",
-        description: "Invoice has been successfully created",
+        title: "Bill created",
+        description: billType === "non_commitment" 
+          ? `Bill created with ${distributionItems.length} distribution line item(s)`
+          : "Bill has been successfully created",
       });
       
-      navigate("/invoices");
+      navigate("/bills");
     } catch (error) {
-      console.error('Error creating invoice:', error);
+      console.error('Error creating bill:', error);
       toast({
         title: "Error",
-        description: "Failed to create invoice",
+        description: "Failed to create bill",
         variant: "destructive"
       });
     }
   };
 
-  const isFormValid = formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
-                     formData.issueDate && billFile &&
-                     (formData.use_terms ? formData.payment_terms : formData.dueDate);
+  const isFormValid = billType === "commitment" 
+    ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
+      formData.issueDate && billFile && (formData.use_terms ? formData.payment_terms : formData.dueDate)
+    : formData.vendor_id && formData.amount && formData.issueDate && billFile && 
+      (formData.use_terms ? formData.payment_terms : formData.dueDate) && isDistributionValid();
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
@@ -562,46 +690,6 @@ export default function AddBill() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="job_control">Job / Control *</Label>
-                    <Select 
-                      value={formData.job_id || formData.expense_account_id} 
-                      onValueChange={(value) => {
-                        // Determine if it's a job or expense account
-                        const isJob = jobs.find(j => j.id === value);
-                        if (isJob) {
-                          handleInputChange("job_id", value);
-                          handleInputChange("expense_account_id", "");
-                        } else {
-                          handleInputChange("expense_account_id", value);
-                          handleInputChange("job_id", "");
-                          handleInputChange("cost_code_id", ""); // Clear cost code when expense account is selected
-                          setCostCodes([]); // Clear cost codes list
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select job or expense account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
-                        {jobs.map((job) => (
-                          <SelectItem key={job.id} value={job.id}>
-                            {job.name}
-                          </SelectItem>
-                        ))}
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
-                        {expenseAccounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.account_number} - {account.account_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
                     <Label htmlFor="amount">Amount *</Label>
                     <CurrencyInput
                       id="amount"
@@ -611,6 +699,9 @@ export default function AddBill() {
                       required
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoice_number">Invoice #</Label>
                     <Input
@@ -620,29 +711,6 @@ export default function AddBill() {
                       placeholder="Enter invoice number (optional)"
                     />
                   </div>
-                </div>
-
-                {formData.job_id && (
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cost_code">Cost Code</Label>
-                      <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select cost code (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {costCodes.map((code) => (
-                            <SelectItem key={code.id} value={code.id}>
-                              {code.code} - {code.description}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="issueDate">Issue Date *</Label>
                     <Input
@@ -653,17 +721,20 @@ export default function AddBill() {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Checkbox
-                        id="use_terms"
-                        checked={formData.use_terms}
-                        onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
-                      />
-                      <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
-                    </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Checkbox
+                      id="use_terms"
+                      checked={formData.use_terms}
+                      onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
+                    />
+                    <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {formData.use_terms ? (
-                      <div>
+                      <div className="space-y-2">
                         <Label htmlFor="payment_terms">Payment Terms *</Label>
                         <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange("payment_terms", value)}>
                           <SelectTrigger>
@@ -679,7 +750,7 @@ export default function AddBill() {
                         </Select>
                       </div>
                     ) : (
-                      <div>
+                      <div className="space-y-2">
                         <Label htmlFor="dueDate">Due Date *</Label>
                         <Input
                           id="dueDate"
@@ -691,6 +762,117 @@ export default function AddBill() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Cost Distribution Section */}
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Cost Distribution *</Label>
+                    <Badge variant={isDistributionValid() ? "default" : "destructive"}>
+                      Total: ${getDistributionTotal().toFixed(2)} / ${(parseFloat(formData.amount) || 0).toFixed(2)}
+                    </Badge>
+                  </div>
+
+                  {distributionItems.map((item, index) => (
+                    <div key={item.id} className="border rounded-md p-4 space-y-3 bg-muted/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Line Item {index + 1}</span>
+                        {distributionItems.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeDistributionItem(item.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="space-y-2">
+                          <Label>Job / Control *</Label>
+                          <Select 
+                            value={item.job_id || item.expense_account_id} 
+                            onValueChange={(value) => {
+                              const isJob = jobs.find(j => j.id === value);
+                              if (isJob) {
+                                updateDistributionItem(item.id, 'job_id', value);
+                              } else {
+                                updateDistributionItem(item.id, 'expense_account_id', value);
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select job or expense" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
+                              {jobs.map((job) => (
+                                <SelectItem key={job.id} value={job.id}>
+                                  {job.name}
+                                </SelectItem>
+                              ))}
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
+                              {expenseAccounts.map((account) => (
+                                <SelectItem key={account.id} value={account.id}>
+                                  {account.account_number} - {account.account_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {item.job_id && (
+                          <div className="space-y-2">
+                            <Label>Cost Code</Label>
+                            <Select 
+                              value={item.cost_code_id} 
+                              onValueChange={(value) => updateDistributionItem(item.id, 'cost_code_id', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select cost code" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(lineItemCostCodes[item.id] || []).map((code) => (
+                                  <SelectItem key={code.id} value={code.id}>
+                                    {code.code} - {code.description}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>Amount *</Label>
+                          <CurrencyInput
+                            value={item.amount}
+                            onChange={(value) => updateDistributionItem(item.id, 'amount', value)}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addDistributionItem}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Line Item
+                  </Button>
+
+                  {!isDistributionValid() && formData.amount && (
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Distribution total must match bill amount</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
