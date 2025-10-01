@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ interface PunchStatus {
 function PunchClockApp() {
   const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [currentTime, setCurrentTime] = useState(new Date());
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -74,12 +76,12 @@ function PunchClockApp() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!user && !isPinAuthenticated && !localStorage.getItem('punch_clock_user')) {
-        window.location.replace('/punch-clock-login');
+        navigate('/punch-clock-login', { replace: true });
       }
     }, 100); // Small delay to allow auth context to process
 
     return () => clearTimeout(timer);
-  }, [user, isPinAuthenticated]);
+  }, [user, isPinAuthenticated, navigate]);
 
   // Load initial data
   useEffect(() => {
@@ -995,7 +997,7 @@ function PunchClockApp() {
             <h2 className="text-xl font-semibold">GST Punch Clock</h2>
             <p className="text-muted-foreground">This punch clock supports public PIN login.</p>
             <div className="space-y-2">
-              <Button onClick={() => (window.location.href = '/punch-clock-login')} className="w-full">
+              <Button onClick={() => navigate('/punch-clock-login')} className="w-full">
                 Continue with PIN Login
               </Button>
             </div>

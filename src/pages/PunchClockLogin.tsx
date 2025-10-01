@@ -110,9 +110,8 @@ export default function PunchClockLogin() {
         description: `Welcome, ${profiles.first_name}!`,
       });
 
-      // Use window.location.href instead of navigate to force a full page reload
-      // This ensures the auth context picks up the localStorage changes
-      window.location.href = '/punch-clock-app';
+      // Use navigate instead of window.location for smooth client-side navigation
+      navigate('/punch-clock-app', { replace: true });
     } catch (error) {
       console.error('Error during PIN login:', error);
       toast({
