@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface PunchClockUser {
   user_id: string;
@@ -28,6 +29,7 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPinAuthenticated, setIsPinAuthenticated] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check for PIN authentication first
@@ -141,11 +143,11 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
       setUser(null);
       setProfile(null);
       setIsPinAuthenticated(false);
-      window.location.href = '/punch-clock-login';
+      navigate('/punch-clock-login', { replace: true });
     } else {
       // Regular sign out
       await supabase.auth.signOut();
-      window.location.href = '/auth';
+      navigate('/auth', { replace: true });
     }
   };
 
