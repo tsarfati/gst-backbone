@@ -26,13 +26,13 @@ const navigationCategories = [
   {
     title: "Construction",
     icon: FolderOpen,
-    items: [
-      { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
-      { name: "Reports", href: "/construction/reports", menuKey: "jobs" },
-      { name: "Jobs", href: "/jobs", menuKey: "jobs" },
-      { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
-      { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
-    ],
+      items: [
+        { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
+        { name: "Jobs", href: "/jobs", menuKey: "jobs" },
+        { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
+        { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
+        { name: "Reports", href: "/construction/reports", menuKey: "jobs" },
+      ],
     collapsible: true,
   },
   {
