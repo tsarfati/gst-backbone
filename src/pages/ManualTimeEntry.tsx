@@ -283,197 +283,162 @@ export default function ManualTimeEntry() {
   const overtimeHours = calculateOvertime(totalHours);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/time-sheets')}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Time Sheets
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Manual Time Entry</h1>
-          <p className="text-muted-foreground">
-            Create a time entry manually
-          </p>
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Date */}
+        <div className="space-y-2">
+          <Label htmlFor="date" className="text-sm flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Date *
+          </Label>
+          <Input
+            id="date"
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+            required
+            className="w-full"
+          />
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Time Entry Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Employee Selection (only for managers) */}
-              {isManager && (
-                <div className="space-y-2">
-                  <Label htmlFor="employee">Employee *</Label>
-                  <Select
-                    value={formData.user_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, user_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((employee) => (
-                        <SelectItem key={employee.user_id} value={employee.user_id}>
-                          {employee.display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        {/* Time In and Time Out */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="punch-in" className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Time In *
+            </Label>
+            <Input
+              id="punch-in"
+              type="time"
+              value={formData.punch_in_time}
+              onChange={(e) => setFormData(prev => ({ ...prev, punch_in_time: e.target.value }))}
+              required
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="punch-out" className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Time Out *
+            </Label>
+            <Input
+              id="punch-out"
+              type="time"
+              value={formData.punch_out_time}
+              onChange={(e) => setFormData(prev => ({ ...prev, punch_out_time: e.target.value }))}
+              required
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        {/* Job */}
+        <div className="space-y-2">
+          <Label htmlFor="job" className="text-sm">Job *</Label>
+          <Select
+            value={formData.job_id}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value, cost_code_id: '' }))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select job" />
+            </SelectTrigger>
+            <SelectContent>
+              {jobs.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">No jobs assigned</div>
+              ) : (
+                jobs.map((job) => (
+                  <SelectItem key={job.id} value={job.id}>
+                    {job.name}
+                  </SelectItem>
+                ))
               )}
+            </SelectContent>
+          </Select>
+        </div>
 
-              {/* Date */}
-              <div className="space-y-2">
-                <Label htmlFor="date">Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  required
-                />
-              </div>
-
-              {/* Job */}
-              <div className="space-y-2">
-                <Label htmlFor="job">Job *</Label>
-                <Select
-                  value={formData.job_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select job" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Cost Code */}
-              <div className="space-y-2">
-                <Label htmlFor="cost-code">Cost Code *</Label>
-                <Select
-                  value={formData.cost_code_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, cost_code_id: value }))}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cost code" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {costCodes.map((code) => (
-                      <SelectItem key={code.id} value={code.id}>
-                        {code.code} - {code.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Punch In Time */}
-              <div className="space-y-2">
-                <Label htmlFor="punch-in">Punch In Time *</Label>
-                <Input
-                  id="punch-in"
-                  type="time"
-                  value={formData.punch_in_time}
-                  onChange={(e) => setFormData(prev => ({ ...prev, punch_in_time: e.target.value }))}
-                  required
-                />
-              </div>
-
-              {/* Punch Out Time */}
-              <div className="space-y-2">
-                <Label htmlFor="punch-out">Punch Out Time *</Label>
-                <Input
-                  id="punch-out"
-                  type="time"
-                  value={formData.punch_out_time}
-                  onChange={(e) => setFormData(prev => ({ ...prev, punch_out_time: e.target.value }))}
-                  required
-                />
-              </div>
-
-              {/* Break Minutes */}
-              <div className="space-y-2">
-                <Label htmlFor="break">Break Minutes</Label>
-                <Input
-                  id="break"
-                  type="number"
-                  min="0"
-                  value={formData.break_minutes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, break_minutes: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
-
-              {/* Hours Summary */}
-              <div className="space-y-2">
-                <Label>Hours Summary</Label>
-                <div className="p-3 bg-muted rounded-lg">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Total Hours</p>
-                      <p className="font-semibold text-lg">{totalHours.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Overtime</p>
-                      <p className="font-semibold text-lg text-warning">{overtimeHours.toFixed(2)}</p>
-                    </div>
-                  </div>
+        {/* Cost Code */}
+        <div className="space-y-2">
+          <Label htmlFor="cost-code" className="text-sm">Cost Code *</Label>
+          <Select
+            value={formData.cost_code_id}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, cost_code_id: value }))}
+            disabled={!formData.job_id}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={formData.job_id ? "Select cost code" : "Select job first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {costCodes.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">
+                  {formData.job_id ? "No cost codes assigned" : "Select a job first"}
                 </div>
+              ) : (
+                costCodes.map((code) => (
+                  <SelectItem key={code.id} value={code.id}>
+                    {code.code} - {code.description}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Break Minutes */}
+        <div className="space-y-2">
+          <Label htmlFor="break" className="text-sm">Break (minutes)</Label>
+          <Input
+            id="break"
+            type="number"
+            min="0"
+            max="480"
+            value={formData.break_minutes}
+            onChange={(e) => setFormData(prev => ({ ...prev, break_minutes: parseInt(e.target.value) || 0 }))}
+            className="w-full"
+          />
+        </div>
+
+        {/* Hours Summary */}
+        {totalHours > 0 && (
+          <div className="p-3 bg-muted/50 rounded-lg border">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Total Hours</p>
+                <p className="font-semibold text-lg">{totalHours.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Overtime</p>
+                <p className="font-semibold text-lg text-warning">{overtimeHours.toFixed(2)}</p>
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                placeholder="Add any additional notes..."
-                value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                rows={3}
-              />
-            </div>
+        {/* Notes */}
+        <div className="space-y-2">
+          <Label htmlFor="notes" className="text-sm">Notes (Optional)</Label>
+          <Textarea
+            id="notes"
+            placeholder="Add any additional notes..."
+            value={formData.notes}
+            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+            rows={3}
+            className="w-full resize-none"
+          />
+        </div>
 
-            {/* Submit Button */}
-            <div className="flex justify-end gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/time-sheets')}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="gap-2"
-              >
-                <Save className="h-4 w-4" />
-                {loading ? 'Creating...' : 'Create Time Entry'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Submit Button */}
+        <Button
+          type="submit"
+          disabled={loading || !formData.job_id || !formData.cost_code_id}
+          className="w-full gap-2"
+          size="lg"
+        >
+          <Save className="h-4 w-4" />
+          {loading ? 'Creating...' : 'Submit Time Entry'}
+        </Button>
+      </form>
     </div>
   );
 }
