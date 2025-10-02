@@ -30,14 +30,28 @@ interface Vendor {
   payment_terms: string;
 }
 
+interface Job {
+  id: string;
+  name: string;
+}
+
+interface BankAccount {
+  id: string;
+  account_name: string;
+  bank_name: string;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
   amount: number;
   due_date: string;
   status: string;
+  vendor_id: string;
   vendor: Vendor;
   description: string;
+  job_id: string;
+  jobs?: Job;
 }
 
 interface Payment {
@@ -50,6 +64,7 @@ interface Payment {
   memo: string;
   status: string;
   check_number?: string;
+  bank_account_id?: string;
 }
 
 interface CodedReceipt {
@@ -66,10 +81,14 @@ export default function MakePayment() {
   const { toast } = useToast();
   
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [codedReceipts, setCodedReceipts] = useState<CodedReceipt[]>([]);
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<string>("");
+  const [selectedJob, setSelectedJob] = useState<string>("");
   const [payment, setPayment] = useState<Payment>({
     payment_number: '',
     vendor_id: '',
@@ -78,7 +97,8 @@ export default function MakePayment() {
     amount: 0,
     memo: '',
     status: 'draft',
-    check_number: ''
+    check_number: '',
+    bank_account_id: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -89,11 +109,10 @@ export default function MakePayment() {
   }, []);
 
   useEffect(() => {
-    if (selectedVendor) {
-      loadVendorInvoices();
-      loadCodedReceipts();
+    if (selectedVendor || selectedJob) {
+      filterInvoices();
     }
-  }, [selectedVendor]);
+  }, [selectedVendor, selectedJob, allInvoices]);
 
   useEffect(() => {
     calculatePaymentAmount();
@@ -101,6 +120,7 @@ export default function MakePayment() {
 
   const loadData = async () => {
     try {
+      // Load vendors
       const { data: vendorsData, error: vendorsError } = await supabase
         .from('vendors')
         .select('id, name, payment_terms')
@@ -109,20 +129,28 @@ export default function MakePayment() {
 
       if (vendorsError) throw vendorsError;
       setVendors(vendorsData || []);
-    } catch (error) {
-      console.error('Error loading vendors:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load vendors",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const loadVendorInvoices = async () => {
-    try {
+      // Load jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (jobsError) throw jobsError;
+      setJobs(jobsData || []);
+
+      // Load bank accounts
+      const { data: bankAccountsData, error: bankAccountsError } = await supabase
+        .from('bank_accounts')
+        .select('id, account_name, bank_name')
+        .eq('is_active', true)
+        .order('account_name');
+
+      if (bankAccountsError) throw bankAccountsError;
+      setBankAccounts(bankAccountsData || []);
+
+      // Load all approved unpaid invoices
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select(`
@@ -131,29 +159,46 @@ export default function MakePayment() {
             id,
             name,
             payment_terms
+          ),
+          jobs (
+            id,
+            name
           )
         `)
-        .eq('vendor_id', selectedVendor)
-        .eq('status', 'pending')
-        .not('file_url', 'is', null)
-        .not('job_id', 'is', null)
-        .not('cost_code_id', 'is', null)
+        .eq('status', 'approved')
         .order('due_date');
 
       if (invoicesError) throw invoicesError;
-      setInvoices((invoicesData || []).map(invoice => ({
+      const formattedInvoices = (invoicesData || []).map(invoice => ({
         ...invoice,
         vendor: invoice.vendors
-      })));
+      }));
+      setAllInvoices(formattedInvoices);
+      setInvoices(formattedInvoices);
     } catch (error) {
-      console.error('Error loading invoices:', error);
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadCodedReceipts = async () => {
-    // This would load coded receipts from the receipt context
-    // For now, using mock data structure
-    setCodedReceipts([]);
+  const filterInvoices = () => {
+    let filtered = [...allInvoices];
+
+    if (selectedVendor) {
+      filtered = filtered.filter(inv => inv.vendor_id === selectedVendor);
+    }
+
+    if (selectedJob) {
+      filtered = filtered.filter(inv => inv.job_id === selectedJob);
+    }
+
+    setInvoices(filtered);
   };
 
   const generatePaymentNumber = async () => {
@@ -200,15 +245,43 @@ export default function MakePayment() {
 
   const handleVendorChange = (vendorId: string) => {
     setSelectedVendor(vendorId);
-    setPayment(prev => ({ ...prev, vendor_id: vendorId }));
+    if (vendorId) {
+      setPayment(prev => ({ ...prev, vendor_id: vendorId }));
+    }
+    setSelectedInvoices([]);
+  };
+
+  const handleJobChange = (jobId: string) => {
+    setSelectedJob(jobId);
     setSelectedInvoices([]);
   };
 
   const savePayment = async () => {
-    if (!selectedVendor || selectedInvoices.length === 0) {
+    if (!payment.vendor_id || selectedInvoices.length === 0) {
       toast({
         title: "Invalid Payment",
-        description: "Please select a vendor and at least one invoice",
+        description: "Please select at least one invoice to pay",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate bank account for certain payment methods
+    const requiresBankAccount = ['check', 'ach', 'wire', 'debit_card'].includes(payment.payment_method);
+    if (requiresBankAccount && !payment.bank_account_id) {
+      toast({
+        title: "Invalid Payment",
+        description: "Please select a pay from account",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate check number if payment method is check
+    if (payment.payment_method === 'check' && !payment.check_number) {
+      toast({
+        title: "Invalid Payment",
+        description: "Please enter a check number",
         variant: "destructive",
       });
       return;
@@ -329,15 +402,33 @@ export default function MakePayment() {
               </div>
 
               <div>
-                <Label htmlFor="vendor">Vendor</Label>
+                <Label htmlFor="vendor">Vendor (Optional Filter)</Label>
                 <Select value={selectedVendor} onValueChange={handleVendorChange}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select vendor" />
+                    <SelectValue placeholder="All vendors" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">All vendors</SelectItem>
                     {vendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="job">Job (Optional Filter)</Label>
+                <Select value={selectedJob} onValueChange={handleJobChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All jobs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All jobs</SelectItem>
+                    {jobs.map(job => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -357,10 +448,32 @@ export default function MakePayment() {
                     <SelectItem value="check">Check</SelectItem>
                     <SelectItem value="ach">ACH</SelectItem>
                     <SelectItem value="wire">Wire Transfer</SelectItem>
+                    <SelectItem value="debit_card">Debit Card</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {['check', 'ach', 'wire', 'debit_card'].includes(payment.payment_method) && (
+                <div>
+                  <Label htmlFor="bank_account_id">Pay From Account *</Label>
+                  <Select 
+                    value={payment.bank_account_id} 
+                    onValueChange={(value) => setPayment(prev => ({ ...prev, bank_account_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.map(account => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account_name} - {account.bank_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="payment_date">Payment Date</Label>
@@ -374,7 +487,7 @@ export default function MakePayment() {
 
               {payment.payment_method === 'check' && (
                 <div>
-                  <Label htmlFor="check_number">Check Number</Label>
+                  <Label htmlFor="check_number">Check Number *</Label>
                   <Input
                     id="check_number"
                     value={payment.check_number || ''}
@@ -425,14 +538,10 @@ export default function MakePayment() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!selectedVendor ? (
+                  {invoices.length === 0 ? (
                     <div className="text-center text-muted-foreground py-8">
-                      Select a vendor to view pending invoices
-                    </div>
-                  ) : invoices.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      <div className="mb-2">No payable invoices for this vendor</div>
-                      <div className="text-sm">Invoices must have a receipt document and be coded with a job and cost code before payment can be made.</div>
+                      <div className="mb-2">No approved unpaid invoices found</div>
+                      <div className="text-sm">Select vendor or job filters to narrow results</div>
                     </div>
                   ) : (
                     <Table>
@@ -440,34 +549,39 @@ export default function MakePayment() {
                         <TableRow>
                           <TableHead className="w-12"></TableHead>
                           <TableHead>Invoice #</TableHead>
+                          <TableHead>Vendor</TableHead>
+                          <TableHead>Job</TableHead>
                           <TableHead>Description</TableHead>
                           <TableHead>Due Date</TableHead>
                           <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {invoices.map(invoice => (
-                          <TableRow key={invoice.id}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedInvoices.includes(invoice.id)}
-                                onCheckedChange={(checked) => 
-                                  handleInvoiceSelection(invoice.id, checked as boolean)
-                                }
-                              />
-                            </TableCell>
-                            <TableCell>{invoice.invoice_number || 'N/A'}</TableCell>
-                            <TableCell>{invoice.description}</TableCell>
-                            <TableCell>{new Date(invoice.due_date).toLocaleDateString()}</TableCell>
-                            <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Badge variant={invoice.status === 'overdue' ? 'destructive' : 'warning'}>
-                                {invoice.status}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {invoices.map(invoice => {
+                          // Set vendor_id from the first selected invoice
+                          const isFirstSelected = selectedInvoices.length === 0 || selectedInvoices[0] === invoice.id;
+                          return (
+                            <TableRow key={invoice.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedInvoices.includes(invoice.id)}
+                                  onCheckedChange={(checked) => {
+                                    handleInvoiceSelection(invoice.id, checked as boolean);
+                                    if (checked && !payment.vendor_id) {
+                                      setPayment(prev => ({ ...prev, vendor_id: invoice.vendor_id }));
+                                    }
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>{invoice.invoice_number || 'N/A'}</TableCell>
+                              <TableCell>{invoice.vendor?.name || 'N/A'}</TableCell>
+                              <TableCell>{invoice.jobs?.name || 'N/A'}</TableCell>
+                              <TableCell className="max-w-xs truncate">{invoice.description}</TableCell>
+                              <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
+                              <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
