@@ -1,21 +1,16 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Building, 
-  Plus, 
   Search, 
   Filter,
-  Edit,
-  Trash2,
   DollarSign,
-  CreditCard,
-  Eye
+  CreditCard
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -35,6 +30,7 @@ interface BankAccount {
 export default function BankAccounts() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -101,19 +97,11 @@ export default function BankAccounts() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Bank Accounts</h1>
-          <p className="text-muted-foreground">
-            Manage your company bank accounts and account details
-          </p>
-        </div>
-        <Link to="/banking/accounts/add">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Bank Account
-          </Button>
-        </Link>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Bank Accounts</h1>
+        <p className="text-muted-foreground">
+          Manage your company bank accounts and account details
+        </p>
       </div>
 
       {/* Summary Cards */}
@@ -196,20 +184,12 @@ export default function BankAccounts() {
             <div className="text-center py-8">
               <Building className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="text-lg font-medium mb-2">No bank accounts found</h3>
-              <p className="text-muted-foreground mb-4">
+              <p className="text-muted-foreground">
                 {searchTerm || typeFilter !== "all" 
                   ? "Try adjusting your search or filters"
-                  : "Start by adding your first bank account"
+                  : "No bank accounts found"
                 }
               </p>
-              {accounts.length === 0 && (
-                <Link to="/banking/accounts/add">
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Bank Account
-                  </Button>
-                </Link>
-              )}
             </div>
           ) : (
             <Table>
@@ -221,12 +201,15 @@ export default function BankAccounts() {
                   <TableHead>Type</TableHead>
                   <TableHead>Balance</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAccounts.map((account) => (
-                  <TableRow key={account.id}>
+                  <TableRow 
+                    key={account.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/banking/accounts/${account.id}`)}
+                  >
                     <TableCell className="font-medium">{account.account_name}</TableCell>
                     <TableCell>
                       {account.account_number ? `****${account.account_number.slice(-4)}` : 'N/A'}
@@ -244,19 +227,6 @@ export default function BankAccounts() {
                       <Badge variant={account.is_active ? "default" : "secondary"}>
                         {account.is_active ? "Active" : "Inactive"}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm" title="View Details">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Edit Account">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" title="Delete Account">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

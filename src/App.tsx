@@ -82,6 +82,7 @@ import CompanyPermits from "./pages/CompanyPermits";
 import CompanyInsurance from "./pages/CompanyInsurance";
 import CompanyManagement from "./pages/CompanyManagement";
 import BankAccounts from "./pages/BankAccounts";
+import BankAccountDetails from "./pages/BankAccountDetails";
 import CreditCards from "./pages/CreditCards";
 import BankingReports from "./pages/BankingReports";
 import JournalEntries from "./pages/JournalEntries";
@@ -283,6 +284,7 @@ function AuthenticatedRoutes() {
                 <Route path="company-files/permits" element={<CompanyPermits />} />
                 <Route path="company-files/insurance" element={<CompanyInsurance />} />
                 <Route path="banking/accounts" element={<BankAccounts />} />
+                <Route path="banking/accounts/:id" element={<BankAccountDetails />} />
                 <Route path="banking/accounts/add" element={<AddBankAccount />} />
                 <Route path="banking/credit-cards" element={<CreditCards />} />
                 <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
