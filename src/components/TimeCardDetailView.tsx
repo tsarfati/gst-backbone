@@ -454,7 +454,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           
           <TabsContent value="details" className="space-y-4 mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Column - Details */}
+              {/* Left Column - Employee & Job Details */}
               <div className="space-y-4">
                 {/* Employee & Status Info */}
                 <Card>
@@ -586,9 +586,11 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                     )}
                   </CardContent>
                 </Card>
+              </div>
 
-                {/* Photos - Always show this section */}
-                <Card>
+              {/* Right Column - Photos */}
+              <div className="space-y-4">
+                <Card className="h-full">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Camera className="h-4 w-4" />
@@ -597,11 +599,11 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                   </CardHeader>
                   <CardContent>
                     {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         {timeCard.punch_in_photo_url && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-muted-foreground">Punch In Photo</p>
-                            <div className="aspect-square relative overflow-hidden rounded-lg border bg-muted">
+                            <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
                               <img 
                                 src={timeCard.punch_in_photo_url} 
                                 alt="Punch in photo" 
@@ -617,7 +619,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         {timeCard.punch_out_photo_url && (
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-muted-foreground">Punch Out Photo</p>
-                            <div className="aspect-square relative overflow-hidden rounded-lg border bg-muted">
+                            <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
                               <img 
                                 src={timeCard.punch_out_photo_url} 
                                 alt="Punch out photo" 
