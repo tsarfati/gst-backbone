@@ -179,7 +179,6 @@ export default function JobDetails() {
             <TabsTrigger 
               value="time-tracking"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              onClick={() => navigate('/time-tracking')}
             >
               <Clock className="h-4 w-4 mr-2" />
               Time Tracking
@@ -287,6 +286,16 @@ export default function JobDetails() {
           
           <TabsContent value="committed-costs" className="p-6">
             <CommittedCosts jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="time-tracking" className="p-0">
+            <div className="min-h-[600px]">
+              <iframe 
+                src="/punch-clock/dashboard" 
+                className="w-full h-[calc(100vh-200px)] border-0"
+                title="Punch Clock Dashboard"
+              />
+            </div>
           </TabsContent>
         </Tabs>
       </Card>
