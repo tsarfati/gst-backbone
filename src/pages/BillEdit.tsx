@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, FileText, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
+import CommitmentInfo from "@/components/CommitmentInfo";
+import PdfInlinePreview from "@/components/PdfInlinePreview";
 
 interface Vendor {
   id: string;
@@ -47,6 +49,9 @@ export default function BillEdit() {
   const [saving, setSaving] = useState(false);
   const [subcontractInfo, setSubcontractInfo] = useState<any>(null);
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
+  const [billFile, setBillFile] = useState<File | null>(null);
+  const [existingFileUrl, setExistingFileUrl] = useState<string>("");
+  const [isDragOver, setIsDragOver] = useState(false);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -162,6 +167,7 @@ export default function BillEdit() {
       }
 
       setBill(typedBillData);
+      setExistingFileUrl(typedBillData.file_url || "");
 
       // Populate form data
       setFormData({
@@ -226,9 +232,66 @@ export default function BillEdit() {
     }
   };
 
+  const handleFileUpload = (file: File) => {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF or image file",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 10MB",
+        variant: "destructive"
+      });
+      return;
+    }
+    setBillFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) handleFileUpload(files[0]);
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
+      
+      let fileUrl = existingFileUrl;
+      
+      // Upload new file if selected
+      if (billFile) {
+        const fileExt = billFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, billFile);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: urlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+        
+        fileUrl = urlData.publicUrl;
+      }
       
       const updateData = {
         vendor_id: formData.vendor_id || null,
@@ -241,7 +304,8 @@ export default function BillEdit() {
         description: formData.description,
         payment_terms: formData.payment_terms,
         is_subcontract_invoice: formData.is_subcontract_invoice,
-        is_reimbursement: formData.is_reimbursement
+        is_reimbursement: formData.is_reimbursement,
+        file_url: fileUrl
       };
 
       const { error } = await supabase
@@ -320,31 +384,14 @@ export default function BillEdit() {
 
       {/* Commitment Information (for subcontract invoices) */}
       {subcontractInfo && commitmentTotals && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Commitment Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-muted-foreground">Total Commit:</div>
-                <div className="text-right font-medium">${commitmentTotals.totalCommit.toFixed(2)}</div>
-                
-                <div className="text-muted-foreground">Prev Gross:</div>
-                <div className="text-right font-medium">${commitmentTotals.prevGross.toFixed(2)}</div>
-                
-                <div className="text-muted-foreground">Prev Ret'd:</div>
-                <div className="text-right font-medium">${commitmentTotals.prevRetention.toFixed(2)}</div>
-                
-                <div className="text-muted-foreground">Prev Pmts:</div>
-                <div className="text-right font-medium">${commitmentTotals.prevPayments.toFixed(2)}</div>
-                
-                <div className="text-muted-foreground font-semibold">Contract Balance:</div>
-                <div className="text-right font-bold bg-accent/10 px-2 py-1 rounded">${commitmentTotals.contractBalance.toFixed(2)}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CommitmentInfo
+          totalCommit={commitmentTotals.totalCommit}
+          prevGross={commitmentTotals.prevGross}
+          prevRetention={commitmentTotals.prevRetention}
+          prevPayments={commitmentTotals.prevPayments}
+          contractBalance={commitmentTotals.contractBalance}
+          className="mb-6"
+        />
       )}
 
       {/* Form */}
@@ -504,6 +551,96 @@ export default function BillEdit() {
               placeholder="Enter bill description"
               rows={4}
             />
+          </CardContent>
+        </Card>
+
+        {/* Document Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Bill Document</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Existing file preview */}
+            {existingFileUrl && !billFile && (
+              <div className="space-y-2">
+                <Label>Current Document</Label>
+                {existingFileUrl.endsWith('.pdf') ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <iframe
+                      src={existingFileUrl}
+                      className="w-full h-96"
+                      title="Bill PDF"
+                    />
+                  </div>
+                ) : (
+                  <img 
+                    src={existingFileUrl} 
+                    alt="Bill document" 
+                    className="max-w-full h-auto rounded-lg border"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* New file preview */}
+            {billFile && (
+              <div className="space-y-2">
+                <Label>New Document (will replace existing)</Label>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                  <FileText className="h-5 w-5" />
+                  <span className="flex-1 text-sm">{billFile.name}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBillFile(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {billFile.type === 'application/pdf' ? (
+                  <PdfInlinePreview file={billFile} height={384} />
+                ) : billFile.type.startsWith('image/') ? (
+                  <img 
+                    src={URL.createObjectURL(billFile)} 
+                    alt="Preview" 
+                    className="max-w-full h-auto rounded-lg border"
+                  />
+                ) : null}
+              </div>
+            )}
+
+            {/* Upload area */}
+            <div>
+              <Label>Upload {existingFileUrl ? 'Replacement' : 'New'} Document</Label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`mt-2 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                }`}
+                onClick={() => document.getElementById('bill-file-input')?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-1">
+                  Drag and drop or click to upload
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  PDF, JPG, PNG, or WEBP (max 10MB)
+                </p>
+                <input
+                  id="bill-file-input"
+                  type="file"
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                  }}
+                  className="hidden"
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

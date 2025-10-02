@@ -29,6 +29,7 @@ import BillApprovalActions from "@/components/BillApprovalActions";
 import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
+import CommitmentInfo from "@/components/CommitmentInfo";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -73,6 +74,7 @@ export default function BillDetails() {
   const [approvalNotes, setApprovalNotes] = useState("");
   const [approvingBill, setApprovingBill] = useState(false);
   const [vendorHasWarnings, setVendorHasWarnings] = useState(false);
+  const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
 
   useEffect(() => {
     if (id) {
@@ -98,7 +100,8 @@ export default function BillDetails() {
           ),
           subcontracts (
             id,
-            name
+            name,
+            contract_amount
           )
         `)
         .eq('id', id)
@@ -109,6 +112,11 @@ export default function BillDetails() {
         setBill(null);
       } else {
         setBill(data || null);
+        
+        // If this is a subcontract invoice, fetch commitment totals
+        if (data?.subcontract_id) {
+          await fetchCommitmentTotals(data.subcontract_id, data.id);
+        }
         
         // Check vendor compliance warnings if vendor exists
         if (data?.vendor_id) {
@@ -124,6 +132,42 @@ export default function BillDetails() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCommitmentTotals = async (subcontractId: string, currentBillId: string) => {
+    try {
+      const { data: subcontractData } = await supabase
+        .from('subcontracts')
+        .select('contract_amount')
+        .eq('id', subcontractId)
+        .single();
+
+      const { data: previousInvoices } = await supabase
+        .from('invoices')
+        .select('amount, status')
+        .eq('subcontract_id', subcontractId)
+        .neq('id', currentBillId);
+
+      const totalCommit = subcontractData?.contract_amount || 0;
+      const prevGross = previousInvoices
+        ?.filter(inv => inv.status !== 'rejected')
+        .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      const prevRetention = 0;
+      const prevPayments = previousInvoices
+        ?.filter(inv => inv.status === 'paid')
+        .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      const contractBalance = totalCommit - prevGross;
+
+      setCommitmentTotals({
+        totalCommit,
+        prevGross,
+        prevRetention,
+        prevPayments,
+        contractBalance
+      });
+    } catch (error) {
+      console.error('Error fetching commitment totals:', error);
     }
   };
 
@@ -320,6 +364,18 @@ export default function BillDetails() {
           )}
         </div>
       </div>
+
+      {/* Commitment Information */}
+      {commitmentTotals && (
+        <CommitmentInfo
+          totalCommit={commitmentTotals.totalCommit}
+          prevGross={commitmentTotals.prevGross}
+          prevRetention={commitmentTotals.prevRetention}
+          prevPayments={commitmentTotals.prevPayments}
+          contractBalance={commitmentTotals.contractBalance}
+          className="mb-6"
+        />
+      )}
 
       {/* Bill Information */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-6">

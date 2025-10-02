@@ -19,6 +19,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
 import ReceiptLinkButton from "@/components/ReceiptLinkButton";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
+import CommitmentInfo from "@/components/CommitmentInfo";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
 
 interface DistributionLineItem {
@@ -72,6 +73,7 @@ export default function AddBill() {
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
    const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
+   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
    const [loading, setLoading] = useState(true);
    const [payablesSettings, setPayablesSettings] = useState<any>(null);
    const [attachedReceipt, setAttachedReceipt] = useState<CodedReceipt | null>(null);
@@ -333,6 +335,7 @@ export default function AddBill() {
       setCommitmentDistribution(distribution);
       
       await fetchPreviouslyBilledAmount('subcontract', subcontractId);
+      await fetchCommitmentTotals('subcontract', subcontractId, selectedSubcontract);
     }
   };
 
@@ -350,6 +353,7 @@ export default function AddBill() {
       setCommitmentDistribution(distribution);
       
       await fetchPreviouslyBilledAmount('purchase_order', poId);
+      await fetchCommitmentTotals('purchase_order', poId, selectedPO);
     }
   };
 
@@ -416,6 +420,37 @@ export default function AddBill() {
     } catch (error) {
       console.error('Error fetching previously billed amount:', error);
       setPreviouslyBilled(0);
+    }
+  };
+
+  // Fetch commitment totals for display
+  const fetchCommitmentTotals = async (type: 'subcontract' | 'purchase_order', commitmentId: string, commitment: any) => {
+    try {
+      const column = type === 'subcontract' ? 'subcontract_id' : 'purchase_order_id';
+      const { data: previousInvoices } = await supabase
+        .from('invoices')
+        .select('amount, status')
+        .eq(column, commitmentId)
+        .neq('status', 'rejected');
+
+      const totalCommit = commitment.contract_amount || commitment.amount || 0;
+      const prevGross = previousInvoices?.reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      const prevRetention = 0;
+      const prevPayments = previousInvoices
+        ?.filter(inv => inv.status === 'paid')
+        .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      const contractBalance = totalCommit - prevGross;
+
+      setCommitmentTotals({
+        totalCommit,
+        prevGross,
+        prevRetention,
+        prevPayments,
+        contractBalance
+      });
+    } catch (error) {
+      console.error('Error fetching commitment totals:', error);
+      setCommitmentTotals(null);
     }
   };
 
@@ -967,8 +1002,19 @@ export default function AddBill() {
                         Please review vendor compliance before proceeding.
                       </AlertDescription>
                     </Alert>
-                  )}
-                  </>
+                   )}
+                   </>
+                 )}
+
+                {/* Commitment Information Display */}
+                {commitmentTotals && (formData.subcontract_id || formData.purchase_order_id) && (
+                  <CommitmentInfo
+                    totalCommit={commitmentTotals.totalCommit}
+                    prevGross={commitmentTotals.prevGross}
+                    prevRetention={commitmentTotals.prevRetention}
+                    prevPayments={commitmentTotals.prevPayments}
+                    contractBalance={commitmentTotals.contractBalance}
+                  />
                 )}
 
                 {formData.commitment_type === 'subcontract' && (
