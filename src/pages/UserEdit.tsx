@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code } from 'lucide-react';
+import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code, Key } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -616,17 +616,30 @@ export default function UserEdit() {
             </CardContent>
           </Card>
 
-          {user.role === 'employee' && (
+          {['admin', 'controller', 'project_manager', 'employee'].includes(user.role) && (
             <Card>
               <CardHeader>
-                <CardTitle>PIN Settings</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  PIN Settings for Mobile Access
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <UserPinSettings
-                  userId={user.user_id}
-                  currentPin={user.pin_code}
-                  userName={user.display_name}
-                />
+                <div className="space-y-4">
+                  {['admin', 'controller', 'project_manager'].includes(user.role) && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900 p-3 mb-4">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        <Shield className="h-4 w-4 inline mr-2" />
+                        Set a PIN to enable access to the PM Mobile App
+                      </p>
+                    </div>
+                  )}
+                  <UserPinSettings
+                    userId={user.user_id}
+                    currentPin={user.pin_code}
+                    userName={user.display_name}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}
