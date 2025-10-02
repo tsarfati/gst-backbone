@@ -74,6 +74,7 @@ export default function AddBill() {
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
    const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
    const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
+   const [payNumber, setPayNumber] = useState<number>(0);
    const [loading, setLoading] = useState(true);
    const [payablesSettings, setPayablesSettings] = useState<any>(null);
    const [attachedReceipt, setAttachedReceipt] = useState<CodedReceipt | null>(null);
@@ -336,6 +337,7 @@ export default function AddBill() {
       
       await fetchPreviouslyBilledAmount('subcontract', subcontractId);
       await fetchCommitmentTotals('subcontract', subcontractId, selectedSubcontract);
+      await fetchPayNumber('subcontract', subcontractId);
     }
   };
 
@@ -451,6 +453,27 @@ export default function AddBill() {
     } catch (error) {
       console.error('Error fetching commitment totals:', error);
       setCommitmentTotals(null);
+    }
+  };
+
+  // Fetch pay number for subcontract invoices
+  const fetchPayNumber = async (type: 'subcontract' | 'purchase_order', commitmentId: string) => {
+    try {
+      const column = type === 'subcontract' ? 'subcontract_id' : 'purchase_order_id';
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq(column, commitmentId)
+        .neq('status', 'rejected');
+
+      if (error) throw error;
+      
+      // Pay number is count of existing invoices + 1
+      const nextPayNumber = (data?.length || 0) + 1;
+      setPayNumber(nextPayNumber);
+    } catch (error) {
+      console.error('Error fetching pay number:', error);
+      setPayNumber(1);
     }
   };
 
@@ -663,7 +686,9 @@ export default function AddBill() {
         {/* Invoice Information */}
         <Card>
           <CardHeader>
-            <CardTitle>Bill Information</CardTitle>
+            <CardTitle>
+              {billType === "commitment" ? "Commitment Bill Information" : "Bill Information"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Tabs value={billType} onValueChange={(value) => {
@@ -1021,6 +1046,15 @@ export default function AddBill() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {formData.subcontract_id && payNumber > 0 && (
+                  <div className="space-y-2">
+                    <Label>Pay Number</Label>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <span className="font-medium">Pay #{payNumber}</span>
+                    </div>
                   </div>
                 )}
 

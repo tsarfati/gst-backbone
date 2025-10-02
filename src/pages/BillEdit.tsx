@@ -52,6 +52,7 @@ export default function BillEdit() {
   const [billFile, setBillFile] = useState<File | null>(null);
   const [existingFileUrl, setExistingFileUrl] = useState<string>("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [payNumber, setPayNumber] = useState<number>(0);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -129,6 +130,19 @@ export default function BillEdit() {
             prevPayments,
             contractBalance
           });
+
+          // Calculate pay number - count all invoices for this subcontract
+          const { data: allInvoices } = await supabase
+            .from('invoices')
+            .select('id, created_at')
+            .eq('subcontract_id', typedBillData.subcontract_id)
+            .neq('status', 'rejected')
+            .order('created_at');
+
+          if (allInvoices) {
+            const currentInvoiceIndex = allInvoices.findIndex(inv => inv.id === id);
+            setPayNumber(currentInvoiceIndex + 1);
+          }
         }
       }
 
@@ -386,9 +400,20 @@ export default function BillEdit() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Bill Information</CardTitle>
+            <CardTitle>
+              {subcontractInfo || bill?.purchase_order_id ? "Commitment Bill Information" : "Bill Information"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {payNumber > 0 && subcontractInfo && (
+              <div className="space-y-2">
+                <Label>Pay Number</Label>
+                <div className="p-3 bg-muted rounded-lg">
+                  <span className="font-medium">Pay #{payNumber}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vendor">Vendor</Label>

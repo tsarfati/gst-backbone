@@ -75,6 +75,7 @@ export default function BillDetails() {
   const [approvingBill, setApprovingBill] = useState(false);
   const [vendorHasWarnings, setVendorHasWarnings] = useState(false);
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
+  const [payNumber, setPayNumber] = useState<number>(0);
 
   useEffect(() => {
     if (id) {
@@ -145,18 +146,20 @@ export default function BillDetails() {
 
       const { data: previousInvoices } = await supabase
         .from('invoices')
-        .select('amount, status')
+        .select('amount, status, id, created_at')
         .eq('subcontract_id', subcontractId)
-        .neq('id', currentBillId);
+        .neq('status', 'rejected')
+        .order('created_at');
 
       const totalCommit = subcontractData?.contract_amount || 0;
-      const prevGross = previousInvoices
-        ?.filter(inv => inv.status !== 'rejected')
-        .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      
+      // Filter out current bill for totals
+      const otherInvoices = previousInvoices?.filter(inv => inv.id !== currentBillId) || [];
+      const prevGross = otherInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
       const prevRetention = 0;
-      const prevPayments = previousInvoices
-        ?.filter(inv => inv.status === 'paid')
-        .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+      const prevPayments = otherInvoices
+        .filter(inv => inv.status === 'paid')
+        .reduce((sum, inv) => sum + (inv.amount || 0), 0);
       const contractBalance = totalCommit - prevGross;
 
       setCommitmentTotals({
@@ -166,6 +169,12 @@ export default function BillDetails() {
         prevPayments,
         contractBalance
       });
+
+      // Calculate pay number
+      if (previousInvoices) {
+        const currentInvoiceIndex = previousInvoices.findIndex(inv => inv.id === currentBillId);
+        setPayNumber(currentInvoiceIndex + 1);
+      }
     } catch (error) {
       console.error('Error fetching commitment totals:', error);
     }
@@ -408,10 +417,22 @@ export default function BillDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="h-5 w-5" />
-              Bill Information
+              {bill?.subcontract_id || bill?.purchase_order_id ? "Commitment Bill Information" : "Bill Information"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {payNumber > 0 && bill?.subcontract_id && (
+              <>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Pay Number</p>
+                  <div className="p-3 bg-muted rounded-lg inline-block">
+                    <span className="font-semibold text-lg">Pay #{payNumber}</span>
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+            
             {/* Vendor Section */}
             <div>
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Vendor</h4>
