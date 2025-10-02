@@ -215,49 +215,56 @@ function PunchClockApp() {
         return;
       }
       
-      // For PIN-authenticated users, we need to reload cost codes for the specific job
-      // since the edge function returns all assigned cost codes, not job-specific ones
+      const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+      const companyId = (profile as any)?.current_company_id;
+      
+      // For PIN-authenticated users
       if (isPinAuthenticated) {
-        // Re-fetch cost codes from edge for this specific job
-        const pin = getPin();
-        if (!pin) return;
+        // Get assigned cost codes for this PIN employee
+        const { data: settings } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('pin_employee_id', userId)
+          .eq('company_id', companyId)
+          .maybeSingle();
         
-        try {
-          const res = await fetch(`${FUNCTION_BASE}/init?pin=${pin}`, { 
-            headers: { 
-              apikey: ANON_KEY, 
-              Authorization: `Bearer ${ANON_KEY}` 
-            } 
-          });
-          const json = await res.json();
-          if (res.ok) {
-            // Filter cost codes for the selected job
-            const jobCostCodes = (json.cost_codes || []).filter((cc: any) => cc.job_id === jobId);
-            setCostCodes(jobCostCodes);
-          }
-        } catch (e) { 
-          console.error('Error loading cost codes for job:', e); 
+        const assignedCostCodes = settings?.assigned_cost_codes || [];
+        
+        // Query cost codes filtered by job and assignments
+        let query = supabase
+          .from('cost_codes')
+          .select('id, code, description, job_id')
+          .eq('is_active', true)
+          .eq('job_id', jobId)
+          .eq('company_id', companyId)
+          .order('code');
+        
+        // Filter by assigned cost codes if they have specific assignments
+        if (assignedCostCodes.length > 0) {
+          query = query.in('id', assignedCostCodes);
         }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('Error loading cost codes:', error);
+          setCostCodes([]);
+          return;
+        }
+        
+        setCostCodes(data || []);
         return;
       }
       
-      const userId = (user as any).id;
-      const companyId = (profile as any)?.current_company_id;
-      
-      // For regular authenticated users, query database
-      let assignedCostCodes: string[] | null = null;
-      
-      const query = supabase
+      // For regular authenticated users
+      const { data: settings } = await supabase
         .from('employee_timecard_settings')
         .select('assigned_cost_codes')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('company_id', companyId)
+        .maybeSingle();
       
-      if (companyId) {
-        query.eq('company_id', companyId);
-      }
-      
-      const { data: settings } = await query.maybeSingle();
-      assignedCostCodes = settings?.assigned_cost_codes;
+      const assignedCostCodes = settings?.assigned_cost_codes || [];
       
       // Determine global access for regular users
       const hasGlobal = (profile as any)?.has_global_job_access;
@@ -267,7 +274,7 @@ function PunchClockApp() {
       if (hasGlobal) {
         const result = await supabase
           .from('cost_codes')
-          .select('id, code, description')
+          .select('id, code, description, job_id')
           .eq('is_active', true)
           .eq('job_id', jobId)
           .order('code');
@@ -276,7 +283,7 @@ function PunchClockApp() {
       } else if (assignedCostCodes && assignedCostCodes.length > 0) {
         const result = await supabase
           .from('cost_codes')
-          .select('id, code, description')
+          .select('id, code, description, job_id')
           .eq('is_active', true)
           .eq('job_id', jobId)
           .in('id', assignedCostCodes)
