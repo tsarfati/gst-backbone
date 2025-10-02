@@ -661,13 +661,18 @@ function PunchClockApp() {
   };
 
   const uploadPhoto = async (blob: Blob): Promise<string | null> => {
-    if (!user) return null;
+    if (!user) {
+      console.error('No user - cannot upload photo');
+      return null;
+    }
 
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+    console.log('Starting photo upload for user:', userId, 'isPinAuthenticated:', isPinAuthenticated);
 
     try {
       // In PIN-authenticated mode, upload via Edge Function (uses service role)
       if (isPinAuthenticated) {
+        console.log('Using PIN authenticated upload via edge function');
         const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -680,6 +685,8 @@ function PunchClockApp() {
           reader.readAsDataURL(b);
         });
         const base64 = await toBase64(blob);
+        console.log('Converted blob to base64, length:', base64.length);
+        
         const pin = getPin();
         const res = await fetch(`${FUNCTION_BASE}/upload-photo`, {
           method: 'POST',
@@ -690,15 +697,21 @@ function PunchClockApp() {
           },
           body: JSON.stringify({ pin, image: base64, user_id: userId }),
         });
+        
+        console.log('Edge upload response status:', res.status);
+        
         if (!res.ok) {
-          console.error('Edge upload failed', await res.text());
+          const errorText = await res.text();
+          console.error('Edge upload failed', errorText);
           return null;
         }
         const json = await res.json();
+        console.log('Edge upload success, publicUrl:', json.publicUrl);
         return json.publicUrl || null;
       }
 
       // Default (authenticated) upload via client SDK
+      console.log('Using client SDK upload');
       const fileName = `${userId}-${Date.now()}.jpg`;
       const filePath = `punch-photos/${fileName}`;
 
@@ -706,12 +719,16 @@ function PunchClockApp() {
         .from('punch-photos')
         .upload(filePath, blob);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Storage upload error:', error);
+        throw error;
+      }
 
       const { data: urlData } = supabase.storage
         .from('punch-photos')
         .getPublicUrl(filePath);
 
+      console.log('Client SDK upload success, publicUrl:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (error) {
       console.error('Error uploading photo:', error);
@@ -733,12 +750,28 @@ function PunchClockApp() {
       // Upload photo if available (for all authentication types)
       let photoUrl: string | null = null;
       if (photoBlob) {
+        console.log('Uploading photo, blob size:', photoBlob.size);
         photoUrl = await uploadPhoto(photoBlob);
+        console.log('Photo upload result:', photoUrl);
+        
+        if (!photoUrl) {
+          console.error('Photo upload failed - photoUrl is null');
+          toast({
+            title: 'Photo Upload Failed',
+            description: 'Could not upload photo. Please try again.',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          setIsPunching(false);
+          return;
+        }
         
         // If this is a PIN employee's first punch with face detected, set their avatar
         if (isPinAuthenticated && photoUrl && faceDetectionResult?.hasFace) {
           await updatePinEmployeeAvatar(photoUrl);
         }
+      } else {
+        console.log('No photoBlob available - photo not captured');
       }
 
       if (isPinAuthenticated) {
