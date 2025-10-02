@@ -201,18 +201,6 @@ export default function TimecardReports() {
     try {
       setLoading(true);
       
-      // Get user IDs for this company
-      const { data: companyUsers } = await supabase
-        .from('user_company_access')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      const companyUserIds = (companyUsers || []).map(u => u.user_id);
-      if (companyUserIds.length === 0) {
-        companyUserIds.push('00000000-0000-0000-0000-000000000000');
-      }
-      
       let query = supabase
         .from('time_cards')
         .select(`
@@ -232,7 +220,7 @@ export default function TimecardReports() {
           punch_out_location_lat,
           punch_out_location_lng
         `)
-        .in('user_id', companyUserIds)
+        .eq('company_id', currentCompany.id)
         .order('punch_in_time', { ascending: false });
 
       // Apply filters

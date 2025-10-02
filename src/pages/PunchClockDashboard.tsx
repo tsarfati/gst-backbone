@@ -142,7 +142,7 @@ export default function PunchClockDashboard() {
       const { data: allPunchData } = await supabase
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
-        .in('user_id', companyUserIds)
+        .eq('company_id', currentCompany.id)
         .order('punch_time', { ascending: false });
 
       // Get the most recent punch for each user

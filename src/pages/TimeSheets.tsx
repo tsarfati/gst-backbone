@@ -197,18 +197,6 @@ export default function TimeSheets() {
     try {
       setLoading(true);
       
-      // Get user IDs for this company
-      const { data: companyUsers } = await supabase
-        .from('user_company_access')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      const companyUserIds = (companyUsers || []).map(u => u.user_id);
-      if (companyUserIds.length === 0) {
-        companyUserIds.push('00000000-0000-0000-0000-000000000000');
-      }
-      
       let query = supabase
         .from('time_cards')
         .select(`
@@ -230,8 +218,8 @@ export default function TimeSheets() {
           punch_out_location_lat,
           punch_out_location_lng
         `)
+        .eq('company_id', currentCompany.id)
         .neq('status', 'deleted')
-        .in('user_id', companyUserIds)
         .order('punch_in_time', { ascending: false })
         .limit(100);
 
