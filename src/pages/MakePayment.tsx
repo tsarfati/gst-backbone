@@ -190,11 +190,11 @@ export default function MakePayment() {
   const filterInvoices = () => {
     let filtered = [...allInvoices];
 
-    if (selectedVendor) {
+    if (selectedVendor && selectedVendor !== "all") {
       filtered = filtered.filter(inv => inv.vendor_id === selectedVendor);
     }
 
-    if (selectedJob) {
+    if (selectedJob && selectedJob !== "all") {
       filtered = filtered.filter(inv => inv.job_id === selectedJob);
     }
 
@@ -403,12 +403,12 @@ export default function MakePayment() {
 
               <div>
                 <Label htmlFor="vendor">Vendor (Optional Filter)</Label>
-                <Select value={selectedVendor} onValueChange={handleVendorChange}>
+                <Select value={selectedVendor || "all"} onValueChange={handleVendorChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="All vendors" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All vendors</SelectItem>
+                    <SelectItem value="all">All vendors</SelectItem>
                     {vendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
@@ -420,12 +420,12 @@ export default function MakePayment() {
 
               <div>
                 <Label htmlFor="job">Job (Optional Filter)</Label>
-                <Select value={selectedJob} onValueChange={handleJobChange}>
+                <Select value={selectedJob || "all"} onValueChange={handleJobChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="All jobs" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All jobs</SelectItem>
+                    <SelectItem value="all">All jobs</SelectItem>
                     {jobs.map(job => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name}
