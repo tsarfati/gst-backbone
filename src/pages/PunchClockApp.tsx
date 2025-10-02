@@ -60,6 +60,7 @@ function PunchClockApp() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
   const [isPunching, setIsPunching] = useState(false);
+  const [latestPunchPhoto, setLatestPunchPhoto] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,8 +74,9 @@ function PunchClockApp() {
     // Use profile avatar if available
     if (profile?.avatar_url) return profile.avatar_url;
     
-    // Fallback to latest punch photo
+    // Use latest punch photo (from current punch or previously loaded)
     if (currentPunch?.punch_in_photo_url) return currentPunch.punch_in_photo_url;
+    if (latestPunchPhoto) return latestPunchPhoto;
     
     return undefined;
   };
@@ -329,6 +331,19 @@ function PunchClockApp() {
 
       if (error) throw error;
       setCurrentPunch(data);
+      
+      // Load latest punch photo for avatar
+      const { data: latestPunch } = await supabase
+        .from('time_cards')
+        .select('punch_out_photo_url, punch_in_photo_url')
+        .eq('user_id', userId)
+        .order('punch_in_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (latestPunch) {
+        setLatestPunchPhoto(latestPunch.punch_out_photo_url || latestPunch.punch_in_photo_url);
+      }
     } catch (error) {
       console.error('Error loading punch status:', error);
     }
@@ -1138,6 +1153,19 @@ function PunchClockApp() {
         <Card>
           <CardContent className="p-6 text-center">
             <Clock className="h-8 w-8 mx-auto mb-2 text-primary" />
+            <div className="text-lg font-semibold mb-2">
+              {currentPunch ? (
+                <Badge variant="default" className="text-sm">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Working
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-sm">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Not Working
+                </Badge>
+              )}
+            </div>
             <div className="text-3xl font-bold mb-1">
               {currentTime.toLocaleTimeString()}
             </div>

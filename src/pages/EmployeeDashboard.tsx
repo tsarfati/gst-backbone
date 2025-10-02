@@ -60,7 +60,7 @@ export default function EmployeeDashboard() {
   
   // Messaging
   const [message, setMessage] = useState('');
-  const [projectManagerId, setProjectManagerId] = useState<string | null>(null);
+  const [projectManagers, setProjectManagers] = useState<Array<{id: string, name: string, jobName: string}>>([]);
 
   useEffect(() => {
     loadData();
@@ -125,7 +125,7 @@ export default function EmployeeDashboard() {
         setCompanyPolicies(settingsData.company_policies);
       }
       
-      // Find project manager - get from first assigned job
+      // Find all project managers from all assigned jobs
       const { data: jobAssignment } = await supabase
         .from('employee_timecard_settings')
         .select('assigned_jobs')
@@ -133,14 +133,37 @@ export default function EmployeeDashboard() {
         .maybeSingle();
       
       if (jobAssignment?.assigned_jobs && jobAssignment.assigned_jobs.length > 0) {
-        const { data: jobData } = await supabase
+        const { data: jobsData } = await supabase
           .from('jobs')
-          .select('project_manager_user_id')
-          .eq('id', jobAssignment.assigned_jobs[0])
-          .maybeSingle();
+          .select(`
+            id,
+            name,
+            project_manager_user_id,
+            profiles!jobs_project_manager_user_id_fkey (
+              user_id,
+              display_name,
+              first_name,
+              last_name
+            )
+          `)
+          .in('id', jobAssignment.assigned_jobs);
         
-        if (jobData?.project_manager_user_id) {
-          setProjectManagerId(jobData.project_manager_user_id);
+        if (jobsData) {
+          const pms = jobsData
+            .filter(job => job.project_manager_user_id && job.profiles)
+            .map(job => ({
+              id: job.project_manager_user_id,
+              name: (job.profiles as any)?.display_name || 
+                    `${(job.profiles as any)?.first_name || ''} ${(job.profiles as any)?.last_name || ''}`.trim(),
+              jobName: job.name
+            }));
+          
+          // Remove duplicates by PM id
+          const uniquePMs = Array.from(
+            new Map(pms.map(pm => [pm.id, pm])).values()
+          );
+          
+          setProjectManagers(uniquePMs);
         }
       }
       
@@ -195,10 +218,10 @@ export default function EmployeeDashboard() {
   };
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !projectManagerId) {
+    if (!message.trim() || projectManagers.length === 0) {
       toast({
         title: 'Error',
-        description: 'Please enter a message',
+        description: projectManagers.length === 0 ? 'No project managers available' : 'Please enter a message',
         variant: 'destructive'
       });
       return;
@@ -207,20 +230,24 @@ export default function EmployeeDashboard() {
     try {
       const userId = (user as any).user_id || (user as any).id;
       
+      // Send message to all project managers
+      const messageInserts = projectManagers.map(pm => ({
+        from_user_id: userId,
+        to_user_id: pm.id,
+        content: message,
+        subject: 'Message from Employee',
+        read: false
+      }));
+      
       const { error } = await supabase
         .from('messages')
-        .insert({
-          from_user_id: userId,
-          to_user_id: projectManagerId,
-          content: message,
-          read: false
-        });
+        .insert(messageInserts);
 
       if (error) throw error;
 
       toast({
         title: 'Success',
-        description: 'Message sent to project manager'
+        description: `Message sent to ${projectManagers.length} project manager(s)`
       });
 
       setMessage('');
@@ -237,17 +264,32 @@ export default function EmployeeDashboard() {
   const handleUpdateProfile = async () => {
     try {
       const userId = (user as any).user_id || (user as any).id;
+      const isPinUser = (user as any).is_pin_employee;
       
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          email: profileData.email,
-          phone: profileData.phone,
-          avatar_url: profileData.avatar_url
-        })
-        .eq('user_id', userId);
+      // Update the appropriate table based on user type
+      if (isPinUser) {
+        const { error } = await supabase
+          .from('pin_employees')
+          .update({
+            email: profileData.email,
+            phone: profileData.phone,
+            avatar_url: profileData.avatar_url
+          })
+          .eq('id', userId);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            email: profileData.email,
+            phone: profileData.phone,
+            avatar_url: profileData.avatar_url
+          })
+          .eq('user_id', userId);
+
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -478,26 +520,43 @@ export default function EmployeeDashboard() {
               <CardHeader className="p-4">
                 <CardTitle className="flex items-center gap-2 text-base sm:text-xl">
                   <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Message Project Manager
+                  Message Project Managers
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 p-4">
-                {projectManagerId ? (
+                {projectManagers.length === 0 ? (
+                  <p className="text-muted-foreground text-sm text-center py-8">No project managers assigned to your jobs</p>
+                ) : (
                   <>
-                    <Textarea
-                      placeholder="Type your message here..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      rows={6}
-                      className="text-sm resize-none"
-                    />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Recipients</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {projectManagers.map(pm => (
+                          <Badge key={pm.id} variant="secondary" className="text-xs">
+                            {pm.name} ({pm.jobName})
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Message will be sent to all project managers listed above
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="message" className="text-sm font-medium">Your Message</Label>
+                      <Textarea
+                        id="message"
+                        placeholder="Type your message here..."
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        rows={6}
+                        className="text-sm resize-none"
+                      />
+                    </div>
                     <Button onClick={handleSendMessage} className="w-full" size="lg">
                       <Send className="h-4 w-4 mr-2" />
-                      Send Message
+                      Send to All PMs
                     </Button>
                   </>
-                ) : (
-                  <p className="text-muted-foreground text-sm text-center py-8">No project manager assigned</p>
                 )}
               </CardContent>
             </Card>
