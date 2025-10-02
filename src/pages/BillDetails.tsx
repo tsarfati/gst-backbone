@@ -95,6 +95,11 @@ export default function BillDetails() {
             id,
             code,
             description
+          ),
+          subcontracts (
+            id,
+            subcontract_name,
+            subcontract_number
           )
         `)
         .eq('id', id)
@@ -416,10 +421,14 @@ export default function BillDetails() {
                     {bill?.is_reimbursement ? 'Yes' : 'No'}
                   </p>
                 </div>
-                {bill?.subcontract_id && (
+                {bill?.subcontract_id && bill?.subcontracts && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Subcontract ID</p>
-                    <p className="font-medium">{bill.subcontract_id}</p>
+                    <p className="text-sm text-muted-foreground">Subcontract</p>
+                    <p className="font-medium">
+                      {bill.subcontracts.subcontract_number 
+                        ? `${bill.subcontracts.subcontract_number} - ${bill.subcontracts.subcontract_name}` 
+                        : bill.subcontracts.subcontract_name}
+                    </p>
                   </div>
                 )}
                 <div>

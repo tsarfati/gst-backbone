@@ -31,6 +31,7 @@ const payablesSettingsSchema = z.object({
   default_payment_terms: z.string(),
   default_payment_method: z.string(),
   require_receipt_attachment: z.boolean(),
+  require_bill_documents: z.boolean(),
   allowed_subcontract_vendor_types: z.array(z.string()),
   allowed_po_vendor_types: z.array(z.string()),
   show_vendor_compliance_warnings: z.boolean(),
@@ -53,6 +54,7 @@ interface PayablesSettingsData {
   default_payment_terms: string;
   default_payment_method: string;
   require_receipt_attachment: boolean;
+  require_bill_documents: boolean;
   allowed_subcontract_vendor_types: string[];
   allowed_po_vendor_types: string[];
   show_vendor_compliance_warnings: boolean;
@@ -75,6 +77,7 @@ const defaultSettings: PayablesSettingsData = {
   default_payment_terms: '30',
   default_payment_method: 'check',
   require_receipt_attachment: false,
+  require_bill_documents: false,
   allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
   allowed_po_vendor_types: ['Supplier'],
   show_vendor_compliance_warnings: true,
@@ -157,6 +160,7 @@ export default function PayablesSettings() {
           default_payment_terms: data.default_payment_terms,
           default_payment_method: data.default_payment_method,
           require_receipt_attachment: data.require_receipt_attachment,
+          require_bill_documents: data.require_bill_documents ?? false,
           allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
           allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
           show_vendor_compliance_warnings: data.show_vendor_compliance_warnings ?? true,
