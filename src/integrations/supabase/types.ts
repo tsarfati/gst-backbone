@@ -94,6 +94,7 @@ export type Database = {
           balance_date: string | null
           bank_name: string
           chart_account_id: string | null
+          company_id: string
           created_at: string | null
           created_by: string
           current_balance: number | null
@@ -111,6 +112,7 @@ export type Database = {
           balance_date?: string | null
           bank_name: string
           chart_account_id?: string | null
+          company_id: string
           created_at?: string | null
           created_by: string
           current_balance?: number | null
@@ -128,6 +130,7 @@ export type Database = {
           balance_date?: string | null
           bank_name?: string
           chart_account_id?: string | null
+          company_id?: string
           created_at?: string | null
           created_by?: string
           current_balance?: number | null
@@ -144,6 +147,13 @@ export type Database = {
             columns: ["chart_account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
