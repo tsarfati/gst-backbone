@@ -195,6 +195,19 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              toast({
+                title: "Generating Report",
+                description: "Commitment status report is being prepared...",
+              });
+              // TODO: Implement PDF generation
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Commit Status Report
+          </Button>
           <Button onClick={() => navigate(`/subcontracts/${id}/edit`)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit
@@ -402,12 +415,8 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
       {/* Invoices Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle>Invoices</CardTitle>
-          <Button size="sm" variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Commit Status Report
-          </Button>
         </CardHeader>
         <CardContent>
           {invoices.length === 0 ? (
