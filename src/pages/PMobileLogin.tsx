@@ -78,8 +78,10 @@ export default function PMobileLogin() {
         return;
       }
 
-      // Check if user has project_manager role
-      if (profiles.role !== 'project_manager' && profiles.role !== 'admin' && profiles.role !== 'controller') {
+      // Normalize and verify role access
+      const normalizedRole = String(profiles.role || '').toLowerCase().trim();
+      const allowedRoles = new Set(['project_manager', 'admin', 'controller']);
+      if (!allowedRoles.has(normalizedRole)) {
         toast({
           title: "Access Denied",
           description: "This app is only for Project Managers, Admins, and Controllers",
@@ -92,7 +94,7 @@ export default function PMobileLogin() {
       localStorage.setItem('pm_mobile_user', JSON.stringify({
         user_id: profiles.user_id,
         name: `${profiles.first_name} ${profiles.last_name}`,
-        role: profiles.role,
+        role: normalizedRole,
         pin_authenticated: true,
         pin
       }));

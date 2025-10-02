@@ -92,15 +92,26 @@ export function PMReceiptScanner() {
 
       let jobsData: Job[] = [];
       if (profileData?.has_global_job_access) {
-        const { data, error: jobsError } = await supabase
+        // Try active jobs first
+        let { data, error: jobsError } = await supabase
           .from('jobs')
           .select('id, name, address')
           .eq('company_id', currentCompany?.id)
           .eq('status', 'active')
           .order('name');
-        
-        console.log('PM Receipt Scanner - Global jobs query:', { data, jobsError, companyId: currentCompany?.id });
+        console.log('PM Receipt Scanner - Global jobs (active) query:', { count: data?.length, jobsError, companyId: currentCompany?.id });
         jobsData = (data || []) as Job[];
+
+        // Fallback: fetch all jobs if none marked active
+        if (!jobsData.length) {
+          const { data: allData, error: allErr } = await supabase
+            .from('jobs')
+            .select('id, name, address')
+            .eq('company_id', currentCompany?.id)
+            .order('name');
+          console.log('PM Receipt Scanner - Global jobs (fallback all) query:', { count: allData?.length, allErr });
+          jobsData = (allData || []) as Job[];
+        }
       } else {
         // Fetch job ids from user_job_access then load those jobs for current company
         const { data: access, error: accessError } = await supabase
@@ -108,20 +119,31 @@ export function PMReceiptScanner() {
           .select('job_id')
           .eq('user_id', user?.id);
         
-        console.log('PM Receipt Scanner - User job access:', { access, accessError, userId: user?.id });
+        console.log('PM Receipt Scanner - User job access:', { accessCount: access?.length, accessError, userId: user?.id });
         
         const jobIds = (access || []).map((a: any) => a.job_id);
         if (jobIds.length) {
-          const { data, error: jobsError } = await supabase
+          // Try active first
+          let { data, error: jobsError } = await supabase
             .from('jobs')
             .select('id, name, address')
             .in('id', jobIds)
             .eq('company_id', currentCompany?.id)
             .eq('status', 'active')
             .order('name');
-          
-          console.log('PM Receipt Scanner - Specific jobs query:', { data, jobsError, jobIds, companyId: currentCompany?.id });
-          jobsData = (data || []) as Job[];
+          console.log('PM Receipt Scanner - Specific jobs (active) query:', { count: data?.length, jobsError, jobIds, companyId: currentCompany?.id });
+          let jobsSpecific = (data || []) as Job[];
+          if (!jobsSpecific.length) {
+            const { data: allSpecific, error: allErr } = await supabase
+              .from('jobs')
+              .select('id, name, address')
+              .in('id', jobIds)
+              .eq('company_id', currentCompany?.id)
+              .order('name');
+            console.log('PM Receipt Scanner - Specific jobs (fallback all) query:', { count: allSpecific?.length, allErr });
+            jobsSpecific = (allSpecific || []) as Job[];
+          }
+          jobsData = jobsSpecific;
         } else {
           console.log('PM Receipt Scanner - No job IDs found in user_job_access');
           jobsData = [];
