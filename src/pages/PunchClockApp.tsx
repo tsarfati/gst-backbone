@@ -444,37 +444,11 @@ function PunchClockApp() {
     // Get image data for face detection
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
     
-    // Detect face
+    // Detect face (but don't auto-capture)
     setIsDetectingFace(true);
     const faceResult = await detectFace(imageData);
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
-
-    // Check again after async face detection completes
-    if (faceResult.hasFace && !isPunching && !isCapturing) {
-      // Immediately set flags to prevent double submission
-      setIsCapturing(true);
-      setIsPunching(true);
-      
-      // Clear the detection interval immediately
-      if (faceDetectionInterval) {
-        clearInterval(faceDetectionInterval);
-        setFaceDetectionInterval(null);
-      }
-      
-      // Capture the photo
-      canvas.toBlob((blob) => {
-        if (blob) {
-          setPhotoBlob(blob);
-          stopCamera();
-          handlePunch();
-        } else {
-          // Reset flags if capture failed
-          setIsCapturing(false);
-          setIsPunching(false);
-        }
-      }, 'image/jpeg', 0.8);
-    }
   };
 
   const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
@@ -625,6 +599,16 @@ function PunchClockApp() {
   };
 
   const captureNow = () => {
+    // Check if face is detected before allowing capture
+    if (!faceDetectionResult?.hasFace) {
+      toast({
+        title: 'No Face Detected / No se detectó rostro',
+        description: 'Please position your face within the outlined area before taking a photo. / Por favor, posicione su rostro dentro del área delineada antes de tomar una foto.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     // Prevent multiple captures or punches
     if (!videoRef.current || !canvasRef.current || isCapturing || isPunching) return;
     
@@ -1218,7 +1202,7 @@ function PunchClockApp() {
                 <div className="absolute top-4 left-4 right-4">
                   {isDetectingFace && (
                     <div className="bg-blue-500/80 text-white px-3 py-2 rounded-lg text-sm">
-                      Detecting face...
+                      Detecting face... / Detectando rostro...
                     </div>
                   )}
                   {faceDetectionResult && !isCapturing && (
@@ -1228,21 +1212,29 @@ function PunchClockApp() {
                         : 'bg-red-500/80 text-white'
                     }`}>
                       {faceDetectionResult.hasFace 
-                        ? 'Face detected! Capturing...' 
-                        : 'No face detected - please position yourself in the oval'}
+                        ? '✓ Face detected - Ready to capture / Rostro detectado - Listo para capturar' 
+                        : '✗ No face detected - Position yourself in the oval / No se detectó rostro - Posiciónese en el óvalo'}
                     </div>
                   )}
                   {isCapturing && (
                     <div className="bg-green-600/80 text-white px-3 py-2 rounded-lg text-sm">
-                      Capturing photo...
+                      Capturing photo... / Capturando foto...
                     </div>
                   )}
                 </div>
               </div>
               
               <div className="flex justify-between">
-                <Button variant="outline" onClick={stopCamera}>Cancel</Button>
-                <Button onClick={captureNow} disabled={isCapturing}>Capture Now</Button>
+                <Button variant="outline" onClick={stopCamera}>
+                  Cancel / Cancelar
+                </Button>
+                <Button 
+                  onClick={captureNow} 
+                  disabled={isCapturing || !faceDetectionResult?.hasFace}
+                  className={!faceDetectionResult?.hasFace ? 'opacity-50' : ''}
+                >
+                  Take Photo / Tomar Foto
+                </Button>
               </div>
             </div>
             
