@@ -20,6 +20,7 @@ import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 interface PunchClockSettings {
   require_location: boolean;
   require_photo: boolean;
+  manual_photo_capture: boolean;
   allow_manual_entry: boolean;
   auto_break_duration: number;
   overtime_threshold: number;
@@ -44,6 +45,7 @@ interface PunchClockSettings {
 const defaultSettings: PunchClockSettings = {
   require_location: true,
   require_photo: true,
+  manual_photo_capture: true,
   allow_manual_entry: false,
   auto_break_duration: 30,
   overtime_threshold: 8,
@@ -108,6 +110,7 @@ export default function PunchClockSettings() {
         setSettings({
           require_location: data.require_location !== false,
           require_photo: data.require_photo !== false,
+          manual_photo_capture: data.manual_photo_capture !== false,
           allow_manual_entry: data.allow_manual_entry === true,
           auto_break_duration: data.auto_break_duration ?? 30,
           overtime_threshold: parseFloat((data.overtime_threshold ?? 8).toString()),
@@ -158,6 +161,7 @@ export default function PunchClockSettings() {
           company_id: currentCompany.id,
           require_location: settings.require_location,
           require_photo: settings.require_photo,
+          manual_photo_capture: settings.manual_photo_capture,
           allow_manual_entry: settings.allow_manual_entry,
           auto_break_duration: settings.auto_break_duration,
           overtime_threshold: settings.overtime_threshold,
