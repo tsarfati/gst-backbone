@@ -138,25 +138,55 @@ export function ChartOfAccountsCompactView({ accounts, onEdit, formatCurrency, g
 }
 
 export function ChartOfAccountsSuperCompactView({ accounts, onEdit, formatCurrency, getAccountTypeIcon }: ChartOfAccountsViewsProps) {
+  const getAccountTypeBadgeColor = (type: string, category: string | null) => {
+    const displayType = type === 'asset' && category === 'cash_accounts' ? 'cash' : type;
+    
+    switch (displayType) {
+      case 'asset':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800';
+      case 'liability':
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-200 dark:border-red-800';
+      case 'equity':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800';
+      case 'revenue':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800';
+      case 'expense':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-200 dark:border-orange-800';
+      case 'cost_of_goods_sold':
+        return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800';
+      case 'cash':
+        return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200 border-cyan-200 dark:border-cyan-800';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border-gray-200 dark:border-gray-800';
+    }
+  };
+
   return (
     <div className="space-y-1">
-      {accounts.map((account) => (
-        <div 
-          key={account.id} 
-          className="flex items-center justify-between gap-2 p-2 rounded hover:bg-muted/50 transition-colors border"
-        >
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+      {accounts.map((account) => {
+        const displayType = account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type;
+        
+        return (
+          <div 
+            key={account.id} 
+            className="grid grid-cols-[auto_1fr_120px_80px_40px] items-center gap-2 p-2 rounded hover:bg-muted/50 transition-colors border"
+          >
             <div className="flex-shrink-0">
               {getAccountTypeIcon(account.account_type)}
             </div>
-            <span className="font-mono text-xs text-muted-foreground">{account.account_number}</span>
-            <span className="text-sm truncate">{account.account_name}</span>
-            <Badge variant="outline" className="capitalize text-xs">
-              {account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="font-mono text-sm">{formatCurrency(account.current_balance)}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-mono text-xs text-muted-foreground">{account.account_number}</span>
+              <span className="text-sm truncate">{account.account_name}</span>
+            </div>
+            <div className="flex justify-center">
+              <Badge 
+                variant="outline" 
+                className={`capitalize text-xs ${getAccountTypeBadgeColor(account.account_type, account.account_category)}`}
+              >
+                {displayType.replace(/_/g, ' ')}
+              </Badge>
+            </div>
+            <span className="font-mono text-sm text-right">{formatCurrency(account.current_balance)}</span>
             <Button
               variant="ghost"
               size="sm"
@@ -167,8 +197,8 @@ export function ChartOfAccountsSuperCompactView({ accounts, onEdit, formatCurren
               <Pencil className="h-3 w-3" />
             </Button>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
