@@ -67,6 +67,8 @@ export default function BankAccountDetails() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingStatement, setEditingStatement] = useState<BankStatement | null>(null);
   const [statementName, setStatementName] = useState("");
   const [statementMonth, setStatementMonth] = useState(new Date().getMonth() + 1);
   const [statementYear, setStatementYear] = useState(new Date().getFullYear());
@@ -198,6 +200,46 @@ export default function BankAccountDetails() {
     } finally {
       setUploading(false);
       if (statementFileRef.current) statementFileRef.current.value = '';
+    }
+  };
+
+  const handleEditStatement = (statement: BankStatement) => {
+    setEditingStatement(statement);
+    setStatementName(statement.display_name || statement.file_name.replace(/\.[^/.]+$/, ""));
+    setStatementMonth(statement.statement_month);
+    setStatementYear(statement.statement_year);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateStatement = async () => {
+    if (!editingStatement || !statementName.trim()) return;
+
+    setUploading(true);
+    try {
+      const { error } = await supabase
+        .from('bank_statements')
+        .update({
+          display_name: statementName.trim(),
+          statement_month: statementMonth,
+          statement_year: statementYear,
+          statement_date: `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`,
+        })
+        .eq('id', editingStatement.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Bank statement updated successfully" });
+      setEditDialogOpen(false);
+      setEditingStatement(null);
+      setStatementName("");
+      setStatementMonth(new Date().getMonth() + 1);
+      setStatementYear(new Date().getFullYear());
+      loadStatements();
+    } catch (error) {
+      console.error('Error updating statement:', error);
+      toast({ title: "Error", description: "Failed to update bank statement", variant: "destructive" });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -348,11 +390,20 @@ export default function BankAccountDetails() {
                 <TableBody>
                   {statements.map((statement) => (
                     <TableRow key={statement.id}>
-                      <TableCell>{statement.statement_month}/{statement.statement_year}</TableCell>
+                      <TableCell>
+                        {new Date(statement.statement_year, statement.statement_month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </TableCell>
                       <TableCell>{statement.display_name || statement.file_name}</TableCell>
                       <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditStatement(statement)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -480,6 +531,68 @@ export default function BankAccountDetails() {
               </Button>
               <Button onClick={handleStatementUpload} disabled={uploading || !statementName.trim()}>
                 {uploading ? "Uploading..." : "Upload"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Bank Statement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-statement-name">Statement Name *</Label>
+              <Input
+                id="edit-statement-name"
+                value={statementName}
+                onChange={(e) => setStatementName(e.target.value)}
+                placeholder="e.g., January 2025 Statement"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-statement-month">Month *</Label>
+                <select
+                  id="edit-statement-month"
+                  value={statementMonth}
+                  onChange={(e) => setStatementMonth(parseInt(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                    <option key={month} value={month}>
+                      {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-statement-year">Year *</Label>
+                <Input
+                  id="edit-statement-year"
+                  type="number"
+                  value={statementYear}
+                  onChange={(e) => setStatementYear(parseInt(e.target.value))}
+                  min="2000"
+                  max="2100"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => {
+                setEditDialogOpen(false);
+                setEditingStatement(null);
+                setStatementName("");
+                setStatementMonth(new Date().getMonth() + 1);
+                setStatementYear(new Date().getFullYear());
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateStatement} disabled={uploading || !statementName.trim()}>
+                {uploading ? "Updating..." : "Update"}
               </Button>
             </div>
           </div>
