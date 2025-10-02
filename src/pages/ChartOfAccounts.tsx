@@ -182,6 +182,7 @@ export default function ChartOfAccounts() {
       const isCashType = editingAccount.account_type === 'cash';
       console.log('Editing account:', editingAccount);
       console.log('Is cash type:', isCashType);
+      console.log('Original account category:', editingAccount.account_category);
       
       const updateData = {
         account_number: editingAccount.account_number,
@@ -193,17 +194,20 @@ export default function ChartOfAccounts() {
       };
       
       console.log('Update data being sent:', updateData);
+      console.log('Account ID being updated:', editingAccount.id);
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('chart_of_accounts')
         .update(updateData)
-        .eq('id', editingAccount.id);
+        .eq('id', editingAccount.id)
+        .select(); // Add select to see what was actually updated
 
       if (error) {
         console.error('Supabase error:', error);
         throw error;
       }
 
+      console.log('Update response:', data);
       console.log('Account updated successfully');
       
       toast({
@@ -753,7 +757,13 @@ export default function ChartOfAccounts() {
                     <Badge variant="secondary" className={getAccountTypeColor(account.account_type)}>
                       <span className="flex items-center space-x-1">
                         {getAccountTypeIcon(account.account_type)}
-                        <span>{accountTypes.find(t => t.value === account.account_type)?.label}</span>
+                        <span>
+                          {/* Show 'Cash' for asset accounts with cash_accounts category */}
+                          {account.account_type === 'asset' && account.account_category === 'cash_accounts' 
+                            ? 'Cash' 
+                            : accountTypes.find(t => t.value === account.account_type)?.label
+                          }
+                        </span>
                       </span>
                     </Badge>
                   </TableCell>
