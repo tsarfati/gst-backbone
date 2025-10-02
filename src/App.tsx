@@ -94,6 +94,8 @@ import PayablesDashboard from "./pages/PayablesDashboard";
 import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
+import ConstructionDashboard from "./pages/ConstructionDashboard";
+import ConstructionReports from "./pages/ConstructionReports";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
@@ -172,6 +174,8 @@ function AuthenticatedRoutes() {
                 <Route path="uncoded" element={<UncodedReceipts />} />
                 <Route path="receipts" element={<CodedReceipts />} />
                 <Route path="receipts/reports" element={<ReceiptReports />} />
+                <Route path="construction/dashboard" element={<ConstructionDashboard />} />
+                <Route path="construction/reports" element={<ConstructionReports />} />
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="jobs/add" element={<AddJob />} />
                 <Route path="jobs/cost-codes" element={<CostCodes />} />

@@ -635,17 +635,22 @@ export default function BillDetails() {
                     </Button>
                   </div>
                   {doc.file_url.endsWith('.pdf') ? (
-                    <div className="p-4 bg-muted/20 text-center">
-                      <FileText className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-2">PDF Document</p>
-                      <Button 
-                        variant="default"
-                        size="sm"
-                        onClick={() => window.open(doc.file_url, '_blank')}
-                      >
-                        Open PDF in New Tab
-                      </Button>
-                    </div>
+                    <object
+                      data={`${doc.file_url}#toolbar=0`}
+                      type="application/pdf"
+                      className="w-full h-[600px]"
+                    >
+                      <div className="p-8 text-center bg-muted/20">
+                        <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-4">PDF Preview</p>
+                        <Button 
+                          variant="default"
+                          onClick={() => window.open(doc.file_url, '_blank')}
+                        >
+                          Open PDF in New Tab
+                        </Button>
+                      </div>
+                    </object>
                   ) : (
                     <img 
                       src={doc.file_url} 
@@ -673,17 +678,22 @@ export default function BillDetails() {
                 </Button>
               </div>
               {bill.file_url.endsWith('.pdf') ? (
-                <div className="p-4 bg-muted/20 text-center">
-                  <FileText className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-2">PDF Document</p>
-                  <Button 
-                    variant="default"
-                    size="sm"
-                    onClick={() => window.open(bill.file_url, '_blank')}
-                  >
-                    Open PDF in New Tab
-                  </Button>
-                </div>
+                <object
+                  data={`${bill.file_url}#toolbar=0`}
+                  type="application/pdf"
+                  className="w-full h-[600px]"
+                >
+                  <div className="p-8 text-center bg-muted/20">
+                    <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mb-4">PDF Preview</p>
+                    <Button 
+                      variant="default"
+                      onClick={() => window.open(bill.file_url, '_blank')}
+                    >
+                      Open PDF in New Tab
+                    </Button>
+                  </div>
+                </object>
               ) : (
                 <img 
                   src={bill.file_url} 
