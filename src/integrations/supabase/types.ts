@@ -1388,6 +1388,7 @@ export type Database = {
       }
       job_punch_clock_settings: {
         Row: {
+          allow_early_punch_in: boolean | null
           allow_manual_entry: boolean | null
           auto_break_duration: number | null
           auto_break_wait_hours: number | null
@@ -1397,11 +1398,12 @@ export type Database = {
           created_at: string
           created_by: string
           earliest_punch_start_time: string | null
+          early_punch_in_buffer_minutes: number | null
           enable_distance_warning: boolean | null
           enable_punch_rounding: boolean | null
           grace_period_minutes: number | null
           id: string
-          job_id: string
+          job_id: string | null
           latest_punch_in_time: string | null
           location_accuracy_meters: number | null
           manager_approval_required: boolean | null
@@ -1415,9 +1417,11 @@ export type Database = {
           punch_time_window_start: string | null
           require_location: boolean | null
           require_photo: boolean | null
+          scheduled_start_time: string | null
           updated_at: string
         }
         Insert: {
+          allow_early_punch_in?: boolean | null
           allow_manual_entry?: boolean | null
           auto_break_duration?: number | null
           auto_break_wait_hours?: number | null
@@ -1427,11 +1431,12 @@ export type Database = {
           created_at?: string
           created_by: string
           earliest_punch_start_time?: string | null
+          early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
-          job_id: string
+          job_id?: string | null
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
@@ -1445,9 +1450,11 @@ export type Database = {
           punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
+          scheduled_start_time?: string | null
           updated_at?: string
         }
         Update: {
+          allow_early_punch_in?: boolean | null
           allow_manual_entry?: boolean | null
           auto_break_duration?: number | null
           auto_break_wait_hours?: number | null
@@ -1457,11 +1464,12 @@ export type Database = {
           created_at?: string
           created_by?: string
           earliest_punch_start_time?: string | null
+          early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
-          job_id?: string
+          job_id?: string | null
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
@@ -1475,6 +1483,7 @@ export type Database = {
           punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
+          scheduled_start_time?: string | null
           updated_at?: string
         }
         Relationships: [

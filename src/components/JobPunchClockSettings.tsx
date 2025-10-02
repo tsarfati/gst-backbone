@@ -38,6 +38,9 @@ interface JobSettings {
   allow_manual_entry: boolean;
   enable_distance_warning: boolean;
   max_distance_from_job_meters: number;
+  allow_early_punch_in: boolean;
+  scheduled_start_time?: string;
+  early_punch_in_buffer_minutes: number;
 }
 
 const defaultJobSettings: JobSettings = {
@@ -62,6 +65,9 @@ const defaultJobSettings: JobSettings = {
   allow_manual_entry: false,
   enable_distance_warning: true,
   max_distance_from_job_meters: 500,
+  allow_early_punch_in: false,
+  scheduled_start_time: '08:00',
+  early_punch_in_buffer_minutes: 15,
 };
 
 export default function JobPunchClockSettings() {
@@ -137,6 +143,9 @@ export default function JobPunchClockSettings() {
           allow_manual_entry: !!data.allow_manual_entry,
           enable_distance_warning: data.enable_distance_warning !== false,
           max_distance_from_job_meters: data.max_distance_from_job_meters || 500,
+          allow_early_punch_in: !!data.allow_early_punch_in,
+          scheduled_start_time: data.scheduled_start_time || '08:00',
+          early_punch_in_buffer_minutes: data.early_punch_in_buffer_minutes || 15,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
@@ -174,6 +183,9 @@ export default function JobPunchClockSettings() {
         notification_enabled: settings.notification_enabled,
         manager_approval_required: settings.manager_approval_required,
         allow_manual_entry: settings.allow_manual_entry,
+        allow_early_punch_in: settings.allow_early_punch_in,
+        scheduled_start_time: settings.scheduled_start_time,
+        early_punch_in_buffer_minutes: settings.early_punch_in_buffer_minutes,
         created_by: profile?.user_id || user?.id,
       };
 
@@ -262,6 +274,31 @@ export default function JobPunchClockSettings() {
                     <Input type="time" value={settings.punch_time_window_end} onChange={(e) => setSettings(s => ({...s, punch_time_window_end: e.target.value}))} />
                   </div>
                 </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Allow Early Punch In</Label>
+                    <p className="text-sm text-muted-foreground">Employees can punch in early, but time starts at scheduled time</p>
+                  </div>
+                  <Switch checked={settings.allow_early_punch_in} onCheckedChange={(checked) => setSettings(s => ({...s, allow_early_punch_in: checked}))} />
+                </div>
+
+                {settings.allow_early_punch_in && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-4 p-4 border rounded-lg bg-muted/50">
+                    <div className="space-y-2">
+                      <Label>Scheduled Start Time</Label>
+                      <Input type="time" value={settings.scheduled_start_time} onChange={(e) => setSettings(s => ({...s, scheduled_start_time: e.target.value}))} />
+                      <p className="text-xs text-muted-foreground">Actual paid time will begin at this time</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Early Punch Buffer (minutes)</Label>
+                      <Input type="number" value={settings.early_punch_in_buffer_minutes} onChange={(e) => setSettings(s => ({...s, early_punch_in_buffer_minutes: parseInt(e.target.value)}))} min={5} max={60} />
+                      <p className="text-xs text-muted-foreground">Maximum minutes employees can punch in before start time</p>
+                    </div>
+                  </div>
+                )}
 
                 <Separator />
 

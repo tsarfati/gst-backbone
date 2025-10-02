@@ -264,10 +264,10 @@ serve(async (req) => {
       if (action === "in") {
         if (!job_id || !cost_code_id) return errorResponse("Missing job_id or cost_code_id");
 
-        // Load punch clock settings for this job to check photo requirements
+        // Load punch clock settings for this job to check photo requirements and early punch in
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
           .from("job_punch_clock_settings")
-          .select("require_photo, require_location")
+          .select("require_photo, require_location, allow_early_punch_in, scheduled_start_time, early_punch_in_buffer_minutes")
           .eq("job_id", job_id)
           .maybeSingle();
 
@@ -310,6 +310,39 @@ serve(async (req) => {
         if (checkErr) return errorResponse(checkErr.message, 500);
         if (existingPunch) return errorResponse("User is already punched in", 400);
 
+        // Handle early punch in restriction
+        let actualPunchTime = now;
+        let earlyPunchWarning = null;
+        
+        if (jobSettings?.allow_early_punch_in && jobSettings?.scheduled_start_time) {
+          const currentTime = new Date();
+          const currentHour = currentTime.getUTCHours();
+          const currentMinute = currentTime.getUTCMinutes();
+          const currentTotalMinutes = currentHour * 60 + currentMinute;
+          
+          // Parse scheduled start time
+          const [startHour, startMinute] = jobSettings.scheduled_start_time.split(':').map(Number);
+          const scheduledStartMinutes = startHour * 60 + startMinute;
+          
+          // Calculate difference in minutes
+          const minutesEarly = scheduledStartMinutes - currentTotalMinutes;
+          
+          if (minutesEarly > 0) {
+            const bufferMinutes = jobSettings.early_punch_in_buffer_minutes || 15;
+            
+            if (minutesEarly > bufferMinutes) {
+              return errorResponse(`Cannot punch in more than ${bufferMinutes} minutes before scheduled start time (${jobSettings.scheduled_start_time})`, 400);
+            }
+            
+            // Set actual punch time to scheduled start time
+            const scheduledStartDate = new Date(currentTime);
+            scheduledStartDate.setUTCHours(startHour, startMinute, 0, 0);
+            actualPunchTime = scheduledStartDate.toISOString();
+            
+            earlyPunchWarning = `You punched in ${minutesEarly} minutes early. Your paid time will begin at ${jobSettings.scheduled_start_time}.`;
+          }
+        }
+
         // Capture device and network information
         const userAgent = req.headers.get('user-agent') || null;
         const ipAddress = req.headers.get('x-forwarded-for') || 
@@ -323,7 +356,7 @@ serve(async (req) => {
           job_id,
           cost_code_id,
           punch_type: "punched_in",
-          punch_time: now,
+          punch_time: actualPunchTime,
           latitude,
           longitude,
           photo_url,
@@ -338,7 +371,7 @@ serve(async (req) => {
             user_id: userRow.user_id,
             job_id,
             cost_code_id,
-            punch_in_time: now,
+            punch_in_time: actualPunchTime,
             punch_in_location_lat: latitude,
             punch_in_location_lng: longitude,
             punch_in_photo_url: photo_url,
@@ -370,7 +403,14 @@ serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
 
-        return new Response(JSON.stringify({ ok: true, current_punch: updatedPunch }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(
+          JSON.stringify({ 
+            ok: true, 
+            current_punch: updatedPunch,
+            warning: earlyPunchWarning 
+          }), 
+          { headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
       }
 
       if (action === "out") {
