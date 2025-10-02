@@ -173,43 +173,26 @@ export default function ChartOfAccounts() {
   };
 
   const handleEditAccount = async () => {
-    if (!editingAccount) {
-      console.log('No editing account found');
-      return;
-    }
+    if (!editingAccount) return;
 
     try {
       const isCashType = editingAccount.account_type === 'cash';
-      console.log('Editing account:', editingAccount);
-      console.log('Is cash type:', isCashType);
-      console.log('Original account category:', editingAccount.account_category);
       
       const updateData = {
         account_number: editingAccount.account_number,
         account_name: editingAccount.account_name,
-        // Map 'cash' to 'asset' to satisfy DB check constraints
         account_type: isCashType ? 'asset' : editingAccount.account_type,
-        account_category: editingAccount.account_category || (isCashType ? 'cash_accounts' : null),
+        account_category: isCashType ? 'cash_accounts' : editingAccount.account_category,
         normal_balance: editingAccount.normal_balance
       };
       
-      console.log('Update data being sent:', updateData);
-      console.log('Account ID being updated:', editingAccount.id);
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('chart_of_accounts')
         .update(updateData)
-        .eq('id', editingAccount.id)
-        .select(); // Add select to see what was actually updated
+        .eq('id', editingAccount.id);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Update response:', data);
-      console.log('Account updated successfully');
-      
       toast({
         title: "Account Updated",
         description: "Chart of account has been updated successfully",
@@ -217,11 +200,11 @@ export default function ChartOfAccounts() {
 
       setEditDialogOpen(false);
       setEditingAccount(null);
-      loadAccounts();
+      await loadAccounts(); // Ensure we wait for reload
     } catch (error) {
       console.error('Error updating account:', error);
       toast({
-        title: "Error",
+        title: "Error", 
         description: "Failed to update account",
         variant: "destructive",
       });
@@ -787,13 +770,10 @@ export default function ChartOfAccounts() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          console.log('Edit button clicked for account:', account);
-                          // Map asset with cash_accounts category back to cash for editing
                           const accountForEditing = {
                             ...account,
                             account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
                           };
-                          console.log('Account prepared for editing:', accountForEditing);
                           setEditingAccount(accountForEditing);
                           setEditDialogOpen(true);
                         }}
@@ -917,10 +897,7 @@ export default function ChartOfAccounts() {
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={() => {
-                  console.log('Update Account button clicked');
-                  handleEditAccount();
-                }}>
+                <Button onClick={handleEditAccount}>
                   Update Account
                 </Button>
               </div>
