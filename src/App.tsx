@@ -147,10 +147,11 @@ function PublicRoutes() {
 function AuthenticatedRoutes() {
   return (
     <AuthProvider>
-      <CompanyProvider>
-        <SettingsProvider>
-          <ReceiptProvider>
-            <Routes>
+      <PunchClockAuthProvider>
+        <CompanyProvider>
+          <SettingsProvider>
+            <ReceiptProvider>
+              <Routes>
               <Route path="/profile-completion" element={
                 <ProtectedRoute>
                   <ProfileCompletion />
@@ -308,10 +309,11 @@ function AuthenticatedRoutes() {
                 </ProtectedRoute>
               } />
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </ReceiptProvider>
-        </SettingsProvider>
-      </CompanyProvider>
+              </Routes>
+            </ReceiptProvider>
+          </SettingsProvider>
+        </CompanyProvider>
+      </PunchClockAuthProvider>
     </AuthProvider>
   );
 }
