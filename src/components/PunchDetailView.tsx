@@ -371,72 +371,77 @@ const mapContainer = useRef<HTMLDivElement>(null);
             </CardContent>
           </Card>
 
-          {/* Location Information */}
-          {((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Location
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {punch.latitude && punch.longitude ? (
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <span className="text-sm text-muted-foreground">Latitude</span>
-                      <p className="font-medium">{Number(punch.latitude).toFixed(6)}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Longitude</span>
-                      <p className="font-medium">{Number(punch.longitude).toFixed(6)}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-muted-foreground mb-4">
-                    <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Location not recorded for this punch</p>
-                  </div>
-                )}
-                
-                <div 
-                  ref={mapContainer} 
-                  className="w-full h-[400px] rounded-md border"
-                />
+          {/* Location and Photo side by side */}
+          {(((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) || photoUrl) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Location Information */}
+              {((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Location
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {punch.latitude && punch.longitude ? (
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <span className="text-sm text-muted-foreground">Latitude</span>
+                          <p className="font-medium">{Number(punch.latitude).toFixed(6)}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-muted-foreground">Longitude</span>
+                          <p className="font-medium">{Number(punch.longitude).toFixed(6)}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted-foreground mb-4">
+                        <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Location not recorded for this punch</p>
+                      </div>
+                    )}
+                    
+                    <div 
+                      ref={mapContainer} 
+                      className="w-full h-[300px] rounded-md border"
+                    />
 
-                {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
-                  <img
-                    src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x400?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
-                    alt="Map preview of punch location"
-                    className="w-full h-[400px] rounded-md border object-cover"
-                    loading="lazy"
-                  />
-                )}
-              </CardContent>
-            </Card>
-          )}
+                    {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
+                      <img
+                        src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x300?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
+                        alt="Map preview of punch location"
+                        className="w-full h-[300px] rounded-md border object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
-          {/* Photo */}
-          {photoUrl && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Camera className="h-4 w-4" />
-                  Photo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <img 
-                  src={photoUrl} 
-                  alt="Punch photo" 
-                  className="max-w-full h-auto rounded-md border"
-                  onError={(e) => {
-                    console.error('Photo failed to load:', photoUrl);
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              </CardContent>
-            </Card>
+              {/* Photo */}
+              {photoUrl && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Camera className="h-4 w-4" />
+                      Photo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <img 
+                      src={photoUrl} 
+                      alt="Punch photo" 
+                      className="w-full h-[300px] object-cover rounded-md border"
+                      onError={(e) => {
+                        console.error('Photo failed to load:', photoUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
 
           {/* Notes */}
