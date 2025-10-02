@@ -24,12 +24,16 @@ import {
   Download,
   Settings,
   Banknote,
-  Link
+  Link,
+  Pencil
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import AccountAssociationSettings from "@/components/AccountAssociationSettings";
+import ChartOfAccountsViewSelector from "@/components/ChartOfAccountsViewSelector";
+import { ChartOfAccountsListView, ChartOfAccountsCompactView, ChartOfAccountsSuperCompactView } from "@/components/ChartOfAccountsViews";
+import { useChartOfAccountsViewPreference } from "@/hooks/useChartOfAccountsViewPreference";
 import Papa from 'papaparse';
 
 interface Account {
@@ -37,8 +41,8 @@ interface Account {
   account_number: string;
   account_name: string;
   account_type: string;
-  account_category?: string;
-  normal_balance: string;
+  account_category: string | null;
+  normal_balance: string | null;
   current_balance: number;
   is_system_account: boolean;
   is_active: boolean;
@@ -68,6 +72,7 @@ const accountCategories: Record<string, string[]> = {
 export default function ChartOfAccounts() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { currentView, setCurrentView, setDefaultView, isDefault } = useChartOfAccountsViewPreference();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -716,100 +721,70 @@ export default function ChartOfAccounts() {
       {/* Accounts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Accounts ({filteredAccounts.length})</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Accounts ({filteredAccounts.length})</CardTitle>
+            <ChartOfAccountsViewSelector
+              currentView={currentView}
+              onViewChange={setCurrentView}
+              onSetDefault={() => {
+                setDefaultView();
+                toast({
+                  title: "Default View Set",
+                  description: "Your view preference has been saved",
+                });
+              }}
+              isDefault={isDefault}
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Account #</TableHead>
-                <TableHead>Account Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Normal Balance</TableHead>
-                <TableHead className="text-right">Current Balance</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAccounts.map((account) => (
-                <TableRow key={account.id}>
-                  <TableCell className="font-mono">{account.account_number}</TableCell>
-                  <TableCell className="font-medium">{account.account_name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className={getAccountTypeColor(account.account_type)}>
-                      <span className="flex items-center space-x-1">
-                        {getAccountTypeIcon(account.account_type)}
-                        <span>
-                          {/* Show 'Cash' for asset accounts with cash_accounts category */}
-                          {account.account_type === 'asset' && account.account_category === 'cash_accounts' 
-                            ? 'Cash' 
-                            : accountTypes.find(t => t.value === account.account_type)?.label
-                          }
-                        </span>
-                      </span>
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {account.account_category ? 
-                      account.account_category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) 
-                      : '-'
-                    }
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {account.normal_balance === 'debit' ? 'Debit' : 'Credit'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(account.current_balance)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const accountForEditing = {
-                            ...account,
-                            account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
-                          };
-                          setEditingAccount(accountForEditing);
-                          setEditDialogOpen(true);
-                        }}
-                        disabled={account.is_system_account}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      {!account.is_system_account && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Deactivate Account</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to deactivate this account? This action will hide it from the chart of accounts but preserve historical data.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteAccount(account.id)}>
-                                Deactivate
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {currentView === 'list' && (
+            <ChartOfAccountsListView
+              accounts={filteredAccounts}
+              onEdit={(account) => {
+                const accountForEditing = {
+                  ...account,
+                  account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
+                };
+                setEditingAccount(accountForEditing);
+                setEditDialogOpen(true);
+              }}
+              formatCurrency={formatCurrency}
+              getAccountTypeIcon={getAccountTypeIcon}
+            />
+          )}
+
+          {currentView === 'compact' && (
+            <ChartOfAccountsCompactView
+              accounts={filteredAccounts}
+              onEdit={(account) => {
+                const accountForEditing = {
+                  ...account,
+                  account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
+                };
+                setEditingAccount(accountForEditing);
+                setEditDialogOpen(true);
+              }}
+              formatCurrency={formatCurrency}
+              getAccountTypeIcon={getAccountTypeIcon}
+            />
+          )}
+
+          {currentView === 'super-compact' && (
+            <ChartOfAccountsSuperCompactView
+              accounts={filteredAccounts}
+              onEdit={(account) => {
+                const accountForEditing = {
+                  ...account,
+                  account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
+                };
+                setEditingAccount(accountForEditing);
+                setEditDialogOpen(true);
+              }}
+              formatCurrency={formatCurrency}
+              getAccountTypeIcon={getAccountTypeIcon}
+            />
+          )}
 
           {filteredAccounts.length === 0 && (
             <div className="text-center py-8">
