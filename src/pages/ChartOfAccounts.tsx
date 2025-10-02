@@ -93,6 +93,7 @@ export default function ChartOfAccounts() {
     account_category: '',
     normal_balance: 'debit'
   });
+  const [duplicateAccount, setDuplicateAccount] = useState<Account | null>(null);
 
   useEffect(() => {
     loadAccounts();
@@ -147,6 +148,18 @@ export default function ChartOfAccounts() {
 
       if (dupErr) throw dupErr;
       if ((dupCount || 0) > 0) {
+        // Surface the conflicting record inline
+        let conflict = accounts.find(a => a.account_number.trim() === accountNumber);
+        if (!conflict) {
+          const { data: conflictRow } = await supabase
+            .from('chart_of_accounts')
+            .select('*')
+            .eq('company_id', currentCompany?.id || '')
+            .eq('account_number', accountNumber)
+            .maybeSingle();
+          if (conflictRow) conflict = conflictRow as unknown as Account;
+        }
+        if (conflict) setDuplicateAccount(conflict);
         toast({
           title: "Duplicate Account Number",
           description: `Account number ${accountNumber} already exists. Please use a different number.`,
@@ -184,6 +197,7 @@ export default function ChartOfAccounts() {
         account_category: '',
         normal_balance: 'debit'
       });
+      setDuplicateAccount(null);
       setAddDialogOpen(false);
       loadAccounts();
     } catch (error) {
@@ -637,9 +651,32 @@ export default function ChartOfAccounts() {
                   <Input
                     id="account_number"
                     value={newAccount.account_number}
-                    onChange={(e) => setNewAccount({ ...newAccount, account_number: e.target.value })}
+                    onChange={(e) => { setNewAccount({ ...newAccount, account_number: e.target.value }); setDuplicateAccount(null); }}
                     placeholder="e.g., 1000"
                   />
+                  {duplicateAccount && (
+                    <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">Account number already exists</p>
+                          <p className="text-muted-foreground">Existing: {duplicateAccount.account_number} — {duplicateAccount.account_name}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setAddDialogOpen(false);
+                              setEditingAccount(duplicateAccount);
+                              setEditDialogOpen(true);
+                            }}
+                          >
+                            Open to Edit
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="account_name">Account Name *</Label>
