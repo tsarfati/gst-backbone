@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
 import ReceiptLinkButton from "@/components/ReceiptLinkButton";
+import PdfInlinePreview from "@/components/PdfInlinePreview";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
 
 interface DistributionLineItem {
@@ -624,85 +625,6 @@ export default function AddBill() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* File Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Bill File Upload
-              <Badge variant="destructive" className="text-xs">Required</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {billFile ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
-                    <FileText className="h-8 w-8 text-success" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{billFile.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(billFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBillFile(null)}
-                  >
-                    Remove File
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium">Upload Bill File</p>
-                    <p className="text-sm text-muted-foreground">
-                      Drag and drop your bill file here, or click to browse
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
-                    </p>
-                  </div>
-                  <div>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      onChange={handleFileInputChange}
-                      className="hidden"
-                      id="bill-file-upload"
-                    />
-                    <Button type="button" asChild>
-                      <label htmlFor="bill-file-upload" className="cursor-pointer">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Choose File
-                      </label>
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            {!billFile && !attachedReceipt && (
-              <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
-                <AlertCircle className="h-4 w-4" />
-                <span>Bill file or receipt attachment is required before saving</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Invoice Information */}
         <Card>
           <CardHeader>
@@ -1212,6 +1134,104 @@ export default function AddBill() {
                 </div>
               </TabsContent>
             </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* File Upload Section - Moved to Bottom */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Bill File Upload
+              <Badge variant="destructive" className="text-xs">Required</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {billFile ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
+                    <FileText className="h-8 w-8 text-success" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{billFile.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(billFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBillFile(null)}
+                  >
+                    Remove File
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-medium">Upload Bill File</p>
+                    <p className="text-sm text-muted-foreground">
+                      Drag and drop your bill file here, or click to browse
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
+                    </p>
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                      id="bill-file-upload"
+                    />
+                    <Button type="button" asChild>
+                      <label htmlFor="bill-file-upload" className="cursor-pointer">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Choose File
+                      </label>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* File Preview */}
+            {billFile && (
+              <div className="space-y-2">
+                <Label className="text-base font-semibold">Preview</Label>
+                <div className="border rounded-lg overflow-hidden bg-muted/20">
+                  {billFile.type === 'application/pdf' ? (
+                    <PdfInlinePreview file={billFile} height={600} />
+                  ) : (
+                    <img
+                      src={URL.createObjectURL(billFile)}
+                      alt="Bill preview"
+                      className="w-full h-auto max-h-[600px] object-contain"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {!billFile && !attachedReceipt && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                <span>Bill file or receipt attachment is required before saving</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
