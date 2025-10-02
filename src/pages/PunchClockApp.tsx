@@ -757,13 +757,11 @@ function PunchClockApp() {
         if (!photoUrl) {
           console.error('Photo upload failed - photoUrl is null');
           toast({
-            title: 'Photo Upload Failed',
-            description: 'Could not upload photo. Please try again.',
-            variant: 'destructive'
+            title: 'Photo Upload Warning',
+            description: 'Photo could not be uploaded, but your punch was recorded. Admin has been notified.',
+            variant: 'default'
           });
-          setIsLoading(false);
-          setIsPunching(false);
-          return;
+          // Admin notification will be logged in punch_records notes
         }
         
         // If this is a PIN employee's first punch with face detected, set their avatar
@@ -788,6 +786,12 @@ function PunchClockApp() {
           return;
         }
 
+        // Add admin alert if photo failed to upload
+        const photoUploadNote = photoBlob && !photoUrl ? 'ADMIN ALERT: Photo upload failed for this punch' : undefined;
+        const combinedNotes = currentPunch 
+          ? (photoUploadNote ? `${punchOutNote || ''}\n${photoUploadNote}`.trim() : punchOutNote)
+          : photoUploadNote;
+
         // Prevent duplicate punch operations
         const res = await fetch(`${FUNCTION_BASE}/punch`, {
           method: 'POST',
@@ -804,7 +808,7 @@ function PunchClockApp() {
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: photoUrl,
-            notes: currentPunch ? punchOutNote : undefined,
+            notes: combinedNotes,
           })
         });
 
