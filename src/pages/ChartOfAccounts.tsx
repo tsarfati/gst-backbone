@@ -135,19 +135,21 @@ export default function ChartOfAccounts() {
 
     try {
       const { data: userData } = await supabase.auth.getUser();
-      
-      // Check if account number already exists
-      const { data: existingAccount } = await supabase
-        .from('chart_of_accounts')
-        .select('account_number')
-        .eq('account_number', newAccount.account_number)
-        .eq('company_id', currentCompany?.id || '')
-        .maybeSingle();
 
-      if (existingAccount) {
+      const accountNumber = newAccount.account_number.trim();
+
+      // Robust duplicate check (count-only, scoped to company)
+      const { count: dupCount, error: dupErr } = await supabase
+        .from('chart_of_accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', currentCompany?.id || '')
+        .eq('account_number', accountNumber);
+
+      if (dupErr) throw dupErr;
+      if ((dupCount || 0) > 0) {
         toast({
           title: "Duplicate Account Number",
-          description: `Account number ${newAccount.account_number} already exists. Please use a different number.`,
+          description: `Account number ${accountNumber} already exists. Please use a different number.`,
           variant: "destructive",
         });
         return;
@@ -156,7 +158,7 @@ export default function ChartOfAccounts() {
       const { error } = await supabase
         .from('chart_of_accounts')
         .insert({
-          account_number: newAccount.account_number,
+          account_number: accountNumber,
           account_name: newAccount.account_name,
           account_type: newAccount.account_type,
           account_category: newAccount.account_category || null,
@@ -201,15 +203,15 @@ export default function ChartOfAccounts() {
       const isCashType = editingAccount.account_type === 'cash';
       
       // Check if new account number conflicts with existing account (excluding current account)
-      const { data: existingAccount } = await supabase
+      const { count: dupCountEdit, error: dupErrEdit } = await supabase
         .from('chart_of_accounts')
-        .select('id, account_number')
-        .eq('account_number', editingAccount.account_number)
+        .select('id', { count: 'exact', head: true })
         .eq('company_id', currentCompany?.id || '')
-        .neq('id', editingAccount.id)
-        .maybeSingle();
+        .eq('account_number', editingAccount.account_number.trim())
+        .neq('id', editingAccount.id);
 
-      if (existingAccount) {
+      if (dupErrEdit) throw dupErrEdit;
+      if ((dupCountEdit || 0) > 0) {
         toast({
           title: "Duplicate Account Number",
           description: `Account number ${editingAccount.account_number} already exists. Please use a different number.`,
