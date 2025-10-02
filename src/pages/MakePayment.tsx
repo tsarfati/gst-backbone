@@ -66,6 +66,8 @@ interface Payment {
   status: string;
   check_number?: string;
   bank_account_id?: string;
+  is_partial_payment?: boolean;
+  payment_document_url?: string;
 }
 
 interface CodedReceipt {
@@ -91,6 +93,9 @@ export default function MakePayment() {
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<string>("");
   const [selectedJob, setSelectedJob] = useState<string>("");
+  const [isPartialPayment, setIsPartialPayment] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [paymentDocument, setPaymentDocument] = useState<File | null>(null);
   const [payment, setPayment] = useState<Payment>({
     payment_number: '',
     vendor_id: '',
@@ -100,7 +105,9 @@ export default function MakePayment() {
     memo: '',
     status: 'draft',
     check_number: '',
-    bank_account_id: ''
+    bank_account_id: '',
+    is_partial_payment: false,
+    payment_document_url: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -238,6 +245,11 @@ export default function MakePayment() {
   };
 
   const calculatePaymentAmount = () => {
+    if (isPartialPayment) {
+      // Don't auto-calculate if partial payment is enabled
+      return;
+    }
+    
     const totalAmount = selectedInvoices.reduce((sum, invoiceId) => {
       const invoice = invoices.find(inv => inv.id === invoiceId);
       return sum + (invoice?.amount || 0);
@@ -252,6 +264,8 @@ export default function MakePayment() {
     } else {
       setSelectedInvoices(selectedInvoices.filter(id => id !== invoiceId));
     }
+    // Reset partial payment when selection changes
+    setIsPartialPayment(false);
   };
 
   const handleVendorChange = (vendorId: string) => {
@@ -265,6 +279,46 @@ export default function MakePayment() {
   const handleJobChange = (jobId: string) => {
     setSelectedJob(jobId);
     setSelectedInvoices([]);
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPaymentDocument(file);
+  };
+
+  const uploadPaymentDocument = async (paymentId: string): Promise<string | null> => {
+    if (!paymentDocument || !currentCompany) return null;
+
+    try {
+      setUploadingDocument(true);
+      const fileExt = paymentDocument.name.split('.').pop();
+      const fileName = `payment-${paymentId}-${Date.now()}.${fileExt}`;
+      const filePath = `${currentCompany.id}/${fileName}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, paymentDocument);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      toast({
+        title: "Warning",
+        description: "Payment saved but document upload failed",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setUploadingDocument(false);
+    }
   };
 
   const savePayment = async () => {
@@ -298,6 +352,23 @@ export default function MakePayment() {
       return;
     }
 
+    // Validate partial payment amount
+    if (isPartialPayment) {
+      const totalInvoiceAmount = selectedInvoices.reduce((sum, invoiceId) => {
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        return sum + (invoice?.amount || 0);
+      }, 0);
+
+      if (payment.amount <= 0 || payment.amount > totalInvoiceAmount) {
+        toast({
+          title: "Invalid Amount",
+          description: `Payment amount must be between $0 and $${totalInvoiceAmount.toFixed(2)}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
@@ -307,6 +378,7 @@ export default function MakePayment() {
         .from('payments')
         .insert({
           ...payment,
+          is_partial_payment: isPartialPayment,
           created_by: user.data.user?.id
         })
         .select()
@@ -314,13 +386,25 @@ export default function MakePayment() {
 
       if (paymentError) throw paymentError;
 
+      // Upload document if provided
+      let documentUrl = null;
+      if (paymentDocument) {
+        documentUrl = await uploadPaymentDocument(paymentData.id);
+        if (documentUrl) {
+          await supabase
+            .from('payments')
+            .update({ payment_document_url: documentUrl })
+            .eq('id', paymentData.id);
+        }
+      }
+
       // Create payment invoice lines
       const paymentLines = selectedInvoices.map(invoiceId => {
         const invoice = invoices.find(inv => inv.id === invoiceId);
         return {
           payment_id: paymentData.id,
           invoice_id: invoiceId,
-          amount_paid: invoice?.amount || 0
+          amount_paid: isPartialPayment ? payment.amount : (invoice?.amount || 0)
         };
       });
 
@@ -330,13 +414,29 @@ export default function MakePayment() {
 
       if (linesError) throw linesError;
 
-      // Update invoice statuses to 'paid'
-      const { error: updateError } = await supabase
-        .from('invoices')
-        .update({ status: 'paid' })
-        .in('id', selectedInvoices);
+      // Update invoice statuses and amounts
+      for (const invoiceId of selectedInvoices) {
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        if (!invoice) continue;
 
-      if (updateError) throw updateError;
+        if (isPartialPayment) {
+          // Partial payment - update amount remaining
+          const newAmount = invoice.amount - payment.amount;
+          await supabase
+            .from('invoices')
+            .update({ 
+              amount: newAmount,
+              status: newAmount > 0 ? 'approved' : 'paid' // Keep approved if balance remains
+            })
+            .eq('id', invoiceId);
+        } else {
+          // Full payment
+          await supabase
+            .from('invoices')
+            .update({ status: 'paid' })
+            .eq('id', invoiceId);
+        }
+      }
 
       toast({
         title: "Success",
@@ -510,13 +610,33 @@ export default function MakePayment() {
 
               <div>
                 <Label htmlFor="amount">Total Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  value={payment.amount}
-                  disabled
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="partial_payment"
+                      checked={isPartialPayment}
+                      onCheckedChange={(checked) => {
+                        setIsPartialPayment(checked as boolean);
+                        if (!checked) {
+                          calculatePaymentAmount();
+                        }
+                      }}
+                      disabled={selectedInvoices.length === 0}
+                    />
+                    <Label htmlFor="partial_payment" className="text-sm font-normal cursor-pointer">
+                      Make Partial Payment
+                    </Label>
+                  </div>
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    value={payment.amount}
+                    onChange={(e) => setPayment(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                    disabled={!isPartialPayment}
+                    className={isPartialPayment ? '' : 'bg-muted'}
+                  />
+                </div>
               </div>
 
               <div>
@@ -527,6 +647,23 @@ export default function MakePayment() {
                   onChange={(e) => setPayment(prev => ({ ...prev, memo: e.target.value }))}
                   placeholder="Payment memo..."
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="payment_document">Attach Document (Optional)</Label>
+                <div className="space-y-2">
+                  <Input
+                    id="payment_document"
+                    type="file"
+                    onChange={handleDocumentUpload}
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  />
+                  {paymentDocument && (
+                    <p className="text-sm text-muted-foreground">
+                      Selected: {paymentDocument.name}
+                    </p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
