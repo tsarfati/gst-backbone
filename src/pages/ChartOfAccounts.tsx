@@ -173,25 +173,39 @@ export default function ChartOfAccounts() {
   };
 
   const handleEditAccount = async () => {
-    if (!editingAccount) return;
+    if (!editingAccount) {
+      console.log('No editing account found');
+      return;
+    }
 
     try {
       const isCashType = editingAccount.account_type === 'cash';
+      console.log('Editing account:', editingAccount);
+      console.log('Is cash type:', isCashType);
+      
+      const updateData = {
+        account_number: editingAccount.account_number,
+        account_name: editingAccount.account_name,
+        // Map 'cash' to 'asset' to satisfy DB check constraints
+        account_type: isCashType ? 'asset' : editingAccount.account_type,
+        account_category: editingAccount.account_category || (isCashType ? 'cash_accounts' : null),
+        normal_balance: editingAccount.normal_balance
+      };
+      
+      console.log('Update data being sent:', updateData);
       
       const { error } = await supabase
         .from('chart_of_accounts')
-        .update({
-          account_number: editingAccount.account_number,
-          account_name: editingAccount.account_name,
-          // Map 'cash' to 'asset' to satisfy DB check constraints
-          account_type: isCashType ? 'asset' : editingAccount.account_type,
-          account_category: editingAccount.account_category || (isCashType ? 'cash_accounts' : null),
-          normal_balance: editingAccount.normal_balance
-        })
+        .update(updateData)
         .eq('id', editingAccount.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
 
+      console.log('Account updated successfully');
+      
       toast({
         title: "Account Updated",
         description: "Chart of account has been updated successfully",
