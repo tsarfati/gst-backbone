@@ -490,7 +490,7 @@ function PunchClockApp() {
         if (blob) {
           setPhotoBlob(blob);
           stopCamera();
-          handlePunch();
+          handlePunch(blob);
         } else {
           // Reset flags if capture failed
           setIsCapturing(false);
@@ -685,7 +685,7 @@ function PunchClockApp() {
       if (blob) {
         setPhotoBlob(blob);
         stopCamera();
-        handlePunch();
+        handlePunch(blob);
       } else {
         setIsCapturing(false);
         setIsPunching(false);
@@ -778,9 +778,10 @@ function PunchClockApp() {
 
       // Upload photo if available (for all authentication types)
       let photoUrl: string | null = null;
-      if (photoBlob) {
-        console.log('Uploading photo, blob size:', photoBlob.size);
-        photoUrl = await uploadPhoto(photoBlob);
+      const blobToUpload = capturedBlob ?? photoBlob;
+      if (blobToUpload) {
+        console.log('Uploading photo, blob size:', blobToUpload.size);
+        photoUrl = await uploadPhoto(blobToUpload);
         console.log('Photo upload result:', photoUrl);
         
         if (!photoUrl) {
