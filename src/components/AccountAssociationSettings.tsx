@@ -209,22 +209,33 @@ export default function AccountAssociationSettings() {
 
       if (updateError) throw updateError;
 
-      // Create/update association record for the job
+      // Create individual association records for each cost code (required by constraint)
+      const associationInserts = jobCostCodes.map(cc => ({
+        company_id: currentCompany.id,
+        association_type: 'cost_code_construction',
+        cost_code_id: cc.id,
+        account_id: selectedConstructionAccount,
+        created_by: userData.user?.id
+      }));
+
+      // Delete existing associations for these cost codes first
+      const { error: deleteError } = await supabase
+        .from('account_associations')
+        .delete()
+        .in('cost_code_id', jobCostCodes.map(cc => cc.id));
+
+      if (deleteError) console.error('Error deleting old associations:', deleteError);
+
+      // Insert new associations
       const { error: assocError } = await supabase
         .from('account_associations')
-        .upsert({
-          company_id: currentCompany.id,
-          association_type: 'job_cost_codes_construction',
-          job_id: selectedJobForCostCodes,
-          account_id: selectedConstructionAccount,
-          created_by: userData.user?.id
-        });
+        .insert(associationInserts);
 
       if (assocError) throw assocError;
 
       toast({
-        title: "Association Created",
-        description: `All cost codes for this job have been associated with the construction account`,
+        title: "Associations Created",
+        description: `${jobCostCodes.length} cost code(s) associated with the construction account`,
       });
 
       setSelectedJobForCostCodes('');
@@ -288,16 +299,6 @@ export default function AccountAssociationSettings() {
             .from('jobs')
             .update({ revenue_account_id: null })
             .eq('id', association.job_id);
-        }
-      } else if (type === 'job_cost_codes_construction') {
-        const association = associations.find(a => a.id === associationId);
-        if (association?.job_id && currentCompany) {
-          // Clear chart_account_id for all cost codes of this job
-          await supabase
-            .from('cost_codes')
-            .update({ chart_account_id: null })
-            .eq('job_id', association.job_id)
-            .eq('company_id', currentCompany.id);
         }
       } else if (type === 'cost_code_construction') {
         const association = associations.find(a => a.id === associationId);
@@ -393,7 +394,33 @@ export default function AccountAssociationSettings() {
         <TabsContent value="job-revenue" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Link Jobs to Revenue Accounts (41000-49970)</CardTitle>
+              <CardTitle>Available Revenue Accounts (41000-49970)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-48 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account Number</TableHead>
+                      <TableHead>Account Name</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {revenueAccounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="font-mono">{account.account_number}</TableCell>
+                        <TableCell>{account.account_name}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Link Jobs to Revenue Accounts</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -480,7 +507,33 @@ export default function AccountAssociationSettings() {
         <TabsContent value="cost-codes" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Link Job Cost Codes to Construction Accounts (51000-59970)</CardTitle>
+              <CardTitle>Available Construction Accounts (51000-59970)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-48 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account Number</TableHead>
+                      <TableHead>Account Name</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {constructionAccounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="font-mono">{account.account_number}</TableCell>
+                        <TableCell>{account.account_name}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Link Job Cost Codes to Construction Accounts</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -532,31 +585,50 @@ export default function AccountAssociationSettings() {
                     <TableRow>
                       <TableHead>Job</TableHead>
                       <TableHead>Construction Account</TableHead>
-                      <TableHead>Cost Codes Count</TableHead>
+                      <TableHead>Cost Codes</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {associations
-                      .filter(assoc => assoc.association_type === 'job_cost_codes_construction')
-                      .map((association) => {
-                        const job = jobs.find(j => j.id === association.job_id);
-                        const account = accounts.find(acc => acc.id === association.account_id);
-                        const jobCostCodesCount = costCodes.filter(cc => cc.job_id === association.job_id && cc.chart_account_id).length;
+                    {jobs
+                      .filter(job => costCodes.some(cc => cc.job_id === job.id && cc.chart_account_id))
+                      .map((job) => {
+                        const jobCostCodes = costCodes.filter(cc => cc.job_id === job.id && cc.chart_account_id);
+                        const accountId = jobCostCodes[0]?.chart_account_id;
+                        const account = accounts.find(acc => acc.id === accountId);
                         return (
-                          <TableRow key={association.id}>
-                            <TableCell>{job ? `${job.name} - ${job.client}` : 'Unknown Job'}</TableCell>
+                          <TableRow key={job.id}>
+                            <TableCell>{job.name} - {job.client}</TableCell>
                             <TableCell>
                               {account ? `${account.account_number} - ${account.account_name}` : 'Unknown Account'}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="secondary">{jobCostCodesCount} cost codes</Badge>
+                              <Badge variant="secondary">{jobCostCodes.length} cost code(s)</Badge>
                             </TableCell>
                             <TableCell>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
-                                onClick={() => removeAssociation(association.id, 'job_cost_codes_construction')}
+                                onClick={async () => {
+                                  // Delete all associations for this job's cost codes
+                                  const costCodeIds = jobCostCodes.map(cc => cc.id);
+                                  await supabase
+                                    .from('account_associations')
+                                    .delete()
+                                    .in('cost_code_id', costCodeIds);
+                                  
+                                  // Clear chart_account_id for these cost codes
+                                  await supabase
+                                    .from('cost_codes')
+                                    .update({ chart_account_id: null })
+                                    .in('id', costCodeIds);
+                                  
+                                  toast({
+                                    title: "Associations Removed",
+                                    description: "Cost code associations have been removed",
+                                  });
+                                  loadData();
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -572,6 +644,32 @@ export default function AccountAssociationSettings() {
         </TabsContent>
 
         <TabsContent value="bank-accounts" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Cash Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-48 overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account Number</TableHead>
+                      <TableHead>Account Name</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cashAccounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="font-mono">{account.account_number}</TableCell>
+                        <TableCell>{account.account_name}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Link Bank Accounts to GL Cash Accounts</CardTitle>
