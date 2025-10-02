@@ -205,9 +205,38 @@ serve(async (req) => {
       }
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
       const body = await req.json();
-      const { pin, action, job_id, cost_code_id, latitude, longitude, photo_url } = body || {};
+      let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image } = body || {};
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      // If a base64 image is provided but no photo_url, upload it now and set photo_url
+      try {
+        if (!photo_url && image) {
+          // Normalize base64 (strip data URL prefix if present)
+          const base64 = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+          const fileName = `${userRow.user_id}-${Date.now()}.jpg`;
+          const filePath = `punch-photos/${fileName}`;
+          const fileBlob = new Blob([bytes], { type: 'image/jpeg' });
+
+          const { error: uploadErr } = await supabaseAdmin.storage
+            .from('punch-photos')
+            .upload(filePath, fileBlob, { contentType: 'image/jpeg', upsert: false });
+          if (!uploadErr) {
+            const { data: pub } = await supabaseAdmin.storage
+              .from('punch-photos')
+              .getPublicUrl(filePath);
+            photo_url = pub?.publicUrl || null;
+          } else {
+            console.error('Failed to upload inline image in /punch:', uploadErr);
+          }
+        }
+      } catch (e) {
+        console.error('Inline image processing error:', e);
+      }
 
       // Get company_id for the user
       let companyId: string | null = null;
