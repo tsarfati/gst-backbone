@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, FileText, Plus } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import CommitmentInfo from "@/components/CommitmentInfo";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -241,21 +242,22 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Financial Section</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Contract Amount</p>
-              <p className="font-semibold text-foreground text-xl">${formatNumber(subcontract.contract_amount)}</p>
-            </div>
-            {subcontract.apply_retainage && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Financial Section</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground">Retainage</p>
-                <p className="font-semibold text-foreground">{subcontract.retainage_percentage}% applied</p>
+                <p className="text-sm text-muted-foreground">Contract Amount</p>
+                <p className="font-semibold text-foreground text-xl">${formatNumber(subcontract.contract_amount)}</p>
               </div>
-            )}
+              {subcontract.apply_retainage && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Retainage</p>
+                  <p className="font-semibold text-foreground">{subcontract.retainage_percentage}% applied</p>
+                </div>
+              )}
             {(() => {
               try {
                 const distributionData = subcontract.cost_distribution 
@@ -304,14 +306,23 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
                 return null;
               }
             })()}
-            <div>
-              <p className="text-sm text-muted-foreground">Created</p>
-              <p className="font-semibold text-foreground">
-                {format(new Date(subcontract.created_at), 'MMMM d, yyyy')}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+              <div>
+                <p className="text-sm text-muted-foreground">Created</p>
+                <p className="font-semibold text-foreground">
+                  {format(new Date(subcontract.created_at), 'MMMM d, yyyy')}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <CommitmentInfo 
+            totalCommit={parseFloat(subcontract.contract_amount) + invoices.filter(inv => inv.status === 'approved').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
+            prevGross={invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
+            prevRetention={invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + (parseFloat(inv.amount || 0) * (subcontract.retainage_percentage || 0) / 100), 0)}
+            prevPayments={invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
+            contractBalance={parseFloat(subcontract.contract_amount) - invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
+          />
+        </div>
       </div>
 
       {/* Description */}
@@ -391,8 +402,12 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
       {/* Invoices Section */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Invoices</CardTitle>
+          <Button size="sm" variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Commit Status Report
+          </Button>
         </CardHeader>
         <CardContent>
           {invoices.length === 0 ? (

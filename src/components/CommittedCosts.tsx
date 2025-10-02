@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { FileText, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface CommittedCostsProps {
   jobId: string;
@@ -13,6 +14,7 @@ interface CommittedCostsProps {
 
 export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [bills, setBills] = useState<any[]>([]);
@@ -94,11 +96,15 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
               );
               
               return (
-                <div key={subcontract.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer">
+                <div 
+                  key={subcontract.id} 
+                  className="flex items-center justify-between p-3 border border-border rounded-lg hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                  onClick={() => navigate(`/subcontracts/${subcontract.id}`)}
+                >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{subcontract.name}</p>
+                        <p className="font-medium truncate group-hover:text-primary transition-colors">{subcontract.name}</p>
                         <p className="text-sm text-muted-foreground truncate">
                           {subcontract.vendors?.name}
                         </p>
@@ -115,7 +121,12 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
                     </div>
                     <div className="flex gap-1">
                       {subcontract.contract_file_url && (
-                        <Button size="sm" variant="ghost" asChild>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <a href={subcontract.contract_file_url} target="_blank" rel="noopener noreferrer">
                             <FileText className="h-3 w-3" />
                           </a>
