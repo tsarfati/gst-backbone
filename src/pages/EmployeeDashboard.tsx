@@ -61,6 +61,16 @@ export default function EmployeeDashboard() {
   // Messaging
   const [message, setMessage] = useState('');
   const [projectManagers, setProjectManagers] = useState<Array<{id: string, name: string, jobName: string}>>([]);
+  
+  // Company Contacts
+  const [companyContacts, setCompanyContacts] = useState<Array<{
+    id: string;
+    name: string;
+    title: string;
+    email?: string;
+    phone?: string;
+    department?: string;
+  }>>([]);
 
   useEffect(() => {
     loadData();
@@ -164,6 +174,55 @@ export default function EmployeeDashboard() {
           );
           
           setProjectManagers(uniquePMs);
+        }
+      }
+      
+      // Load company contacts from same company
+      const { data: companyAccessData } = await supabase
+        .from('user_company_access')
+        .select('company_id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      
+      if (companyAccessData && companyAccessData.length > 0) {
+        const userCompanies = companyAccessData.map(uca => uca.company_id);
+        
+        const { data: contactsData } = await supabase
+          .from('profiles')
+          .select(`
+            user_id,
+            display_name,
+            first_name,
+            last_name,
+            role
+          `)
+          .neq('user_id', userId)
+          .order('display_name');
+        
+        if (contactsData) {
+          // Filter to only contacts who share a company with current user
+          const { data: allCompanyAccess } = await supabase
+            .from('user_company_access')
+            .select('user_id, company_id')
+            .in('company_id', userCompanies)
+            .eq('is_active', true);
+          
+          const companyUserIds = new Set(
+            allCompanyAccess?.map(uca => uca.user_id) || []
+          );
+          
+          const contacts = contactsData
+            .filter(contact => companyUserIds.has(contact.user_id))
+            .map(contact => ({
+              id: contact.user_id,
+              name: contact.display_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+              title: contact.role || 'Employee',
+              email: undefined,
+              phone: undefined,
+              department: contact.role
+            }));
+          
+          setCompanyContacts(contacts);
         }
       }
       
@@ -346,7 +405,7 @@ export default function EmployeeDashboard() {
         </Card>
 
         <Tabs defaultValue="timecards" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 h-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 h-auto">
             <TabsTrigger value="timecards" className="text-xs sm:text-sm py-2">
               <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">Time Cards</span>
@@ -363,13 +422,18 @@ export default function EmployeeDashboard() {
             </TabsTrigger>
             <TabsTrigger value="messages" className="text-xs sm:text-sm py-2">
               <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Message PM</span>
-              <span className="sm:hidden">Message</span>
+              <span className="hidden sm:inline">Messages</span>
+              <span className="sm:hidden">Msgs</span>
             </TabsTrigger>
-            <TabsTrigger value="policies" className="text-xs sm:text-sm py-2 col-span-2 sm:col-span-1">
+            <TabsTrigger value="contacts" className="text-xs sm:text-sm py-2">
+              <Phone className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Contacts</span>
+              <span className="sm:hidden">Contact</span>
+            </TabsTrigger>
+            <TabsTrigger value="policies" className="text-xs sm:text-sm py-2">
               <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Company Policies</span>
-              <span className="sm:hidden">Policies</span>
+              <span className="hidden sm:inline">Policies</span>
+              <span className="sm:hidden">Policy</span>
             </TabsTrigger>
           </TabsList>
 
@@ -557,6 +621,56 @@ export default function EmployeeDashboard() {
                       Send to All PMs
                     </Button>
                   </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="contacts">
+            <Card>
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-xl">
+                  <Phone className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Company Contacts
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                {companyContacts.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8 text-sm">No contacts available</p>
+                ) : (
+                  <div className="space-y-3">
+                    {companyContacts.map(contact => (
+                      <div key={contact.id} className="p-3 sm:p-4 border rounded-lg space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-sm sm:text-base">{contact.name}</h4>
+                            <p className="text-xs sm:text-sm text-muted-foreground capitalize">{contact.title}</p>
+                          </div>
+                          {contact.department && (
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {contact.department}
+                            </Badge>
+                          )}
+                        </div>
+                        {contact.email && (
+                          <div className="flex items-center gap-2 text-xs sm:text-sm">
+                            <Mail className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                            <a href={`mailto:${contact.email}`} className="hover:underline break-all">
+                              {contact.email}
+                            </a>
+                          </div>
+                        )}
+                        {contact.phone && (
+                          <div className="flex items-center gap-2 text-xs sm:text-sm">
+                            <Phone className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+                            <a href={`tel:${contact.phone}`} className="hover:underline">
+                              {contact.phone}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

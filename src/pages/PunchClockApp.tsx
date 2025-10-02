@@ -1141,9 +1141,9 @@ function PunchClockApp() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={signOut}
+                onClick={() => navigate('/employee-dashboard')}
               >
-                <LogOut className="h-4 w-4" />
+                <User className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
