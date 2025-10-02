@@ -636,7 +636,9 @@ export default function BillDetails() {
                     </Button>
                   </div>
                   {doc.file_url.endsWith('.pdf') ? (
-                    <PdfPreview url={doc.file_url} height={600} />
+                    <div className="max-h-[800px] overflow-y-auto bg-muted/20">
+                      <PdfPreview url={doc.file_url} height={1200} />
+                    </div>
                   ) : (
                     <img 
                       src={doc.file_url} 
@@ -664,7 +666,9 @@ export default function BillDetails() {
                 </Button>
               </div>
               {bill.file_url.endsWith('.pdf') ? (
-                <PdfPreview url={bill.file_url} height={600} />
+                <div className="max-h-[800px] overflow-y-auto bg-muted/20">
+                  <PdfPreview url={bill.file_url} height={1200} />
+                </div>
               ) : (
                 <img 
                   src={bill.file_url} 

@@ -8,12 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Building, DollarSign, CreditCard, Save, ArrowLeft, Eye, EyeOff, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function AddBankAccount() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   
@@ -62,6 +64,10 @@ export default function AddBankAccount() {
     setIsLoading(true);
 
     try {
+      if (!currentCompany?.id) {
+        throw new Error('Company not found. Please ensure you are associated with a company.');
+      }
+
       // Insert bank account - this will automatically create the associated cash account
       const { error } = await supabase
         .from('bank_accounts')
@@ -74,6 +80,7 @@ export default function AddBankAccount() {
           initial_balance: parseFloat(formData.initialBalance) || 0,
           balance_date: formData.balanceDate,
           description: formData.description || null,
+          company_id: currentCompany.id,
           created_by: user.id
         });
 
