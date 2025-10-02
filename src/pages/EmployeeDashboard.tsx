@@ -14,6 +14,7 @@ import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import AvatarUploader from '@/components/AvatarUploader';
 
 interface TimeCard {
   id: string;
@@ -39,6 +40,7 @@ export default function EmployeeDashboard() {
   const { user, profile, signOut } = usePunchClockAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isPinUser = (user as any)?.is_pin_employee;
   
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
@@ -51,7 +53,6 @@ export default function EmployeeDashboard() {
   // Profile editing
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    email: '',
     phone: '',
     avatar_url: ''
   });
@@ -102,13 +103,26 @@ export default function EmployeeDashboard() {
       
       setChangeRequests(requestsData || []);
       
-      // Load profile data
-      if (profile) {
-        setProfileData({
-          email: profile.email || '',
-          phone: profile.phone || '',
-          avatar_url: profile.avatar_url || ''
-        });
+      // Load profile/avatar
+      setProfileData(prev => ({
+        ...prev,
+        avatar_url: profile?.avatar_url || ''
+      }));
+      
+      // For PIN employees, load phone from pin_employees
+      if (isPinUser) {
+        const { data: pinData } = await supabase
+          .from('pin_employees')
+          .select('phone, avatar_url')
+          .eq('id', userId)
+          .maybeSingle();
+        if (pinData) {
+          setProfileData(prev => ({
+            ...prev,
+            phone: pinData.phone || '',
+            avatar_url: pinData.avatar_url || prev.avatar_url
+          }));
+        }
       }
       
       // Get latest punch photo for avatar fallback
@@ -330,7 +344,6 @@ export default function EmployeeDashboard() {
         const { error } = await supabase
           .from('pin_employees')
           .update({
-            email: profileData.email,
             phone: profileData.phone,
             avatar_url: profileData.avatar_url
           })
@@ -341,8 +354,6 @@ export default function EmployeeDashboard() {
         const { error } = await supabase
           .from('profiles')
           .update({
-            email: profileData.email,
-            phone: profileData.phone,
             avatar_url: profileData.avatar_url
           })
           .eq('user_id', userId);
@@ -544,37 +555,27 @@ export default function EmployeeDashboard() {
               </CardHeader>
               <CardContent className="space-y-4 p-4">
                 <div className="space-y-2">
-                  <Label htmlFor="avatar" className="text-sm">Avatar URL</Label>
-                  <Input
-                    id="avatar"
-                    value={profileData.avatar_url}
-                    onChange={(e) => setProfileData({...profileData, avatar_url: e.target.value})}
+                  <Label className="text-sm">Avatar</Label>
+                  <AvatarUploader
+                    value={profileData.avatar_url || latestPunchPhoto || ''}
+                    onChange={(url) => setProfileData({ ...profileData, avatar_url: url })}
                     disabled={!editingProfile}
-                    className="text-sm"
+                    userId={(user as any).user_id || (user as any).id}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={profileData.email}
-                    onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                    disabled={!editingProfile}
-                    className="text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={profileData.phone}
-                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                    disabled={!editingProfile}
-                    className="text-sm"
-                  />
-                </div>
+                {isPinUser && (
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" className="text-sm">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                      disabled={!editingProfile}
+                      className="text-sm"
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
