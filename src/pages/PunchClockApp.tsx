@@ -74,7 +74,9 @@ function PunchClockApp() {
 
   // Redirect if not authenticated (after loading completes)
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    const hasPinUser = !!localStorage.getItem('punch_clock_user');
+    if (!user && !hasPinUser) {
       navigate('/punch-clock-login', { replace: true });
     }
   }, [loading, user, navigate]);
