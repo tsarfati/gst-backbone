@@ -72,16 +72,24 @@ function PunchClockApp() {
     loadLoginSettings();
   }, []);
 
-  // Redirect unauthenticated users directly to PIN login (with delay to allow auth context to initialize)
+  // Redirect unauthenticated users - only redirect if we're certain auth has loaded
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!user && !isPinAuthenticated && !localStorage.getItem('punch_clock_user')) {
+    // Don't redirect immediately - give auth context time to initialize
+    const checkAuth = async () => {
+      // Wait a bit for the auth context to process localStorage
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Only redirect if both conditions are true:
+      // 1. No user from auth context
+      // 2. No punch_clock_user in localStorage
+      const punchClockUser = localStorage.getItem('punch_clock_user');
+      if (!user && !punchClockUser) {
         navigate('/punch-clock-login', { replace: true });
       }
-    }, 100); // Small delay to allow auth context to process
+    };
 
-    return () => clearTimeout(timer);
-  }, [user, isPinAuthenticated, navigate]);
+    checkAuth();
+  }, []); // Only run once on mount
 
   // Load initial data
   useEffect(() => {
