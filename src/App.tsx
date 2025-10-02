@@ -130,15 +130,19 @@ function PublicRoutes() {
   return (
     <AuthProvider>
       <PunchClockAuthProvider>
-        <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-          <Route path="/punch-clock" element={<PunchClockLogin />} />
-          <Route path="/punch-clock-app" element={<PunchClockApp />} />
-          <Route path="/pm-mobile-login" element={<PMobileLogin />} />
-          <Route path="/pm-mobile-app" element={<PMobileApp />} />
-          <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-        </Routes>
+        <CompanyProvider>
+          <ReceiptProvider>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/punch-clock-login" element={<PunchClockLogin />} />
+              <Route path="/punch-clock" element={<PunchClockLogin />} />
+              <Route path="/punch-clock-app" element={<PunchClockApp />} />
+              <Route path="/pm-mobile-login" element={<PMobileLogin />} />
+              <Route path="/pm-mobile-app" element={<PMobileApp />} />
+              <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+            </Routes>
+          </ReceiptProvider>
+        </CompanyProvider>
       </PunchClockAuthProvider>
     </AuthProvider>
   );
