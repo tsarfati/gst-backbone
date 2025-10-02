@@ -73,26 +73,28 @@ const mapContainer = useRef<HTMLDivElement>(null);
   }, [open, punch]);
 
   useEffect(() => {
-    if (!open || !punch || !mapContainer.current) return;
+    if (!open || !punch) return;
 
-      (async () => {
-        // Initialize Mapbox
-        setMapReady(false);
-        try {
-          const { data, error } = await supabase.functions.invoke('get-mapbox-token');
-          if (error) {
-            console.warn('Error fetching Mapbox token:', error);
-          }
-          const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-          mapboxgl.accessToken = token;
-          setMapToken(token);
-          console.log('Mapbox token set successfully');
-        } catch (e) {
-          console.warn('Failed to fetch Mapbox token, using fallback:', e);
-          const fallback = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
-          mapboxgl.accessToken = fallback;
-          setMapToken(fallback);
+    (async () => {
+      if (!mapContainer.current) return;
+      
+      // Initialize Mapbox
+      setMapReady(false);
+      try {
+        const { data, error } = await supabase.functions.invoke('get-mapbox-token');
+        if (error) {
+          console.warn('Error fetching Mapbox token:', error);
         }
+        const token = data?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+        mapboxgl.accessToken = token;
+        setMapToken(token);
+        console.log('Mapbox token set successfully');
+      } catch (e) {
+        console.warn('Failed to fetch Mapbox token, using fallback:', e);
+        const fallback = 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
+        mapboxgl.accessToken = fallback;
+        setMapToken(fallback);
+      }
 
       // Determine job site coordinates first (from coords or by geocoding address)
       let jobLngLat: [number, number] | null = null;
@@ -115,7 +117,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
       if (!punchLngLat && !jobLngLat) return;
 
       // Create map if needed using the punch location if available, otherwise job location
-      if (!map.current) {
+      if (!map.current && mapContainer.current) {
         const center = punchLngLat || jobLngLat!;
         console.log('Creating map with center:', center, 'Punch coords:', punchLngLat, 'Job coords:', jobLngLat);
         

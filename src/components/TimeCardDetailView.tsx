@@ -66,8 +66,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   }, [open, timeCardId]);
 
   useEffect(() => {
-    if (open && activeTab === 'map' && timeCard && mapContainer.current && !map.current) {
-      initializeMap();
+    if (open && activeTab === 'map' && timeCard && !map.current) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        if (mapContainer.current) {
+          initializeMap();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
 
     return () => {
