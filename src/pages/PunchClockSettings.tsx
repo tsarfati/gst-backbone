@@ -526,6 +526,23 @@ export default function PunchClockSettings() {
 
               <Separator />
 
+              {settings.require_photo && (
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Manual Photo Capture</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Require employees to manually click button to take photo (with face detection)
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.manual_photo_capture}
+                    onCheckedChange={(checked) => updateSetting('manual_photo_capture', checked)}
+                  />
+                </div>
+              )}
+
+              <Separator />
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Photo Required for Corrections</Label>

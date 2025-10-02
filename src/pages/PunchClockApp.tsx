@@ -54,6 +54,7 @@ function PunchClockApp() {
   const [faceDetectionResult, setFaceDetectionResult] = useState<{ hasFace: boolean; confidence?: number } | null>(null);
   const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [loginSettings, setLoginSettings] = useState<any>({});
+  const [punchSettings, setPunchSettings] = useState<any>({ manual_photo_capture: true });
   const [punchOutNote, setPunchOutNote] = useState('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
@@ -68,9 +69,10 @@ function PunchClockApp() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load login settings for background styling
+  // Load login settings for background styling and punch clock settings
   useEffect(() => {
     loadLoginSettings();
+    loadPunchSettings();
   }, []);
 
   // Redirect if not authenticated (after loading completes)
@@ -138,6 +140,27 @@ function PunchClockApp() {
       }
     } catch (error) {
       console.error('Error loading login settings:', error);
+    }
+  };
+
+  const loadPunchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('job_punch_clock_settings')
+        .select('manual_photo_capture')
+        .eq('job_id', '00000000-0000-0000-0000-000000000000')
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading punch settings:', error);
+        return;
+      }
+
+      if (data) {
+        setPunchSettings(data);
+      }
+    } catch (error) {
+      console.error('Error loading punch settings:', error);
     }
   };
 
@@ -444,11 +467,37 @@ function PunchClockApp() {
     // Get image data for face detection
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
     
-    // Detect face (but don't auto-capture)
+    // Detect face
     setIsDetectingFace(true);
     const faceResult = await detectFace(imageData);
     setFaceDetectionResult(faceResult);
     setIsDetectingFace(false);
+
+    // Only auto-capture if manual photo capture is disabled
+    if (!punchSettings.manual_photo_capture && faceResult.hasFace && !isPunching && !isCapturing) {
+      // Immediately set flags to prevent double submission
+      setIsCapturing(true);
+      setIsPunching(true);
+      
+      // Clear the detection interval immediately
+      if (faceDetectionInterval) {
+        clearInterval(faceDetectionInterval);
+        setFaceDetectionInterval(null);
+      }
+      
+      // Capture the photo
+      canvas.toBlob((blob) => {
+        if (blob) {
+          setPhotoBlob(blob);
+          stopCamera();
+          handlePunch();
+        } else {
+          // Reset flags if capture failed
+          setIsCapturing(false);
+          setIsPunching(false);
+        }
+      }, 'image/jpeg', 0.8);
+    }
   };
 
   const detectFace = async (imageData: string): Promise<{ hasFace: boolean; confidence?: number }> => {
@@ -1212,7 +1261,9 @@ function PunchClockApp() {
                         : 'bg-red-500/80 text-white'
                     }`}>
                       {faceDetectionResult.hasFace 
-                        ? '✓ Face detected - Ready to capture / Rostro detectado - Listo para capturar' 
+                        ? punchSettings.manual_photo_capture 
+                          ? '✓ Face detected - Ready to capture / Rostro detectado - Listo para capturar' 
+                          : '✓ Face detected - Capturing... / Rostro detectado - Capturando...'
                         : '✗ No face detected - Position yourself in the oval / No se detectó rostro - Posiciónese en el óvalo'}
                     </div>
                   )}
@@ -1228,13 +1279,15 @@ function PunchClockApp() {
                 <Button variant="outline" onClick={stopCamera}>
                   Cancel / Cancelar
                 </Button>
-                <Button 
-                  onClick={captureNow} 
-                  disabled={isCapturing || !faceDetectionResult?.hasFace}
-                  className={!faceDetectionResult?.hasFace ? 'opacity-50' : ''}
-                >
-                  Take Photo / Tomar Foto
-                </Button>
+                {punchSettings.manual_photo_capture && (
+                  <Button 
+                    onClick={captureNow} 
+                    disabled={isCapturing || !faceDetectionResult?.hasFace}
+                    className={!faceDetectionResult?.hasFace ? 'opacity-50' : ''}
+                  >
+                    Take Photo / Tomar Foto
+                  </Button>
+                )}
               </div>
             </div>
             

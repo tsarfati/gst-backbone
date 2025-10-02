@@ -1403,6 +1403,7 @@ export type Database = {
           latest_punch_in_time: string | null
           location_accuracy_meters: number | null
           manager_approval_required: boolean | null
+          manual_photo_capture: boolean | null
           notification_enabled: boolean | null
           overtime_threshold: number | null
           punch_rounding_direction: string | null
@@ -1429,6 +1430,7 @@ export type Database = {
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
+          manual_photo_capture?: boolean | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
@@ -1455,6 +1457,7 @@ export type Database = {
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
+          manual_photo_capture?: boolean | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
