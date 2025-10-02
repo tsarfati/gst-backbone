@@ -24,20 +24,14 @@ const navigationCategories = [
     collapsible: false,
   },
   {
-    title: "Vendors",
-    icon: Building2,
-    items: [
-      { name: "All Vendors", href: "/vendors", menuKey: "vendors" },
-    ],
-    collapsible: false,
-  },
-  {
-    title: "Jobs",
+    title: "Construction",
     icon: FolderOpen,
     items: [
-      { name: "All Jobs", href: "/jobs", menuKey: "jobs" },
+      { name: "Jobs", href: "/jobs", menuKey: "jobs" },
+      { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
+      { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
     ],
-    collapsible: false,
+    collapsible: true,
   },
   {
     title: "Receipts",
@@ -55,9 +49,8 @@ const navigationCategories = [
     icon: CreditCard,
     items: [
       { name: "Payables Dashboard", href: "/payables-dashboard", menuKey: "payables-dashboard" },
+      { name: "Vendors", href: "/vendors", menuKey: "vendors" },
       { name: "Bills", href: "/invoices", menuKey: "vendors" },
-      { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
-      { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
       { name: "Make Payment", href: "/payables/make-payment", menuKey: "make-payment" },
       { name: "Payment History", href: "/bills/payments", menuKey: "reports" },
       { name: "Bill Reports", href: "/bills/payment-reports", menuKey: "reports" },
@@ -180,10 +173,15 @@ export function AppSidebar() {
       category.items.some(item => 
         location.pathname === item.href || 
         location.pathname.startsWith(item.href + '/') ||
-        // Keep Payables open when on subcontract/PO pages
-        (category.title === 'Payables' && (
+        // Keep Construction open when on job/subcontract/PO pages
+        (category.title === 'Construction' && (
+          location.pathname.startsWith('/jobs/') ||
           location.pathname.startsWith('/subcontracts/') ||
           location.pathname.startsWith('/purchase-orders/')
+        )) ||
+        // Keep Payables open when on vendor/bill pages
+        (category.title === 'Payables' && (
+          location.pathname.startsWith('/vendors/')
         ))
       )
     )
@@ -307,9 +305,13 @@ export function AppSidebar() {
                               const matches = allowedItems.filter((itm) => {
                                 if (location.pathname === itm.href) return true;
                                 if (location.pathname.startsWith(itm.href + "/")) return true;
+                                if (category.title === "Construction") {
+                                  if (itm.href === "/jobs" && location.pathname.startsWith("/jobs/")) return true;
+                                  if (itm.href === "/subcontracts" && location.pathname.startsWith("/subcontracts/")) return true;
+                                  if (itm.href === "/purchase-orders" && location.pathname.startsWith("/purchase-orders/")) return true;
+                                }
                                 if (category.title === "Payables") {
-                                  if (itm.href === "/subcontracts/add" && location.pathname.startsWith("/subcontracts/")) return true;
-                                  if (itm.href === "/purchase-orders/add" && location.pathname.startsWith("/purchase-orders/")) return true;
+                                  if (itm.href === "/vendors" && location.pathname.startsWith("/vendors/")) return true;
                                 }
                                 return false;
                               });

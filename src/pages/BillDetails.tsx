@@ -631,15 +631,21 @@ export default function BillDetails() {
                       onClick={() => window.open(doc.file_url, '_blank')}
                     >
                       <Eye className="h-4 w-4 mr-2" />
-                      View Full
+                      Open Document
                     </Button>
                   </div>
                   {doc.file_url.endsWith('.pdf') ? (
-                    <iframe 
-                      src={doc.file_url} 
-                      className="w-full h-96"
-                      title={doc.file_name}
-                    />
+                    <div className="p-4 bg-muted/20 text-center">
+                      <FileText className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-2">PDF Document</p>
+                      <Button 
+                        variant="default"
+                        size="sm"
+                        onClick={() => window.open(doc.file_url, '_blank')}
+                      >
+                        Open PDF in New Tab
+                      </Button>
+                    </div>
                   ) : (
                     <img 
                       src={doc.file_url} 
@@ -663,14 +669,28 @@ export default function BillDetails() {
                   onClick={() => window.open(bill.file_url, '_blank')}
                 >
                   <Eye className="h-4 w-4 mr-2" />
-                  View Full
+                  Open Document
                 </Button>
               </div>
-              <iframe 
-                src={bill.file_url} 
-                className="w-full h-96"
-                title="Bill Document"
-              />
+              {bill.file_url.endsWith('.pdf') ? (
+                <div className="p-4 bg-muted/20 text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground mb-2">PDF Document</p>
+                  <Button 
+                    variant="default"
+                    size="sm"
+                    onClick={() => window.open(bill.file_url, '_blank')}
+                  >
+                    Open PDF in New Tab
+                  </Button>
+                </div>
+              ) : (
+                <img 
+                  src={bill.file_url} 
+                  alt="Bill document"
+                  className="w-full h-auto"
+                />
+              )}
             </div>
           ) : (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
