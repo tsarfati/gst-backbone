@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Camera, FileText, Scan, Upload, CheckCircle, User, LogOut, MessageSquare } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { PMReceiptScanner } from '@/components/PMReceiptScanner';
 import { DeliveryTicketForm } from '@/components/DeliveryTicketForm';
 import { useToast } from '@/hooks/use-toast';
@@ -15,7 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PushNotificationService } from '@/utils/pushNotifications';
 
 function PMobileApp() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut } = usePunchClockAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -30,7 +30,7 @@ function PMobileApp() {
   // Redirect unauthenticated users
   useEffect(() => {
     if (!user) {
-      navigate('/auth');
+      navigate('/pm-mobile-login');
     }
   }, [user, navigate]);
 
@@ -38,6 +38,8 @@ function PMobileApp() {
   useEffect(() => {
     if (user) {
       loadUnreadCount();
+      
+      const userId = 'id' in user ? user.id : user.user_id;
       
       // Set up real-time subscription for message updates
       const channel = supabase
@@ -48,7 +50,7 @@ function PMobileApp() {
             event: 'INSERT',
             schema: 'public',
             table: 'messages',
-            filter: `to_user_id=eq.${user.id}`
+            filter: `to_user_id=eq.${userId}`
           },
           (payload) => {
             console.log('New message received for badge:', payload);
@@ -76,7 +78,7 @@ function PMobileApp() {
             event: 'UPDATE',
             schema: 'public',
             table: 'messages',
-            filter: `to_user_id=eq.${user.id}`
+            filter: `to_user_id=eq.${userId}`
           },
           (payload) => {
             // Update count when messages are marked as read
@@ -99,10 +101,11 @@ function PMobileApp() {
 
   const loadUnreadCount = async () => {
     try {
+      const userId = 'id' in user ? user.id : user?.user_id;
       const { count, error } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
-        .eq('to_user_id', user?.id)
+        .eq('to_user_id', userId)
         .eq('read', false);
 
       if (error) throw error;
@@ -115,7 +118,8 @@ function PMobileApp() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/auth');
+      localStorage.removeItem('pm_mobile_user');
+      navigate('/pm-mobile-login');
     } catch (error) {
       console.error('Error signing out:', error);
       toast({
@@ -158,9 +162,9 @@ function PMobileApp() {
               </Button>
             </div>
             <div className="flex items-center gap-3 mb-2">
-              {user?.user_metadata?.avatar_url ? (
+              {profile?.avatar_url ? (
                 <img 
-                  src={user.user_metadata.avatar_url} 
+                  src={profile.avatar_url} 
                   alt="User Avatar"
                   className="h-12 w-12 rounded-full border-2 border-primary/20"
                 />

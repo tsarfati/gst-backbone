@@ -104,6 +104,7 @@ import PunchClockApp from "./pages/PunchClockApp";
 import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
+import PMobileLogin from "./pages/PMobileLogin";
 import MobileMessages from "./pages/MobileMessages";
 import VisitorLogin from "./pages/VisitorLogin";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
@@ -134,6 +135,8 @@ function PublicRoutes() {
           <Route path="/punch-clock-login" element={<PunchClockLogin />} />
           <Route path="/punch-clock" element={<PunchClockLogin />} />
           <Route path="/punch-clock-app" element={<PunchClockApp />} />
+          <Route path="/pm-mobile-login" element={<PMobileLogin />} />
+          <Route path="/pm-mobile-app" element={<PMobileApp />} />
           <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
         </Routes>
       </PunchClockAuthProvider>
@@ -297,11 +300,8 @@ function AuthenticatedRoutes() {
                 <Route path="banking/make-payment" element={<MakePayment />} />
                 <Route path="banking/reconcile" element={<Reconcile />} />
               </Route>
-              <Route path="/pm-mobile" element={
-                <ProtectedRoute>
-                  <PMobileApp />
-                </ProtectedRoute>
-              } />
+              <Route path="/pm-mobile" element={<Navigate to="/pm-mobile-app" replace />} />
+              <Route path="/pm-mobile-app" element={<Navigate to="/pm-mobile-login" replace />} />
               <Route path="/mobile-messages" element={
                 <ProtectedRoute>
                   <MobileMessages />
