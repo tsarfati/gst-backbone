@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { geocodeAddress } from '@/utils/geocoding';
+import { calculateDistance, formatDistance } from '@/utils/distanceCalculation';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
 
@@ -54,6 +55,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [loading, setLoading] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'audit' | 'map'>('details');
+  const [distanceWarningSettings, setDistanceWarningSettings] = useState<{
+    enabled: boolean;
+    maxDistance: number;
+  } | null>(null);
+  const [punchInDistance, setPunchInDistance] = useState<number | null>(null);
+  const [punchOutDistance, setPunchOutDistance] = useState<number | null>(null);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -176,6 +183,48 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       console.log('Final time card data:', data);
       setTimeCard(data as any);
+      
+      // Load distance warning settings if job exists
+      if (timeCardData.job_id) {
+        const { data: settings } = await supabase
+          .from('job_punch_clock_settings')
+          .select('enable_distance_warning, max_distance_from_job_meters')
+          .eq('job_id', timeCardData.job_id)
+          .single();
+          
+        if (settings) {
+          setDistanceWarningSettings({
+            enabled: settings.enable_distance_warning ?? true,
+            maxDistance: settings.max_distance_from_job_meters ?? 500
+          });
+          
+          // Calculate distances if we have coordinates
+          if (jobData.data?.latitude && jobData.data?.longitude) {
+            const jobLat = Number(jobData.data.latitude);
+            const jobLng = Number(jobData.data.longitude);
+            
+            if (data.punch_in_location_lat && data.punch_in_location_lng) {
+              const dist = calculateDistance(
+                Number(data.punch_in_location_lat),
+                Number(data.punch_in_location_lng),
+                jobLat,
+                jobLng
+              );
+              setPunchInDistance(dist);
+            }
+            
+            if (data.punch_out_location_lat && data.punch_out_location_lng) {
+              const dist = calculateDistance(
+                Number(data.punch_out_location_lat),
+                Number(data.punch_out_location_lng),
+                jobLat,
+                jobLng
+              );
+              setPunchOutDistance(dist);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Error loading time card details:', error);
     } finally {
@@ -415,10 +464,26 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <User className="h-4 w-4" />
                         Employee Information
                       </span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant={getStatusColor(timeCard.status)}>
                           {timeCard.status.toUpperCase()}
                         </Badge>
+                        {distanceWarningSettings?.enabled && (punchInDistance || punchOutDistance) && distanceWarningSettings.maxDistance && (
+                          <>
+                            {punchInDistance && punchInDistance > distanceWarningSettings.maxDistance && (
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Punch In: {formatDistance(punchInDistance)} from job
+                              </Badge>
+                            )}
+                            {punchOutDistance && punchOutDistance > distanceWarningSettings.maxDistance && (
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Punch Out: {formatDistance(punchOutDistance)} from job
+                              </Badge>
+                            )}
+                          </>
+                        )}
                         {timeCard.distance_warning && (
                           <Badge variant="destructive" className="flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" />

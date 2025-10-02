@@ -36,6 +36,8 @@ interface JobSettings {
   notification_enabled: boolean;
   manager_approval_required: boolean;
   allow_manual_entry: boolean;
+  enable_distance_warning: boolean;
+  max_distance_from_job_meters: number;
 }
 
 const defaultJobSettings: JobSettings = {
@@ -58,6 +60,8 @@ const defaultJobSettings: JobSettings = {
   notification_enabled: true,
   manager_approval_required: false,
   allow_manual_entry: false,
+  enable_distance_warning: true,
+  max_distance_from_job_meters: 500,
 };
 
 export default function JobPunchClockSettings() {
@@ -131,6 +135,8 @@ export default function JobPunchClockSettings() {
           notification_enabled: data.notification_enabled !== false,
           manager_approval_required: !!data.manager_approval_required,
           allow_manual_entry: !!data.allow_manual_entry,
+          enable_distance_warning: data.enable_distance_warning !== false,
+          max_distance_from_job_meters: data.max_distance_from_job_meters || 500,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
@@ -363,6 +369,40 @@ export default function JobPunchClockSettings() {
                     </div>
                     <Switch checked={settings.allow_manual_entry} onCheckedChange={(checked) => setSettings(s => ({...s, allow_manual_entry: checked}))} />
                   </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Enable Distance Warnings
+                      </Label>
+                      <p className="text-sm text-muted-foreground">Show warning if punch location is far from job site</p>
+                    </div>
+                    <Switch checked={settings.enable_distance_warning} onCheckedChange={(checked) => setSettings(s => ({...s, enable_distance_warning: checked}))} />
+                  </div>
+
+                  {settings.enable_distance_warning && (
+                    <div className="ml-4 space-y-2">
+                      <Label>Maximum Distance from Job (meters)</Label>
+                      <Select value={settings.max_distance_from_job_meters.toString()} onValueChange={(v) => setSettings(s => ({...s, max_distance_from_job_meters: parseInt(v)}))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="100">100m (Very Close)</SelectItem>
+                          <SelectItem value="200">200m (Close)</SelectItem>
+                          <SelectItem value="500">500m (Medium)</SelectItem>
+                          <SelectItem value="1000">1km (Far)</SelectItem>
+                          <SelectItem value="2000">2km (Very Far)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Punches beyond this distance will show a warning badge on time cards
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

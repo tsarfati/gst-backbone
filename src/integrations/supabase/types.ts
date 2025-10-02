@@ -1396,6 +1396,7 @@ export type Database = {
           created_at: string
           created_by: string
           earliest_punch_start_time: string | null
+          enable_distance_warning: boolean | null
           enable_punch_rounding: boolean | null
           grace_period_minutes: number | null
           id: string
@@ -1404,6 +1405,7 @@ export type Database = {
           location_accuracy_meters: number | null
           manager_approval_required: boolean | null
           manual_photo_capture: boolean | null
+          max_distance_from_job_meters: number | null
           notification_enabled: boolean | null
           overtime_threshold: number | null
           punch_rounding_direction: string | null
@@ -1423,6 +1425,7 @@ export type Database = {
           created_at?: string
           created_by: string
           earliest_punch_start_time?: string | null
+          enable_distance_warning?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
@@ -1431,6 +1434,7 @@ export type Database = {
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
           manual_photo_capture?: boolean | null
+          max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
@@ -1450,6 +1454,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           earliest_punch_start_time?: string | null
+          enable_distance_warning?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
@@ -1458,6 +1463,7 @@ export type Database = {
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
           manual_photo_capture?: boolean | null
+          max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
