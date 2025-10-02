@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,21 +17,87 @@ import {
   CreditCard,
   Eye
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useToast } from "@/hooks/use-toast";
+
+interface BankAccount {
+  id: string;
+  account_name: string;
+  account_number: string;
+  bank_name: string;
+  account_type: string;
+  current_balance: number;
+  is_active: boolean;
+  created_at: string;
+}
 
 export default function BankAccounts() {
+  const { currentCompany } = useCompany();
+  const { toast } = useToast();
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  // Remove this line - data comes from database
-  const accounts: any[] = [];
+  useEffect(() => {
+    loadBankAccounts();
+  }, [currentCompany]);
+
+  const loadBankAccounts = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('bank_accounts')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAccounts(data || []);
+    } catch (error) {
+      console.error('Error loading bank accounts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load bank accounts",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredAccounts = accounts.filter(account => {
-    const matchesSearch = account?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         account?.accountNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === "all" || account?.type === typeFilter;
+    const matchesSearch = account?.account_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         account?.account_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         account?.bank_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = typeFilter === "all" || account?.account_type === typeFilter;
     
     return matchesSearch && matchesType;
   });
+
+  const totalBalance = accounts.reduce((sum, account) => sum + (account.current_balance || 0), 0);
+  const checkingAccounts = accounts.filter(account => account.account_type === 'checking').length;
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <Building className="h-8 w-8 animate-pulse mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">Loading bank accounts...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -42,7 +108,12 @@ export default function BankAccounts() {
             Manage your company bank accounts and account details
           </p>
         </div>
-        {/* Add Account button moved to Banking Settings in Company Settings */}
+        <Link to="/banking/accounts/add">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Bank Account
+          </Button>
+        </Link>
       </div>
 
       {/* Summary Cards */}
@@ -53,7 +124,7 @@ export default function BankAccounts() {
             <Building className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{accounts.length}</div>
             <p className="text-xs text-muted-foreground">Active accounts</p>
           </CardContent>
         </Card>
@@ -64,7 +135,7 @@ export default function BankAccounts() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalBalance)}</div>
             <p className="text-xs text-muted-foreground">All accounts</p>
           </CardContent>
         </Card>
@@ -75,7 +146,7 @@ export default function BankAccounts() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{checkingAccounts}</div>
             <p className="text-xs text-muted-foreground">Active checking</p>
           </CardContent>
         </Card>
@@ -106,8 +177,8 @@ export default function BankAccounts() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="checking">Checking</SelectItem>
                   <SelectItem value="savings">Savings</SelectItem>
-                  <SelectItem value="credit">Credit</SelectItem>
-                  <SelectItem value="loan">Loan</SelectItem>
+                  <SelectItem value="money-market">Money Market</SelectItem>
+                  <SelectItem value="credit-line">Line of Credit</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -118,7 +189,7 @@ export default function BankAccounts() {
       {/* Accounts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Bank Accounts</CardTitle>
+          <CardTitle>Bank Accounts ({filteredAccounts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {filteredAccounts.length === 0 ? (
@@ -131,7 +202,14 @@ export default function BankAccounts() {
                   : "Start by adding your first bank account"
                 }
               </p>
-              {/* Add Account button moved to Banking Settings in Company Settings */}
+              {accounts.length === 0 && (
+                <Link to="/banking/accounts/add">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Bank Account
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <Table>
@@ -149,27 +227,33 @@ export default function BankAccounts() {
               <TableBody>
                 {filteredAccounts.map((account) => (
                   <TableRow key={account.id}>
-                    <TableCell className="font-medium">{account.name}</TableCell>
-                    <TableCell>{account.accountNumber}</TableCell>
-                    <TableCell>{account.bank}</TableCell>
+                    <TableCell className="font-medium">{account.account_name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{account.type}</Badge>
+                      {account.account_number ? `****${account.account_number.slice(-4)}` : 'N/A'}
                     </TableCell>
-                    <TableCell className="font-semibold">${account.balance?.toLocaleString()}</TableCell>
+                    <TableCell>{account.bank_name}</TableCell>
                     <TableCell>
-                      <Badge variant={account.status === "active" ? "default" : "secondary"}>
-                        {account.status}
+                      <Badge variant="outline" className="capitalize">
+                        {account.account_type.replace('-', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-semibold">
+                      {formatCurrency(account.current_balance)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={account.is_active ? "default" : "secondary"}>
+                        {account.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" title="View Details">
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" title="Edit Account">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" title="Delete Account">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
