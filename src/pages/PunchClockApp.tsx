@@ -69,6 +69,16 @@ function PunchClockApp() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
+  const getAvatarUrl = () => {
+    // Use profile avatar if available
+    if (profile?.avatar_url) return profile.avatar_url;
+    
+    // Fallback to latest punch photo
+    if (currentPunch?.punch_in_photo_url) return currentPunch.punch_in_photo_url;
+    
+    return undefined;
+  };
+
   // Update time every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1103,7 +1113,7 @@ function PunchClockApp() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/employee-dashboard')}>
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={profile?.avatar_url} />
+                  <AvatarImage src={getAvatarUrl()} />
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials(profile?.display_name || profile?.first_name)}
                   </AvatarFallback>

@@ -56,6 +56,8 @@ export default function EmployeeDashboard() {
     avatar_url: ''
   });
   
+  const [latestPunchPhoto, setLatestPunchPhoto] = useState<string | null>(null);
+  
   // Messaging
   const [message, setMessage] = useState('');
   const [projectManagerId, setProjectManagerId] = useState<string | null>(null);
@@ -97,6 +99,19 @@ export default function EmployeeDashboard() {
           phone: profile.phone || '',
           avatar_url: profile.avatar_url || ''
         });
+      }
+      
+      // Get latest punch photo for avatar fallback
+      const { data: latestPunch } = await supabase
+        .from('time_cards')
+        .select('punch_out_photo_url, punch_in_photo_url')
+        .eq('user_id', userId)
+        .order('punch_in_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (latestPunch) {
+        setLatestPunchPhoto(latestPunch.punch_out_photo_url || latestPunch.punch_in_photo_url);
       }
       
       // Load company policies
@@ -277,7 +292,7 @@ export default function EmployeeDashboard() {
           <CardHeader>
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={profileData.avatar_url} />
+                <AvatarImage src={profileData.avatar_url || latestPunchPhoto || undefined} />
                 <AvatarFallback>{getInitials(profile?.display_name || profile?.first_name)}</AvatarFallback>
               </Avatar>
               <div>

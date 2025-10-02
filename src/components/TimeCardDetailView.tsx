@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { geocodeAddress } from '@/utils/geocoding';
@@ -32,7 +34,9 @@ interface TimeCardDetail {
   overtime_hours: number;
   status: string;
   break_minutes: number;
+  break_duration_minutes?: number;
   notes?: string;
+  review_notes?: string;
   distance_warning: boolean;
   distance_from_job_meters?: number;
   requires_approval: boolean;
@@ -44,7 +48,7 @@ interface TimeCardDetail {
   punch_in_photo_url?: string;
   punch_out_photo_url?: string;
   correction_reason?: string;
-  profiles?: { first_name: string; last_name: string; display_name: string };
+  profiles?: { first_name: string; last_name: string; display_name: string; email?: string; phone?: string; role?: string; avatar_url?: string };
   jobs?: { name: string; latitude?: number; longitude?: number };
   cost_codes?: { code: string; description: string; type?: string };
 }
@@ -65,6 +69,11 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const map = useRef<mapboxgl.Map | null>(null);
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  
+  // Extract nested data for easier use
+  const job = timeCard?.jobs;
+  const costCode = timeCard?.cost_codes;
+  const employeeProfile = timeCard?.profiles;
 
   useEffect(() => {
     if (open && timeCardId) {
@@ -453,197 +462,182 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </div>
           
           <TabsContent value="details" className="space-y-4 mt-6">
+            {/* Top Row - Employee & Job Details Side by Side */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Column - Employee & Job Details */}
-              <div className="space-y-4">
-                {/* Employee & Status Info */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        Employee Information
-                      </span>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant={getStatusColor(timeCard.status)}>
-                          {timeCard.status.toUpperCase()}
-                        </Badge>
-                        {distanceWarningSettings?.enabled && (punchInDistance || punchOutDistance) && distanceWarningSettings.maxDistance && (
-                          <>
-                            {punchInDistance && punchInDistance > distanceWarningSettings.maxDistance && (
-                              <Badge variant="destructive" className="flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Punch In: {formatDistance(punchInDistance)} from job
-                              </Badge>
-                            )}
-                            {punchOutDistance && punchOutDistance > distanceWarningSettings.maxDistance && (
-                              <Badge variant="destructive" className="flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Punch Out: {formatDistance(punchOutDistance)} from job
-                              </Badge>
-                            )}
-                          </>
-                        )}
-                        {timeCard.distance_warning && (
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Distance Warning
-                          </Badge>
-                        )}
-                        {!timeCard.requires_approval && (
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Auto-Approved
-                          </Badge>
-                        )}
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <h4 className="font-medium">{timeCard.profiles?.display_name || 'Unknown Employee'}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Entry Method: {timeCard.created_via_punch_clock ? 'Punch Clock' : 'Manual Entry'}
-                      </p>
-                    </div>
-                    
-                    {timeCard.correction_reason && (
-                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <div className="flex items-center gap-2 text-yellow-800 mb-1">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span className="font-medium">Correction Made</span>
+              {/* Employee & Status Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Employee Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {profile && (
+                    <>
+                       <div className="flex items-center gap-3">
+                         <Avatar className="h-12 w-12">
+                           <AvatarImage src={profile.avatar_url || timeCard.punch_out_photo_url || timeCard.punch_in_photo_url} />
+                           <AvatarFallback>
+                             {profile.first_name?.[0]}{profile.last_name?.[0]}
+                           </AvatarFallback>
+                         </Avatar>
+                        <div>
+                          <p className="font-medium">{profile.first_name} {profile.last_name}</p>
+                          <p className="text-sm text-muted-foreground">{profile.email}</p>
                         </div>
-                        <p className="text-sm text-yellow-700">{timeCard.correction_reason}</p>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Phone:</span>
+                          <span className="text-sm font-medium">{profile.phone || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Role:</span>
+                          <span className="text-sm font-medium capitalize">{profile.role || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                {/* Job & Time Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Job & Time Details
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Job</p>
-                        <p className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Cost Code</p>
-                        <p className="font-medium">
-                          {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
-                          {timeCard.cost_codes?.type && ` (${timeCard.cost_codes.type})`}
-                        </p>
-                      </div>
+                  <div className="pt-4 border-t">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-muted-foreground">Status:</span>
+                      <Badge variant={
+                        timeCard.status === 'approved' ? 'default' :
+                        timeCard.status === 'rejected' ? 'destructive' : 
+                        'secondary'
+                      }>
+                        {timeCard.status}
+                      </Badge>
                     </div>
-
-                    <Separator />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Punch In</p>
-                        <p className="font-medium">{formatTime(timeCard.punch_in_time)}</p>
+                    {timeCard.review_notes && (
+                      <div className="mt-2 p-2 bg-muted rounded-md">
+                        <p className="text-sm text-muted-foreground">Review Notes:</p>
+                        <p className="text-sm">{timeCard.review_notes}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Punch Out</p>
-                        <p className="font-medium">{formatTime(timeCard.punch_out_time)}</p>
-                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Job & Time Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Job & Time Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Job:</span>
+                      <span className="text-sm font-medium">{job?.name || 'N/A'}</span>
                     </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Hours</p>
-                        <p className="font-bold text-lg">{timeCard.total_hours.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Overtime</p>
-                        <p className="font-bold text-lg text-warning">{timeCard.overtime_hours.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Break</p>
-                        <p className="font-bold text-lg">{timeCard.break_minutes} min</p>
-                      </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Cost Code:</span>
+                      <span className="text-sm font-medium">
+                        {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
+                      </span>
                     </div>
+                  </div>
 
-                    {timeCard.distance_from_job_meters && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm text-red-700">
-                          <strong>Distance from Job:</strong> {timeCard.distance_from_job_meters.toFixed(0)} meters
-                        </p>
+                  <div className="pt-4 border-t space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Punch In:</span>
+                      <span className="text-sm font-medium">
+                        {format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Punch Out:</span>
+                      <span className="text-sm font-medium">
+                        {timeCard.punch_out_time 
+                          ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                          : 'Still clocked in'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Total Hours:</span>
+                      <span className="text-sm font-medium">{timeCard.total_hours?.toFixed(2) || 'N/A'}</span>
+                    </div>
+                    {timeCard.break_duration_minutes && timeCard.break_duration_minutes > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Break Time:</span>
+                        <span className="text-sm font-medium">{timeCard.break_duration_minutes} minutes</span>
                       </div>
                     )}
-
-                    {timeCard.notes && (
-                      <div>
-                        <p className="text-sm text-muted-foreground mb-2">Notes</p>
-                        <p className="text-sm bg-muted/50 p-3 rounded-lg">{timeCard.notes}</p>
+                    {timeCard.overtime_hours && timeCard.overtime_hours > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Overtime:</span>
+                        <span className="text-sm font-medium text-orange-500">
+                          {timeCard.overtime_hours.toFixed(2)} hours
+                        </span>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
 
-              {/* Right Column - Photos */}
-              <div className="space-y-4">
-                <Card className="h-full">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Camera className="h-4 w-4" />
-                      Punch Photos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) ? (
-                      <div className="space-y-4">
-                        {timeCard.punch_in_photo_url && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Punch In Photo</p>
-                            <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
-                              <img 
-                                src={timeCard.punch_in_photo_url} 
-                                alt="Punch in photo" 
-                                className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                                onClick={() => window.open(timeCard.punch_in_photo_url, '_blank')}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Taken at {formatTime(timeCard.punch_in_time)}
-                            </p>
-                          </div>
-                        )}
-                        {timeCard.punch_out_photo_url && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-muted-foreground">Punch Out Photo</p>
-                            <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
-                              <img 
-                                src={timeCard.punch_out_photo_url} 
-                                alt="Punch out photo" 
-                                className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                                onClick={() => window.open(timeCard.punch_out_photo_url, '_blank')}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Taken at {formatTime(timeCard.punch_out_time)}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p>No punch photos available for this time card</p>
-                        <p className="text-xs mt-1">Photos are required for punch clock entries when enabled in settings</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+                  {timeCard.notes && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-muted-foreground mb-1">Notes:</p>
+                      <p className="text-sm">{timeCard.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
+
+            {/* Bottom Row - Photos Full Width */}
+            {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Punch Photos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {timeCard.punch_in_photo_url && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">Punch In Photo</p>
+                        <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
+                          <img 
+                            src={timeCard.punch_in_photo_url} 
+                            alt="Punch in photo" 
+                            className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                            onClick={() => window.open(timeCard.punch_in_photo_url, '_blank')}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Taken at {formatTime(timeCard.punch_in_time)}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {timeCard.punch_out_photo_url && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">Punch Out Photo</p>
+                        <div className="aspect-[4/3] relative overflow-hidden rounded-lg border bg-muted">
+                          <img 
+                            src={timeCard.punch_out_photo_url} 
+                            alt="Punch out photo" 
+                            className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                            onClick={() => window.open(timeCard.punch_out_photo_url, '_blank')}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Taken at {formatTime(timeCard.punch_out_time)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           
           <TabsContent value="audit" className="mt-6">
