@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import CommitmentInfo from "@/components/CommitmentInfo";
+import { generateCommitmentStatusReport } from "@/utils/commitmentReportPdf";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -39,7 +40,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
         .from('subcontracts')
         .select(`
           *,
-          jobs(id, name),
+          jobs(id, name, client, company_id),
           vendors(id, name)
         `)
         .eq('id', id)
@@ -91,6 +92,56 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!subcontract) return;
+    
+    try {
+      // Fetch company info
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('name, logo_url')
+        .eq('id', subcontract.jobs?.company_id)
+        .single();
+
+      await generateCommitmentStatusReport(
+        {
+          name: subcontract.name,
+          vendor_name: subcontract.vendors?.name || 'Unknown',
+          contract_amount: parseFloat(subcontract.contract_amount),
+          status: subcontract.status,
+          start_date: subcontract.start_date,
+          end_date: subcontract.end_date,
+          apply_retainage: subcontract.apply_retainage,
+          retainage_percentage: subcontract.retainage_percentage,
+        },
+        invoices.map(inv => ({
+          invoice_number: inv.invoice_number || 'N/A',
+          issue_date: inv.issue_date,
+          amount: parseFloat(inv.amount),
+          status: inv.status,
+          due_date: inv.due_date,
+        })),
+        companyData || { name: 'Company' },
+        {
+          name: subcontract.jobs?.name || 'Job',
+          client: subcontract.jobs?.client,
+        }
+      );
+
+      toast({
+        title: "Success",
+        description: "Commitment status report generated successfully",
+      });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate report",
+        variant: "destructive",
+      });
     }
   };
 
@@ -197,13 +248,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
         <div className="flex gap-2">
           <Button 
             variant="outline"
-            onClick={() => {
-              toast({
-                title: "Generating Report",
-                description: "Commitment status report is being prepared...",
-              });
-              // TODO: Implement PDF generation
-            }}
+            onClick={handleGenerateReport}
           >
             <Download className="h-4 w-4 mr-2" />
             Commit Status Report
