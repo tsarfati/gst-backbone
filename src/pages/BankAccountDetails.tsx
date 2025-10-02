@@ -4,12 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Edit, FileText, Upload, Download, Trash2, Calendar } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Upload, Download, Trash2, Calendar, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 
 interface BankAccount {
   id: string;
@@ -30,6 +33,7 @@ interface BankStatement {
   statement_month: number;
   statement_year: number;
   file_name: string;
+  display_name?: string;
   file_url: string;
   file_size?: number;
   uploaded_at: string;
@@ -62,6 +66,10 @@ export default function BankAccountDetails() {
   const [reconcileReports, setReconcileReports] = useState<ReconcileReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [statementName, setStatementName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<{ fileName: string; url: string; type: string } | null>(null);
   const statementFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -133,16 +141,24 @@ export default function BankAccountDetails() {
     }
   };
 
-  const handleStatementUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentCompany || !user || !id) return;
+    if (!file) return;
+    
+    setSelectedFile(file);
+    setStatementName(file.name.replace(/\.[^/.]+$/, "")); // Remove file extension
+    setUploadDialogOpen(true);
+  };
+
+  const handleStatementUpload = async () => {
+    if (!selectedFile || !currentCompany || !user || !id || !statementName.trim()) return;
 
     setUploading(true);
     try {
-      const filePath = `${currentCompany.id}/${id}/${Date.now()}-${file.name}`;
+      const filePath = `${currentCompany.id}/${id}/${Date.now()}-${selectedFile.name}`;
       const { error: uploadError } = await supabase.storage
         .from('bank-statements')
-        .upload(filePath, file);
+        .upload(filePath, selectedFile);
 
       if (uploadError) throw uploadError;
 
@@ -159,15 +175,19 @@ export default function BankAccountDetails() {
           statement_date: statementDate.toISOString().split('T')[0],
           statement_month: statementDate.getMonth() + 1,
           statement_year: statementDate.getFullYear(),
-          file_name: file.name,
+          file_name: selectedFile.name,
+          display_name: statementName.trim(),
           file_url: publicUrl,
-          file_size: file.size,
+          file_size: selectedFile.size,
           uploaded_by: user.id,
         });
 
       if (insertError) throw insertError;
 
       toast({ title: "Success", description: "Bank statement uploaded successfully" });
+      setUploadDialogOpen(false);
+      setSelectedFile(null);
+      setStatementName("");
       loadStatements();
     } catch (error) {
       console.error('Error uploading statement:', error);
@@ -304,9 +324,9 @@ export default function BankAccountDetails() {
               <CardTitle>Bank Statements</CardTitle>
               <Button onClick={() => statementFileRef.current?.click()} disabled={uploading}>
                 <Upload className="h-4 w-4 mr-2" />
-                {uploading ? 'Uploading...' : 'Upload Statement'}
+                {uploading ? "Uploading..." : "Upload Statement"}
               </Button>
-              <input ref={statementFileRef} type="file" accept=".pdf" className="hidden" onChange={handleStatementUpload} />
+              <input ref={statementFileRef} type="file" accept=".pdf" className="hidden" onChange={handleFileSelect} />
             </div>
           </CardHeader>
           <CardContent>
@@ -317,7 +337,7 @@ export default function BankAccountDetails() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Period</TableHead>
-                    <TableHead>File Name</TableHead>
+                    <TableHead>Name</TableHead>
                     <TableHead>Uploaded</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -326,14 +346,27 @@ export default function BankAccountDetails() {
                   {statements.map((statement) => (
                     <TableRow key={statement.id}>
                       <TableCell>{statement.statement_month}/{statement.statement_year}</TableCell>
-                      <TableCell>{statement.file_name}</TableCell>
+                      <TableCell>{statement.display_name || statement.file_name}</TableCell>
                       <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href={statement.file_url} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setPreviewDocument({
+                              fileName: statement.display_name || statement.file_name,
+                              url: statement.file_url,
+                              type: "pdf"
+                            })}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={statement.file_url} download>
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -381,6 +414,51 @@ export default function BankAccountDetails() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Upload Dialog */}
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Bank Statement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="statement-name">Statement Name *</Label>
+              <Input
+                id="statement-name"
+                value={statementName}
+                onChange={(e) => setStatementName(e.target.value)}
+                placeholder="e.g., January 2025 Statement"
+              />
+            </div>
+            {selectedFile && (
+              <div className="text-sm text-muted-foreground">
+                <strong>File:</strong> {selectedFile.name}
+              </div>
+            )}
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => {
+                setUploadDialogOpen(false);
+                setSelectedFile(null);
+                setStatementName("");
+                if (statementFileRef.current) statementFileRef.current.value = '';
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleStatementUpload} disabled={uploading || !statementName.trim()}>
+                {uploading ? "Uploading..." : "Upload"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={!!previewDocument}
+        onClose={() => setPreviewDocument(null)}
+        document={previewDocument}
+      />
     </div>
   );
 }

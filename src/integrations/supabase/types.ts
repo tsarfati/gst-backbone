@@ -163,6 +163,7 @@ export type Database = {
           bank_account_id: string
           company_id: string
           created_at: string
+          display_name: string | null
           file_name: string
           file_size: number | null
           file_url: string
@@ -179,6 +180,7 @@ export type Database = {
           bank_account_id: string
           company_id: string
           created_at?: string
+          display_name?: string | null
           file_name: string
           file_size?: number | null
           file_url: string
@@ -195,6 +197,7 @@ export type Database = {
           bank_account_id?: string
           company_id?: string
           created_at?: string
+          display_name?: string | null
           file_name?: string
           file_size?: number | null
           file_url?: string
@@ -2801,6 +2804,7 @@ export type Database = {
           company_id: string
           created_at: string
           difference: number
+          display_name: string | null
           file_name: string | null
           file_size: number | null
           file_url: string | null
@@ -2821,6 +2825,7 @@ export type Database = {
           company_id: string
           created_at?: string
           difference?: number
+          display_name?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
@@ -2841,6 +2846,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           difference?: number
+          display_name?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
