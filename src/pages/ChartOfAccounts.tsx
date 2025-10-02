@@ -136,6 +136,23 @@ export default function ChartOfAccounts() {
     try {
       const { data: userData } = await supabase.auth.getUser();
       
+      // Check if account number already exists
+      const { data: existingAccount } = await supabase
+        .from('chart_of_accounts')
+        .select('account_number')
+        .eq('account_number', newAccount.account_number)
+        .eq('company_id', currentCompany?.id || '')
+        .maybeSingle();
+
+      if (existingAccount) {
+        toast({
+          title: "Duplicate Account Number",
+          description: `Account number ${newAccount.account_number} already exists. Please use a different number.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       const { error } = await supabase
         .from('chart_of_accounts')
         .insert({
@@ -182,6 +199,24 @@ export default function ChartOfAccounts() {
 
     try {
       const isCashType = editingAccount.account_type === 'cash';
+      
+      // Check if new account number conflicts with existing account (excluding current account)
+      const { data: existingAccount } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_number')
+        .eq('account_number', editingAccount.account_number)
+        .eq('company_id', currentCompany?.id || '')
+        .neq('id', editingAccount.id)
+        .maybeSingle();
+
+      if (existingAccount) {
+        toast({
+          title: "Duplicate Account Number",
+          description: `Account number ${editingAccount.account_number} already exists. Please use a different number.`,
+          variant: "destructive",
+        });
+        return;
+      }
       
       const updateData = {
         account_number: editingAccount.account_number,
