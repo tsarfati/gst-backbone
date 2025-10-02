@@ -481,29 +481,32 @@ export default function AddBill() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFileUpload = (file: File) => {
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF or image file (JPG, PNG, WEBP)",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleFileUpload = (files: File[]) => {
+    const validFiles = files.filter(file => {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} must be PDF or image`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `${file.name} exceeds 10MB`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      return true;
+    });
+    setBillFiles(prev => [...prev, ...validFiles]);
+  };
 
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 10MB",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setBillFile(file);
+  const removeFile = (index: number) => {
+    setBillFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -539,7 +542,7 @@ export default function AddBill() {
     // Check if documents are required by payables settings
     const requireDocuments = payablesSettings?.require_bill_documents ?? false;
     
-    if (requireDocuments && !billFile && !attachedReceipt) {
+    if (requireDocuments && billFiles.length === 0 && !attachedReceipt) {
       toast({
         title: "Document required",
         description: "Company settings require all bills to have a document or attachment",
@@ -548,7 +551,7 @@ export default function AddBill() {
       return;
     }
     
-    if (!billFile && !attachedReceipt) {
+    if (billFiles.length === 0 && !attachedReceipt) {
       toast({
         title: "Attachment required",
         description: "Upload a bill file or attach a coded receipt before submitting",
@@ -661,8 +664,8 @@ export default function AddBill() {
 
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
-      formData.issueDate && billFile && (formData.use_terms ? formData.payment_terms : formData.dueDate)
-    : formData.vendor_id && formData.amount && formData.issueDate && (billFile || attachedReceipt) && 
+      formData.issueDate && billFiles.length > 0 && (formData.use_terms ? formData.payment_terms : formData.dueDate)
+    : formData.vendor_id && formData.amount && formData.issueDate && (billFiles.length > 0 || attachedReceipt) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && isDistributionValid();
 
   if (loading) {
@@ -1255,25 +1258,30 @@ export default function AddBill() {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {billFile ? (
-                <div className="space-y-4">
+              {billFiles.length > 0 ? (
+                <div className="space-y-3">
                   <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
                     <FileText className="h-8 w-8 text-success" />
                   </div>
-                  <div>
-                    <p className="font-medium">{billFile.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(billFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                  <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
+                  <div className="max-h-[200px] overflow-y-auto space-y-2">
+                    {billFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <FileText className="h-4 w-4 flex-shrink-0" />
+                          <span className="text-sm truncate">{file.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBillFile(null)}
-                  >
-                    Remove File
-                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1292,6 +1300,7 @@ export default function AddBill() {
                   <div>
                     <input
                       type="file"
+                      multiple
                       accept=".pdf,.jpg,.jpeg,.png,.webp"
                       onChange={handleFileInputChange}
                       className="hidden"
@@ -1300,7 +1309,7 @@ export default function AddBill() {
                     <Button type="button" asChild>
                       <label htmlFor="bill-file-upload" className="cursor-pointer">
                         <Upload className="h-4 w-4 mr-2" />
-                        Choose File
+                        Choose Files
                       </label>
                     </Button>
                   </div>
@@ -1309,24 +1318,42 @@ export default function AddBill() {
             </div>
             
             {/* File Preview */}
-            {billFile && (
-              <div className="space-y-2">
-                <Label className="text-base font-semibold">Preview</Label>
-                <div className="border rounded-lg overflow-hidden bg-muted/20">
-                  {billFile.type === 'application/pdf' ? (
-                    <PdfInlinePreview file={billFile} height={600} />
-                  ) : (
-                    <img
-                      src={URL.createObjectURL(billFile)}
-                      alt="Bill preview"
-                      className="w-full h-auto max-h-[600px] object-contain"
-                    />
-                  )}
+            {billFiles.length > 0 && (
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Previews</Label>
+                <div className="max-h-[800px] overflow-y-auto space-y-3">
+                  {billFiles.map((file, index) => (
+                    <div key={index} className="border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-3 bg-muted">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="font-medium">{file.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {file.type === 'application/pdf' ? (
+                        <PdfInlinePreview file={file} height={384} />
+                      ) : (
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt="Bill preview"
+                          className="w-full h-auto"
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
             
-            {!billFile && !attachedReceipt && (
+            {billFiles.length === 0 && !attachedReceipt && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
                 <span>Bill file or receipt attachment is required before saving</span>
