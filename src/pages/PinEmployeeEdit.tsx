@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code, Building2 } from 'lucide-react';
+import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code, Building2, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -587,6 +587,21 @@ export default function PinEmployeeEdit() {
                   rows={3}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* PM Mobile Access Info */}
+          <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                PM Mobile Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                PIN employees can access the Punch Clock app, but PM Mobile access requires a full user account with Project Manager, Admin, or Controller role. To grant PM Mobile access, create a regular user account in Settings → Users and assign the appropriate role.
+              </p>
             </CardContent>
           </Card>
 

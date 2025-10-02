@@ -593,6 +593,26 @@ export default function UserEdit() {
                 />
                 <Label htmlFor="has_global_job_access">Global Job Access</Label>
               </div>
+
+              <Separator className="my-4" />
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900 p-4">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      PM Mobile Access
+                    </p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      {['project_manager', 'admin', 'controller'].includes(user.role) ? (
+                        <>✓ This user has access to the PM Mobile App</>
+                      ) : (
+                        <>This user does not have PM Mobile access. Set role to Project Manager, Admin, or Controller to grant access.</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
