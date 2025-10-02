@@ -20,6 +20,8 @@ function PMobileApp() {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [receiptCount, setReceiptCount] = useState(0);
+  const [ticketCount, setTicketCount] = useState(0);
 
   // Update time every second
   useEffect(() => {
@@ -38,6 +40,7 @@ function PMobileApp() {
   useEffect(() => {
     if (user) {
       loadUnreadCount();
+      loadTodayCounts();
       
       const userId = 'id' in user ? user.id : user.user_id;
       
@@ -112,6 +115,39 @@ function PMobileApp() {
       setUnreadMessageCount(count || 0);
     } catch (error) {
       console.error('Error loading unread count:', error);
+    }
+  };
+
+  const loadTodayCounts = async () => {
+    try {
+      const userId = 'id' in user ? user.id : user?.user_id;
+      if (!userId) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      // Count receipts created by user today (across all companies)
+      const { count: receiptsToday, error: receiptError } = await supabase
+        .from('receipts')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId)
+        .gte('created_at', todayISO);
+
+      if (receiptError) throw receiptError;
+      setReceiptCount(receiptsToday || 0);
+
+      // Count delivery tickets created by user today (across all companies)
+      const { count: ticketsToday, error: ticketError } = await supabase
+        .from('delivery_tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('created_by', userId)
+        .gte('created_at', todayISO);
+
+      if (ticketError) throw ticketError;
+      setTicketCount(ticketsToday || 0);
+    } catch (error) {
+      console.error('Error loading today counts:', error);
     }
   };
 
@@ -212,7 +248,7 @@ function PMobileApp() {
         <div className="grid grid-cols-2 gap-4">
           <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary">5</div>
+              <div className="text-2xl font-bold text-primary">{receiptCount}</div>
               <div className="text-xs text-muted-foreground">
                 Today's Uploads
               </div>
@@ -220,7 +256,7 @@ function PMobileApp() {
           </Card>
           <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-primary">12</div>
+              <div className="text-2xl font-bold text-primary">{ticketCount}</div>
               <div className="text-xs text-muted-foreground">
                 Tickets Processed
               </div>
