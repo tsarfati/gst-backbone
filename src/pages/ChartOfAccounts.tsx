@@ -777,7 +777,12 @@ export default function ChartOfAccounts() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setEditingAccount(account);
+                          // Map asset with cash_accounts category back to cash for editing
+                          const accountForEditing = {
+                            ...account,
+                            account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
+                          };
+                          setEditingAccount(accountForEditing);
                           setEditDialogOpen(true);
                         }}
                         disabled={account.is_system_account}
