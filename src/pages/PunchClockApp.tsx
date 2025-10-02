@@ -666,52 +666,49 @@ function PunchClockApp() {
       return null;
     }
 
-    const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
-    console.log('Starting photo upload for user:', userId, 'isPinAuthenticated:', isPinAuthenticated);
-
     try {
-      // In PIN-authenticated mode, upload via Edge Function (uses service role)
-      if (isPinAuthenticated) {
-        console.log('Using PIN authenticated upload via edge function');
-        const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const res = reader.result as string;
-            // Strip data URL prefix if present
-            const base64 = res.includes(',') ? res.split(',')[1] : res;
-            resolve(base64);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(b);
-        });
-        const base64 = await toBase64(blob);
-        console.log('Converted blob to base64, length:', base64.length);
-        
-        const pin = getPin();
-        const res = await fetch(`${FUNCTION_BASE}/upload-photo`, {
+      // Always try Edge Function first for consistent permissions (PIN or regular auth)
+      const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const base64 = res.includes(',') ? res.split(',')[1] : res;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(b);
+      });
+
+      const base64 = await toBase64(blob);
+      const pin = isPinAuthenticated ? getPin() : null;
+
+      // Get current session token for regular authenticated users
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token || undefined;
+
+      let res: Response | null = null;
+      try {
+        res = await fetch(`${FUNCTION_BASE}/upload-photo`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             apikey: ANON_KEY,
-            Authorization: `Bearer ${ANON_KEY}`,
+            // Prefer user token when available; fallback to anon for PIN mode
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : { Authorization: `Bearer ${ANON_KEY}` }),
           },
-          body: JSON.stringify({ pin, image: base64, user_id: userId }),
+          body: JSON.stringify({ pin, image: base64 }),
         });
-        
-        console.log('Edge upload response status:', res.status);
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('Edge upload failed', errorText);
-          return null;
-        }
+      } catch (e) {
+        console.warn('Edge upload request failed to send:', e);
+      }
+
+      if (res && res.ok) {
         const json = await res.json();
-        console.log('Edge upload success, publicUrl:', json.publicUrl);
         return json.publicUrl || null;
       }
 
-      // Default (authenticated) upload via client SDK
-      console.log('Using client SDK upload');
+      // Fallback: upload via client SDK (for cases where edge function rejects)
+      const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
       const fileName = `${userId}-${Date.now()}.jpg`;
       const filePath = `punch-photos/${fileName}`;
 
@@ -720,16 +717,15 @@ function PunchClockApp() {
         .upload(filePath, blob);
 
       if (error) {
-        console.error('Storage upload error:', error);
-        throw error;
+        console.error('Storage upload error (fallback):', error);
+        return null;
       }
 
       const { data: urlData } = supabase.storage
         .from('punch-photos')
         .getPublicUrl(filePath);
 
-      console.log('Client SDK upload success, publicUrl:', urlData.publicUrl);
-      return urlData.publicUrl;
+      return urlData.publicUrl || null;
     } catch (error) {
       console.error('Error uploading photo:', error);
       return null;
