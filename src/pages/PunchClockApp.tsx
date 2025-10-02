@@ -765,7 +765,7 @@ function PunchClockApp() {
     }
   };
 
-  const handlePunch = async () => {
+  const handlePunch = async (capturedBlob?: Blob) => {
     // Guard against concurrent submissions at the very start
     if (!user || isPunching || isLoading) {
       console.log('Punch blocked - already in progress');
