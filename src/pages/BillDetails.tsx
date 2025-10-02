@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
+  import { 
   ArrowLeft, 
   Download, 
   Eye, 
@@ -20,12 +20,12 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  XCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import VendorAvatar from "@/components/VendorAvatar";
-import BillApprovalActions from "@/components/BillApprovalActions";
 import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
@@ -241,6 +241,33 @@ export default function BillDetails() {
     }
   };
 
+  const handleRejectBill = async () => {
+    if (!id) return;
+    
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .update({ status: 'rejected' })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Bill has been rejected",
+      });
+
+      fetchBillDetails();
+    } catch (error) {
+      console.error('Error rejecting bill:', error);
+      toast({
+        title: "Error",
+        description: "Failed to reject bill",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -301,59 +328,69 @@ export default function BillDetails() {
           </Button>
           
           {(bill?.status === 'pending_approval' || bill?.status === 'pending') && (
-            <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="default">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve Bill
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Approve Bill</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to approve this bill for ${bill?.amount?.toLocaleString()} from {bill?.vendors?.name}?
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
-                    <Textarea
-                      id="approval-notes"
-                      placeholder="Add any notes about this approval..."
-                      value={approvalNotes}
-                      onChange={(e) => setApprovalNotes(e.target.value)}
-                      className="mt-2"
-                    />
+            <>
+              <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="default">
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve Bill
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Approve Bill</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to approve this bill for ${bill?.amount?.toLocaleString()} from {bill?.vendors?.name}?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
+                      <Textarea
+                        id="approval-notes"
+                        placeholder="Add any notes about this approval..."
+                        value={approvalNotes}
+                        onChange={(e) => setApprovalNotes(e.target.value)}
+                        className="mt-2"
+                      />
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setApprovalDialogOpen(false)}
-                    disabled={approvingBill}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    onClick={handleApproveBill}
-                    disabled={approvingBill}
-                  >
-                    {approvingBill ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Approving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Approve Bill
-                      </>
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setApprovalDialogOpen(false)}
+                      disabled={approvingBill}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleApproveBill}
+                      disabled={approvingBill}
+                    >
+                      {approvingBill ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Approving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approve Bill
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Button 
+                variant="destructive"
+                onClick={handleRejectBill}
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Reject Bill
+              </Button>
+            </>
           )}
 
           {bill?.file_url && (
@@ -364,18 +401,6 @@ export default function BillDetails() {
           )}
         </div>
       </div>
-
-      {/* Commitment Information */}
-      {commitmentTotals && (
-        <CommitmentInfo
-          totalCommit={commitmentTotals.totalCommit}
-          prevGross={commitmentTotals.prevGross}
-          prevRetention={commitmentTotals.prevRetention}
-          prevPayments={commitmentTotals.prevPayments}
-          contractBalance={commitmentTotals.contractBalance}
-          className="mb-6"
-        />
-      )}
 
       {/* Bill Information */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-6">
@@ -504,16 +529,21 @@ export default function BillDetails() {
               )}
             </div>
 
-            <Separator />
-
-            {/* Approval Actions */}
-            <div>
-              <BillApprovalActions
-                billId={bill?.id || ''}
-                currentStatus={bill?.status || 'pending_approval'}
-                onStatusUpdate={fetchBillDetails}
-              />
-            </div>
+            {/* Commitment Information */}
+            {commitmentTotals && (
+              <>
+                <Separator />
+                <div>
+                  <CommitmentInfo
+                    totalCommit={commitmentTotals.totalCommit}
+                    prevGross={commitmentTotals.prevGross}
+                    prevRetention={commitmentTotals.prevRetention}
+                    prevPayments={commitmentTotals.prevPayments}
+                    contractBalance={commitmentTotals.contractBalance}
+                  />
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

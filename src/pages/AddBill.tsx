@@ -1006,17 +1006,6 @@ export default function AddBill() {
                    </>
                  )}
 
-                {/* Commitment Information Display */}
-                {commitmentTotals && (formData.subcontract_id || formData.purchase_order_id) && (
-                  <CommitmentInfo
-                    totalCommit={commitmentTotals.totalCommit}
-                    prevGross={commitmentTotals.prevGross}
-                    prevRetention={commitmentTotals.prevRetention}
-                    prevPayments={commitmentTotals.prevPayments}
-                    contractBalance={commitmentTotals.contractBalance}
-                  />
-                )}
-
                 {formData.commitment_type === 'subcontract' && (
                   <div className="space-y-2">
                     <Label htmlFor="subcontract">Subcontract *</Label>
@@ -1167,6 +1156,19 @@ export default function AddBill() {
                 </div>
 
                 {/* Reimbursement checkbox removed from commitment tab */}
+
+                {/* Commitment Information Display */}
+                {commitmentTotals && (formData.subcontract_id || formData.purchase_order_id) && (
+                  <div className="border-t pt-4">
+                    <CommitmentInfo
+                      totalCommit={commitmentTotals.totalCommit}
+                      prevGross={commitmentTotals.prevGross}
+                      prevRetention={commitmentTotals.prevRetention}
+                      prevPayments={commitmentTotals.prevPayments}
+                      contractBalance={commitmentTotals.contractBalance}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>

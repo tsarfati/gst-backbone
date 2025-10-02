@@ -382,18 +382,6 @@ export default function BillEdit() {
         </Button>
       </div>
 
-      {/* Commitment Information (for subcontract invoices) */}
-      {subcontractInfo && commitmentTotals && (
-        <CommitmentInfo
-          totalCommit={commitmentTotals.totalCommit}
-          prevGross={commitmentTotals.prevGross}
-          prevRetention={commitmentTotals.prevRetention}
-          prevPayments={commitmentTotals.prevPayments}
-          contractBalance={commitmentTotals.contractBalance}
-          className="mb-6"
-        />
-      )}
-
       {/* Form */}
       <div className="space-y-6">
         <Card>
@@ -535,6 +523,19 @@ export default function BillEdit() {
                   />
                   <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
                 </div>
+              </div>
+            )}
+
+            {/* Commitment Information */}
+            {subcontractInfo && commitmentTotals && (
+              <div className="pt-4 border-t">
+                <CommitmentInfo
+                  totalCommit={commitmentTotals.totalCommit}
+                  prevGross={commitmentTotals.prevGross}
+                  prevRetention={commitmentTotals.prevRetention}
+                  prevPayments={commitmentTotals.prevPayments}
+                  contractBalance={commitmentTotals.contractBalance}
+                />
               </div>
             )}
           </CardContent>
