@@ -462,9 +462,9 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </div>
           
           <TabsContent value="details" className="space-y-4 mt-6">
-            {/* Top Row - Employee & Job Details Side by Side */}
+            {/* Main layout: Employee/Job info on left, Punch photos on right - 50/50 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Employee & Status Info */}
+              {/* Left side: Combined Employee Information and Job & Time Details */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -472,126 +472,122 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                     Employee Information
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {profile && (
-                    <>
-                       <div className="flex items-center gap-3">
-                         <Avatar className="h-12 w-12">
-                           <AvatarImage src={profile.avatar_url || timeCard.punch_out_photo_url || timeCard.punch_in_photo_url} />
-                           <AvatarFallback>
-                             {profile.first_name?.[0]}{profile.last_name?.[0]}
-                           </AvatarFallback>
-                         </Avatar>
-                        <div>
-                          <p className="font-medium">{profile.first_name} {profile.last_name}</p>
-                          <p className="text-sm text-muted-foreground">{profile.email}</p>
-                        </div>
+                <CardContent className="space-y-6">
+                  {/* Employee Details */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={employeeProfile?.avatar_url || timeCard.punch_out_photo_url || timeCard.punch_in_photo_url} />
+                        <AvatarFallback>
+                          {employeeProfile?.first_name?.[0]}{employeeProfile?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">
+                          {employeeProfile?.display_name || `${employeeProfile?.first_name || ''} ${employeeProfile?.last_name || ''}`.trim() || 'Unknown'}
+                        </p>
+                        {profile?.email && <p className="text-sm text-muted-foreground">{profile.email}</p>}
                       </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Phone:</span>
-                          <span className="text-sm font-medium">{profile.phone || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Role:</span>
-                          <span className="text-sm font-medium capitalize">{profile.role || 'N/A'}</span>
-                        </div>
+                    </div>
+                    
+                    {profile?.phone && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Phone:</span>
+                        <span className="text-sm font-medium">{profile.phone}</span>
                       </div>
-                    </>
-                  )}
+                    )}
+                    
+                    {profile?.role && (
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Role:</span>
+                        <span className="text-sm font-medium capitalize">{profile.role}</span>
+                      </div>
+                    )}
 
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status:</span>
-                      <Badge variant={
-                        timeCard.status === 'approved' ? 'default' :
-                        timeCard.status === 'rejected' ? 'destructive' : 
-                        'secondary'
-                      }>
+                      <Badge variant={getStatusColor(timeCard.status)}>
                         {timeCard.status}
                       </Badge>
                     </div>
+                    
                     {timeCard.review_notes && (
-                      <div className="mt-2 p-2 bg-muted rounded-md">
+                      <div className="p-2 bg-muted rounded-md">
                         <p className="text-sm text-muted-foreground">Review Notes:</p>
                         <p className="text-sm">{timeCard.review_notes}</p>
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Job & Time Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Job & Time Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Job:</span>
-                      <span className="text-sm font-medium">{job?.name || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Cost Code:</span>
-                      <span className="text-sm font-medium">
-                        {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
+                  <Separator />
 
-                  <div className="pt-4 border-t space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Punch In:</span>
-                      <span className="text-sm font-medium">
-                        {format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Punch Out:</span>
-                      <span className="text-sm font-medium">
-                        {timeCard.punch_out_time 
-                          ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                          : 'Still clocked in'
-                        }
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Total Hours:</span>
-                      <span className="text-sm font-medium">{timeCard.total_hours?.toFixed(2) || 'N/A'}</span>
-                    </div>
-                    {timeCard.break_duration_minutes && timeCard.break_duration_minutes > 0 && (
+                  {/* Job & Time Details */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Job & Time Details
+                    </h4>
+                    
+                    <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Break Time:</span>
-                        <span className="text-sm font-medium">{timeCard.break_duration_minutes} minutes</span>
+                        <span className="text-sm text-muted-foreground">Job:</span>
+                        <span className="text-sm font-medium">{job?.name || 'N/A'}</span>
                       </div>
-                    )}
-                    {timeCard.overtime_hours && timeCard.overtime_hours > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Overtime:</span>
-                        <span className="text-sm font-medium text-orange-500">
-                          {timeCard.overtime_hours.toFixed(2)} hours
+                        <span className="text-sm text-muted-foreground">Cost Code:</span>
+                        <span className="text-sm font-medium">
+                          {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
                         </span>
                       </div>
+                    </div>
+
+                    <div className="pt-2 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Punch In:</span>
+                        <span className="text-sm font-medium">
+                          {format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Punch Out:</span>
+                        <span className="text-sm font-medium">
+                          {timeCard.punch_out_time 
+                            ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                            : 'Still clocked in'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Total Hours:</span>
+                        <span className="text-sm font-medium">{timeCard.total_hours?.toFixed(2) || 'N/A'}</span>
+                      </div>
+                      {timeCard.break_duration_minutes && timeCard.break_duration_minutes > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Break Time:</span>
+                          <span className="text-sm font-medium">{timeCard.break_duration_minutes} minutes</span>
+                        </div>
+                      )}
+                      {timeCard.overtime_hours && timeCard.overtime_hours > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Overtime:</span>
+                          <span className="text-sm font-medium text-orange-500">
+                            {timeCard.overtime_hours.toFixed(2)} hours
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {timeCard.notes && (
+                      <div className="pt-2">
+                        <p className="text-sm text-muted-foreground mb-1">Notes:</p>
+                        <p className="text-sm">{timeCard.notes}</p>
+                      </div>
                     )}
                   </div>
-
-                  {timeCard.notes && (
-                    <div className="pt-4 border-t">
-                      <p className="text-sm text-muted-foreground mb-1">Notes:</p>
-                      <p className="text-sm">{timeCard.notes}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Bottom Row - Photos Full Width */}
-            {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
+              {/* Right side: Punch Photos */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -600,7 +596,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
                     {timeCard.punch_in_photo_url && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium text-muted-foreground">Punch In Photo</p>
@@ -634,10 +630,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         </p>
                       </div>
                     )}
+
+                    {!timeCard.punch_in_photo_url && !timeCard.punch_out_photo_url && (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No photos available
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
-            )}
+            </div>
           </TabsContent>
           
           <TabsContent value="audit" className="mt-6">
