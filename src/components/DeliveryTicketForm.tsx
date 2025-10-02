@@ -51,18 +51,26 @@ export function DeliveryTicketForm() {
   const loadJobs = useCallback(async () => {
     try {
       if (!currentCompany?.id) {
-        console.log('No company selected');
+        console.log('Delivery Ticket Form - No company selected');
         return;
       }
 
-      const { data: jobsData } = await supabase
+      console.log('Delivery Ticket Form - Loading jobs for company:', currentCompany.id);
+
+      const { data: jobsData, error } = await supabase
         .from('jobs')
         .select('id, name, address')
         .eq('company_id', currentCompany.id)
         .eq('status', 'active')
         .order('name');
       
-      console.log('Delivery Ticket Form - Jobs loaded:', jobsData?.length || 0);
+      console.log('Delivery Ticket Form - Jobs loaded:', { 
+        count: jobsData?.length || 0, 
+        companyId: currentCompany.id,
+        error,
+        jobs: jobsData 
+      });
+      
       if (jobsData) setJobs(jobsData);
     } catch (error) {
       console.error('Error loading jobs:', error);

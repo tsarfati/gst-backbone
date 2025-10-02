@@ -79,44 +79,56 @@ export function PMReceiptScanner() {
   // Load data when component mounts
   const loadData = useCallback(async () => {
     try {
+      console.log('PM Receipt Scanner - Loading data...', { userId: user?.id, companyId: currentCompany?.id });
+      
       // Determine job access
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('has_global_job_access')
         .eq('user_id', user?.id)
         .maybeSingle();
 
+      console.log('PM Receipt Scanner - Profile data:', { profileData, profileError, hasGlobalAccess: profileData?.has_global_job_access });
+
       let jobsData: Job[] = [];
       if (profileData?.has_global_job_access) {
-        const { data } = await supabase
+        const { data, error: jobsError } = await supabase
           .from('jobs')
           .select('id, name, address')
           .eq('company_id', currentCompany?.id)
           .eq('status', 'active')
           .order('name');
+        
+        console.log('PM Receipt Scanner - Global jobs query:', { data, jobsError, companyId: currentCompany?.id });
         jobsData = (data || []) as Job[];
       } else {
         // Fetch job ids from user_job_access then load those jobs for current company
-        const { data: access } = await supabase
+        const { data: access, error: accessError } = await supabase
           .from('user_job_access')
           .select('job_id')
           .eq('user_id', user?.id);
+        
+        console.log('PM Receipt Scanner - User job access:', { access, accessError, userId: user?.id });
+        
         const jobIds = (access || []).map((a: any) => a.job_id);
         if (jobIds.length) {
-          const { data } = await supabase
+          const { data, error: jobsError } = await supabase
             .from('jobs')
             .select('id, name, address')
             .in('id', jobIds)
             .eq('company_id', currentCompany?.id)
             .eq('status', 'active')
             .order('name');
+          
+          console.log('PM Receipt Scanner - Specific jobs query:', { data, jobsError, jobIds, companyId: currentCompany?.id });
           jobsData = (data || []) as Job[];
         } else {
+          console.log('PM Receipt Scanner - No job IDs found in user_job_access');
           jobsData = [];
         }
       }
       
-      console.log('PM Receipt Scanner - Jobs loaded:', jobsData?.length || 0);
+      console.log('PM Receipt Scanner - Jobs loaded:', jobsData?.length || 0, jobsData);
       setJobs(jobsData);
 
       // Vendors (unchanged)
