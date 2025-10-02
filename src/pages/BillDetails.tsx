@@ -76,6 +76,7 @@ export default function BillDetails() {
   const [vendorHasWarnings, setVendorHasWarnings] = useState(false);
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
   const [payNumber, setPayNumber] = useState<number>(0);
+  const [documents, setDocuments] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -117,6 +118,19 @@ export default function BillDetails() {
         setBill(null);
       } else {
         setBill(data || null);
+        
+        // Load documents
+        if (data?.id) {
+          const { data: documentsData } = await supabase
+            .from('invoice_documents')
+            .select('*')
+            .eq('invoice_id', data.id)
+            .order('uploaded_at', { ascending: false });
+          
+          if (documentsData) {
+            setDocuments(documentsData);
+          }
+        }
         
         // If this is a subcontract invoice, fetch commitment totals
         if (data?.subcontract_id) {
@@ -598,15 +612,49 @@ export default function BillDetails() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Bill Document
+            Bill Documents
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {bill?.file_url ? (
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
+          {documents.length > 0 ? (
+            <div className="space-y-4 max-h-[800px] overflow-y-auto">
+              {documents.map((doc) => (
+                <div key={doc.id} className="border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between p-3 bg-muted">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span className="font-medium">{doc.file_name}</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => window.open(doc.file_url, '_blank')}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Full
+                    </Button>
+                  </div>
+                  {doc.file_url.endsWith('.pdf') ? (
+                    <iframe 
+                      src={doc.file_url} 
+                      className="w-full h-96"
+                      title={doc.file_name}
+                    />
+                  ) : (
+                    <img 
+                      src={doc.file_url} 
+                      alt={doc.file_name}
+                      className="w-full h-auto"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : bill?.file_url ? (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="flex items-center justify-between p-3 bg-muted">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
+                  <FileText className="h-4 w-4" />
                   <span className="font-medium">Bill Document</span>
                 </div>
                 <Button 
@@ -615,21 +663,21 @@ export default function BillDetails() {
                   onClick={() => window.open(bill.file_url, '_blank')}
                 >
                   <Eye className="h-4 w-4 mr-2" />
-                  View Full Document
+                  View Full
                 </Button>
               </div>
               <iframe 
                 src={bill.file_url} 
-                className="w-full h-96 border rounded"
+                className="w-full h-96"
                 title="Bill Document"
               />
             </div>
           ) : (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
               <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No Document Available</h3>
+              <h3 className="text-lg font-medium mb-2">No Documents Available</h3>
               <p className="text-muted-foreground">
-                No bill document has been uploaded for this bill
+                No bill documents have been uploaded for this bill
               </p>
             </div>
           )}

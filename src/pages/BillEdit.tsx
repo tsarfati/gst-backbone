@@ -49,8 +49,8 @@ export default function BillEdit() {
   const [saving, setSaving] = useState(false);
   const [subcontractInfo, setSubcontractInfo] = useState<any>(null);
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
-  const [billFile, setBillFile] = useState<File | null>(null);
-  const [existingFileUrl, setExistingFileUrl] = useState<string>("");
+  const [billFiles, setBillFiles] = useState<File[]>([]);
+  const [existingDocuments, setExistingDocuments] = useState<any[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [payNumber, setPayNumber] = useState<number>(0);
   
@@ -83,12 +83,23 @@ export default function BillEdit() {
         throw new Error('No company context available');
       }
 
-      // Load bill data
+      // Load bill data and documents
       const { data: billData, error: billError } = await supabase
         .from('invoices')
         .select('*, vendors!inner(company_id), purchase_orders(id, po_number)')
         .eq('id', id)
         .maybeSingle();
+
+      // Load existing documents
+      const { data: documentsData } = await supabase
+        .from('invoice_documents')
+        .select('*')
+        .eq('invoice_id', id)
+        .order('uploaded_at', { ascending: false });
+      
+      if (documentsData) {
+        setExistingDocuments(documentsData);
+      }
 
       if (billError) throw billError;
 
@@ -181,7 +192,6 @@ export default function BillEdit() {
       }
 
       setBill(typedBillData);
-      setExistingFileUrl(typedBillData.file_url || "");
 
       // Populate form data
       setFormData({
@@ -246,25 +256,56 @@ export default function BillEdit() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
+  const handleFileUpload = (files: File[]) => {
+    const validFiles = files.filter(file => {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} must be PDF or image file`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `${file.name} exceeds 10MB limit`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      return true;
+    });
+    setBillFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removeFile = (index: number) => {
+    setBillFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingDocument = async (docId: string) => {
+    try {
+      const { error } = await supabase
+        .from('invoice_documents')
+        .delete()
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      setExistingDocuments(prev => prev.filter(doc => doc.id !== docId));
       toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF or image file",
+        title: "Document removed",
+        description: "Document has been removed successfully"
+      });
+    } catch (error) {
+      console.error('Error removing document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove document",
         variant: "destructive"
       });
-      return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 10MB",
-        variant: "destructive"
-      });
-      return;
-    }
-    setBillFile(file);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -281,32 +322,45 @@ export default function BillEdit() {
     e.preventDefault();
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) handleFileUpload(files[0]);
+    if (files.length > 0) handleFileUpload(files);
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      
-      let fileUrl = existingFileUrl;
-      
-      // Upload new file if selected
-      if (billFile) {
-        const fileExt = billFile.name.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('receipts')
-          .upload(fileName, billFile);
 
-        if (uploadError) throw uploadError;
-        
-        const { data: urlData } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(fileName);
-        
-        fileUrl = urlData.publicUrl;
+      // Upload new files if provided
+      if (billFiles.length > 0) {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) throw new Error('Not authenticated');
+
+        for (const file of billFiles) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${id}_${Date.now()}.${fileExt}`;
+          const filePath = `bills/${fileName}`;
+
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from('receipts')
+            .upload(filePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('receipts')
+            .getPublicUrl(filePath);
+
+          // Save document record
+          await supabase.from('invoice_documents').insert({
+            invoice_id: id,
+            file_url: publicUrl,
+            file_name: file.name,
+            file_type: file.type,
+            file_size: file.size,
+            uploaded_by: user.data.user.id
+          });
+        }
       }
-      
+
       const updateData = {
         vendor_id: formData.vendor_id || null,
         job_id: formData.job_id || null,
@@ -318,8 +372,7 @@ export default function BillEdit() {
         description: formData.description,
         payment_terms: formData.payment_terms,
         is_subcontract_invoice: formData.is_subcontract_invoice,
-        is_reimbursement: formData.is_reimbursement,
-        file_url: fileUrl
+        is_reimbursement: formData.is_reimbursement
       };
 
       const { error } = await supabase
@@ -602,62 +655,88 @@ export default function BillEdit() {
         {/* Document Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Bill Document</CardTitle>
+            <CardTitle>Bill Documents</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Existing file preview */}
-            {existingFileUrl && !billFile && (
-              <div className="space-y-2">
-                <Label>Current Document</Label>
-                {existingFileUrl.endsWith('.pdf') ? (
-                  <div className="border rounded-lg overflow-hidden">
-                    <iframe
-                      src={existingFileUrl}
-                      className="w-full h-96"
-                      title="Bill PDF"
-                    />
-                  </div>
-                ) : (
-                  <img 
-                    src={existingFileUrl} 
-                    alt="Bill document" 
-                    className="max-w-full h-auto rounded-lg border"
-                  />
-                )}
+            {/* Existing documents */}
+            {existingDocuments.length > 0 && (
+              <div className="space-y-3">
+                <Label>Uploaded Documents</Label>
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {existingDocuments.map((doc) => (
+                    <div key={doc.id} className="border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-3 bg-muted">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm font-medium">{doc.file_name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeExistingDocument(doc.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {doc.file_url.endsWith('.pdf') ? (
+                        <iframe
+                          src={doc.file_url}
+                          className="w-full h-96"
+                          title={doc.file_name}
+                        />
+                      ) : (
+                        <img 
+                          src={doc.file_url} 
+                          alt={doc.file_name}
+                          className="w-full h-auto"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* New file preview */}
-            {billFile && (
-              <div className="space-y-2">
-                <Label>New Document (will replace existing)</Label>
-                <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                  <FileText className="h-5 w-5" />
-                  <span className="flex-1 text-sm">{billFile.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBillFile(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+            {/* New files preview */}
+            {billFiles.length > 0 && (
+              <div className="space-y-3">
+                <Label>New Documents to Upload</Label>
+                <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                  {billFiles.map((file, index) => (
+                    <div key={index} className="border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-3 bg-muted">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          <span className="text-sm font-medium">{file.name}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {file.type === 'application/pdf' ? (
+                        <PdfInlinePreview file={file} height={384} />
+                      ) : file.type.startsWith('image/') ? (
+                        <img 
+                          src={URL.createObjectURL(file)} 
+                          alt="Preview"
+                          className="w-full h-auto"
+                        />
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-                {billFile.type === 'application/pdf' ? (
-                  <PdfInlinePreview file={billFile} height={384} />
-                ) : billFile.type.startsWith('image/') ? (
-                  <img 
-                    src={URL.createObjectURL(billFile)} 
-                    alt="Preview" 
-                    className="max-w-full h-auto rounded-lg border"
-                  />
-                ) : null}
               </div>
             )}
 
             {/* Upload area */}
             <div>
-              <Label>Upload {existingFileUrl ? 'Replacement' : 'New'} Document</Label>
+              <Label>Upload Additional Documents</Label>
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -672,15 +751,16 @@ export default function BillEdit() {
                   Drag and drop or click to upload
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  PDF, JPG, PNG, or WEBP (max 10MB)
+                  PDF, JPG, PNG, or WEBP (max 10MB per file)
                 </p>
                 <input
                   id="bill-file-input"
                   type="file"
+                  multiple
                   accept=".pdf,image/jpeg,image/png,image/webp"
                   onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(file);
+                    const files = e.target.files;
+                    if (files) handleFileUpload(Array.from(files));
                   }}
                   className="hidden"
                 />

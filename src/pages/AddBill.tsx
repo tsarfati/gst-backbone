@@ -62,7 +62,7 @@ export default function AddBill() {
   ]);
   const [lineItemCostCodes, setLineItemCostCodes] = useState<Record<string, any[]>>({});
   
-  const [billFile, setBillFile] = useState<File | null>(null);
+  const [billFiles, setBillFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -522,14 +522,14 @@ export default function AddBill() {
     
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      handleFileUpload(files[0]);
+      handleFileUpload(files);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileUpload(file);
+    const files = e.target.files;
+    if (files) {
+      handleFileUpload(Array.from(files));
     }
   };
 
