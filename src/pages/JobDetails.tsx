@@ -150,72 +150,6 @@ export default function JobDetails() {
         </Button>
       </div>
 
-      {/* Job Info and Map on same line (70/30) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6 mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Job Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {job.client && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Client</label>
-                <p className="text-foreground">{job.client}</p>
-              </div>
-            )}
-            
-            {job.address && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Address</label>
-                <p className="text-foreground">{job.address}</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Type</label>
-                <Badge variant="outline" className="ml-2">
-                  {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
-                </Badge>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Status</label>
-                <Badge variant="outline" className="ml-2">
-                  {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
-                </Badge>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Budget</label>
-              <p className="text-foreground">${Number(job.budget_total || 0).toLocaleString()}</p>
-            </div>
-
-            {(job.start_date || job.end_date) && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Timeline</label>
-                <p className="text-foreground">
-                  {job.start_date && `Start: ${job.start_date}`}
-                  {job.start_date && job.end_date && ' • '}
-                  {job.end_date && `End: ${job.end_date}`}
-                </p>
-              </div>
-            )}
-
-            {job.description && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Description</label>
-                <p className="text-foreground">{job.description}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Location Map */}
-        <JobLocationMap address={job.address} />
-      </div>
-
       {/* Tabbed Content */}
       <Card>
         <Tabs defaultValue="details" className="w-full">
@@ -271,20 +205,83 @@ export default function JobDetails() {
           </TabsList>
           
           <TabsContent value="details" className="p-6">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">QR Code</label>
-                    <p className="text-foreground">{job.visitor_qr_code || 'Not generated'}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Job Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {job.client && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Client</label>
+                      <p className="text-foreground">{job.client}</p>
+                    </div>
+                  )}
+                  
+                  {job.address && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Address</label>
+                      <p className="text-foreground">{job.address}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Type</label>
+                      <Badge variant="outline" className="ml-2">
+                        {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
+                      </Badge>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Status</label>
+                      <Badge variant="outline" className="ml-2">
+                        {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
+                      </Badge>
+                    </div>
                   </div>
+
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Created</label>
-                    <p className="text-foreground">{new Date().toLocaleDateString()}</p>
+                    <label className="text-sm font-medium text-muted-foreground">Budget</label>
+                    <p className="text-foreground">${Number(job.budget_total || 0).toLocaleString()}</p>
                   </div>
-                </div>
-              </div>
+
+                  {(job.start_date || job.end_date) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Timeline</label>
+                      <p className="text-foreground">
+                        {job.start_date && `Start: ${job.start_date}`}
+                        {job.start_date && job.end_date && ' • '}
+                        {job.end_date && `End: ${job.end_date}`}
+                      </p>
+                    </div>
+                  )}
+
+                  {job.description && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Description</label>
+                      <p className="text-foreground">{job.description}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-medium text-muted-foreground mb-3">Additional Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">QR Code</label>
+                        <p className="text-foreground">{job.visitor_qr_code || 'Not generated'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Created</label>
+                        <p className="text-foreground">{new Date().toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Location Map */}
+              <JobLocationMap address={job.address} />
             </div>
           </TabsContent>
           
