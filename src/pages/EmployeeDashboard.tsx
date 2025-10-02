@@ -454,10 +454,10 @@ export default function EmployeeDashboard() {
                 <CardTitle className="text-base sm:text-xl">My Time Cards</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 p-4">
-                {timeCards.length === 0 ? (
+                {timeCards.filter(card => card.status !== 'deleted').length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">No time cards yet</p>
                 ) : (
-                  timeCards.map((card) => (
+                  timeCards.filter(card => card.status !== 'deleted').map((card) => (
                     <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
