@@ -60,13 +60,16 @@ export default function DocumentPreviewModal({
   };
 
   const renderPreview = () => {
-    if (isPdf(document.fileName)) {
+    // Use the type prop if provided, otherwise infer from filename
+    const fileType = document.type || (isPdf(document.fileName) ? 'pdf' : isImage(document.fileName) ? 'image' : 'other');
+    
+    if (fileType === 'pdf' || isPdf(document.fileName)) {
       return (
         <div className="w-full h-[600px]">
           <PdfPreview url={document.url} />
         </div>
       );
-    } else if (isImage(document.fileName)) {
+    } else if (fileType === 'image' || isImage(document.fileName)) {
       return (
         <div className="flex items-center justify-center h-[600px] bg-muted rounded-lg">
           <img

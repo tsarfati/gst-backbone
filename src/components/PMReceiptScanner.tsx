@@ -115,6 +115,8 @@ export function PMReceiptScanner() {
           jobsData = [];
         }
       }
+      
+      console.log('PM Receipt Scanner - Jobs loaded:', jobsData?.length || 0);
       setJobs(jobsData);
 
       // Vendors (unchanged)

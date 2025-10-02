@@ -50,17 +50,24 @@ export function DeliveryTicketForm() {
   // Load jobs when component mounts
   const loadJobs = useCallback(async () => {
     try {
+      if (!currentCompany?.id) {
+        console.log('No company selected');
+        return;
+      }
+
       const { data: jobsData } = await supabase
         .from('jobs')
         .select('id, name, address')
+        .eq('company_id', currentCompany.id)
         .eq('status', 'active')
         .order('name');
       
+      console.log('Delivery Ticket Form - Jobs loaded:', jobsData?.length || 0);
       if (jobsData) setJobs(jobsData);
     } catch (error) {
       console.error('Error loading jobs:', error);
     }
-  }, []);
+  }, [currentCompany?.id]);
 
   useEffect(() => {
     loadJobs();
