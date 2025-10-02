@@ -354,9 +354,9 @@ export default function BankAccountDetails() {
                             variant="ghost" 
                             size="sm"
                             onClick={() => setPreviewDocument({
-                              fileName: statement.display_name || statement.file_name,
+                              fileName: statement.file_name,
                               url: statement.file_url,
-                              type: "pdf"
+                              type: statement.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
                             })}
                           >
                             <Eye className="h-4 w-4" />

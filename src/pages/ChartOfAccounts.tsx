@@ -77,6 +77,7 @@ export default function ChartOfAccounts() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -97,18 +98,22 @@ export default function ChartOfAccounts() {
 
   useEffect(() => {
     loadAccounts();
-  }, []);
+  }, [showArchived]);
 
   const loadAccounts = async () => {
     if (!currentCompany) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('chart_of_accounts')
         .select('*')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .order('account_number');
+        .eq('company_id', currentCompany.id);
+      
+      if (!showArchived) {
+        query = query.eq('is_active', true);
+      }
+      
+      const { data, error } = await query.order('account_number');
 
       if (error) throw error;
       setAccounts(data || []);
@@ -148,23 +153,24 @@ export default function ChartOfAccounts() {
 
       if (dupErr) throw dupErr;
       if ((dupCount || 0) > 0) {
-        // Surface the conflicting record inline
-        let conflict = accounts.find(a => a.account_number.trim() === accountNumber);
-        if (!conflict) {
-          const { data: conflictRow } = await supabase
-            .from('chart_of_accounts')
-            .select('*')
-            .eq('company_id', currentCompany?.id || '')
-            .eq('account_number', accountNumber)
-            .maybeSingle();
-          if (conflictRow) conflict = conflictRow as unknown as Account;
+        // Always fetch the conflicting record to show details (including archived)
+        const { data: conflictRow } = await supabase
+          .from('chart_of_accounts')
+          .select('*')
+          .eq('company_id', currentCompany?.id || '')
+          .eq('account_number', accountNumber)
+          .maybeSingle();
+        
+        if (conflictRow) {
+          const conflict = conflictRow as unknown as Account;
+          setDuplicateAccount(conflict);
+          const status = conflict.is_active ? 'active' : 'archived';
+          toast({
+            title: "Duplicate Account Number",
+            description: `Account number ${accountNumber} already exists (${status}). Please use a different number.`,
+            variant: "destructive",
+          });
         }
-        if (conflict) setDuplicateAccount(conflict);
-        toast({
-          title: "Duplicate Account Number",
-          description: `Account number ${accountNumber} already exists. Please use a different number.`,
-          variant: "destructive",
-        });
         return;
       }
       
@@ -780,6 +786,12 @@ export default function ChartOfAccounts() {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant={showArchived ? "default" : "outline"}
+              onClick={() => setShowArchived(!showArchived)}
+            >
+              {showArchived ? "Hide" : "Show"} Archived
+            </Button>
             <Button 
               variant="outline" 
               onClick={exportChartOfAccounts}
