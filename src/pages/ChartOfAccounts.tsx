@@ -787,11 +787,13 @@ export default function ChartOfAccounts() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
+                          console.log('Edit button clicked for account:', account);
                           // Map asset with cash_accounts category back to cash for editing
                           const accountForEditing = {
                             ...account,
                             account_type: account.account_type === 'asset' && account.account_category === 'cash_accounts' ? 'cash' : account.account_type
                           };
+                          console.log('Account prepared for editing:', accountForEditing);
                           setEditingAccount(accountForEditing);
                           setEditDialogOpen(true);
                         }}
@@ -915,7 +917,10 @@ export default function ChartOfAccounts() {
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleEditAccount}>
+                <Button onClick={() => {
+                  console.log('Update Account button clicked');
+                  handleEditAccount();
+                }}>
                   Update Account
                 </Button>
               </div>
