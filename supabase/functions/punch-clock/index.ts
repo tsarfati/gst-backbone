@@ -174,21 +174,29 @@ serve(async (req) => {
           bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         } catch (_e) {
+          console.error('Invalid image encoding provided to /upload-photo');
           return errorResponse("Invalid image encoding", 400);
         }
 
         const fileName = `${userRow.user_id}-${Date.now()}.jpg`;
         const filePath = `punch-photos/${fileName}`;
 
+        // Use Blob for better compatibility with storage API in Edge runtime
+        const fileBlob = new Blob([bytes], { type: 'image/jpeg' });
+
         const { error: uploadErr } = await supabaseAdmin.storage
           .from('punch-photos')
-          .upload(filePath, bytes, { contentType: 'image/jpeg', upsert: false });
-        if (uploadErr) return errorResponse(uploadErr.message, 500);
+          .upload(filePath, fileBlob, { contentType: 'image/jpeg', upsert: false });
+        if (uploadErr) {
+          console.error('Storage upload error in /upload-photo:', uploadErr);
+          return errorResponse(uploadErr.message, 500);
+        }
 
         const { data: pub } = await supabaseAdmin.storage
           .from('punch-photos')
           .getPublicUrl(filePath);
 
+        console.log('Photo uploaded for', userRow.user_id, '->', pub.publicUrl);
         return new Response(JSON.stringify({ publicUrl: pub.publicUrl, path: filePath }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
