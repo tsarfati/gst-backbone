@@ -166,9 +166,12 @@ export default function BankAccountDetails() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      // Use signed URL instead of public URL since bucket is private
+      const { data: signedUrlData, error: urlError } = await supabase.storage
         .from('bank-statements')
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 315360000); // 10 years
+
+      if (urlError) throw urlError;
 
       const { error: insertError } = await supabase
         .from('bank_statements')
@@ -180,7 +183,7 @@ export default function BankAccountDetails() {
           statement_year: statementYear,
           file_name: selectedFile.name,
           display_name: statementName.trim(),
-          file_url: publicUrl,
+          file_url: signedUrlData.signedUrl,
           file_size: selectedFile.size,
           uploaded_by: user.id,
         });
@@ -193,7 +196,7 @@ export default function BankAccountDetails() {
       setStatementName("");
       setStatementMonth(new Date().getMonth() + 1);
       setStatementYear(new Date().getFullYear());
-      loadStatements();
+      await loadStatements();
     } catch (error) {
       console.error('Error uploading statement:', error);
       toast({ title: "Error", description: "Failed to upload bank statement", variant: "destructive" });
@@ -216,17 +219,26 @@ export default function BankAccountDetails() {
 
     setUploading(true);
     try {
+      const statementDate = `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`;
+      
       const { error } = await supabase
         .from('bank_statements')
         .update({
           display_name: statementName.trim(),
           statement_month: statementMonth,
           statement_year: statementYear,
-          statement_date: `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`,
+          statement_date: statementDate,
         })
         .eq('id', editingStatement.id);
 
       if (error) throw error;
+
+      // Update local state immediately
+      setStatements(prev => prev.map(s => 
+        s.id === editingStatement.id 
+          ? { ...s, display_name: statementName.trim(), statement_month: statementMonth, statement_year: statementYear, statement_date: statementDate }
+          : s
+      ));
 
       toast({ title: "Success", description: "Bank statement updated successfully" });
       setEditDialogOpen(false);
@@ -234,7 +246,9 @@ export default function BankAccountDetails() {
       setStatementName("");
       setStatementMonth(new Date().getMonth() + 1);
       setStatementYear(new Date().getFullYear());
-      loadStatements();
+      
+      // Reload to ensure consistency
+      setTimeout(() => loadStatements(), 100);
     } catch (error) {
       console.error('Error updating statement:', error);
       toast({ title: "Error", description: "Failed to update bank statement", variant: "destructive" });

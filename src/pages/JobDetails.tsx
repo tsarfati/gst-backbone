@@ -136,25 +136,22 @@ export default function JobDetails() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate("/jobs")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
-            <p className="text-muted-foreground">Job Details</p>
-          </div>
+      <div className="flex items-center gap-4 mb-6">
+        <Button variant="ghost" onClick={() => navigate("/jobs")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
+          <p className="text-muted-foreground">Job Details</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate(`/jobs/${id}/edit`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Job
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => navigate(`/jobs/${id}/edit`)}>
+          <Edit className="h-4 w-4 mr-2" />
+          Edit Job
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      {/* Job Info and Map on same line (70/30) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle>Job Information</CardTitle>
@@ -174,18 +171,20 @@ export default function JobDetails() {
               </div>
             )}
 
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Type</label>
-              <Badge variant="outline" className="ml-2">
-                {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
-              </Badge>
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Type</label>
+                <Badge variant="outline" className="ml-2">
+                  {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
+                </Badge>
+              </div>
 
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <Badge variant="outline" className="ml-2">
-                {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
-              </Badge>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Status</label>
+                <Badge variant="outline" className="ml-2">
+                  {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
+                </Badge>
+              </div>
             </div>
 
             <div>
@@ -215,62 +214,85 @@ export default function JobDetails() {
 
         {/* Location Map */}
         <JobLocationMap address={job.address} />
-
-        {/* Tabbed Content */}
-        <Card>
-          <CardContent className="p-0">
-            <Tabs defaultValue="committed-costs" className="w-full">
-              <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-                <TabsTrigger 
-                  value="committed-costs" 
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                >
-                  <Calculator className="h-4 w-4 mr-2" />
-                  Committed Costs
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="cost-budget"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                  onClick={() => navigate(`/jobs/${id}/cost-budget`)}
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Cost Codes & Budget
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="time-tracking"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                  onClick={() => navigate('/time-tracking')}
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Time Tracking
-                </TabsTrigger>
-                {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
-                  <TabsTrigger 
-                    value="delivery-tickets"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                    onClick={() => navigate(`/jobs/${id}/delivery-tickets`)}
-                  >
-                    <Package className="h-4 w-4 mr-2" />
-                    Delivery Tickets
-                  </TabsTrigger>
-                )}
-                <TabsTrigger 
-                  value="visitor-logs"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                  onClick={() => navigate(`/jobs/${id}/visitor-logs`)}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Visitor Logs
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="committed-costs" className="p-6">
-                <CommittedCosts jobId={id!} />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Tabbed Content */}
+      <Card>
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+            <TabsTrigger 
+              value="details" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Job Details
+            </TabsTrigger>
+            <TabsTrigger 
+              value="committed-costs" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              Committed Costs
+            </TabsTrigger>
+            <TabsTrigger 
+              value="cost-budget"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              onClick={() => navigate(`/jobs/${id}/cost-budget`)}
+            >
+              <DollarSign className="h-4 w-4 mr-2" />
+              Cost Codes & Budget
+            </TabsTrigger>
+            <TabsTrigger 
+              value="time-tracking"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              onClick={() => navigate('/time-tracking')}
+            >
+              <Clock className="h-4 w-4 mr-2" />
+              Time Tracking
+            </TabsTrigger>
+            {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
+              <TabsTrigger 
+                value="delivery-tickets"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                onClick={() => navigate(`/jobs/${id}/delivery-tickets`)}
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Delivery Tickets
+              </TabsTrigger>
+            )}
+            <TabsTrigger 
+              value="visitor-logs"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              onClick={() => navigate(`/jobs/${id}/visitor-logs`)}
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Visitor Logs
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="details" className="p-6">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">QR Code</label>
+                    <p className="text-foreground">{job.visitor_qr_code || 'Not generated'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Created</label>
+                    <p className="text-foreground">{new Date().toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="committed-costs" className="p-6">
+            <CommittedCosts jobId={id!} />
+          </TabsContent>
+        </Tabs>
+      </Card>
     </div>
   );
 }
