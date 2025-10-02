@@ -43,6 +43,7 @@ function PunchClockApp() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
+  const [pinAllCostCodes, setPinAllCostCodes] = useState<CostCode[]>([]);
   const [selectedJob, setSelectedJob] = useState<string>('');
   const [selectedCostCode, setSelectedCostCode] = useState<string>('');
   const [currentPunch, setCurrentPunch] = useState<PunchStatus | null>(null);
@@ -220,41 +221,10 @@ function PunchClockApp() {
       const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
       const companyId = (profile as any)?.current_company_id;
       
-      // For PIN-authenticated users
+      // For PIN-authenticated users: filter client-side from edge data
       if (isPinAuthenticated) {
-        // Get assigned cost codes for this PIN employee
-        const { data: settings } = await supabase
-          .from('pin_employee_timecard_settings')
-          .select('assigned_cost_codes')
-          .eq('pin_employee_id', userId)
-          .eq('company_id', companyId)
-          .maybeSingle();
-        
-        const assignedCostCodes = settings?.assigned_cost_codes || [];
-        
-        // Query cost codes filtered by job and assignments
-        let query = supabase
-          .from('cost_codes')
-          .select('id, code, description, job_id')
-          .eq('is_active', true)
-          .eq('job_id', jobId)
-          .eq('company_id', companyId)
-          .order('code');
-        
-        // Filter by assigned cost codes if they have specific assignments
-        if (assignedCostCodes.length > 0) {
-          query = query.in('id', assignedCostCodes);
-        }
-        
-        const { data, error } = await query;
-        
-        if (error) {
-          console.error('Error loading cost codes:', error);
-          setCostCodes([]);
-          return;
-        }
-        
-        setCostCodes(data || []);
+        const filtered = pinAllCostCodes.filter(cc => cc.job_id === jobId);
+        setCostCodes(filtered);
         return;
       }
       
@@ -345,11 +315,26 @@ function PunchClockApp() {
       });
       const json = await res.json();
       if (res.ok) {
-        // Edge function now returns pre-filtered data based on user permissions
-        setJobs(json.jobs || []);
-        setCostCodes(json.cost_codes || []);
+        // Edge function returns pre-filtered data based on user permissions
+        const jobsFromEdge = json.jobs || [];
+        const costCodesFromEdge = json.cost_codes || [];
+        setJobs(jobsFromEdge);
+        setPinAllCostCodes(costCodesFromEdge);
+        
+        // If only one job is available, auto-select it
+        if (!selectedJob && jobsFromEdge.length === 1) {
+          setSelectedJob(jobsFromEdge[0].id);
+        }
+        
+        // Initialize visible cost codes filtered by selected job (if any)
+        if (selectedJob) {
+          setCostCodes(costCodesFromEdge.filter((cc: any) => cc.job_id === selectedJob));
+        } else {
+          setCostCodes([]);
+        }
+        
         setCurrentPunch(json.current_punch || null);
-        console.log('Edge data loaded - jobs:', json.jobs?.length, 'cost codes:', json.cost_codes?.length, 'current punch:', json.current_punch);
+        console.log('Edge data loaded - jobs:', jobsFromEdge.length, 'cost codes:', costCodesFromEdge.length, 'current punch:', json.current_punch);
       } else {
         console.error('Edge init error:', json);
       }
