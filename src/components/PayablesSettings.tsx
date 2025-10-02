@@ -586,6 +586,17 @@ export default function PayablesSettings() {
 
           <div className="flex items-center justify-between md:col-span-2">
             <div className="space-y-1">
+              <Label>Require Bill Documents</Label>
+              <p className="text-sm text-muted-foreground">All bills must have a document or attachment before submission</p>
+            </div>
+            <Switch
+              checked={settings.require_bill_documents}
+              onCheckedChange={(checked) => updateSettings('require_bill_documents', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between md:col-span-2">
+            <div className="space-y-1">
               <Label>Show Vendor Compliance Warnings</Label>
               <p className="text-sm text-muted-foreground">Display warnings when entering bills for vendors with missing compliance documents</p>
             </div>

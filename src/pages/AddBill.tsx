@@ -146,7 +146,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('payables_settings')
-        .select('show_vendor_compliance_warnings')
+        .select('require_bill_documents')
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       
@@ -476,6 +476,18 @@ export default function AddBill() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if documents are required by payables settings
+    const requireDocuments = payablesSettings?.require_bill_documents ?? false;
+    
+    if (requireDocuments && !billFile && !attachedReceipt) {
+      toast({
+        title: "Document required",
+        description: "Company settings require all bills to have a document or attachment",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (!billFile && !attachedReceipt) {
       toast({

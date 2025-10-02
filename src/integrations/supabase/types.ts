@@ -1893,6 +1893,7 @@ export type Database = {
           payment_dual_approval_roles: string[]
           payment_dual_approval_threshold: number | null
           payments_require_approval: boolean
+          require_bill_documents: boolean
           require_receipt_attachment: boolean
           send_payment_confirmations: boolean
           show_vendor_compliance_warnings: boolean
@@ -1919,6 +1920,7 @@ export type Database = {
           payment_dual_approval_roles?: string[]
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
+          require_bill_documents?: boolean
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean
@@ -1945,6 +1947,7 @@ export type Database = {
           payment_dual_approval_roles?: string[]
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
+          require_bill_documents?: boolean
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean
