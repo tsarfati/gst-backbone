@@ -52,43 +52,142 @@ export default function ManualTimeEntry() {
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (currentCompany?.id) {
+      loadJobs();
+      loadEmployees();
+    }
+  }, [currentCompany?.id]);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (formData.job_id && currentCompany?.id) {
+      loadCostCodes(formData.job_id);
+    } else {
+      setCostCodes([]);
+    }
+  }, [formData.job_id, currentCompany?.id]);
+
+  const loadJobs = async () => {
+    if (!currentCompany?.id || !user?.id) return;
+    
+    try {
+      // Check if user has assigned jobs
+      const { data: settings } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_jobs')
+        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      
+      const assignedJobs = settings?.assigned_jobs || [];
+      const hasGlobal = profile?.has_global_job_access;
+
+      let jobsQuery = supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .in('status', ['active', 'planning'])
+        .order('name');
+      
+      // Filter by assigned jobs if user has specific assignments and no global access
+      if (!hasGlobal && assignedJobs.length > 0) {
+        jobsQuery = jobsQuery.in('id', assignedJobs);
+      } else if (!hasGlobal && assignedJobs.length === 0) {
+        // No jobs available for this user
+        setJobs([]);
+        return;
+      }
+      
+      const { data, error } = await jobsQuery;
+      
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load jobs.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadCostCodes = async (jobId: string) => {
+    if (!currentCompany?.id || !user?.id) return;
+    
     try {
       // Check if user has assigned cost codes
       const { data: settings } = await supabase
         .from('employee_timecard_settings')
         .select('assigned_cost_codes')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
         .maybeSingle();
       
-      // Build cost codes query
+      const assignedCostCodes = settings?.assigned_cost_codes || [];
+      const hasGlobal = profile?.has_global_job_access;
+
       let costCodesQuery = supabase
         .from('cost_codes')
-        .select('id, code, description')
-        .eq('is_active', true);
+        .select('id, code, description, job_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .eq('job_id', jobId)
+        .order('code');
       
-      // Filter by assigned cost codes if user has assignments
-      if (settings?.assigned_cost_codes && settings.assigned_cost_codes.length > 0) {
-        costCodesQuery = costCodesQuery.in('id', settings.assigned_cost_codes);
+      // Filter by assigned cost codes if user has specific assignments and no global access
+      if (!hasGlobal && assignedCostCodes.length > 0) {
+        costCodesQuery = costCodesQuery.in('id', assignedCostCodes);
+      } else if (!hasGlobal && assignedCostCodes.length === 0) {
+        // No cost codes available for this user
+        setCostCodes([]);
+        return;
       }
       
-      const [jobsResponse, costCodesResponse, employeesResponse] = await Promise.all([
-        supabase.from('jobs').select('id, name').order('name'),
-        costCodesQuery.order('code'),
-        isManager ? supabase.from('profiles').select('user_id, display_name').order('display_name') : Promise.resolve({ data: [] })
-      ]);
-
-      if (jobsResponse.data) setJobs(jobsResponse.data);
-      if (costCodesResponse.data) setCostCodes(costCodesResponse.data);
-      if (employeesResponse.data) setEmployees(employeesResponse.data);
+      const { data, error } = await costCodesQuery;
+      
+      if (error) throw error;
+      setCostCodes(data || []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading cost codes:', error);
       toast({
         title: "Error",
-        description: "Failed to load form data.",
+        description: "Failed to load cost codes.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadEmployees = async () => {
+    if (!currentCompany?.id || !isManager) return;
+    
+    try {
+      // Get all users with access to the current company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const userIds = (companyUsers || []).map(u => u.user_id);
+      
+      if (userIds.length === 0) {
+        setEmployees([]);
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, display_name')
+        .in('user_id', userIds)
+        .order('display_name');
+      
+      if (error) throw error;
+      setEmployees(data || []);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load employees.",
         variant: "destructive",
       });
     }
