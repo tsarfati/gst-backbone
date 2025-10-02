@@ -786,11 +786,15 @@ function PunchClockApp() {
         if (!photoUrl) {
           console.error('Photo upload failed - photoUrl is null');
           toast({
-            title: 'Photo Upload Warning',
-            description: 'Photo could not be uploaded, but your punch was recorded. Admin has been notified.',
-            variant: 'default'
+            title: 'Photo Upload Failed',
+            description: 'Your punch photo could not be uploaded. Please try again or contact your manager.',
+            variant: 'destructive'
           });
-          // Admin notification will be logged in punch_records notes
+          // Don't proceed with punch if photo upload failed
+          setIsLoading(false);
+          setIsPunching(false);
+          setPhotoBlob(null);
+          return;
         }
         
         // If this is a PIN employee's first punch with face detected, set their avatar
