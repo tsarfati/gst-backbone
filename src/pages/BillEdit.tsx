@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Vendor {
   id: string;
@@ -26,12 +28,15 @@ interface CostCode {
   code: string;
   description: string;
   job_id?: string;
+  type?: string;
 }
 
 export default function BillEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
+  const { profile } = useAuth();
   
   const [bill, setBill] = useState<any>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -65,10 +70,15 @@ export default function BillEdit() {
     try {
       setLoading(true);
 
+      const companyId = currentCompany?.id || profile?.current_company_id;
+      if (!companyId) {
+        throw new Error('No company context available');
+      }
+
       // Load bill data
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*')
+        .select('*, vendors!inner(company_id)')
         .eq('id', id)
         .single();
 
@@ -77,22 +87,38 @@ export default function BillEdit() {
       // Ensure billData has the correct type with is_reimbursement field
       const typedBillData = billData as typeof billData & { is_reimbursement?: boolean };
 
-      // Load vendors, jobs, and cost codes
+      // Load vendors, jobs, and cost codes for current company only
       const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
-        supabase.from('vendors').select('id, name').order('name'),
-        supabase.from('jobs').select('id, name').order('name'),
-        supabase.from('cost_codes').select('id, code, description, job_id').eq('is_active', true).order('code')
+        supabase
+          .from('vendors')
+          .select('id, name')
+          .eq('company_id', companyId)
+          .order('name'),
+        supabase
+          .from('jobs')
+          .select('id, name')
+          .eq('company_id', companyId)
+          .order('name'),
+        supabase
+          .from('cost_codes')
+          .select('id, code, description, job_id, type')
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .order('code')
       ]);
 
       if (vendorsData.data) setVendors(vendorsData.data);
       if (jobsData.data) setJobs(jobsData.data);
       if (allCostCodesData.data) {
         setAllCostCodes(allCostCodesData.data);
-        // Filter cost codes for the current job
-        const jobCostCodes = allCostCodesData.data.filter(cc => 
-          !cc.job_id || cc.job_id === typedBillData.job_id
+        // Filter cost codes based on invoice type and job
+        const filteredCodes = filterCostCodesByType(
+          allCostCodesData.data,
+          typedBillData.job_id,
+          typedBillData.is_subcontract_invoice,
+          typedBillData.purchase_order_id
         );
-        setCostCodes(jobCostCodes);
+        setCostCodes(filteredCodes);
       }
 
       setBill(typedBillData);
@@ -123,17 +149,38 @@ export default function BillEdit() {
     }
   };
 
+  const filterCostCodesByType = (
+    codes: CostCode[],
+    jobId: string,
+    isSubcontract: boolean,
+    purchaseOrderId?: string
+  ) => {
+    let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
+    
+    // Filter by type based on invoice type
+    if (isSubcontract) {
+      filtered = filtered.filter(cc => cc.type === 'sub');
+    } else if (purchaseOrderId) {
+      filtered = filtered.filter(cc => cc.type === 'material');
+    }
+    
+    return filtered;
+  };
+
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Update cost codes when job changes
-    if (field === 'job_id') {
-      const jobCostCodes = allCostCodes.filter(cc => 
-        !cc.job_id || cc.job_id === value
+    // Update cost codes when job or invoice type changes
+    if (field === 'job_id' || field === 'is_subcontract_invoice') {
+      const filteredCodes = filterCostCodesByType(
+        allCostCodes,
+        field === 'job_id' ? value as string : formData.job_id,
+        field === 'is_subcontract_invoice' ? value as boolean : formData.is_subcontract_invoice,
+        bill?.purchase_order_id
       );
-      setCostCodes(jobCostCodes);
+      setCostCodes(filteredCodes);
       // Clear cost code selection if it's no longer valid
-      if (formData.cost_code_id && !jobCostCodes.find(cc => cc.id === formData.cost_code_id)) {
+      if (formData.cost_code_id && !filteredCodes.find(cc => cc.id === formData.cost_code_id)) {
         setFormData(prev => ({ ...prev, cost_code_id: '' }));
       }
     }
