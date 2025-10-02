@@ -283,16 +283,41 @@ export default function ChartOfAccounts() {
       if (error) throw error;
 
       toast({
-        title: "Account Deactivated",
-        description: "Chart of account has been deactivated",
+        title: "Account Archived",
+        description: "Chart of account has been archived",
       });
 
       loadAccounts();
     } catch (error) {
-      console.error('Error deactivating account:', error);
+      console.error('Error archiving account:', error);
       toast({
         title: "Error",
-        description: "Failed to deactivate account",
+        description: "Failed to archive account",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePermanentDeleteAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from('chart_of_accounts')
+        .delete()
+        .eq('id', accountId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Account Permanently Deleted",
+        description: "Chart of account has been permanently deleted",
+      });
+
+      loadAccounts();
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to permanently delete account. It may be referenced by other records.",
         variant: "destructive",
       });
     }
@@ -955,37 +980,68 @@ export default function ChartOfAccounts() {
               </div>
 
               <div className="flex justify-between">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Account
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Account</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete this account "{editingAccount.account_name}"? 
-                        This action will deactivate the account and it will no longer appear in your chart of accounts.
-                        This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => {
-                          handleDeleteAccount(editingAccount.id);
-                          setEditDialogOpen(false);
-                          setEditingAccount(null);
-                        }}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete Account
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <div className="flex gap-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Archive
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Archive Account</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to archive "{editingAccount.account_name}"? 
+                          The account will be hidden from active view but can be restored later.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            handleDeleteAccount(editingAccount.id);
+                            setEditDialogOpen(false);
+                            setEditingAccount(null);
+                          }}
+                        >
+                          Archive Account
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Permanently
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Permanently Delete Account</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to permanently delete "{editingAccount.account_name}"? 
+                          This action CANNOT be undone and will fail if the account is referenced by other records (transactions, journal entries, etc.).
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            handlePermanentDeleteAccount(editingAccount.id);
+                            setEditDialogOpen(false);
+                            setEditingAccount(null);
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete Permanently
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
                 
                 <div className="flex space-x-2">
                   <Button variant="outline" onClick={() => setEditDialogOpen(false)}>

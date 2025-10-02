@@ -68,6 +68,8 @@ export default function BankAccountDetails() {
   const [uploading, setUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [statementName, setStatementName] = useState("");
+  const [statementMonth, setStatementMonth] = useState(new Date().getMonth() + 1);
+  const [statementYear, setStatementYear] = useState(new Date().getFullYear());
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewDocument, setPreviewDocument] = useState<{ fileName: string; url: string; type: string } | null>(null);
   const statementFileRef = useRef<HTMLInputElement>(null);
@@ -166,15 +168,14 @@ export default function BankAccountDetails() {
         .from('bank-statements')
         .getPublicUrl(filePath);
 
-      const statementDate = new Date();
       const { error: insertError } = await supabase
         .from('bank_statements')
         .insert({
           bank_account_id: id,
           company_id: currentCompany.id,
-          statement_date: statementDate.toISOString().split('T')[0],
-          statement_month: statementDate.getMonth() + 1,
-          statement_year: statementDate.getFullYear(),
+          statement_date: `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`,
+          statement_month: statementMonth,
+          statement_year: statementYear,
           file_name: selectedFile.name,
           display_name: statementName.trim(),
           file_url: publicUrl,
@@ -188,6 +189,8 @@ export default function BankAccountDetails() {
       setUploadDialogOpen(false);
       setSelectedFile(null);
       setStatementName("");
+      setStatementMonth(new Date().getMonth() + 1);
+      setStatementYear(new Date().getFullYear());
       loadStatements();
     } catch (error) {
       console.error('Error uploading statement:', error);
@@ -431,6 +434,34 @@ export default function BankAccountDetails() {
                 placeholder="e.g., January 2025 Statement"
               />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="statement-month">Month *</Label>
+                <select
+                  id="statement-month"
+                  value={statementMonth}
+                  onChange={(e) => setStatementMonth(parseInt(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                    <option key={month} value={month}>
+                      {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="statement-year">Year *</Label>
+                <Input
+                  id="statement-year"
+                  type="number"
+                  value={statementYear}
+                  onChange={(e) => setStatementYear(parseInt(e.target.value))}
+                  min="2000"
+                  max="2100"
+                />
+              </div>
+            </div>
             {selectedFile && (
               <div className="text-sm text-muted-foreground">
                 <strong>File:</strong> {selectedFile.name}
@@ -441,6 +472,8 @@ export default function BankAccountDetails() {
                 setUploadDialogOpen(false);
                 setSelectedFile(null);
                 setStatementName("");
+                setStatementMonth(new Date().getMonth() + 1);
+                setStatementYear(new Date().getFullYear());
                 if (statementFileRef.current) statementFileRef.current.value = '';
               }}>
                 Cancel
