@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Clock, MapPin, Camera, Save, Bell, Shield, Users } from 'lucide-react';
@@ -40,6 +41,32 @@ interface PunchClockSettings {
   max_distance_from_job_meters: number;
 }
 
+interface PunchClockSettings {
+  require_location: boolean;
+  require_photo: boolean;
+  manual_photo_capture: boolean;
+  allow_manual_entry: boolean;
+  auto_break_duration: number;
+  overtime_threshold: number;
+  location_accuracy_meters: number;
+  photo_required_for_corrections: boolean;
+  notification_enabled: boolean;
+  manager_approval_required: boolean;
+  grace_period_minutes: number;
+  allowed_job_sites: string[];
+  break_reminder_minutes: number;
+  punch_time_window_start: string;
+  punch_time_window_end: string;
+  enable_punch_rounding: boolean;
+  punch_rounding_minutes: number;
+  punch_rounding_direction: 'up' | 'down' | 'nearest';
+  auto_break_wait_hours: number;
+  calculate_overtime: boolean;
+  enable_distance_warnings: boolean;
+  max_distance_from_job_meters: number;
+  company_policies: string;
+}
+
 const defaultSettings: PunchClockSettings = {
   require_location: true,
   require_photo: true,
@@ -62,7 +89,8 @@ const defaultSettings: PunchClockSettings = {
   auto_break_wait_hours: 6,
   calculate_overtime: true,
   enable_distance_warnings: true,
-  max_distance_from_job_meters: 200
+  max_distance_from_job_meters: 200,
+  company_policies: ''
 };
 
 export default function PunchClockSettingsComponent() {
@@ -126,7 +154,8 @@ export default function PunchClockSettingsComponent() {
           auto_break_wait_hours: parseFloat((data.auto_break_wait_hours ?? 6).toString()),
           calculate_overtime: data.calculate_overtime !== false,
           enable_distance_warnings: true,
-          max_distance_from_job_meters: 200
+          max_distance_from_job_meters: 200,
+          company_policies: data.company_policies || ''
         });
       }
       
@@ -170,6 +199,7 @@ export default function PunchClockSettingsComponent() {
           punch_rounding_direction: settings.punch_rounding_direction,
           auto_break_wait_hours: settings.auto_break_wait_hours,
           calculate_overtime: settings.calculate_overtime,
+          company_policies: settings.company_policies,
           created_by: user?.id
         });
 
@@ -523,6 +553,20 @@ export default function PunchClockSettingsComponent() {
                   checked={settings.manager_approval_required}
                   onCheckedChange={(checked) => updateSetting('manager_approval_required', checked)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company-policies">Company Policies</Label>
+                <Textarea
+                  id="company-policies"
+                  placeholder="Enter company policies that employees can view from their punch clock..."
+                  value={settings.company_policies}
+                  onChange={(e) => updateSetting('company_policies', e.target.value)}
+                  rows={10}
+                />
+                <p className="text-xs text-muted-foreground">
+                  These policies will be visible to employees in their punch clock dashboard
+                </p>
               </div>
 
               <div className="flex items-center justify-between">

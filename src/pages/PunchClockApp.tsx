@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -62,6 +63,11 @@ function PunchClockApp() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
 
   // Update time every second
   useEffect(() => {
@@ -1095,12 +1101,15 @@ function PunchClockApp() {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-primary" />
-                </div>
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/employee-dashboard')}>
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={profile?.avatar_url} />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials(profile?.display_name || profile?.first_name)}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <CardTitle className="text-lg">{profile?.display_name || 'Employee'}</CardTitle>
+                  <CardTitle className="text-lg hover:underline">{profile?.display_name || 'Employee'}</CardTitle>
                   <p className="text-sm text-muted-foreground capitalize">{profile?.role}</p>
                 </div>
               </div>

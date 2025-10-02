@@ -108,6 +108,7 @@ import PMobileLogin from "./pages/PMobileLogin";
 import MobileMessages from "./pages/MobileMessages";
 import VisitorLogin from "./pages/VisitorLogin";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
+import EmployeeDashboard from "./pages/EmployeeDashboard";
 
 const queryClient = new QueryClient();
 
@@ -137,6 +138,7 @@ function PublicRoutes() {
               <Route path="/punch-clock-login" element={<PunchClockLogin />} />
               <Route path="/punch-clock" element={<PunchClockLogin />} />
               <Route path="/punch-clock-app" element={<PunchClockApp />} />
+              <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
               <Route path="/pm-mobile-login" element={<PMobileLogin />} />
               <Route path="/pm-mobile-app" element={<PMobileApp />} />
               <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
@@ -325,7 +327,7 @@ function AuthenticatedRoutes() {
 function AppRoutes() {
   const location = useLocation();
   
-  const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
+  const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
   const isPublicRoute = publicExactPaths.includes(location.pathname) || location.pathname.startsWith('/visitor/');
   
   if (isPublicRoute) {

@@ -1393,6 +1393,7 @@ export type Database = {
           auto_break_wait_hours: number | null
           calculate_overtime: boolean | null
           company_id: string
+          company_policies: string | null
           created_at: string
           created_by: string
           earliest_punch_start_time: string | null
@@ -1422,6 +1423,7 @@ export type Database = {
           auto_break_wait_hours?: number | null
           calculate_overtime?: boolean | null
           company_id: string
+          company_policies?: string | null
           created_at?: string
           created_by: string
           earliest_punch_start_time?: string | null
@@ -1451,6 +1453,7 @@ export type Database = {
           auto_break_wait_hours?: number | null
           calculate_overtime?: boolean | null
           company_id?: string
+          company_policies?: string | null
           created_at?: string
           created_by?: string
           earliest_punch_start_time?: string | null
@@ -3066,6 +3069,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "time_card_audit_trail_time_card_id_fkey"
+            columns: ["time_card_id"]
+            isOneToOne: false
+            referencedRelation: "time_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_card_change_requests: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string
+          requested_at: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          time_card_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason: string
+          requested_at?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          time_card_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string
+          requested_at?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          time_card_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_card_change_requests_time_card_id_fkey"
             columns: ["time_card_id"]
             isOneToOne: false
             referencedRelation: "time_cards"
