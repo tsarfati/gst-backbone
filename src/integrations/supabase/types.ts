@@ -158,6 +158,72 @@ export type Database = {
           },
         ]
       }
+      bank_statements: {
+        Row: {
+          bank_account_id: string
+          company_id: string
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_url: string
+          id: string
+          notes: string | null
+          statement_date: string
+          statement_month: number
+          statement_year: number
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          bank_account_id: string
+          company_id: string
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          id?: string
+          notes?: string | null
+          statement_date: string
+          statement_month: number
+          statement_year: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          bank_account_id?: string
+          company_id?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          notes?: string | null
+          statement_date?: string
+          statement_month?: number
+          statement_year?: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statements_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_statements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           answered_at: string | null
@@ -2727,6 +2793,84 @@ export type Database = {
           vendor_name?: string | null
         }
         Relationships: []
+      }
+      reconcile_reports: {
+        Row: {
+          bank_account_id: string
+          book_balance: number
+          company_id: string
+          created_at: string
+          difference: number
+          file_name: string | null
+          file_size: number | null
+          file_url: string | null
+          id: string
+          is_balanced: boolean
+          notes: string | null
+          reconcile_date: string
+          reconcile_month: number
+          reconcile_year: number
+          reconciled_at: string
+          reconciled_by: string
+          statement_balance: number
+          updated_at: string
+        }
+        Insert: {
+          bank_account_id: string
+          book_balance?: number
+          company_id: string
+          created_at?: string
+          difference?: number
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          is_balanced?: boolean
+          notes?: string | null
+          reconcile_date: string
+          reconcile_month: number
+          reconcile_year: number
+          reconciled_at?: string
+          reconciled_by: string
+          statement_balance?: number
+          updated_at?: string
+        }
+        Update: {
+          bank_account_id?: string
+          book_balance?: number
+          company_id?: string
+          created_at?: string
+          difference?: number
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          id?: string
+          is_balanced?: boolean
+          notes?: string | null
+          reconcile_date?: string
+          reconcile_month?: number
+          reconcile_year?: number
+          reconciled_at?: string
+          reconciled_by?: string
+          statement_balance?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconcile_reports_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reconcile_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_default_pages: {
         Row: {

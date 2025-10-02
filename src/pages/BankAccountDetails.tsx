@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, FileText } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Edit, FileText, Upload, Download, Trash2, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface BankAccount {
   id: string;
@@ -21,16 +24,50 @@ interface BankAccount {
   created_at: string;
 }
 
+interface BankStatement {
+  id: string;
+  statement_date: string;
+  statement_month: number;
+  statement_year: number;
+  file_name: string;
+  file_url: string;
+  file_size?: number;
+  uploaded_at: string;
+  notes?: string;
+}
+
+interface ReconcileReport {
+  id: string;
+  reconcile_date: string;
+  reconcile_month: number;
+  reconcile_year: number;
+  statement_balance: number;
+  book_balance: number;
+  difference: number;
+  is_balanced: boolean;
+  file_name?: string;
+  file_url?: string;
+  reconciled_at: string;
+  notes?: string;
+}
+
 export default function BankAccountDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [account, setAccount] = useState<BankAccount | null>(null);
+  const [statements, setStatements] = useState<BankStatement[]>([]);
+  const [reconcileReports, setReconcileReports] = useState<ReconcileReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const statementFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadBankAccount();
+    loadStatements();
+    loadReconcileReports();
   }, [id, currentCompany]);
 
   const loadBankAccount = async () => {
@@ -55,6 +92,89 @@ export default function BankAccountDetails() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStatements = async () => {
+    if (!currentCompany || !id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('bank_statements')
+        .select('*')
+        .eq('bank_account_id', id)
+        .eq('company_id', currentCompany.id)
+        .order('statement_year', { ascending: false })
+        .order('statement_month', { ascending: false });
+
+      if (error) throw error;
+      setStatements(data || []);
+    } catch (error) {
+      console.error('Error loading statements:', error);
+    }
+  };
+
+  const loadReconcileReports = async () => {
+    if (!currentCompany || !id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('reconcile_reports')
+        .select('*')
+        .eq('bank_account_id', id)
+        .eq('company_id', currentCompany.id)
+        .order('reconcile_year', { ascending: false })
+        .order('reconcile_month', { ascending: false });
+
+      if (error) throw error;
+      setReconcileReports(data || []);
+    } catch (error) {
+      console.error('Error loading reconcile reports:', error);
+    }
+  };
+
+  const handleStatementUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentCompany || !user || !id) return;
+
+    setUploading(true);
+    try {
+      const filePath = `${currentCompany.id}/${id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('bank-statements')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('bank-statements')
+        .getPublicUrl(filePath);
+
+      const statementDate = new Date();
+      const { error: insertError } = await supabase
+        .from('bank_statements')
+        .insert({
+          bank_account_id: id,
+          company_id: currentCompany.id,
+          statement_date: statementDate.toISOString().split('T')[0],
+          statement_month: statementDate.getMonth() + 1,
+          statement_year: statementDate.getFullYear(),
+          file_name: file.name,
+          file_url: publicUrl,
+          file_size: file.size,
+          uploaded_by: user.id,
+        });
+
+      if (insertError) throw insertError;
+
+      toast({ title: "Success", description: "Bank statement uploaded successfully" });
+      loadStatements();
+    } catch (error) {
+      console.error('Error uploading statement:', error);
+      toast({ title: "Error", description: "Failed to upload bank statement", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (statementFileRef.current) statementFileRef.current.value = '';
     }
   };
 
@@ -175,6 +295,89 @@ export default function BankAccountDetails() {
             <p className="text-sm text-muted-foreground mt-1">
               As of {new Date().toLocaleDateString()}
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Bank Statements</CardTitle>
+              <Button onClick={() => statementFileRef.current?.click()} disabled={uploading}>
+                <Upload className="h-4 w-4 mr-2" />
+                {uploading ? 'Uploading...' : 'Upload Statement'}
+              </Button>
+              <input ref={statementFileRef} type="file" accept=".pdf" className="hidden" onChange={handleStatementUpload} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {statements.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No bank statements uploaded</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Period</TableHead>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Uploaded</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {statements.map((statement) => (
+                    <TableRow key={statement.id}>
+                      <TableCell>{statement.statement_month}/{statement.statement_year}</TableCell>
+                      <TableCell>{statement.file_name}</TableCell>
+                      <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" asChild>
+                          <a href={statement.file_url} target="_blank" rel="noopener noreferrer">
+                            <Download className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reconcile Reports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {reconcileReports.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No reconcile reports</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Statement Balance</TableHead>
+                    <TableHead>Book Balance</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Reconciled</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reconcileReports.map((report) => (
+                    <TableRow key={report.id}>
+                      <TableCell>{report.reconcile_month}/{report.reconcile_year}</TableCell>
+                      <TableCell>{formatCurrency(report.statement_balance)}</TableCell>
+                      <TableCell>{formatCurrency(report.book_balance)}</TableCell>
+                      <TableCell>
+                        <Badge variant={report.is_balanced ? "default" : "destructive"}>
+                          {report.is_balanced ? "Balanced" : "Unbalanced"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{new Date(report.reconciled_at).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
