@@ -587,7 +587,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
               <CardContent>
                 <div 
                   ref={mapContainer}
-                  className="w-full h-96 rounded-lg border"
+                  className="w-full h-[500px] rounded-lg border"
                 />
                 
                 <div className="mt-4 space-y-2">

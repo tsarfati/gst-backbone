@@ -216,10 +216,10 @@ export default function ManualTimeEntry() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.user_id || !formData.job_id || !formData.punch_in_time || !formData.punch_out_time) {
+    if (!formData.user_id || !formData.job_id || !formData.cost_code_id || !formData.punch_in_time || !formData.punch_out_time) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields.",
+        description: "Please fill in all required fields including job and cost code.",
         variant: "destructive",
       });
       return;
@@ -247,7 +247,7 @@ export default function ManualTimeEntry() {
         .insert({
           user_id: formData.user_id,
           job_id: formData.job_id,
-          cost_code_id: formData.cost_code_id || null,
+          cost_code_id: formData.cost_code_id,
           company_id: currentCompany?.id || '',
           punch_in_time: punchInDateTime.toISOString(),
           punch_out_time: punchOutDateTime.toISOString(),
@@ -368,13 +368,14 @@ export default function ManualTimeEntry() {
 
               {/* Cost Code */}
               <div className="space-y-2">
-                <Label htmlFor="cost-code">Cost Code</Label>
+                <Label htmlFor="cost-code">Cost Code *</Label>
                 <Select
                   value={formData.cost_code_id}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, cost_code_id: value }))}
+                  required
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select cost code (optional)" />
+                    <SelectValue placeholder="Select cost code" />
                   </SelectTrigger>
                   <SelectContent>
                     {costCodes.map((code) => (

@@ -826,6 +826,22 @@ function PunchClockApp() {
           ? (photoUploadNote ? `${punchOutNote || ''}\n${photoUploadNote}`.trim() : punchOutNote)
           : photoUploadNote;
 
+        // Convert blob to base64 for edge function
+        let imageBase64: string | undefined;
+        if (blobToUpload && !photoUrl) {
+          const toBase64 = (b: Blob) => new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result as string;
+              const base64 = res.includes(',') ? res.split(',')[1] : res;
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(b);
+          });
+          imageBase64 = await toBase64(blobToUpload);
+        }
+
         // Prevent duplicate punch operations
         const res = await fetch(`${FUNCTION_BASE}/punch`, {
           method: 'POST',
@@ -842,6 +858,7 @@ function PunchClockApp() {
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: photoUrl,
+            image: imageBase64, // Send base64 image if photo wasn't pre-uploaded
             notes: combinedNotes,
           })
         });
