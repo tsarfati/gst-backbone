@@ -37,6 +37,8 @@ const getStatusVariant = (status: string) => {
     case "pending":
     case "pending_approval":
       return "warning";
+    case "approved":
+      return "warning"; // Orange for awaiting payment
     case "pending_payment":
       return "secondary";
     case "overdue":
@@ -52,6 +54,8 @@ const getStatusDisplayName = (status: string) => {
       return "pending approval";
     case "pending_approval":
       return "pending approval";
+    case "approved":
+      return "Awaiting Payment";
     case "pending_payment":
       return "pending payment";
     case "paid":

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface Vendor {
   id: string;
@@ -79,6 +80,7 @@ interface CodedReceipt {
 export default function MakePayment() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -104,9 +106,11 @@ export default function MakePayment() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadData();
-    generatePaymentNumber();
-  }, []);
+    if (currentCompany) {
+      loadData();
+      generatePaymentNumber();
+    }
+  }, [currentCompany]);
 
   useEffect(() => {
     if (selectedVendor || selectedJob) {
@@ -120,25 +124,58 @@ export default function MakePayment() {
 
   const loadData = async () => {
     try {
-      // Load vendors
-      const { data: vendorsData, error: vendorsError } = await supabase
-        .from('vendors')
-        .select('id, name, payment_terms')
-        .eq('is_active', true)
-        .order('name');
+      if (!currentCompany) {
+        toast({
+          title: "Error",
+          description: "No company selected",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      if (vendorsError) throw vendorsError;
-      setVendors(vendorsData || []);
+      // Load all approved unpaid invoices for current company
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select(`
+          *,
+          vendors!inner (
+            id,
+            name,
+            payment_terms,
+            company_id
+          ),
+          jobs (
+            id,
+            name
+          )
+        `)
+        .eq('status', 'approved')
+        .eq('vendors.company_id', currentCompany.id)
+        .order('due_date');
 
-      // Load jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
+      if (invoicesError) throw invoicesError;
+      const formattedInvoices = (invoicesData || []).map(invoice => ({
+        ...invoice,
+        vendor: invoice.vendors
+      }));
+      setAllInvoices(formattedInvoices);
+      setInvoices(formattedInvoices);
 
-      if (jobsError) throw jobsError;
-      setJobs(jobsData || []);
+      // Extract unique vendors from invoices
+      const uniqueVendors = Array.from(
+        new Map(formattedInvoices.map(inv => [inv.vendor.id, inv.vendor])).values()
+      );
+      setVendors(uniqueVendors);
+
+      // Extract unique jobs from invoices
+      const uniqueJobs = Array.from(
+        new Map(
+          formattedInvoices
+            .filter(inv => inv.jobs)
+            .map(inv => [inv.jobs!.id, inv.jobs!])
+        ).values()
+      );
+      setJobs(uniqueJobs);
 
       // Load bank accounts
       const { data: bankAccountsData, error: bankAccountsError } = await supabase
@@ -149,32 +186,6 @@ export default function MakePayment() {
 
       if (bankAccountsError) throw bankAccountsError;
       setBankAccounts(bankAccountsData || []);
-
-      // Load all approved unpaid invoices
-      const { data: invoicesData, error: invoicesError } = await supabase
-        .from('invoices')
-        .select(`
-          *,
-          vendors (
-            id,
-            name,
-            payment_terms
-          ),
-          jobs (
-            id,
-            name
-          )
-        `)
-        .eq('status', 'approved')
-        .order('due_date');
-
-      if (invoicesError) throw invoicesError;
-      const formattedInvoices = (invoicesData || []).map(invoice => ({
-        ...invoice,
-        vendor: invoice.vendors
-      }));
-      setAllInvoices(formattedInvoices);
-      setInvoices(formattedInvoices);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
