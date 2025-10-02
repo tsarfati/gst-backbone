@@ -251,7 +251,7 @@ export default function BillDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate(`/invoices/${id}/edit`)} variant="secondary">
+          <Button onClick={() => navigate(`/bills/${id}/edit`)} variant="secondary">
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>
