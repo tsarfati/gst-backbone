@@ -45,6 +45,8 @@ export default function BillEdit() {
   const [allCostCodes, setAllCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [subcontractInfo, setSubcontractInfo] = useState<any>(null);
+  const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -86,6 +88,44 @@ export default function BillEdit() {
 
       // Ensure billData has the correct type with is_reimbursement field
       const typedBillData = billData as typeof billData & { is_reimbursement?: boolean };
+
+      // If this is a subcontract invoice, load subcontract and commitment details
+      if (typedBillData.subcontract_id) {
+        const { data: subcontractData } = await supabase
+          .from('subcontracts')
+          .select('*, vendors!inner(name)')
+          .eq('id', typedBillData.subcontract_id)
+          .single();
+
+        if (subcontractData) {
+          setSubcontractInfo(subcontractData);
+
+          // Calculate commitment totals
+          const { data: previousInvoices } = await supabase
+            .from('invoices')
+            .select('amount, status')
+            .eq('subcontract_id', typedBillData.subcontract_id)
+            .neq('id', id);
+
+          const totalCommit = subcontractData.contract_amount || 0;
+          const prevGross = previousInvoices
+            ?.filter(inv => inv.status !== 'rejected')
+            .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+          const prevRetention = 0; // TODO: Calculate based on retention rules if needed
+          const prevPayments = previousInvoices
+            ?.filter(inv => inv.status === 'paid')
+            .reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0;
+          const contractBalance = totalCommit - prevGross;
+
+          setCommitmentTotals({
+            totalCommit,
+            prevGross,
+            prevRetention,
+            prevPayments,
+            contractBalance
+          });
+        }
+      }
 
       // Load vendors, jobs, and cost codes for current company only
       const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
@@ -278,6 +318,35 @@ export default function BillEdit() {
         </Button>
       </div>
 
+      {/* Commitment Information (for subcontract invoices) */}
+      {subcontractInfo && commitmentTotals && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Commitment Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-muted-foreground">Total Commit:</div>
+                <div className="text-right font-medium">${commitmentTotals.totalCommit.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Prev Gross:</div>
+                <div className="text-right font-medium">${commitmentTotals.prevGross.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Prev Ret'd:</div>
+                <div className="text-right font-medium">${commitmentTotals.prevRetention.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground">Prev Pmts:</div>
+                <div className="text-right font-medium">${commitmentTotals.prevPayments.toFixed(2)}</div>
+                
+                <div className="text-muted-foreground font-semibold">Contract Balance:</div>
+                <div className="text-right font-bold bg-accent/10 px-2 py-1 rounded">${commitmentTotals.contractBalance.toFixed(2)}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Form */}
       <div className="space-y-6">
         <Card>
@@ -288,7 +357,11 @@ export default function BillEdit() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vendor">Vendor</Label>
-                <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                <Select 
+                  value={formData.vendor_id} 
+                  onValueChange={(value) => handleInputChange("vendor_id", value)}
+                  disabled={!!subcontractInfo}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a vendor" />
                   </SelectTrigger>
@@ -317,7 +390,11 @@ export default function BillEdit() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="job">Job</Label>
-                <Select value={formData.job_id} onValueChange={(value) => handleInputChange("job_id", value)}>
+                <Select 
+                  value={formData.job_id} 
+                  onValueChange={(value) => handleInputChange("job_id", value)}
+                  disabled={!!subcontractInfo}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a job" />
                   </SelectTrigger>
@@ -332,7 +409,11 @@ export default function BillEdit() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cost_code">Cost Code</Label>
-                <Select value={formData.cost_code_id} onValueChange={(value) => handleInputChange("cost_code_id", value)}>
+                <Select 
+                  value={formData.cost_code_id} 
+                  onValueChange={(value) => handleInputChange("cost_code_id", value)}
+                  disabled={!!subcontractInfo}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select cost code (optional)" />
                   </SelectTrigger>
@@ -389,24 +470,26 @@ export default function BillEdit() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="is_subcontract_invoice"
-                  checked={formData.is_subcontract_invoice}
-                  onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
-                />
-                <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
+            {!subcontractInfo && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="is_subcontract_invoice"
+                    checked={formData.is_subcontract_invoice}
+                    onCheckedChange={(checked) => handleInputChange("is_subcontract_invoice", checked)}
+                  />
+                  <Label htmlFor="is_subcontract_invoice">This is a subcontract invoice</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="is_reimbursement"
+                    checked={formData.is_reimbursement}
+                    onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                  />
+                  <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="is_reimbursement"
-                  checked={formData.is_reimbursement}
-                  onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
-                />
-                <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
