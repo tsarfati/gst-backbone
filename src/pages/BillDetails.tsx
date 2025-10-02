@@ -103,6 +103,10 @@ export default function BillDetails() {
             id,
             name,
             contract_amount
+          ),
+          purchase_orders (
+            id,
+            po_number
           )
         `)
         .eq('id', id)
@@ -421,18 +425,6 @@ export default function BillDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {payNumber > 0 && bill?.subcontract_id && (
-              <>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Pay Number</p>
-                  <div className="p-3 bg-muted rounded-lg inline-block">
-                    <span className="font-semibold text-lg">Pay #{payNumber}</span>
-                  </div>
-                </div>
-                <Separator />
-              </>
-            )}
-            
             {/* Vendor Section */}
             <div>
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Vendor</h4>
@@ -516,16 +508,31 @@ export default function BillDetails() {
                     {bill?.cost_codes ? `${bill.cost_codes.code} - ${bill.cost_codes.description}` : 'Not set'}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Reimbursement Payment</p>
-                  <p className="font-medium">
-                    {bill?.is_reimbursement ? 'Yes' : 'No'}
-                  </p>
-                </div>
+                {/* Pay Number or Reimbursement - conditionally displayed */}
+                {bill?.subcontract_id && payNumber > 0 ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pay Number</p>
+                    <p className="font-medium">Pay #{payNumber}</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Reimbursement Payment</p>
+                    <p className="font-medium">
+                      {bill?.is_reimbursement ? 'Yes' : 'No'}
+                    </p>
+                  </div>
+                )}
+                {/* Commitment Type - Subcontract or Purchase Order */}
                 {bill?.subcontract_id && bill?.subcontracts && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Subcontract</p>
-                    <p className="font-medium">{bill.subcontracts.name}</p>
+                    <p className="text-sm text-muted-foreground">Commitment</p>
+                    <p className="font-medium">Subcontract: {bill.subcontracts.name}</p>
+                  </div>
+                )}
+                {bill?.purchase_order_id && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Commitment</p>
+                    <p className="font-medium">Purchase Order</p>
                   </div>
                 )}
                 <div>

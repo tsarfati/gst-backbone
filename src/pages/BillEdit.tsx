@@ -86,9 +86,9 @@ export default function BillEdit() {
       // Load bill data
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*, vendors!inner(company_id)')
+        .select('*, vendors!inner(company_id), purchase_orders(id, po_number)')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
       if (billError) throw billError;
 
@@ -405,15 +405,6 @@ export default function BillEdit() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {payNumber > 0 && subcontractInfo && (
-              <div className="space-y-2">
-                <Label>Pay Number</Label>
-                <div className="p-3 bg-muted rounded-lg">
-                  <span className="font-medium">Pay #{payNumber}</span>
-                </div>
-              </div>
-            )}
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vendor">Vendor</Label>
@@ -547,6 +538,34 @@ export default function BillEdit() {
                     onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
                   />
                   <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
+                </div>
+              </div>
+            )}
+
+            {/* Pay Number and Commitment Type for commitment bills */}
+            {(subcontractInfo || bill?.purchase_order_id) && payNumber > 0 && (
+              <div className="space-y-2">
+                <Label>Pay Number</Label>
+                <div className="p-3 bg-muted rounded-lg">
+                  <span className="font-medium">Pay #{payNumber}</span>
+                </div>
+              </div>
+            )}
+
+            {subcontractInfo && (
+              <div className="space-y-2">
+                <Label>Commitment</Label>
+                <div className="p-3 bg-muted rounded-lg">
+                  <span className="font-medium">Subcontract: {subcontractInfo.name}</span>
+                </div>
+              </div>
+            )}
+
+            {bill?.purchase_order_id && !subcontractInfo && (
+              <div className="space-y-2">
+                <Label>Commitment</Label>
+                <div className="p-3 bg-muted rounded-lg">
+                  <span className="font-medium">Purchase Order</span>
                 </div>
               </div>
             )}

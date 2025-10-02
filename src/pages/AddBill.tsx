@@ -1050,30 +1050,48 @@ export default function AddBill() {
                 )}
 
                 {formData.subcontract_id && payNumber > 0 && (
-                  <div className="space-y-2">
-                    <Label>Pay Number</Label>
-                    <div className="p-3 bg-muted rounded-lg">
-                      <span className="font-medium">Pay #{payNumber}</span>
+                  <>
+                    <div className="space-y-2">
+                      <Label>Pay Number</Label>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <span className="font-medium">Pay #{payNumber}</span>
+                      </div>
                     </div>
-                  </div>
+                    <div className="space-y-2">
+                      <Label>Commitment</Label>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <span className="font-medium">Subcontract</span>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {formData.commitment_type === 'purchase_order' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="purchase_order">Purchase Order *</Label>
-                    <Select value={formData.purchase_order_id} onValueChange={handlePurchaseOrderChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a purchase order" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getFilteredPurchaseOrders().map((po) => (
-                          <SelectItem key={po.id} value={po.id}>
-                            {po.po_number} - {po.vendors?.name} (${Number(po.amount).toLocaleString()})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="purchase_order">Purchase Order *</Label>
+                      <Select value={formData.purchase_order_id} onValueChange={handlePurchaseOrderChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a purchase order" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getFilteredPurchaseOrders().map((po) => (
+                            <SelectItem key={po.id} value={po.id}>
+                              {po.po_number} - {po.vendors?.name} (${Number(po.amount).toLocaleString()})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {formData.purchase_order_id && (
+                      <div className="space-y-2">
+                        <Label>Commitment</Label>
+                        <div className="p-3 bg-muted rounded-lg">
+                          <span className="font-medium">Purchase Order</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
