@@ -373,14 +373,24 @@ export default function MakePayment() {
     try {
       const user = await supabase.auth.getUser();
       
-      // Create payment
+      // Create payment (without payment_document_url initially)
+      const paymentToInsert = {
+        payment_number: payment.payment_number,
+        vendor_id: payment.vendor_id,
+        payment_method: payment.payment_method,
+        payment_date: payment.payment_date,
+        amount: payment.amount,
+        memo: payment.memo,
+        status: payment.status,
+        check_number: payment.check_number,
+        bank_account_id: payment.bank_account_id,
+        is_partial_payment: isPartialPayment,
+        created_by: user.data.user?.id
+      };
+
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
-        .insert({
-          ...payment,
-          is_partial_payment: isPartialPayment,
-          created_by: user.data.user?.id
-        })
+        .insert(paymentToInsert)
         .select()
         .single();
 

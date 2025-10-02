@@ -2124,9 +2124,11 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          is_partial_payment: boolean | null
           journal_entry_id: string | null
           memo: string | null
           payment_date: string
+          payment_document_url: string | null
           payment_method: string
           payment_number: string
           status: string
@@ -2139,9 +2141,11 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          is_partial_payment?: boolean | null
           journal_entry_id?: string | null
           memo?: string | null
           payment_date?: string
+          payment_document_url?: string | null
           payment_method: string
           payment_number: string
           status?: string
@@ -2154,9 +2158,11 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          is_partial_payment?: boolean | null
           journal_entry_id?: string | null
           memo?: string | null
           payment_date?: string
+          payment_document_url?: string | null
           payment_method?: string
           payment_number?: string
           status?: string
