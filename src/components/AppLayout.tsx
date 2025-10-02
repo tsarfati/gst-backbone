@@ -289,7 +289,7 @@ export function AppSidebar() {
                          className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
                        >
                         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                          <category.icon className="h-4 w-4" />
+                          <category.icon className={`h-4 w-4 transition-colors ${allOpenGroups.includes(category.title) ? 'text-primary' : ''}`} />
                           <span className="group-data-[collapsible=icon]:hidden">
                             {category.title}
                           </span>
