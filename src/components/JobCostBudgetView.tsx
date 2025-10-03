@@ -31,9 +31,9 @@ export default function JobCostBudgetView() {
     loadData();
   }, [id]);
 
-  // Reload cost codes when switching to budget tab
+  // Reload cost codes when switching to budget tab - only if we don't have any yet
   useEffect(() => {
-    if (activeTab === "budget") {
+    if (activeTab === "budget" && selectedCostCodes.length === 0) {
       loadCostCodes();
     }
   }, [activeTab, id]);
