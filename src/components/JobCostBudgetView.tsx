@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
+import DynamicBudgetManager from "@/components/DynamicBudgetManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CostCode {
@@ -117,6 +118,7 @@ export default function JobCostBudgetView() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="budget">Budget</TabsTrigger>
+          <TabsTrigger value="dynamic">Dynamic Budgets</TabsTrigger>
           <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>
         </TabsList>
         <TabsContent value="budget" className="mt-6">
@@ -125,6 +127,9 @@ export default function JobCostBudgetView() {
             jobName={job.name}
             selectedCostCodes={selectedCostCodes}
           />
+        </TabsContent>
+        <TabsContent value="dynamic" className="mt-6">
+          <DynamicBudgetManager jobId={id!} />
         </TabsContent>
         <TabsContent value="cost-codes" className="mt-6">
           <JobCostCodeSelector 

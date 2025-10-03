@@ -1,475 +1,316 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CurrencyInput } from "@/components/ui/currency-input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-
-interface DynamicBudgetManagerProps {
-  jobId: string;
-}
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface CostCode {
   id: string;
   code: string;
   description: string;
-  parent_cost_code_id: string | null;
+  type?: string;
 }
 
-interface Budget {
-  id: string;
+interface BudgetLine {
+  id?: string;
   cost_code_id: string;
   budgeted_amount: number;
   actual_amount: number;
   committed_amount: number;
-  is_dynamic: boolean;
-  parent_budget_id: string | null;
-  cost_codes: CostCode;
+  is_dynamic?: boolean;
+  parent_budget_id?: string | null;
+  cost_code?: CostCode;
 }
 
-interface DynamicBudgetSummary {
-  parent_budget_id: string;
-  dynamic_budget: number;
-  total_actual_from_children: number;
-  total_committed_from_children: number;
-  remaining_budget: number;
-  is_over_budget: boolean;
+interface BudgetGroup {
+  baseCode: string;
+  costCodes: (BudgetLine & { cost_code: CostCode })[];
+  dynamicBudget?: BudgetLine;
+}
+
+interface DynamicBudgetManagerProps {
+  jobId: string;
 }
 
 export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProps) {
+  const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [costCodes, setCostCodes] = useState<CostCode[]>([]);
-  const [dynamicGroups, setDynamicGroups] = useState<CostCode[]>([]);
-  const [dynamicSummaries, setDynamicSummaries] = useState<Record<string, DynamicBudgetSummary>>({});
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [newDynamicBudget, setNewDynamicBudget] = useState({
-    cost_code_id: "",
-    budgeted_amount: ""
-  });
-  const [newChildCode, setNewChildCode] = useState<Record<string, { code: string; description: string }>>({});
 
   useEffect(() => {
-    if (jobId) {
-      fetchData();
-    }
+    loadData();
   }, [jobId]);
 
-  const fetchData = async () => {
-    await Promise.all([
-      fetchBudgets(),
-      fetchCostCodes(),
-      fetchDynamicSummaries()
-    ]);
+  const loadData = async () => {
+    try {
+      const { data: budgetData, error: budgetError } = await supabase
+        .from('job_budgets')
+        .select(`
+          *,
+          cost_codes (
+            id,
+            code,
+            description,
+            type
+          )
+        `)
+        .eq('job_id', jobId);
+
+      if (budgetError) throw budgetError;
+
+      const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
+        id: bd.id,
+        cost_code_id: bd.cost_code_id,
+        budgeted_amount: bd.budgeted_amount,
+        actual_amount: bd.actual_amount,
+        committed_amount: bd.committed_amount,
+        is_dynamic: bd.is_dynamic,
+        parent_budget_id: bd.parent_budget_id,
+        cost_code: bd.cost_codes
+      }));
+
+      setBudgetLines(normalizedBudgetLines);
+    } catch (error) {
+      console.error('Error loading budget data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const fetchBudgets = async () => {
-    const { data, error } = await supabase
-      .from('job_budgets')
-      .select('*, cost_codes(*)')
-      .eq('job_id', jobId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching budgets:', error);
-      return;
-    }
-
-    setBudgets(data || []);
+  const getBaseCode = (code: string): string | null => {
+    const match = code.match(/^(\d+\.\d+)/);
+    return match ? match[1] : null;
   };
 
-  const fetchCostCodes = async () => {
-    // Get company_id from job
-    const { data: jobData } = await supabase
-      .from('jobs')
-      .select('company_id')
-      .eq('id', jobId)
-      .single();
-
-    if (!jobData) return;
-
-    // Fetch dynamic groups (top-level like "1", "2")
-    const { data: groupsData, error: groupsError } = await supabase
-      .from('cost_codes')
-      .select('*')
-      .eq('company_id', jobData.company_id)
-      .eq('is_dynamic_group', true)
-      .eq('is_active', true)
-      .order('code', { ascending: true });
-
-    if (groupsError) {
-      console.error('Error fetching dynamic groups:', groupsError);
-    } else {
-      setDynamicGroups(groupsData || []);
-    }
-
-    // Fetch all cost codes for this job
-    const { data, error } = await supabase
-      .from('cost_codes')
-      .select('*')
-      .eq('job_id', jobId)
-      .eq('is_active', true)
-      .order('code', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching cost codes:', error);
-      return;
-    }
-
-    setCostCodes(data || []);
-  };
-
-  const fetchDynamicSummaries = async () => {
-    const { data, error } = await supabase
-      .from('dynamic_budget_summary')
-      .select('*')
-      .eq('job_id', jobId);
-
-    if (error) {
-      console.error('Error fetching dynamic summaries:', error);
-      return;
-    }
-
-    const summariesMap: Record<string, DynamicBudgetSummary> = {};
-    data?.forEach(summary => {
-      summariesMap[summary.parent_budget_id] = summary;
-    });
-    setDynamicSummaries(summariesMap);
-  };
-
-  const handleCreateDynamicBudget = async () => {
-    if (!newDynamicBudget.cost_code_id || !newDynamicBudget.budgeted_amount) {
-      toast({
-        title: "Missing information",
-        description: "Please select a cost code and enter a budget amount",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) return;
-
-    const { error } = await supabase
-      .from('job_budgets')
-      .insert({
-        job_id: jobId,
-        cost_code_id: newDynamicBudget.cost_code_id,
-        budgeted_amount: parseFloat(newDynamicBudget.budgeted_amount),
-        actual_amount: 0,
-        committed_amount: 0,
-        is_dynamic: true,
-        created_by: user.data.user.id
-      });
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create dynamic budget",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Success",
-      description: "Dynamic budget created successfully"
-    });
-
-    setNewDynamicBudget({ cost_code_id: "", budgeted_amount: "" });
-    fetchData();
-  };
-
-  const handleCreateChildCostCode = async (parentBudgetId: string) => {
-    const childData = newChildCode[parentBudgetId];
-    if (!childData?.code || !childData?.description) {
-      toast({
-        title: "Missing information",
-        description: "Please enter cost code and description",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) return;
-
-    const parentBudget = budgets.find(b => b.id === parentBudgetId);
-    if (!parentBudget) return;
-
-    // Create child cost code
-    const { data: newCostCode, error: costCodeError } = await supabase
-      .from('cost_codes')
-      .insert({
-        job_id: jobId,
-        code: childData.code,
-        description: childData.description,
-        parent_cost_code_id: parentBudget.cost_code_id,
-        company_id: (await supabase
-          .from('jobs')
-          .select('company_id')
-          .eq('id', jobId)
-          .single()).data?.company_id,
-        is_active: true
-      })
-      .select()
-      .single();
-
-    if (costCodeError) {
-      toast({
-        title: "Error",
-        description: "Failed to create child cost code",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Create child budget entry with zero budgeted amount (will accumulate actuals)
-    const { error: budgetError } = await supabase
-      .from('job_budgets')
-      .insert({
-        job_id: jobId,
-        cost_code_id: newCostCode.id,
-        budgeted_amount: 0,
-        actual_amount: 0,
-        committed_amount: 0,
-        is_dynamic: false,
-        parent_budget_id: parentBudgetId,
-        created_by: user.data.user.id
-      });
-
-    if (budgetError) {
-      toast({
-        title: "Error",
-        description: "Failed to create child budget entry",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Success",
-      description: "Child cost code created successfully"
-    });
-
-    setNewChildCode(prev => ({ ...prev, [parentBudgetId]: { code: "", description: "" } }));
-    fetchData();
-  };
-
-  const toggleGroup = (budgetId: string) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(budgetId)) {
-        newSet.delete(budgetId);
-      } else {
-        newSet.add(budgetId);
+  const groupCostCodesByBase = (): BudgetGroup[] => {
+    const groups: Record<string, BudgetGroup> = {};
+    
+    budgetLines.forEach(line => {
+      if (!line.cost_code) return;
+      
+      if (line.is_dynamic) {
+        const baseCode = line.cost_code.code;
+        if (!groups[baseCode]) {
+          groups[baseCode] = {
+            baseCode,
+            costCodes: [],
+            dynamicBudget: line
+          };
+        } else {
+          groups[baseCode].dynamicBudget = line;
+        }
+        return;
       }
-      return newSet;
+      
+      if (line.parent_budget_id) return;
+      
+      const baseCode = getBaseCode(line.cost_code.code);
+      if (baseCode) {
+        if (!groups[baseCode]) {
+          groups[baseCode] = {
+            baseCode,
+            costCodes: [],
+            dynamicBudget: undefined
+          };
+        }
+        groups[baseCode].costCodes.push(line as BudgetLine & { cost_code: CostCode });
+      }
     });
+    
+    return Object.values(groups).filter(g => g.costCodes.length >= 2);
   };
 
-  const availableParentCostCodes = costCodes.filter(cc => 
-    !cc.parent_cost_code_id && 
-    !budgets.some(b => b.cost_code_id === cc.id && b.is_dynamic)
-  );
+  const handleToggleDynamic = async (baseCode: string, enabled: boolean) => {
+    const group = groupCostCodesByBase().find(g => g.baseCode === baseCode);
+    if (!group) return;
 
-  const dynamicBudgets = budgets.filter(b => b.is_dynamic);
-  const getChildBudgets = (parentId: string) => budgets.filter(b => b.parent_budget_id === parentId);
+    if (enabled) {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) return;
 
-  return (
-    <div className="space-y-6">
-      {/* Dynamic Groups Overview */}
-      {dynamicGroups.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Dynamic Budget Groups</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-4">
-                Top-level groups automatically accumulate costs from all child cost codes. 
-                For example, Group "1" accumulates all costs from codes like "1.09", "1.10", etc.
-              </p>
-              <div className="grid gap-2">
-                {dynamicGroups.map((group) => (
-                  <div key={group.id} className="flex items-center justify-between p-3 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20">
-                    <div>
-                      <span className="font-mono font-bold text-lg">{group.code}</span>
-                      <span className="ml-3 text-sm">{group.description}</span>
-                    </div>
-                    <Badge variant="outline" className="bg-primary/10">Top-Level Group</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      try {
+        const existingDynamic = budgetLines.find(
+          line => line.is_dynamic && line.cost_code?.code === baseCode
+        );
 
-      {/* Create New Dynamic Budget */}
+        let dynamicBudgetId: string;
+
+        if (existingDynamic?.id) {
+          dynamicBudgetId = existingDynamic.id;
+        } else {
+          const { data: companyData } = await supabase
+            .from('cost_codes')
+            .select('company_id')
+            .eq('id', group.costCodes[0].cost_code_id)
+            .single();
+
+          const { data: newCostCode, error: costCodeError } = await supabase
+            .from('cost_codes')
+            .insert({
+              job_id: jobId,
+              company_id: companyData?.company_id,
+              code: baseCode,
+              description: group.costCodes[0].cost_code?.description || '',
+              type: null,
+              is_active: true
+            })
+            .select()
+            .single();
+
+          if (costCodeError) throw costCodeError;
+
+          const { data: dynamicBudget, error: dynamicError } = await supabase
+            .from('job_budgets')
+            .insert({
+              job_id: jobId,
+              cost_code_id: newCostCode.id,
+              budgeted_amount: 0,
+              actual_amount: 0,
+              committed_amount: 0,
+              is_dynamic: true,
+              created_by: user.data.user.id
+            })
+            .select()
+            .single();
+
+          if (dynamicError) throw dynamicError;
+          dynamicBudgetId = dynamicBudget.id;
+        }
+
+        const updatePromises = group.costCodes.map(line => 
+          supabase
+            .from('job_budgets')
+            .update({ parent_budget_id: dynamicBudgetId })
+            .eq('id', line.id)
+        );
+
+        await Promise.all(updatePromises);
+
+        toast({
+          title: "Success",
+          description: `Dynamic budget enabled for ${baseCode}`,
+        });
+
+        loadData();
+      } catch (error) {
+        console.error('Error creating dynamic budget:', error);
+        toast({
+          title: "Error",
+          description: "Failed to enable dynamic budget",
+          variant: "destructive",
+        });
+      }
+    } else {
+      if (!group.dynamicBudget?.id) return;
+
+      try {
+        const childBudgets = budgetLines.filter(b => b.parent_budget_id === group.dynamicBudget!.id);
+        const updatePromises = childBudgets.map(child =>
+          supabase
+            .from('job_budgets')
+            .update({ parent_budget_id: null })
+            .eq('id', child.id)
+        );
+
+        await Promise.all(updatePromises);
+
+        await supabase
+          .from('job_budgets')
+          .delete()
+          .eq('id', group.dynamicBudget.id);
+
+        if (group.dynamicBudget.cost_code_id) {
+          await supabase
+            .from('cost_codes')
+            .delete()
+            .eq('id', group.dynamicBudget.cost_code_id);
+        }
+
+        toast({
+          title: "Success",
+          description: `Dynamic budget disabled for ${baseCode}`,
+        });
+
+        loadData();
+      } catch (error) {
+        console.error('Error removing dynamic budget:', error);
+        toast({
+          title: "Error",
+          description: "Failed to disable dynamic budget",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const potentialDynamicGroups = groupCostCodesByBase();
+
+  if (loading) {
+    return (
+      <div className="text-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+        <p className="text-muted-foreground">Loading dynamic budgets...</p>
+      </div>
+    );
+  }
+
+  if (potentialDynamicGroups.length === 0) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle>Create Dynamic Budget</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Create a dynamic budget for a parent cost code (e.g., "1.09"). Child codes will automatically roll up to this budget.
+        <CardContent className="py-12 text-center">
+          <p className="text-muted-foreground">
+            No eligible cost code groups found. Add multiple cost codes with the same base number (e.g., 01.01 with different types) to create dynamic budget groups.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Parent Cost Code</Label>
-              <Select 
-                value={newDynamicBudget.cost_code_id}
-                onValueChange={(value) => setNewDynamicBudget(prev => ({ ...prev, cost_code_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a cost code" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableParentCostCodes.map(cc => (
-                    <SelectItem key={cc.id} value={cc.id}>
-                      {cc.code} - {cc.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Dynamic Budget Amount</Label>
-              <CurrencyInput
-                value={newDynamicBudget.budgeted_amount}
-                onChange={(value) => setNewDynamicBudget(prev => ({ ...prev, budgeted_amount: value }))}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-          <Button onClick={handleCreateDynamicBudget}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Dynamic Budget
-          </Button>
         </CardContent>
       </Card>
+    );
+  }
 
-      {/* Dynamic Budget Groups */}
-      <div className="space-y-4">
-        {dynamicBudgets.map(budget => {
-          const summary = dynamicSummaries[budget.id];
-          const childBudgets = getChildBudgets(budget.id);
-          const isExpanded = expandedGroups.has(budget.id);
-
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Dynamic Budget Groups</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Enable dynamic budgets for groups of 2+ cost codes with the same base number. Dynamic budgets allow you to set a total budget shared across multiple cost code types.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {potentialDynamicGroups.map(group => {
+          const isDynamic = !!group.dynamicBudget;
+          
           return (
-            <Card key={budget.id} className={summary?.is_over_budget ? "border-destructive" : ""}>
-              <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(budget.id)}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-70">
-                      {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                      <CardTitle className="text-base">
-                        {budget.cost_codes.code} - {budget.cost_codes.description}
-                      </CardTitle>
-                      <Badge variant="secondary">Dynamic Budget</Badge>
-                      {summary?.is_over_budget && (
-                        <Badge variant="destructive" className="flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Over Budget
+            <div key={group.baseCode} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+              <Checkbox
+                checked={isDynamic}
+                onCheckedChange={(checked) => handleToggleDynamic(group.baseCode, checked as boolean)}
+                className="mt-1"
+              />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-lg">{group.baseCode}</span>
+                  {isDynamic && <Badge variant="default">Active</Badge>}
+                  <Badge variant="outline">{group.costCodes.length} cost codes</Badge>
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground pl-4 border-l-2 border-muted">
+                  {group.costCodes.map(cc => (
+                    <div key={cc.cost_code_id} className="flex items-center gap-2">
+                      <span className="font-mono">{cc.cost_code?.code}</span>
+                      {cc.cost_code?.type && (
+                        <Badge variant="secondary" className="text-xs">
+                          {cc.cost_code.type}
                         </Badge>
                       )}
-                    </CollapsibleTrigger>
-                  </div>
-                  {summary && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground">Budget</div>
-                        <div className="font-semibold">${summary.dynamic_budget.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Actual</div>
-                        <div className="font-semibold">${summary.total_actual_from_children.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Committed</div>
-                        <div className="font-semibold">${summary.total_committed_from_children.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Remaining</div>
-                        <div className={`font-semibold ${summary.remaining_budget < 0 ? 'text-destructive' : 'text-success'}`}>
-                          ${summary.remaining_budget.toLocaleString()}
-                        </div>
-                      </div>
+                      <span>{cc.cost_code?.description}</span>
                     </div>
-                  )}
-                </CardHeader>
-                <CollapsibleContent>
-                  <CardContent className="space-y-4">
-                    {/* Child Cost Codes */}
-                    {childBudgets.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Child Cost Codes</Label>
-                        <div className="space-y-2">
-                          {childBudgets.map(child => (
-                            <div key={child.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                              <div>
-                                <div className="font-medium">{child.cost_codes.code} - {child.cost_codes.description}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  Actual: ${child.actual_amount.toLocaleString()} | 
-                                  Committed: ${child.committed_amount.toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Add Child Cost Code */}
-                    <div className="border-t pt-4 space-y-4">
-                      <Label className="text-sm font-medium">Add Child Cost Code</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-sm">Cost Code</Label>
-                          <Input
-                            value={newChildCode[budget.id]?.code || ""}
-                            onChange={(e) => setNewChildCode(prev => ({
-                              ...prev,
-                              [budget.id]: { ...prev[budget.id], code: e.target.value }
-                            }))}
-                            placeholder="e.g., 1.09.01"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm">Description</Label>
-                          <Input
-                            value={newChildCode[budget.id]?.description || ""}
-                            onChange={(e) => setNewChildCode(prev => ({
-                              ...prev,
-                              [budget.id]: { ...prev[budget.id], description: e.target.value }
-                            }))}
-                            placeholder="e.g., Materials"
-                          />
-                        </div>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleCreateChildCostCode(budget.id)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Child Cost Code
-                      </Button>
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
