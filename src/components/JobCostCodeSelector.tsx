@@ -38,6 +38,7 @@ export default function JobCostCodeSelector({
   const [previousJobs, setPreviousJobs] = useState<any[]>([]);
   const [selectedPreviousJobId, setSelectedPreviousJobId] = useState<string>("");
   const [costCodePopoverOpen, setCostCodePopoverOpen] = useState(false);
+  const [budgetMap, setBudgetMap] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { currentCompany } = useCompany();
 
@@ -45,6 +46,28 @@ export default function JobCostCodeSelector({
     loadMasterCostCodes();
     loadPreviousJobs();
   }, [currentCompany]);
+
+  useEffect(() => {
+    const loadBudgets = async () => {
+      if (!jobId || selectedCostCodes.length === 0) return;
+      const ids = selectedCostCodes.map((c) => c.id);
+      try {
+        const { data, error } = await supabase
+          .from('job_budgets')
+          .select('cost_code_id, budgeted_amount')
+          .eq('job_id', jobId)
+          .in('cost_code_id', ids);
+        if (!error && data) {
+          const map: Record<string, number> = {};
+          data.forEach((row) => { map[row.cost_code_id] = row.budgeted_amount; });
+          setBudgetMap(map);
+        }
+      } catch (e) {
+        console.error('Error loading budgets for selected codes', e);
+      }
+    };
+    loadBudgets();
+  }, [jobId, selectedCostCodes]);
 
   const loadMasterCostCodes = async () => {
     if (!currentCompany) return;
@@ -228,7 +251,7 @@ export default function JobCostCodeSelector({
     const jobCode = await ensureJobCostCode(codeId);
     if (!jobCode) return;
 
-    if (selectedCostCodes.some(sc => sc.id === jobCode.id)) {
+    if (selectedCostCodes.some(sc => (sc.code === jobCode.code) && ((sc.type || null) === (jobCode.type || null)))) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
       return;
     }
@@ -391,7 +414,7 @@ export default function JobCostCodeSelector({
                   variant="outline"
                   role="combobox"
                   aria-expanded={costCodePopoverOpen}
-                  className="w-full justify-between"
+                  className="w-full justify-between transition-colors hover:bg-primary/10 hover:text-primary"
                   disabled={disabled}
                 >
                   {selectedCodeId
@@ -413,6 +436,7 @@ export default function JobCostCodeSelector({
                         <CommandItem
                           key={costCode.id}
                           value={`${costCode.code} ${costCode.description} ${costCode.type || ''}`}
+                          className="hover:bg-primary/10"
                           onSelect={() => {
                             setSelectedCodeId(costCode.id);
                             handleAddCostCode(costCode.id);
