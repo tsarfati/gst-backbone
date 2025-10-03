@@ -108,7 +108,8 @@ export default function EmployeeDashboard() {
       // Use different endpoints for PIN vs regular users
       if (isPinUser) {
         // Load time cards via edge function for PIN users
-        const pin = localStorage.getItem('employee_pin');
+        const pinObj = localStorage.getItem('punch_clock_user');
+        const pin = pinObj ? JSON.parse(pinObj).pin : null;
         if (pin) {
           // Fetch from /time-cards endpoint
           const tcResponse = await fetch(`${FUNCTION_BASE}/time-cards?pin=${encodeURIComponent(pin)}&limit=50`, {

@@ -413,50 +413,33 @@ serve(async (req) => {
           let scheduledForBuffer: Date; // date representing the scheduled start corresponding to the comparison window
 
           if (tzOffset !== null) {
-            // Compute everything in the client's local time
+            // Compute in client's local time and choose the next scheduled occurrence (today or tomorrow)
             const nowLocal = new Date(nowUtc.getTime() - tzOffset * 60000);
-            const scheduledLocal = new Date(nowLocal);
-            scheduledLocal.setHours(startHour, startMinute, 0, 0);
+            const scheduledToday = new Date(nowLocal);
+            scheduledToday.setHours(startHour, startMinute, 0, 0);
 
-            // Diff in minutes (scheduled - now) in local time
-            let diff = Math.floor((scheduledLocal.getTime() - nowLocal.getTime()) / 60000);
+            const nextScheduledLocal = (scheduledToday.getTime() > nowLocal.getTime())
+              ? scheduledToday
+              : new Date(scheduledToday.getTime() + 24 * 60 * 60000);
 
-            // If the diff is suspiciously large (> 12h), adjust across midnight
-            if (diff > 720) {
-              // Use previous day's scheduled time
-              const prevLocal = new Date(scheduledLocal.getTime() - 24 * 60 * 60000);
-              diff = Math.floor((prevLocal.getTime() - nowLocal.getTime()) / 60000);
-              scheduledForBuffer = prevLocal;
-            } else if (diff < -720) {
-              // Use next day's scheduled time
-              const nextLocal = new Date(scheduledLocal.getTime() + 24 * 60 * 60000);
-              diff = Math.floor((nextLocal.getTime() - nowLocal.getTime()) / 60000);
-              scheduledForBuffer = nextLocal;
-            } else {
-              scheduledForBuffer = scheduledLocal;
-            }
-
-            minutesUntilStart = diff;
+            scheduledForBuffer = nextScheduledLocal;
+            minutesUntilStart = Math.floor((nextScheduledLocal.getTime() - nowLocal.getTime()) / 60000);
 
             console.log(
-              `Client tzOffset=${tzOffset} | nowLocal=${nowLocal.toISOString()} | scheduledLocal=${scheduledLocal.toISOString()} | adjustedScheduled=${scheduledForBuffer.toISOString()} | minutesUntilStart=${minutesUntilStart}`
+              `Client tzOffset=${tzOffset} | nowLocal=${nowLocal.toISOString()} | nextScheduledLocal=${nextScheduledLocal.toISOString()} | minutesUntilStart=${minutesUntilStart}`
             );
           } else {
-            // Fallback to server timezone but still guard against midnight wraparound
+            // Fallback: compute using server UTC and choose next scheduled occurrence
             const scheduledToday = new Date(nowUtc);
             scheduledToday.setHours(startHour, startMinute, 0, 0);
-            let diff = Math.floor((scheduledToday.getTime() - nowUtc.getTime()) / 60000);
-            if (diff > 720) {
-              const prev = new Date(scheduledToday.getTime() - 24 * 60 * 60000);
-              diff = Math.floor((prev.getTime() - nowUtc.getTime()) / 60000);
-              scheduledForBuffer = prev;
-            } else {
-              scheduledForBuffer = scheduledToday;
-            }
-            minutesUntilStart = diff;
+            const nextScheduled = (scheduledToday.getTime() > nowUtc.getTime())
+              ? scheduledToday
+              : new Date(scheduledToday.getTime() + 24 * 60 * 60000);
+            scheduledForBuffer = nextScheduled;
+            minutesUntilStart = Math.floor((nextScheduled.getTime() - nowUtc.getTime()) / 60000);
 
             console.log(
-              `Server tz | now=${nowUtc.toISOString()} | scheduledToday=${scheduledToday.toISOString()} | adjustedScheduled=${scheduledForBuffer.toISOString()} | minutesUntilStart=${minutesUntilStart}`
+              `Server tz | now=${nowUtc.toISOString()} | nextScheduled=${nextScheduled.toISOString()} | minutesUntilStart=${minutesUntilStart}`
             );
           }
 
