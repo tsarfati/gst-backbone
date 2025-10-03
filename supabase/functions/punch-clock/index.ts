@@ -293,7 +293,7 @@ serve(async (req) => {
       }
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
       const body = await req.json();
-      let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image } = body || {};
+      let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image, timezone_offset_minutes } = body || {};
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
@@ -403,35 +403,79 @@ serve(async (req) => {
         let earlyPunchWarning = null;
         
         if (jobSettings?.allow_early_punch_in && jobSettings?.scheduled_start_time) {
-          const currentTime = new Date();
-          
-          // Parse scheduled start time (format: "HH:MM")
+          const nowUtc = new Date();
           const [startHour, startMinute] = jobSettings.scheduled_start_time.split(':').map(Number);
-          
-          // Create a scheduled start time for today
-          const scheduledStartToday = new Date(currentTime);
-          scheduledStartToday.setHours(startHour, startMinute, 0, 0);
-          
-          // Calculate time difference in minutes
-          const timeDiffMs = scheduledStartToday.getTime() - currentTime.getTime();
-          const minutesUntilStart = Math.floor(timeDiffMs / 60000);
-          
-          console.log(`Current time: ${currentTime.toISOString()}, Scheduled: ${scheduledStartToday.toISOString()}, Minutes until start: ${minutesUntilStart}`);
-          
-          // If minutesUntilStart is positive, user is early
+
+          // Prefer client-provided timezone offset (in minutes, Date.getTimezoneOffset format)
+          const tzOffset = typeof timezone_offset_minutes === 'number' ? timezone_offset_minutes : null;
+
+          let minutesUntilStart = 0;
+          let scheduledForBuffer: Date; // date representing the scheduled start corresponding to the comparison window
+
+          if (tzOffset !== null) {
+            // Compute everything in the client's local time
+            const nowLocal = new Date(nowUtc.getTime() - tzOffset * 60000);
+            const scheduledLocal = new Date(nowLocal);
+            scheduledLocal.setHours(startHour, startMinute, 0, 0);
+
+            // Diff in minutes (scheduled - now) in local time
+            let diff = Math.floor((scheduledLocal.getTime() - nowLocal.getTime()) / 60000);
+
+            // If the diff is suspiciously large (> 12h), adjust across midnight
+            if (diff > 720) {
+              // Use previous day's scheduled time
+              const prevLocal = new Date(scheduledLocal.getTime() - 24 * 60 * 60000);
+              diff = Math.floor((prevLocal.getTime() - nowLocal.getTime()) / 60000);
+              scheduledForBuffer = prevLocal;
+            } else if (diff < -720) {
+              // Use next day's scheduled time
+              const nextLocal = new Date(scheduledLocal.getTime() + 24 * 60 * 60000);
+              diff = Math.floor((nextLocal.getTime() - nowLocal.getTime()) / 60000);
+              scheduledForBuffer = nextLocal;
+            } else {
+              scheduledForBuffer = scheduledLocal;
+            }
+
+            minutesUntilStart = diff;
+
+            console.log(
+              `Client tzOffset=${tzOffset} | nowLocal=${nowLocal.toISOString()} | scheduledLocal=${scheduledLocal.toISOString()} | adjustedScheduled=${scheduledForBuffer.toISOString()} | minutesUntilStart=${minutesUntilStart}`
+            );
+          } else {
+            // Fallback to server timezone but still guard against midnight wraparound
+            const scheduledToday = new Date(nowUtc);
+            scheduledToday.setHours(startHour, startMinute, 0, 0);
+            let diff = Math.floor((scheduledToday.getTime() - nowUtc.getTime()) / 60000);
+            if (diff > 720) {
+              const prev = new Date(scheduledToday.getTime() - 24 * 60 * 60000);
+              diff = Math.floor((prev.getTime() - nowUtc.getTime()) / 60000);
+              scheduledForBuffer = prev;
+            } else {
+              scheduledForBuffer = scheduledToday;
+            }
+            minutesUntilStart = diff;
+
+            console.log(
+              `Server tz | now=${nowUtc.toISOString()} | scheduledToday=${scheduledToday.toISOString()} | adjustedScheduled=${scheduledForBuffer.toISOString()} | minutesUntilStart=${minutesUntilStart}`
+            );
+          }
+
           if (minutesUntilStart > 0) {
             const bufferMinutes = jobSettings.early_punch_in_buffer_minutes || 15;
-            
             if (minutesUntilStart > bufferMinutes) {
               return errorResponse(`Cannot punch in more than ${bufferMinutes} minutes before scheduled start time (${jobSettings.scheduled_start_time}). You are ${minutesUntilStart} minutes early.`, 400);
             }
-            
-            // User is within the buffer, set actual punch time to scheduled start time
-            actualPunchTime = scheduledStartToday.toISOString();
-            
+
+            // Within buffer: set actual punch time to the scheduled time (convert back to UTC when using client tz)
+            if (tzOffset !== null) {
+              const scheduledUtc = new Date(scheduledForBuffer.getTime() + tzOffset * 60000);
+              actualPunchTime = scheduledUtc.toISOString();
+            } else {
+              actualPunchTime = scheduledForBuffer.toISOString();
+            }
+
             earlyPunchWarning = `You punched in ${minutesUntilStart} minutes early. Your paid time will begin at ${jobSettings.scheduled_start_time}.`;
           }
-          // If minutesUntilStart is negative, user is late or on time - allow normal punch in
         }
 
         // Capture device and network information

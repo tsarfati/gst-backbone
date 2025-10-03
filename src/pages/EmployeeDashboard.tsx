@@ -17,6 +17,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import AvatarUploader from '@/components/AvatarUploader';
 
+// Edge function headers for PIN users (same project as app)
+const FUNCTION_BASE = 'https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q';
+
 interface TimeCard {
   id: string;
   punch_in_time: string;
@@ -107,9 +111,13 @@ export default function EmployeeDashboard() {
         const pin = localStorage.getItem('employee_pin');
         if (pin) {
           // Fetch from /time-cards endpoint
-          const tcResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/time-cards?pin=${encodeURIComponent(pin)}&limit=50`, {
+          const tcResponse = await fetch(`${FUNCTION_BASE}/time-cards?pin=${encodeURIComponent(pin)}&limit=50`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'apikey': ANON_KEY,
+              'Authorization': `Bearer ${ANON_KEY}`
+            }
           });
           
           if (tcResponse.ok) {
@@ -118,9 +126,13 @@ export default function EmployeeDashboard() {
           }
           
           // Fetch from /contacts endpoint
-          const contactsResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/contacts?pin=${encodeURIComponent(pin)}`, {
+          const contactsResponse = await fetch(`${FUNCTION_BASE}/contacts?pin=${encodeURIComponent(pin)}`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'apikey': ANON_KEY,
+              'Authorization': `Bearer ${ANON_KEY}`
+            }
           });
           
           if (contactsResponse.ok) {
@@ -128,10 +140,14 @@ export default function EmployeeDashboard() {
             setCompanyContacts(contactsData);
           }
           
-          // Fetch from /init endpoint (POST) for jobs and cost codes
-          const initResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/init?pin=${encodeURIComponent(pin)}`, {
+          // Fetch from /init endpoint for jobs and cost codes
+          const initResponse = await fetch(`${FUNCTION_BASE}/init?pin=${encodeURIComponent(pin)}`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'apikey': ANON_KEY,
+              'Authorization': `Bearer ${ANON_KEY}`
+            }
           });
           
           if (initResponse.ok) {
@@ -444,9 +460,13 @@ export default function EmployeeDashboard() {
           throw new Error('PIN not found');
         }
         
-        const response = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/request-change', {
+        const response = await fetch(`${FUNCTION_BASE}/request-change`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'apikey': ANON_KEY,
+            'Authorization': `Bearer ${ANON_KEY}`
+          },
           body: JSON.stringify({
             pin,
             time_card_id: selectedTimeCard.id,

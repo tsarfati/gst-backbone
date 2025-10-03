@@ -891,6 +891,7 @@ function PunchClockApp() {
             photo_url: photoUrl,
             image: imageBase64, // Send base64 image if photo wasn't pre-uploaded
             notes: combinedNotes,
+            timezone_offset_minutes: new Date().getTimezoneOffset(),
           })
         });
 
