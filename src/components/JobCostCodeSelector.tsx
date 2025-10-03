@@ -213,47 +213,33 @@ export default function JobCostCodeSelector({
     const codeId = costCodeId || selectedCodeId;
     if (!codeId) return;
 
-    // Get the master cost code to check its dynamic behavior
-    const masterCode = masterCostCodes.find(cc => cc.id === codeId);
-
-    // Only run dynamic validation for actual dynamic groups/parents
-    if (masterCode && jobId) {
-      const isDynamicGroup = !!masterCode.is_dynamic_group;
-      const major = masterCode.code.split('.')[0];
-      const hasDynamicGroup = masterCostCodes.some(cc => cc.code === `${major}.0` && cc.is_dynamic_group);
-      const isDynamicParent = /^\d+\.\d+$/.test(masterCode.code) && !isDynamicGroup && hasDynamicGroup;
-
-      if (isDynamicGroup || isDynamicParent) {
-        // Count existing child codes in this job
-        const codePrefix = masterCode.code.replace(/\.0$/, '');
-        const childPattern = isDynamicGroup ? `${codePrefix}.` : `${masterCode.code}-`;
-
-        const { data: childCodes, error: childError } = await supabase
-          .from('cost_codes')
-          .select('id')
-          .eq('job_id', jobId)
-          .eq('is_active', true)
-          .like('code', `${childPattern}%`);
-
-        if (childError) {
-          console.error('Error checking child codes:', childError);
-        } else if (!childCodes || childCodes.length < 2) {
-          toast({ 
-            title: 'Validation Error', 
-            description: `A ${isDynamicGroup ? 'dynamic group' : 'dynamic parent'} must have at least 2 child cost codes assigned to this job first`,
-            variant: 'destructive' 
-          });
-          return;
-        }
-      }
-    }
-
     const jobCode = await ensureJobCostCode(codeId);
     if (!jobCode) return;
 
     if (selectedCostCodes.some(sc => (sc.code === jobCode.code) && ((sc.type || null) === (jobCode.type || null)))) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
       return;
+    }
+
+    // Create budget entry automatically when cost code is assigned
+    if (jobId) {
+      const user = await supabase.auth.getUser();
+      const masterCode = masterCostCodes.find(cc => cc.id === codeId);
+      const isDynamic = masterCode?.is_dynamic_group || false;
+
+      await supabase
+        .from('job_budgets')
+        .upsert({
+          job_id: jobId,
+          cost_code_id: jobCode.id,
+          budgeted_amount: 0,
+          actual_amount: 0,
+          committed_amount: 0,
+          is_dynamic: isDynamic,
+          created_by: user.data.user?.id
+        }, {
+          onConflict: 'job_id,cost_code_id'
+        });
     }
 
     onSelectedCostCodesChange([...selectedCostCodes, jobCode]);
@@ -463,30 +449,56 @@ export default function JobCostCodeSelector({
           </div>
         </div>
 
-        {/* Selected Cost Codes */}
+        {/* Selected Cost Codes - Column Display */}
         {selectedCostCodes.length > 0 ? (
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Selected Cost Codes:</h4>
-            <div className="flex flex-wrap gap-2">
-              {selectedCostCodes.map((costCode) => (
-                <Badge key={costCode.id} variant="secondary" className="flex items-center gap-2 pr-1">
-                  <span className="font-mono text-xs">{costCode.code}</span>
-                  <span className="text-xs">{costCode.description}</span>
-                  {costCode.type && <span className="text-xs opacity-70">({costCode.type})</span>}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-4 w-4 p-0 hover:bg-destructive/20"
-                    onClick={() => handleRemoveCostCode(costCode.id)}
-                    disabled={disabled}
+            <h4 className="text-sm font-medium text-muted-foreground">Selected Cost Codes ({selectedCostCodes.length}):</h4>
+            <div className="grid grid-cols-1 gap-2">
+              {selectedCostCodes.map((costCode) => {
+                const budget = budgetMap[costCode.id];
+                const getBadgeVariant = (type?: string) => {
+                  switch (type?.toLowerCase()) {
+                    case 'labor': return 'default';
+                    case 'material': return 'secondary';
+                    case 'subcontract': return 'outline';
+                    case 'equipment': return 'destructive';
+                    default: return 'secondary';
+                  }
+                };
+
+                return (
+                  <div 
+                    key={costCode.id} 
+                    className="flex items-center justify-between p-3 border rounded-lg hover:border-primary/50 transition-colors"
                   >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </Badge>
-              ))}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {selectedCostCodes.length} cost code{selectedCostCodes.length !== 1 ? 's' : ''} selected
+                    <div className="flex items-center gap-3 flex-1">
+                      <span className="font-mono text-sm font-medium min-w-[80px]">{costCode.code}</span>
+                      <span className="text-sm flex-1">{costCode.description}</span>
+                      {costCode.type && (
+                        <Badge variant={getBadgeVariant(costCode.type)} className="text-xs">
+                          {costCode.type}
+                        </Badge>
+                      )}
+                      {budget !== undefined ? (
+                        <span className="text-sm font-medium text-muted-foreground min-w-[100px] text-right">
+                          ${budget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground min-w-[100px] text-right">Not set</span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-2 h-8 w-8 p-0 hover:bg-destructive/20 hover:text-destructive"
+                      onClick={() => handleRemoveCostCode(costCode.id)}
+                      disabled={disabled}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (

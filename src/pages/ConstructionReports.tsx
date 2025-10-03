@@ -185,28 +185,28 @@ export default function ConstructionReports() {
         <p className="text-muted-foreground mt-1">Access detailed reports and analytics for your construction projects</p>
       </div>
 
-      <div className="rounded-md border">
-        <ul className="divide-y">
-          {reports.map((report) => (
-            <li key={report.title}>
-              <button
-                className="w-full flex items-center justify-between p-3 hover:bg-primary/5 transition-colors"
-                onClick={() => navigate(report.route)}
-                aria-label={`Open ${report.title}`}
-              >
-                <div className="flex items-center gap-3 text-left">
-                  <div className="p-1.5 bg-primary/10 rounded">
-                    <report.icon className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{report.title}</p>
-                    <p className="text-xs text-muted-foreground">{report.description}</p>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {reports.map((report) => (
+          <Card 
+            key={report.title}
+            className="cursor-pointer hover:border-primary/50 transition-colors group"
+            onClick={() => navigate(report.route)}
+          >
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                  <report.icon className="h-5 w-5 text-primary" />
                 </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+                <CardTitle className="text-base group-hover:text-primary transition-colors">
+                  {report.title}
+                </CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{report.description}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );

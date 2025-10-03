@@ -432,51 +432,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         <CardTitle>Job Budget - {jobName}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Create Dynamic Budget Section */}
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-base">Create Dynamic Budget</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Create a dynamic budget for a parent cost code. Child codes will automatically roll up to this budget.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Parent Cost Code</Label>
-                <Select 
-                  value={newDynamicBudget.cost_code_id}
-                  onValueChange={(value) => setNewDynamicBudget(prev => ({ ...prev, cost_code_id: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a cost code" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableParentCostCodes.map(cc => (
-                      <SelectItem key={cc.id} value={cc.id}>
-                        {cc.code} - {cc.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Dynamic Budget Amount</Label>
-                <CurrencyInput
-                  value={newDynamicBudget.budgeted_amount}
-                  onChange={(value) => setNewDynamicBudget(prev => ({ ...prev, budgeted_amount: value }))}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-            <Button onClick={handleCreateDynamicBudget} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Dynamic Budget
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Unified Budget Display */}
+        {/* Budget Display */}
         <div className="space-y-4">
           <div className="flex justify-end">
             <Button onClick={saveBudget} disabled={saving} size="sm">
