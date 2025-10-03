@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -100,17 +101,283 @@ export default function EmployeeDashboard() {
     try {
       const userId = (user as any).user_id || (user as any).id;
       
-      // Load time cards - filter out deleted ones
-      const { data: timeCardsData } = await supabase
-        .from('time_cards')
-        .select('*')
-        .eq('user_id', userId)
-        .neq('status', 'deleted')
-        .order('punch_in_time', { ascending: false })
-        .limit(50);
+      // Use different endpoints for PIN vs regular users
+      if (isPinUser) {
+        // Load time cards via edge function for PIN users
+        const pin = localStorage.getItem('employee_pin');
+        if (pin) {
+          const { data: timeCardsData, error: tcError } = await supabase.functions.invoke('punch-clock', {
+            body: { 
+              action: 'get_time_cards',
+              pin 
+            }
+          });
+          
+          if (!tcError && timeCardsData?.time_cards) {
+            setTimeCards(timeCardsData.time_cards);
+          }
+          
+          // Load contacts via edge function
+          const { data: contactsData, error: contactsError } = await supabase.functions.invoke('punch-clock', {
+            body: { 
+              action: 'get_contacts',
+              pin 
+            }
+          });
+          
+          if (!contactsError && contactsData?.contacts) {
+            setCompanyContacts(contactsData.contacts);
+          }
+          
+          // Load jobs and cost codes for change requests
+          const { data: initData } = await supabase.functions.invoke('punch-clock', {
+            body: { 
+              action: 'init',
+              pin 
+            }
+          });
+          
+          if (initData?.jobs) {
+            setAllJobs(initData.jobs.map((j: any) => ({ id: j.id, name: j.name })));
+          }
+          if (initData?.cost_codes) {
+            setAllCostCodes(initData.cost_codes);
+          }
+        }
+        
+        // Load PIN employee data
+        const { data: pinData } = await supabase
+          .from('pin_employees')
+          .select('phone, email, avatar_url')
+          .eq('id', userId)
+          .maybeSingle();
+        if (pinData) {
+          setProfileData(prev => ({
+            ...prev,
+            email: (pinData as any).email || '',
+            phone: (pinData as any).phone || '',
+            avatar_url: (pinData as any).avatar_url || prev.avatar_url
+          }));
+        }
+      } else {
+        // Regular user flow - direct database access
+        // Load time cards - filter out deleted ones
+        const { data: timeCardsData } = await supabase
+          .from('time_cards')
+          .select('*')
+          .eq('user_id', userId)
+          .neq('status', 'deleted')
+          .order('punch_in_time', { ascending: false })
+          .limit(50);
+        
+        setTimeCards(timeCardsData || []);
+        
+        // Load email from auth.users
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          setProfileData(prev => ({
+            ...prev,
+            email: authUser.email || ''
+          }));
+        }
+        
+        // Load profile data
+        const { data: profileDataDb } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (profileDataDb) {
+          setProfileData(prev => ({
+            ...prev,
+            avatar_url: profileDataDb.avatar_url || prev.avatar_url
+          }));
+        }
+        
+        // Find all project managers and load jobs/cost codes
+        const { data: jobAssignment } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs, assigned_cost_codes')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (jobAssignment?.assigned_jobs && jobAssignment.assigned_jobs.length > 0) {
+          const { data: jobsData } = await supabase
+            .from('jobs')
+            .select(`
+              id,
+              name,
+              project_manager_user_id,
+              profiles!jobs_project_manager_user_id_fkey (
+                user_id,
+                display_name,
+                first_name,
+                last_name
+              )
+            `)
+            .in('id', jobAssignment.assigned_jobs);
+          
+          if (jobsData) {
+            // Store jobs for change request dialog
+            setAllJobs(jobsData.map(j => ({ id: j.id, name: j.name })));
+            
+            const pms = jobsData
+              .filter(job => job.project_manager_user_id && job.profiles)
+              .map(job => ({
+                id: job.project_manager_user_id,
+                name: (job.profiles as any)?.display_name || 
+                      `${(job.profiles as any)?.first_name || ''} ${(job.profiles as any)?.last_name || ''}`.trim(),
+                jobName: job.name
+              }));
+            
+            // Remove duplicates by PM id
+            const uniquePMs = Array.from(
+              new Map(pms.map(pm => [pm.id, pm])).values()
+            );
+            
+            setProjectManagers(uniquePMs);
+          }
+        }
+        
+        // Load cost codes for change requests
+        if (jobAssignment?.assigned_cost_codes && jobAssignment.assigned_cost_codes.length > 0) {
+          const { data: costCodesData } = await supabase
+            .from('cost_codes')
+            .select('id, code, description')
+            .in('id', jobAssignment.assigned_cost_codes)
+            .eq('is_active', true);
+          
+          if (costCodesData) {
+            setAllCostCodes(costCodesData);
+          }
+        }
+        
+        // Load PM/Admin contacts assigned to employee's jobs
+        const { data: jobAssignments } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('user_id', userId)
+          .maybeSingle();
+        
+        if (jobAssignments?.assigned_jobs && jobAssignments.assigned_jobs.length > 0) {
+          // Get job managers and assistant managers for assigned jobs
+          const { data: jobManagers } = await supabase
+            .from('jobs')
+            .select(`
+              project_manager_user_id,
+              profiles!jobs_project_manager_user_id_fkey(
+                user_id,
+                display_name,
+                first_name,
+                last_name,
+                role
+              )
+            `)
+            .in('id', jobAssignments.assigned_jobs)
+            .not('project_manager_user_id', 'is', null);
+          
+          const { data: assistantManagers } = await supabase
+            .from('job_assistant_managers')
+            .select(`
+              user_id,
+              profiles(
+                user_id,
+                display_name,
+                first_name,
+                last_name,
+                role
+              )
+            `)
+            .in('job_id', jobAssignments.assigned_jobs);
+          
+          // Combine and deduplicate contacts
+          const contactMap = new Map();
+          
+          // Add project managers
+          jobManagers?.forEach(jm => {
+            if (jm.profiles) {
+              const profile = jm.profiles as any;
+              if (!contactMap.has(profile.user_id)) {
+                contactMap.set(profile.user_id, {
+                  id: profile.user_id,
+                  name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+                  title: profile.role || 'Project Manager',
+                  email: undefined,
+                  phone: undefined,
+                  department: profile.role
+                });
+              }
+            }
+          });
+          
+          // Add assistant managers (admins can also appear here)
+          assistantManagers?.forEach(am => {
+            if (am.profiles) {
+              const profile = am.profiles as any;
+              if (!contactMap.has(profile.user_id) && 
+                  (profile.role === 'admin' || profile.role === 'project_manager')) {
+                contactMap.set(profile.user_id, {
+                  id: profile.user_id,
+                  name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+                  title: profile.role || 'Manager',
+                  email: undefined,
+                  phone: undefined,
+                  department: profile.role
+                });
+              }
+            }
+          });
+          
+          // Get company admins
+          const { data: companyAccessData } = await supabase
+            .from('user_company_access')
+            .select('company_id')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+          
+          if (companyAccessData && companyAccessData.length > 0) {
+            const userCompanies = companyAccessData.map(uca => uca.company_id);
+            
+            const { data: adminProfiles } = await supabase
+              .from('user_company_access')
+              .select(`
+                user_id,
+                role,
+                profiles(
+                  user_id,
+                  display_name,
+                  first_name,
+                  last_name,
+                  role
+                )
+              `)
+              .in('company_id', userCompanies)
+              .eq('is_active', true)
+              .or('role.eq.admin,role.eq.controller');
+            
+            adminProfiles?.forEach(ap => {
+              if (ap.profiles) {
+                const profile = ap.profiles as any;
+                if (!contactMap.has(profile.user_id)) {
+                  contactMap.set(profile.user_id, {
+                    id: profile.user_id,
+                    name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+                    title: profile.role || 'Admin',
+                    email: undefined,
+                    phone: undefined,
+                    department: profile.role
+                  });
+                }
+              }
+            });
+          }
+          
+          setCompanyContacts(Array.from(contactMap.values()));
+        }
+      }
       
-      setTimeCards(timeCardsData || []);
-      
+      // Common loading for both user types
       // Load change requests
       const { data: requestsData } = await supabase
         .from('time_card_change_requests')
@@ -123,33 +390,8 @@ export default function EmployeeDashboard() {
       // Load profile/avatar
       setProfileData(prev => ({
         ...prev,
-        avatar_url: profile?.avatar_url || ''
+        avatar_url: profile?.avatar_url || prev.avatar_url
       }));
-      
-      // For PIN employees, load phone from pin_employees (email optional)
-      if (isPinUser) {
-        const { data: pinData } = await supabase
-          .from('pin_employees')
-          .select('phone, avatar_url')
-          .eq('id', userId)
-          .maybeSingle();
-        if (pinData) {
-          setProfileData(prev => ({
-            ...prev,
-            phone: (pinData as any).phone || '',
-            avatar_url: (pinData as any).avatar_url || prev.avatar_url
-          }));
-        }
-      } else {
-        // For regular users, load email from auth.users
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          setProfileData(prev => ({
-            ...prev,
-            email: authUser.email || ''
-          }));
-        }
-      }
       
       // Get latest punch photo for avatar fallback
       const { data: latestPunch } = await supabase
@@ -175,187 +417,6 @@ export default function EmployeeDashboard() {
         setCompanyPolicies(settingsData.company_policies);
       }
       
-      // Find all project managers from all assigned jobs
-      const { data: jobAssignment } = await supabase
-        .from('employee_timecard_settings')
-        .select('assigned_jobs, assigned_cost_codes')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      if (jobAssignment?.assigned_jobs && jobAssignment.assigned_jobs.length > 0) {
-        const { data: jobsData } = await supabase
-          .from('jobs')
-          .select(`
-            id,
-            name,
-            project_manager_user_id,
-            profiles!jobs_project_manager_user_id_fkey (
-              user_id,
-              display_name,
-              first_name,
-              last_name
-            )
-          `)
-          .in('id', jobAssignment.assigned_jobs);
-        
-        if (jobsData) {
-          // Store jobs for change request dialog
-          setAllJobs(jobsData.map(j => ({ id: j.id, name: j.name })));
-          
-          const pms = jobsData
-            .filter(job => job.project_manager_user_id && job.profiles)
-            .map(job => ({
-              id: job.project_manager_user_id,
-              name: (job.profiles as any)?.display_name || 
-                    `${(job.profiles as any)?.first_name || ''} ${(job.profiles as any)?.last_name || ''}`.trim(),
-              jobName: job.name
-            }));
-          
-          // Remove duplicates by PM id
-          const uniquePMs = Array.from(
-            new Map(pms.map(pm => [pm.id, pm])).values()
-          );
-          
-          setProjectManagers(uniquePMs);
-        }
-      }
-      
-      // Load cost codes for change requests
-      if (jobAssignment?.assigned_cost_codes && jobAssignment.assigned_cost_codes.length > 0) {
-        const { data: costCodesData } = await supabase
-          .from('cost_codes')
-          .select('id, code, description')
-          .in('id', jobAssignment.assigned_cost_codes)
-          .eq('is_active', true);
-        
-        if (costCodesData) {
-          setAllCostCodes(costCodesData);
-        }
-      }
-      
-      // Load PM/Admin contacts assigned to employee's jobs
-      const { data: jobAssignments } = await supabase
-        .from('employee_timecard_settings')
-        .select('assigned_jobs')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      if (jobAssignments?.assigned_jobs && jobAssignments.assigned_jobs.length > 0) {
-        // Get job managers and assistant managers for assigned jobs
-        const { data: jobManagers } = await supabase
-          .from('jobs')
-          .select(`
-            project_manager_user_id,
-            profiles!jobs_project_manager_user_id_fkey(
-              user_id,
-              display_name,
-              first_name,
-              last_name,
-              role
-            )
-          `)
-          .in('id', jobAssignments.assigned_jobs)
-          .not('project_manager_user_id', 'is', null);
-        
-        const { data: assistantManagers } = await supabase
-          .from('job_assistant_managers')
-          .select(`
-            user_id,
-            profiles(
-              user_id,
-              display_name,
-              first_name,
-              last_name,
-              role
-            )
-          `)
-          .in('job_id', jobAssignments.assigned_jobs);
-        
-        // Combine and deduplicate contacts
-        const contactMap = new Map();
-        
-        // Add project managers
-        jobManagers?.forEach(jm => {
-          if (jm.profiles) {
-            const profile = jm.profiles as any;
-            if (!contactMap.has(profile.user_id)) {
-              contactMap.set(profile.user_id, {
-                id: profile.user_id,
-                name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-                title: profile.role || 'Project Manager',
-                email: undefined,
-                phone: undefined,
-                department: profile.role
-              });
-            }
-          }
-        });
-        
-        // Add assistant managers (admins can also appear here)
-        assistantManagers?.forEach(am => {
-          if (am.profiles) {
-            const profile = am.profiles as any;
-            if (!contactMap.has(profile.user_id) && 
-                (profile.role === 'admin' || profile.role === 'project_manager')) {
-              contactMap.set(profile.user_id, {
-                id: profile.user_id,
-                name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-                title: profile.role || 'Manager',
-                email: undefined,
-                phone: undefined,
-                department: profile.role
-              });
-            }
-          }
-        });
-        
-        // Get company admins
-        const { data: companyAccessData } = await supabase
-          .from('user_company_access')
-          .select('company_id')
-          .eq('user_id', userId)
-          .eq('is_active', true);
-        
-        if (companyAccessData && companyAccessData.length > 0) {
-          const userCompanies = companyAccessData.map(uca => uca.company_id);
-          
-          const { data: adminProfiles } = await supabase
-            .from('user_company_access')
-            .select(`
-              user_id,
-              role,
-              profiles(
-                user_id,
-                display_name,
-                first_name,
-                last_name,
-                role
-              )
-            `)
-            .in('company_id', userCompanies)
-            .eq('is_active', true)
-            .or('role.eq.admin,role.eq.controller');
-          
-          adminProfiles?.forEach(ap => {
-            if (ap.profiles) {
-              const profile = ap.profiles as any;
-              if (!contactMap.has(profile.user_id)) {
-                contactMap.set(profile.user_id, {
-                  id: profile.user_id,
-                  name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-                  title: profile.role || 'Admin',
-                  email: undefined,
-                  phone: undefined,
-                  department: profile.role
-                });
-              }
-            }
-          });
-        }
-        
-        setCompanyContacts(Array.from(contactMap.values()));
-      }
-      
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -376,20 +437,44 @@ export default function EmployeeDashboard() {
     try {
       const userId = (user as any).user_id || (user as any).id;
       
-      const { error } = await supabase
-        .from('time_card_change_requests')
-        .insert({
-          time_card_id: selectedTimeCard.id,
-          user_id: userId,
-          reason: changeReason,
-          status: 'pending',
-          proposed_punch_in_time: changeRequestData.proposed_punch_in_time || null,
-          proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
-          proposed_job_id: changeRequestData.proposed_job_id || null,
-          proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
+      if (isPinUser) {
+        // Use edge function for PIN users
+        const pin = localStorage.getItem('employee_pin');
+        if (!pin) {
+          throw new Error('PIN not found');
+        }
+        
+        const { data, error } = await supabase.functions.invoke('punch-clock', {
+          body: {
+            action: 'request_change',
+            pin,
+            time_card_id: selectedTimeCard.id,
+            reason: changeReason,
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time || null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
+            proposed_job_id: changeRequestData.proposed_job_id || null,
+            proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
+          }
         });
+        
+        if (error) throw error;
+      } else {
+        // Direct database insert for regular users
+        const { error } = await supabase
+          .from('time_card_change_requests')
+          .insert({
+            time_card_id: selectedTimeCard.id,
+            user_id: userId,
+            reason: changeReason,
+            status: 'pending',
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time || null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
+            proposed_job_id: changeRequestData.proposed_job_id || null,
+            proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
+          });
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -463,26 +548,26 @@ export default function EmployeeDashboard() {
   const handleUpdateProfile = async () => {
     try {
       const userId = (user as any).user_id || (user as any).id;
-      const isPinUser = (user as any).is_pin_employee;
+      const isPinUserCheck = (user as any).is_pin_employee;
       
       // Update the appropriate table based on user type
-      if (isPinUser) {
+      if (isPinUserCheck) {
         const { error } = await supabase
           .from('pin_employees')
           .update({
-            email: profileData.email,
-            phone: profileData.phone,
-            avatar_url: profileData.avatar_url
+            email: profileData.email || null,
+            phone: profileData.phone || null,
+            avatar_url: profileData.avatar_url || null
           })
           .eq('id', userId);
 
         if (error) throw error;
       } else {
-        // Update profile avatar
+        // Update profile avatar only
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
-            avatar_url: profileData.avatar_url
+            avatar_url: profileData.avatar_url || null
           })
           .eq('user_id', userId);
 
@@ -490,7 +575,7 @@ export default function EmployeeDashboard() {
 
         // Update email via auth API if changed
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser && profileData.email !== authUser.email) {
+        if (authUser && profileData.email && profileData.email !== authUser.email) {
           const { error: emailError } = await supabase.auth.updateUser({
             email: profileData.email
           });
@@ -852,13 +937,110 @@ export default function EmployeeDashboard() {
       </div>
 
       <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg">Request Time Card Change</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {selectedTimeCard && (
+              <div className="p-3 bg-muted rounded-lg space-y-2">
+                <h4 className="font-medium text-sm">Current Time Card</h4>
+                <div className="text-sm text-muted-foreground">
+                  {format(new Date(selectedTimeCard.punch_in_time), 'MMM dd, yyyy • h:mm a')} - 
+                  {format(new Date(selectedTimeCard.punch_out_time), 'h:mm a')} 
+                  <span className="ml-1">({selectedTimeCard.total_hours.toFixed(2)} hrs)</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="punch-in" className="text-sm flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  Proposed Punch In
+                </Label>
+                <Input
+                  id="punch-in"
+                  type="datetime-local"
+                  value={changeRequestData.proposed_punch_in_time ? 
+                    new Date(changeRequestData.proposed_punch_in_time).toISOString().slice(0, 16) : 
+                    ''}
+                  onChange={(e) => setChangeRequestData({
+                    ...changeRequestData,
+                    proposed_punch_in_time: e.target.value ? new Date(e.target.value).toISOString() : ''
+                  })}
+                  className="text-sm"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="punch-out" className="text-sm flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  Proposed Punch Out
+                </Label>
+                <Input
+                  id="punch-out"
+                  type="datetime-local"
+                  value={changeRequestData.proposed_punch_out_time ? 
+                    new Date(changeRequestData.proposed_punch_out_time).toISOString().slice(0, 16) : 
+                    ''}
+                  onChange={(e) => setChangeRequestData({
+                    ...changeRequestData,
+                    proposed_punch_out_time: e.target.value ? new Date(e.target.value).toISOString() : ''
+                  })}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="job" className="text-sm">Proposed Job</Label>
+                <Select
+                  value={changeRequestData.proposed_job_id}
+                  onValueChange={(value) => setChangeRequestData({
+                    ...changeRequestData,
+                    proposed_job_id: value
+                  })}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select job..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allJobs.map(job => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="cost-code" className="text-sm">Proposed Cost Code</Label>
+                <Select
+                  value={changeRequestData.proposed_cost_code_id}
+                  onValueChange={(value) => setChangeRequestData({
+                    ...changeRequestData,
+                    proposed_cost_code_id: value
+                  })}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select cost code..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allCostCodes.map(cc => (
+                      <SelectItem key={cc.id} value={cc.id}>
+                        {cc.code} - {cc.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="reason" className="text-sm">Reason for Change</Label>
+              <Label htmlFor="reason" className="text-sm">Reason for Change *</Label>
               <Textarea
                 id="reason"
                 placeholder="Please explain why you need to change this time card..."

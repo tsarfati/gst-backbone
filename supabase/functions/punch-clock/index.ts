@@ -647,6 +647,187 @@ serve(async (req) => {
 
       return errorResponse("Invalid action. Use 'in' or 'out'", 400);
     }
+    
+    // Handle new employee dashboard endpoints
+    if (req.method === "POST") {
+      const body = await req.json();
+      const { action, pin } = body;
+      
+      if (action === 'init') {
+        // Return jobs and cost codes for PIN user
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+        
+        let assignedJobs: string[] = [];
+        let assignedCostCodes: string[] = [];
+        
+        if (userRow.is_pin_employee) {
+          const { data: allSettings } = await supabaseAdmin
+            .from('pin_employee_timecard_settings')
+            .select('assigned_jobs, assigned_cost_codes')
+            .eq('pin_employee_id', userRow.user_id);
+          
+          if (allSettings && allSettings.length > 0) {
+            allSettings.forEach(s => {
+              if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
+              if (s.assigned_cost_codes) assignedCostCodes.push(...s.assigned_cost_codes);
+            });
+            assignedJobs = [...new Set(assignedJobs)];
+            assignedCostCodes = [...new Set(assignedCostCodes)];
+          }
+        } else {
+          const { data: settings } = await supabaseAdmin
+            .from('employee_timecard_settings')
+            .select('assigned_jobs, assigned_cost_codes')
+            .eq('user_id', userRow.user_id)
+            .maybeSingle();
+          
+          if (settings) {
+            assignedJobs = settings.assigned_jobs || [];
+            assignedCostCodes = settings.assigned_cost_codes || [];
+          }
+        }
+        
+        const { data: jobs } = await supabaseAdmin
+          .from('jobs')
+          .select('id, name')
+          .in('id', assignedJobs)
+          .eq('is_active', true);
+        
+        const { data: costCodes } = await supabaseAdmin
+          .from('cost_codes')
+          .select('id, code, description')
+          .in('id', assignedCostCodes)
+          .eq('is_active', true);
+        
+        return new Response(JSON.stringify({ jobs: jobs || [], cost_codes: costCodes || [] }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+      
+      if (action === 'get_time_cards') {
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+        
+        const { data: timeCards } = await supabaseAdmin
+          .from('time_cards')
+          .select('*')
+          .eq('user_id', userRow.user_id)
+          .neq('status', 'deleted')
+          .order('punch_in_time', { ascending: false })
+          .limit(50);
+        
+        return new Response(JSON.stringify({ time_cards: timeCards || [] }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+      
+      if (action === 'get_contacts') {
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+        
+        // Get job assignments
+        let assignedJobs: string[] = [];
+        
+        if (userRow.is_pin_employee) {
+          const { data: allSettings } = await supabaseAdmin
+            .from('pin_employee_timecard_settings')
+            .select('assigned_jobs')
+            .eq('pin_employee_id', userRow.user_id);
+          
+          if (allSettings && allSettings.length > 0) {
+            allSettings.forEach(s => {
+              if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
+            });
+            assignedJobs = [...new Set(assignedJobs)];
+          }
+        } else {
+          const { data: settings } = await supabaseAdmin
+            .from('employee_timecard_settings')
+            .select('assigned_jobs')
+            .eq('user_id', userRow.user_id)
+            .maybeSingle();
+          
+          if (settings?.assigned_jobs) {
+            assignedJobs = settings.assigned_jobs;
+          }
+        }
+        
+        if (assignedJobs.length === 0) {
+          return new Response(JSON.stringify({ contacts: [] }), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+        
+        // Get job managers
+        const { data: jobManagers } = await supabaseAdmin
+          .from('jobs')
+          .select(`
+            project_manager_user_id,
+            profiles!jobs_project_manager_user_id_fkey(
+              user_id,
+              display_name,
+              first_name,
+              last_name,
+              role
+            )
+          `)
+          .in('id', assignedJobs)
+          .not('project_manager_user_id', 'is', null);
+        
+        const contactMap = new Map();
+        
+        jobManagers?.forEach(jm => {
+          if (jm.profiles) {
+            const profile = jm.profiles as any;
+            if (!contactMap.has(profile.user_id)) {
+              contactMap.set(profile.user_id, {
+                id: profile.user_id,
+                name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+                title: profile.role || 'Project Manager',
+                department: profile.role
+              });
+            }
+          }
+        });
+        
+        return new Response(JSON.stringify({ contacts: Array.from(contactMap.values()) }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+      
+      if (action === 'request_change') {
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+        
+        const { time_card_id, reason, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id } = body;
+        
+        if (!time_card_id || !reason) {
+          return errorResponse("time_card_id and reason are required", 400);
+        }
+        
+        const { error } = await supabaseAdmin
+          .from('time_card_change_requests')
+          .insert({
+            time_card_id,
+            user_id: userRow.user_id,
+            reason,
+            status: 'pending',
+            proposed_punch_in_time: proposed_punch_in_time || null,
+            proposed_punch_out_time: proposed_punch_out_time || null,
+            proposed_job_id: proposed_job_id || null,
+            proposed_cost_code_id: proposed_cost_code_id || null
+          });
+        
+        if (error) {
+          return errorResponse(error.message, 500);
+        }
+        
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
 
     return new Response(JSON.stringify({ message: "Punch Clock Function" }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
