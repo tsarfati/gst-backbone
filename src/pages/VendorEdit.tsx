@@ -250,8 +250,7 @@ export default function VendorEdit() {
             .from('vendors')
             .insert([{ 
               ...vendorData,
-              company_id: companyId,
-              created_by: user.id
+              company_id: companyId
             }])
             .select()
             .single();

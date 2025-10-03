@@ -24,29 +24,12 @@ export default function Vendors() {
     if (!currentCompany) return [] as any[];
 
     try {
-      const { data: companyData } = await supabase
-        .from('companies')
-        .select('enable_shared_vendor_database')
-        .eq('id', currentCompany.id)
-        .single();
-
-      let query = supabase
+      const { data, error } = await supabase
         .from('vendors')
         .select('*')
-        .eq('is_active', true);
-
-      if (companyData?.enable_shared_vendor_database) {
-        const { data: sharedCompanies } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('enable_shared_vendor_database', true);
-        const companyIds = sharedCompanies?.map((c) => c.id) || [currentCompany.id];
-        query = query.in('company_id', companyIds);
-      } else {
-        query = query.eq('company_id', currentCompany.id);
-      }
-
-      const { data, error } = await query.order('name');
+        .eq('is_active', true)
+        .eq('company_id', currentCompany.id)
+        .order('name');
       if (error) throw error;
       return data || [];
     } catch (error) {
