@@ -119,7 +119,8 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
       }
     });
     
-    return Object.values(groups).filter(g => g.costCodes.length >= 2);
+    // Return all groups (including those already dynamic, so they can be toggled off)
+    return Object.values(groups).filter(g => g.costCodes.length >= 2 || g.dynamicBudget);
   };
 
   const handleToggleDynamic = async (baseCode: string, enabled: boolean) => {

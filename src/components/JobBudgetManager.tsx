@@ -194,6 +194,22 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
 
   const updateBudgetLine = (costCodeId: string, field: keyof BudgetLine, value: any) => {
+    // If updating a child's budgeted_amount, check against parent's budget
+    if (field === 'budgeted_amount') {
+      const line = budgetLines.find(l => l.cost_code_id === costCodeId);
+      if (line?.parent_budget_id) {
+        const parent = budgetLines.find(l => l.id === line.parent_budget_id);
+        if (parent && value > parent.budgeted_amount) {
+          toast({
+            title: "Budget Exceeded",
+            description: "Child budget cannot exceed parent dynamic budget amount",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+    
     const updated = budgetLines.map(line => 
       line.cost_code_id === costCodeId ? { ...line, [field]: value } : line
     );
