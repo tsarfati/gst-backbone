@@ -460,7 +460,9 @@ export default function EmployeeDashboard() {
       
       if (isPinAuthenticated) {
         // Use edge function for PIN users
-        const pin = localStorage.getItem('employee_pin');
+        const storedPunchUserStr = localStorage.getItem('punch_clock_user');
+        let pin: string | null = null;
+        try { pin = storedPunchUserStr ? JSON.parse(storedPunchUserStr).pin : null; } catch { pin = null; }
         if (!pin) {
           throw new Error('PIN not found');
         }
@@ -731,10 +733,11 @@ export default function EmployeeDashboard() {
                         size="sm"
                         onClick={() => {
                           setSelectedTimeCard(card);
+                          // Pre-populate with the current timecard data
                           setChangeRequestData({
                             proposed_punch_in_time: card.punch_in_time,
                             proposed_punch_out_time: card.punch_out_time,
-                            proposed_job_id: card.job_id,
+                            proposed_job_id: card.job_id || '',
                             proposed_cost_code_id: card.cost_code_id || ''
                           });
                           setShowChangeDialog(true);
