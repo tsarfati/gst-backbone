@@ -21,7 +21,6 @@ interface CostCode {
   is_active: boolean;
   job_id?: string | null;
 }
-}
 
 export default function CostCodes() {
   const { toast } = useToast();
@@ -67,7 +66,7 @@ export default function CostCodes() {
         .order('code');
 
       if (error) throw error;
-      setCostCodes(data || []);
+      setCostCodes((data || []) as CostCode[]);
     } catch (error) {
       console.error('Error loading cost codes:', error);
       toast({
@@ -106,7 +105,7 @@ export default function CostCodes() {
 
       if (error) throw error;
 
-      setCostCodes(prev => [...prev, data]);
+      setCostCodes(prev => [...prev, data as CostCode]);
       setNewCode({ code: "", description: "", type: "other" });
       
       toast({

@@ -122,7 +122,7 @@ export default function JobCostSetup() {
         .order('code');
 
       if (costCodesError) throw costCodesError;
-      setCostCodes(costCodesData || []);
+      setCostCodes((costCodesData || []) as CostCode[]);
 
       // Load jobs for current company
       const { data: jobsData, error: jobsError } = await supabase
