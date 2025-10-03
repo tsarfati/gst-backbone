@@ -148,7 +148,7 @@ export default function JobPunchClockSettings() {
           allow_early_punch_in: !!data.allow_early_punch_in,
           scheduled_start_time: data.scheduled_start_time || '08:00',
           early_punch_in_buffer_minutes: data.early_punch_in_buffer_minutes || 15,
-          require_timecard_change_approval: (data as any).require_timecard_change_approval || false,
+          require_timecard_change_approval: !!data.require_timecard_change_approval,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
