@@ -142,9 +142,11 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     }));
 
     const byCostCodeId = new Map(existing.map((e) => [e.cost_code_id, e]));
+    const newEntries: BudgetLine[] = [];
+    
     selectedCostCodes.forEach((cc) => {
       if (!byCostCodeId.has(cc.id)) {
-        byCostCodeId.set(cc.id, {
+        const newLine: BudgetLine = {
           cost_code_id: cc.id,
           budgeted_amount: 0,
           actual_amount: 0,
@@ -152,9 +154,35 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           is_dynamic: false,
           parent_budget_id: null,
           cost_code: cc,
-        });
+        };
+        byCostCodeId.set(cc.id, newLine);
+        newEntries.push(newLine);
       }
     });
+
+    // Persist new budget entries to database
+    if (newEntries.length > 0) {
+      const user = await supabase.auth.getUser();
+      const inserts = newEntries.map(line => ({
+        job_id: jobId,
+        cost_code_id: line.cost_code_id,
+        budgeted_amount: 0,
+        actual_amount: 0,
+        committed_amount: 0,
+        is_dynamic: false,
+        parent_budget_id: null,
+        created_by: user.data.user?.id
+      }));
+
+      const { error: insertError } = await supabase.from('job_budgets').insert(inserts);
+      if (insertError) {
+        console.error('Error inserting new budget lines:', insertError);
+      } else {
+        // Reload to get IDs
+        await loadData();
+        return;
+      }
+    }
 
     const merged = Array.from(byCostCodeId.values()).sort((a, b) =>
       (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
