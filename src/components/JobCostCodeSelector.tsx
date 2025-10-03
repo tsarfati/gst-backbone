@@ -42,6 +42,10 @@ export default function JobCostCodeSelector({
   const { toast } = useToast();
   const { currentCompany } = useCompany();
 
+  // Helpers
+  const normalizeType = (t?: string | null) => (t ?? 'other');
+  const sortByCode = (a: CostCode, b: CostCode) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' });
+
   useEffect(() => {
     loadMasterCostCodes();
     loadPreviousJobs();
@@ -121,16 +125,16 @@ export default function JobCostCodeSelector({
     if (!master) return null;
 
     // Check if a job-specific code already exists (by code+type)
-  const { data: existing } = await supabase
-      .from('cost_codes')
-      .select('id, code, description, type, is_active')
-      .eq('job_id', jobId)
-      .eq('code', master.code)
-      .maybeSingle();
+    const { data: existing } = await supabase
+        .from('cost_codes')
+        .select('id, code, description, type, is_active')
+        .eq('job_id', jobId)
+        .eq('code', master.code)
+        .maybeSingle();
 
     if (existing) {
       // Reactivate and align metadata with master
-      await supabase
+      const { data: updated, error: updErr } = await supabase
         .from('cost_codes')
         .update({ 
           is_active: true,
@@ -138,8 +142,15 @@ export default function JobCostCodeSelector({
           type: (master.type || existing.type || null) as any,
           description: master.description || existing.description
         })
-        .eq('id', existing.id);
-      return existing as CostCode;
+        .eq('id', existing.id)
+        .select('id, code, description, type')
+        .maybeSingle();
+      if (updErr) {
+        console.error('Error reactivating job cost code', updErr);
+        toast({ title: 'Error', description: 'You do not have permission to modify cost codes', variant: 'destructive' });
+        return null;
+      }
+      return updated as CostCode;
     }
 
     // Create job-specific record cloned from master
@@ -213,40 +224,49 @@ export default function JobCostCodeSelector({
     const codeId = costCodeId || selectedCodeId;
     if (!codeId) return;
 
-    const jobCode = await ensureJobCostCode(codeId);
-    if (!jobCode) return;
-
-    if (selectedCostCodes.some(sc => (sc.code === jobCode.code) && ((sc.type || null) === (jobCode.type || null)))) {
+    // Pre-check by master code to avoid false duplicate toasts and extra writes
+    const master = masterCostCodes.find((cc) => cc.id === codeId);
+    if (!master) return;
+    const isDup = selectedCostCodes.some(
+      (sc) => sc.code === master.code && normalizeType(sc.type) === normalizeType(master.type)
+    );
+    if (isDup) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
       return;
     }
 
+    const jobCode = await ensureJobCostCode(codeId);
+    if (!jobCode) return;
+
     // Create budget entry automatically when cost code is assigned
     if (jobId) {
       const user = await supabase.auth.getUser();
-      const masterCode = masterCostCodes.find(cc => cc.id === codeId);
-      const isDynamic = masterCode?.is_dynamic_group || false;
+      const isDynamic = master.is_dynamic_group || false;
 
-      await supabase
+      const { error: budgetErr } = await supabase
         .from('job_budgets')
-        .upsert({
-          job_id: jobId,
-          cost_code_id: jobCode.id,
-          budgeted_amount: 0,
-          actual_amount: 0,
-          committed_amount: 0,
-          is_dynamic: isDynamic,
-          created_by: user.data.user?.id
-        }, {
-          onConflict: 'job_id,cost_code_id'
-        });
+        .upsert(
+          {
+            job_id: jobId,
+            cost_code_id: jobCode.id,
+            budgeted_amount: 0,
+            actual_amount: 0,
+            committed_amount: 0,
+            is_dynamic: isDynamic,
+            created_by: user.data.user?.id,
+          },
+          { onConflict: 'job_id,cost_code_id' }
+        );
+      if (budgetErr) {
+        console.error('Error creating budget line', budgetErr);
+      }
     }
 
-    onSelectedCostCodesChange([...selectedCostCodes, jobCode]);
+    onSelectedCostCodesChange([...selectedCostCodes, jobCode].sort(sortByCode));
     setSelectedCodeId("");
     setCostCodePopoverOpen(false);
 
-    toast({ title: 'Cost Code Added', description: `${jobCode.code} - ${jobCode.description} added to job` });
+    toast({ title: 'Cost Code Added', description: `${master.code} - ${master.description} added to job` });
   };
 
   const handleRemoveCostCode = async (costCodeId: string) => {
