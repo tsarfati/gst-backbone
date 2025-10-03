@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/formatNumber";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -54,6 +55,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [selectedForDynamic, setSelectedForDynamic] = useState<Record<string, Set<string>>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -247,9 +249,37 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     return Object.values(groups).filter(g => g.costCodes.length >= 2);
   };
 
+  const toggleCostCodeSelection = (baseCode: string, costCodeId: string) => {
+    setSelectedForDynamic(prev => {
+      const current = prev[baseCode] || new Set();
+      const newSet = new Set(current);
+      if (newSet.has(costCodeId)) {
+        newSet.delete(costCodeId);
+      } else {
+        newSet.add(costCodeId);
+      }
+      return { ...prev, [baseCode]: newSet };
+    });
+  };
+
   const handleMakeDynamic = async (baseCode: string) => {
     const group = groupCostCodesByBase().find(g => g.baseCode === baseCode);
-    if (!group || group.costCodes.length < 2) return;
+    if (!group) return;
+
+    // Get selected cost codes or use all if none selected
+    const selected = selectedForDynamic[baseCode];
+    const costCodesToGroup = selected && selected.size >= 2
+      ? group.costCodes.filter(cc => selected.has(cc.cost_code_id))
+      : group.costCodes;
+
+    if (costCodesToGroup.length < 2) {
+      toast({
+        title: "Error",
+        description: "Please select at least 2 cost codes to create a dynamic budget",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const user = await supabase.auth.getUser();
     if (!user.data.user) return;
@@ -260,7 +290,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         .from('job_budgets')
         .insert({
           job_id: jobId,
-          cost_code_id: group.costCodes[0].cost_code_id, // Use first cost code ID as parent
+          cost_code_id: costCodesToGroup[0].cost_code_id, // Use first cost code ID as parent
           budgeted_amount: 0,
           actual_amount: 0,
           committed_amount: 0,
@@ -272,8 +302,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
       if (dynamicError) throw dynamicError;
 
-      // Update all child cost codes to link to this dynamic budget
-      const updatePromises = group.costCodes.map(line => 
+      // Update selected child cost codes to link to this dynamic budget
+      const updatePromises = costCodesToGroup.map(line => 
         supabase
           .from('job_budgets')
           .update({ parent_budget_id: dynamicBudget.id })
@@ -284,7 +314,14 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
       toast({
         title: "Success",
-        description: `Dynamic budget created for ${baseCode}`,
+        description: `Dynamic budget created for ${baseCode} with ${costCodesToGroup.length} cost codes`,
+      });
+
+      // Clear selection
+      setSelectedForDynamic(prev => {
+        const newState = { ...prev };
+        delete newState[baseCode];
+        return newState;
       });
 
       loadData();
@@ -437,31 +474,68 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Layers className="h-4 w-4" />
-                  Available Dynamic Budget Groups
+                  Create Dynamic Budget Groups
                 </CardTitle>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Group multiple cost code types under a single dynamic budget. Select which codes to include or use all by default.
+                </p>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {potentialDynamicGroups.filter(g => !g.dynamicBudget).map(group => (
-                  <div key={group.baseCode} className="flex items-center justify-between p-3 bg-background rounded-lg border">
-                    <div>
-                      <span className="font-mono font-semibold">{group.baseCode}</span>
-                      <span className="text-sm text-muted-foreground ml-3">
-                        {group.costCodes.length} cost codes can be grouped
-                      </span>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {group.costCodes.map(cc => cc.cost_code?.code).join(', ')}
-                      </div>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleMakeDynamic(group.baseCode)}
-                    >
-                      <Layers className="h-4 w-4 mr-2" />
-                      Make Dynamic
-                    </Button>
-                  </div>
-                ))}
+              <CardContent className="space-y-4">
+                {potentialDynamicGroups.filter(g => !g.dynamicBudget).map(group => {
+                  const selected = selectedForDynamic[group.baseCode] || new Set();
+                  const allSelected = selected.size === 0 || selected.size === group.costCodes.length;
+                  
+                  return (
+                    <Card key={group.baseCode} className="border-primary/30">
+                      <CardContent className="pt-6 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-mono font-semibold text-lg">{group.baseCode}</span>
+                              <Badge variant="outline">
+                                {selected.size > 0 ? `${selected.size} selected` : `${group.costCodes.length} available`}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Select cost codes to include in the dynamic budget
+                            </p>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            onClick={() => handleMakeDynamic(group.baseCode)}
+                            className="ml-4"
+                          >
+                            <Layers className="h-4 w-4 mr-2" />
+                            Create Dynamic Budget
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                          {group.costCodes.map(cc => (
+                            <div key={cc.cost_code_id} className="flex items-center gap-3 p-2 rounded hover:bg-background/50">
+                              <Checkbox
+                                checked={selected.has(cc.cost_code_id) || selected.size === 0}
+                                onCheckedChange={() => toggleCostCodeSelection(group.baseCode, cc.cost_code_id)}
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-medium">{cc.cost_code?.code}</span>
+                                  {cc.cost_code?.type && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {cc.cost_code.type}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground">{cc.cost_code?.description}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </CardContent>
             </Card>
           )}
