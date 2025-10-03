@@ -210,6 +210,7 @@ export default function VendorEdit() {
       return;
     }
 
+    console.log("Save vendor - currentCompany:", currentCompany);
     setSaving(true);
     
     try {
@@ -245,6 +246,9 @@ export default function VendorEdit() {
             setSaving(false);
             return;
           }
+          
+          console.log("Creating vendor with company_id:", currentCompany.id);
+          
           const { data, error } = await supabase
             .from('vendors')
             .insert([{ 
