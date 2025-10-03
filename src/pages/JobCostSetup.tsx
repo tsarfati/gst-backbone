@@ -370,13 +370,18 @@ export default function JobCostSetup() {
 
           for (const costCode of costCodesToProcess) {
             // Check if cost code exists
-            const { data: existing } = await supabase
+            const { data: existing, error: selectError } = await supabase
               .from('cost_codes')
               .select('id')
               .eq('code', costCode.code)
               .is('job_id', null)
               .eq('company_id', currentCompany?.id)
-              .single();
+              .maybeSingle();
+
+            if (selectError) {
+              console.error('Error checking for existing cost code:', selectError);
+              continue;
+            }
 
             if (existing) {
               // Update existing

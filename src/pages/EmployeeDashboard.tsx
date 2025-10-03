@@ -102,7 +102,10 @@ export default function EmployeeDashboard() {
     const storedPunchUserStr = localStorage.getItem('punch_clock_user');
     let fallbackPin: string | null = null;
     try { fallbackPin = storedPunchUserStr ? JSON.parse(storedPunchUserStr).pin : null; } catch { fallbackPin = null; }
-    if (!user && !fallbackPin) return;
+    if (!user && !fallbackPin) {
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
