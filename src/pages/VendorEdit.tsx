@@ -240,8 +240,7 @@ export default function VendorEdit() {
       };
 
         if (isAddMode) {
-          const companyId = currentCompany?.id || profile?.current_company_id;
-          if (!companyId) {
+          if (!currentCompany?.id) {
             toast({ title: "Missing Company", description: "Select a company before creating a vendor.", variant: "destructive" });
             setSaving(false);
             return;
@@ -250,7 +249,7 @@ export default function VendorEdit() {
             .from('vendors')
             .insert([{ 
               ...vendorData,
-              company_id: companyId
+              company_id: currentCompany.id
             }])
             .select()
             .single();
