@@ -23,12 +23,36 @@ export default function JobCostBudgetView() {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCostCodes, setSelectedCostCodes] = useState<CostCode[]>([]);
+  const [activeTab, setActiveTab] = useState("budget");
 
   const isPlanning = job?.status === 'planning';
 
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Reload cost codes when switching to budget tab
+  useEffect(() => {
+    if (activeTab === "budget") {
+      loadCostCodes();
+    }
+  }, [activeTab, id]);
+
+  const loadCostCodes = async () => {
+    try {
+      const { data: codes, error: codesError } = await supabase
+        .from('cost_codes')
+        .select('id, code, description, type')
+        .eq('job_id', id)
+        .eq('is_active', true);
+
+      if (codesError) throw codesError;
+
+      setSelectedCostCodes(codes || []);
+    } catch (error) {
+      console.error('Error loading cost codes:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -90,7 +114,7 @@ export default function JobCostBudgetView() {
         </Alert>
       )}
 
-      <Tabs defaultValue="budget">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="budget">Budget</TabsTrigger>
           <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>
@@ -106,7 +130,13 @@ export default function JobCostBudgetView() {
           <JobCostCodeSelector 
             jobId={id!} 
             selectedCostCodes={selectedCostCodes}
-            onSelectedCostCodesChange={setSelectedCostCodes}
+            onSelectedCostCodesChange={(codes) => {
+              setSelectedCostCodes(codes);
+              // Auto-switch to budget tab after selecting codes
+              if (codes.length > 0) {
+                setTimeout(() => setActiveTab("budget"), 500);
+              }
+            }}
           />
         </TabsContent>
       </Tabs>
