@@ -65,6 +65,7 @@ interface PunchClockSettings {
   enable_distance_warnings: boolean;
   max_distance_from_job_meters: number;
   company_policies: string;
+  overtime_past_window_threshold_minutes: number;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -90,7 +91,8 @@ const defaultSettings: PunchClockSettings = {
   calculate_overtime: true,
   enable_distance_warnings: true,
   max_distance_from_job_meters: 200,
-  company_policies: ''
+  company_policies: '',
+  overtime_past_window_threshold_minutes: 30
 };
 
 export default function PunchClockSettingsComponent() {
@@ -155,7 +157,8 @@ export default function PunchClockSettingsComponent() {
           calculate_overtime: data.calculate_overtime !== false,
           enable_distance_warnings: true,
           max_distance_from_job_meters: 200,
-          company_policies: data.company_policies || ''
+          company_policies: data.company_policies || '',
+          overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30
         });
       }
       
@@ -200,6 +203,7 @@ export default function PunchClockSettingsComponent() {
           auto_break_wait_hours: settings.auto_break_wait_hours,
           calculate_overtime: settings.calculate_overtime,
           company_policies: settings.company_policies,
+          overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
           created_by: user?.id
         });
 
@@ -280,6 +284,19 @@ export default function PunchClockSettingsComponent() {
                     step="0.5"
                   />
                   <p className="text-xs text-muted-foreground">Hours worked per day before overtime applies</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="overtime-past-window">Overtime Past Window Threshold (minutes)</Label>
+                  <Input
+                    id="overtime-past-window"
+                    type="number"
+                    value={settings.overtime_past_window_threshold_minutes}
+                    onChange={(e) => updateSetting('overtime_past_window_threshold_minutes', parseInt(e.target.value))}
+                    min="0"
+                    max="120"
+                  />
+                  <p className="text-xs text-muted-foreground">Minutes past punch window end before overtime starts. All time past window end counts as OT once threshold is reached.</p>
                 </div>
 
                 <div className="space-y-2">

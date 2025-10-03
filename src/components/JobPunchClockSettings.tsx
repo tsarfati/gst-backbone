@@ -42,6 +42,7 @@ interface JobSettings {
   scheduled_start_time?: string;
   early_punch_in_buffer_minutes: number;
   require_timecard_change_approval: boolean;
+  overtime_past_window_threshold_minutes: number;
 }
 
 const defaultJobSettings: JobSettings = {
@@ -70,6 +71,7 @@ const defaultJobSettings: JobSettings = {
   scheduled_start_time: '08:00',
   early_punch_in_buffer_minutes: 15,
   require_timecard_change_approval: false,
+  overtime_past_window_threshold_minutes: 30,
 };
 
 export default function JobPunchClockSettings() {
@@ -149,6 +151,7 @@ export default function JobPunchClockSettings() {
           scheduled_start_time: data.scheduled_start_time || '08:00',
           early_punch_in_buffer_minutes: data.early_punch_in_buffer_minutes || 15,
           require_timecard_change_approval: !!data.require_timecard_change_approval,
+          overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
@@ -190,6 +193,7 @@ export default function JobPunchClockSettings() {
         scheduled_start_time: settings.scheduled_start_time,
         early_punch_in_buffer_minutes: settings.early_punch_in_buffer_minutes,
         require_timecard_change_approval: settings.require_timecard_change_approval,
+        overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
         created_by: profile?.user_id || user?.id,
       };
 
@@ -371,6 +375,11 @@ export default function JobPunchClockSettings() {
                   <div className="space-y-2">
                     <Label>Grace Period (minutes)</Label>
                     <Input type="number" value={settings.grace_period_minutes} onChange={(e) => setSettings(s => ({...s, grace_period_minutes: parseInt(e.target.value)}))} min={0} max={15} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>OT Past Window Threshold (min)</Label>
+                    <Input type="number" value={settings.overtime_past_window_threshold_minutes} onChange={(e) => setSettings(s => ({...s, overtime_past_window_threshold_minutes: parseInt(e.target.value)}))} min={0} max={120} />
+                    <p className="text-xs text-muted-foreground">Minutes past window end before all subsequent time is OT</p>
                   </div>
                 </div>
 
