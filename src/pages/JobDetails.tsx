@@ -141,7 +141,7 @@ export default function JobDetails() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" onClick={() => navigate(-1)}>
+        <Button variant="ghost" onClick={() => navigate("/jobs")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -185,13 +185,6 @@ export default function JobDetails() {
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Forecasting
-            </TabsTrigger>
-            <TabsTrigger 
-              value="time-tracking"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              Time Tracking
             </TabsTrigger>
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
@@ -302,16 +295,6 @@ export default function JobDetails() {
 
           <TabsContent value="forecasting" className="p-6">
             <JobForecastingView />
-          </TabsContent>
-
-          <TabsContent value="time-tracking" className="p-0">
-            <div className="min-h-[600px]">
-              <iframe 
-                src="/punch-clock/dashboard" 
-                className="w-full h-[calc(100vh-200px)] border-0"
-                title="Punch Clock Dashboard"
-              />
-            </div>
           </TabsContent>
 
           <TabsContent value="delivery-tickets" className="p-6">

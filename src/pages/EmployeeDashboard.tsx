@@ -496,6 +496,7 @@ export default function EmployeeDashboard() {
           .insert({
             time_card_id: selectedTimeCard.id,
             user_id: userId,
+            requested_by: userId,
             reason: changeReason,
             status: 'pending',
             proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? new Date(changeRequestData.proposed_punch_in_time).toISOString() : null,
