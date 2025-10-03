@@ -12,6 +12,7 @@ import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package,
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
+import Papa from "papaparse";
 
 interface CostCode {
   id: string;
@@ -30,6 +31,7 @@ export default function CostCodes() {
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [newCode, setNewCode] = useState<{
     code: string;
     description: string;
@@ -129,116 +131,96 @@ export default function CostCodes() {
   const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setCsvFile(file);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n').filter(line => line.trim());
-      
-      if (lines.length < 2) {
-        toast({
-          title: "Invalid CSV",
-          description: "CSV must have at least a header row and one data row",
-          variant: "destructive"
-        });
-        return;
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      complete: (results) => {
+        const rows = (results.data || []).map((r) => ({
+          code: (r.code || '').trim(),
+          description: (r.description || '').trim(),
+          type: ((r.type || 'other').trim().toLowerCase() as any)
+        }));
+        const preview = rows
+          .filter(r => r.code && r.description)
+          .slice(0, 5)
+          .map((r, index) => ({
+            rowIndex: index + 2,
+            code: r.code,
+            description: r.description,
+            type: ['material','labor','sub','equipment','other'].includes(r.type) ? r.type : 'other'
+          }));
+        if (preview.length === 0) {
+          toast({ title: "Invalid CSV", description: "CSV must have valid rows with code and description", variant: "destructive" });
+          return;
+        }
+        setCsvPreview(preview);
+        setCsvDialogOpen(true);
+      },
+      error: () => {
+        toast({ title: "Invalid CSV", description: "Failed to read CSV file", variant: "destructive" });
       }
-
-      // Parse CSV (expecting: code, description, type)
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const preview = lines.slice(1, 6).map((line, index) => { // Show first 5 rows for preview
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-        return {
-          rowIndex: index + 2, // +2 because we skip header and array is 0-indexed
-          code: values[0] || '',
-          description: values[1] || '',
-          type: values[2]?.toLowerCase() || 'other'
-        };
-      });
-
-      setCsvPreview(preview);
-      setCsvDialogOpen(true);
-    };
-
-    reader.readAsText(file);
+    });
   };
 
   const handleCsvImport = async () => {
     setCsvUploading(true);
     try {
-      // Get full CSV data from the file input
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      const file = fileInput?.files?.[0];
-      
-      if (!file) {
-        toast({
-          title: "Error",
-          description: "No file selected",
-          variant: "destructive"
-        });
+      if (!csvFile) {
+        toast({ title: "Error", description: "No file selected", variant: "destructive" });
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        const lines = text.split('\n').filter(line => line.trim());
-        
-        const dataRows = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-          return {
-            code: values[0] || '',
-            description: values[1] || '',
-            type: (['material', 'labor', 'sub', 'equipment', 'other'].includes(values[2]?.toLowerCase())) 
-              ? values[2].toLowerCase() as 'material' | 'labor' | 'sub' | 'equipment' | 'other'
-              : 'other' as const
-          };
-        }).filter(row => row.code && row.description); // Only include rows with code and description
+      Papa.parse<Record<string, string>>(csvFile, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        complete: async (results) => {
+          const dataRows = (results.data || [])
+            .map((r) => ({
+              code: (r.code || '').trim(),
+              description: (r.description || '').trim(),
+              type: ((r.type || 'other').trim().toLowerCase())
+            }))
+            .filter(r => r.code && r.description)
+            .map(r => ({
+              code: r.code,
+              description: r.description,
+              type: (['material','labor','sub','equipment','other'].includes(r.type) ? r.type : 'other') as 'material' | 'labor' | 'sub' | 'equipment' | 'other'
+            }));
 
-        if (dataRows.length === 0) {
-          toast({
-            title: "No valid data",
-            description: "No valid cost codes found in CSV",
-            variant: "destructive"
-          });
-          return;
+          if (dataRows.length === 0) {
+            toast({ title: "No valid data", description: "No valid cost codes found in CSV", variant: "destructive" });
+            return;
+          }
+
+          const { error } = await supabase
+            .from('cost_codes')
+            .insert(dataRows.map(row => ({
+              code: row.code,
+              description: row.description,
+              type: row.type,
+              company_id: currentCompany?.id || '',
+              is_active: true,
+              job_id: null
+            })));
+
+          if (error) throw error;
+
+          toast({ title: "Import successful", description: `Imported ${dataRows.length} cost codes successfully` });
+          setCsvDialogOpen(false);
+          setCsvPreview([]);
+          setCsvFile(null);
+          loadCostCodes();
+        },
+        error: (err) => {
+          console.error('Papa parse error:', err);
+          toast({ title: "Import failed", description: "Failed to parse CSV", variant: "destructive" });
         }
-
-        // Insert all cost codes
-        const { error } = await supabase
-          .from('cost_codes')
-          .insert(dataRows.map(row => ({
-            code: row.code,
-            description: row.description,
-            type: row.type,
-            company_id: currentCompany?.id || '',
-            is_active: true,
-            job_id: null
-          })));
-
-        if (error) throw error;
-
-        toast({
-          title: "Import successful",
-          description: `Imported ${dataRows.length} cost codes successfully`,
-        });
-
-        setCsvDialogOpen(false);
-        setCsvPreview([]);
-        loadCostCodes();
-        
-        // Clear file input
-        if (fileInput) fileInput.value = '';
-      };
-
-      reader.readAsText(file);
-    } catch (error) {
-      console.error('Error importing CSV:', error);
-      toast({
-        title: "Import failed",
-        description: "Failed to import cost codes from CSV",
-        variant: "destructive",
       });
+    } catch (error: any) {
+      console.error('Error importing CSV:', error);
+      toast({ title: "Import failed", description: error?.message || "Failed to import cost codes from CSV", variant: "destructive" });
     } finally {
       setCsvUploading(false);
     }
@@ -401,7 +383,7 @@ export default function CostCodes() {
                 id="csvFile"
                 type="file"
                 accept=".csv"
-                onChange={handleCsvUpload}
+                onChange={(e) => handleCsvUpload(e)}
                 className="mt-1"
               />
               <p className="text-sm text-muted-foreground mt-1">
@@ -453,7 +435,7 @@ export default function CostCodes() {
               </TableBody>
             </Table>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCsvDialogOpen(false)}>
+              <Button variant="outline" onClick={() => { setCsvDialogOpen(false); setCsvFile(null); }}>
                 Cancel
               </Button>
               <Button onClick={handleCsvImport} disabled={csvUploading}>

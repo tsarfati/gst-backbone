@@ -34,6 +34,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import Papa from "papaparse";
 
 interface CostCode {
   id: string;
@@ -290,44 +291,39 @@ export default function JobCostSetup() {
     }
 
     try {
-      const text = await csvFile.text();
-      const lines = text.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      
-      // Validate headers
-      const requiredHeaders = ['code', 'description', 'type'];
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-      
-      if (missingHeaders.length > 0) {
-        toast({
-          title: "Invalid CSV format",
-          description: `Missing required columns: ${missingHeaders.join(', ')}`,
-          variant: "destructive",
-        });
+      if (!currentCompany?.id) {
+        toast({ title: "No company selected", description: "Select a company before importing cost codes", variant: "destructive" });
         return;
       }
+      const allowed = ['material','labor','sub','equipment','other'] as const;
+      type AllowedType = typeof allowed[number];
+      let costCodesToProcess: Array<{ code: string; description: string; type: AllowedType; company_id: string; is_active: boolean; job_id: null }> = [];
 
-      const costCodesToProcess = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        const costCode: any = {};
-        
-        headers.forEach((header, index) => {
-          costCode[header] = values[index];
+      await new Promise<void>((resolve, reject) => {
+        Papa.parse<Record<string, string>>(csvFile, {
+          header: true,
+          skipEmptyLines: 'greedy',
+          complete: (results) => {
+            costCodesToProcess = (results.data || [])
+              .map((r) => ({
+                code: (r.code || '').trim(),
+                description: (r.description || '').trim(),
+                type: ((r.type || 'other').trim().toLowerCase())
+              }))
+              .filter(r => r.code && r.description)
+              .map(r => ({
+                code: r.code,
+                description: r.description,
+                type: allowed.includes(r.type) ? r.type : 'other',
+                company_id: currentCompany?.id,
+                is_active: true,
+                job_id: null
+              }));
+            resolve();
+          },
+          error: (err) => reject(err)
         });
-
-        if (costCode.code && costCode.description && costCode.type) {
-          costCodesToProcess.push({
-            code: costCode.code,
-            description: costCode.description,
-            type: costCode.type,
-            company_id: currentCompany?.id,
-            is_active: true,
-            job_id: null // General cost code template
-          });
-        }
-      }
+      });
 
       if (costCodesToProcess.length > 0) {
         // Handle different upload modes
