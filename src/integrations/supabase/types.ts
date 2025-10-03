@@ -1410,6 +1410,7 @@ export type Database = {
           manual_photo_capture: boolean | null
           max_distance_from_job_meters: number | null
           notification_enabled: boolean | null
+          overtime_past_window_threshold_minutes: number | null
           overtime_threshold: number | null
           punch_rounding_direction: string | null
           punch_rounding_minutes: number | null
@@ -1444,6 +1445,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
           punch_rounding_minutes?: number | null
@@ -1478,6 +1480,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
           punch_rounding_minutes?: number | null
