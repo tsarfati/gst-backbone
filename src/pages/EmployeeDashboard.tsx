@@ -92,6 +92,9 @@ export default function EmployeeDashboard() {
     phone?: string;
     department?: string;
   }>>([]);
+  
+  // Week navigation state
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
 
   useEffect(() => {
     loadData();
@@ -744,7 +747,6 @@ export default function EmployeeDashboard() {
                           .sort((a, b) => b[1].start.getTime() - a[1].start.getTime())
                           .map(([, w]) => w.start);
                         
-                        const [selectedWeekIndex, setSelectedWeekIndex] = React.useState(0);
                         const currentWeek = sortedWeeks[selectedWeekIndex];
                         
                         if (!currentWeek) return null;
