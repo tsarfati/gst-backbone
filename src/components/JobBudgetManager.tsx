@@ -150,13 +150,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
   const populateBudgetLines = async () => {
     console.log('populateBudgetLines called with', selectedCostCodes.length, 'cost codes');
-    
-    if (selectedCostCodes.length === 0) {
-      console.log('No cost codes selected, retaining existing budget lines');
-      return;
-    }
 
-    // Reload budget lines from database to get the latest data
+    // Always start from the database so we don't lose persisted lines
     const { data: budgetData, error: budgetError } = await supabase
       .from('job_budgets')
       .select(`
@@ -177,7 +172,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       return;
     }
 
-    const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
+    // Normalize from DB
+    const existing: BudgetLine[] = (budgetData || []).map((bd: any) => ({
       id: bd.id,
       cost_code_id: bd.cost_code_id,
       budgeted_amount: bd.budgeted_amount,
@@ -185,11 +181,32 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       committed_amount: bd.committed_amount,
       is_dynamic: bd.is_dynamic,
       parent_budget_id: bd.parent_budget_id,
-      cost_code: bd.cost_codes
+      cost_code: bd.cost_codes,
     }));
 
-    console.log('Setting', normalizedBudgetLines.length, 'budget lines from database');
-    setBudgetLines(normalizedBudgetLines);
+    // Merge: ensure EVERY selected cost code is present as a budget row (even if not saved yet)
+    const byCostCodeId = new Map(existing.map((e) => [e.cost_code_id, e]));
+    selectedCostCodes.forEach((cc) => {
+      if (!byCostCodeId.has(cc.id)) {
+        byCostCodeId.set(cc.id, {
+          cost_code_id: cc.id,
+          budgeted_amount: 0,
+          actual_amount: 0,
+          committed_amount: 0,
+          is_dynamic: false,
+          parent_budget_id: null,
+          cost_code: cc,
+        });
+      }
+    });
+
+    // Sort by cost code (numeric-aware)
+    const merged = Array.from(byCostCodeId.values()).sort((a, b) =>
+      (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    console.log('Setting', merged.length, 'merged budget lines');
+    setBudgetLines(merged);
   };
 
 
@@ -435,8 +452,12 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   );
 
   const dynamicBudgets = budgetLines.filter(b => b.is_dynamic);
-  const regularBudgets = budgetLines.filter(b => !b.is_dynamic && !b.parent_budget_id);
-  const getChildBudgets = (parentId: string) => budgetLines.filter(b => b.parent_budget_id === parentId);
+  const regularBudgets = budgetLines
+    .filter(b => !b.is_dynamic && !b.parent_budget_id)
+    .sort((a, b) => (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' }));
+  const getChildBudgets = (parentId: string) => budgetLines
+    .filter(b => b.parent_budget_id === parentId)
+    .sort((a, b) => (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' }));
 
   // UI-only rules for dynamic parent and child cost codes based on code patterns
   const isDynamicParentCode = (code?: string) => !!code && /^\d+\.\d+$/.test(code) && !/^\d+\.0$/.test(code);
