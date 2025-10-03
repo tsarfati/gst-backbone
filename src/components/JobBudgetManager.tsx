@@ -326,15 +326,65 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     });
   };
 
-  // Get all dynamic budgets
-  const dynamicBudgets = budgetLines.filter(b => b.is_dynamic && b.cost_code);
-  
-  // Get regular budgets (not dynamic, not children)
-  const regularBudgets = budgetLines.filter(b => !b.is_dynamic && !b.parent_budget_id && b.cost_code);
-  
   // Get child budgets for a parent
   const getChildBudgets = (parentId: string) => 
     budgetLines.filter(b => b.parent_budget_id === parentId && b.cost_code);
+
+  // Build unified list: dynamic parents, their children (indented), and regular budgets
+  const buildUnifiedBudgetList = () => {
+    const unified: Array<{
+      line: BudgetLine;
+      isChild: boolean;
+      parentId?: string;
+      isOverBudget?: boolean;
+      remaining?: number;
+    }> = [];
+
+    // First, collect all dynamic parents
+    const dynamicParents = budgetLines.filter(b => b.is_dynamic && b.cost_code);
+    const childIds = new Set(budgetLines.filter(b => b.parent_budget_id).map(b => b.cost_code_id));
+    const regularLines = budgetLines.filter(b => !b.is_dynamic && !b.parent_budget_id && b.cost_code);
+
+    // Combine all lines and sort by cost code
+    const allLines = [...dynamicParents, ...regularLines].sort((a, b) =>
+      (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    // Build the unified list with children inserted after their parents
+    allLines.forEach(line => {
+      if (line.is_dynamic) {
+        // This is a dynamic parent
+        const children = getChildBudgets(line.id!);
+        const childrenSum = children.reduce((sum, c) => sum + (c.actual_amount + c.committed_amount), 0);
+        const remaining = line.budgeted_amount - childrenSum;
+        const isOverBudget = remaining < 0;
+
+        unified.push({
+          line,
+          isChild: false,
+          isOverBudget,
+          remaining
+        });
+
+        // Add children after parent
+        children.forEach(child => {
+          unified.push({
+            line: child,
+            isChild: true,
+            parentId: line.id
+          });
+        });
+      } else {
+        // Regular budget line (not a parent, not a child)
+        unified.push({
+          line,
+          isChild: false
+        });
+      }
+    });
+
+    return unified;
+  };
 
   // Check if child inputs should be disabled based on dynamic budget rules
   const isChildDisabled = (parentId: string, childLine: BudgetLine): boolean => {
@@ -379,106 +429,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           </div>
 
 
-          {/* Dynamic Budgets with nested children */}
-          {dynamicBudgets.map(budget => {
-            const childBudgets = getChildBudgets(budget.id!);
-            const isExpanded = expandedGroups.has(budget.cost_code?.code || budget.id!);
-            const childrenSum = childBudgets.reduce((sum, c) => sum + (c.actual_amount + c.committed_amount), 0);
-            const remaining = budget.budgeted_amount - childrenSum;
-            const isOverBudget = remaining < 0;
-
-            return (
-              <Card key={budget.id} className={isOverBudget ? "border-destructive" : ""}>
-                <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(budget.cost_code?.code || budget.id!)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-70">
-                        {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">{getBaseCode(budget.cost_code?.code || '')}</span>
-                          <Badge variant="secondary">Dynamic Budget</Badge>
-                          {isOverBudget && (
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              Over Budget
-                            </Badge>
-                          )}
-                        </div>
-                      </CollapsibleTrigger>
-                      <div className="flex items-center gap-4 text-sm">
-                        <CurrencyInput
-                          value={budget.budgeted_amount.toString()}
-                          onChange={(value) => updateBudgetLine(budget.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                          className="w-32"
-                          placeholder="0.00"
-                          disabled={childBudgets.length === 2}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm pl-7">
-                      <div>
-                        <div className="text-muted-foreground">Budget</div>
-                        <div className="font-semibold">{formatCurrency(budget.budgeted_amount)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Actual</div>
-                        <div className="font-semibold">{formatCurrency(childBudgets.reduce((s, c) => s + c.actual_amount, 0))}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Committed</div>
-                        <div className="font-semibold">{formatCurrency(childBudgets.reduce((s, c) => s + c.committed_amount, 0))}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Remaining</div>
-                        <div className={`font-semibold ${isOverBudget ? 'text-destructive' : ''}`}>
-                          {formatCurrency(remaining)}
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent className="space-y-4">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Cost Code</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Budgeted</TableHead>
-                            <TableHead>Actual</TableHead>
-                            <TableHead>Committed</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {childBudgets.map(child => (
-                            <TableRow key={child.id}>
-                              <TableCell>
-                                <span className="font-mono text-sm">{child.cost_code?.code}</span>
-                              </TableCell>
-                              <TableCell>{child.cost_code?.description}</TableCell>
-                              <TableCell>
-                                <CurrencyInput
-                                  value={child.budgeted_amount.toString()}
-                                  onChange={(value) => updateBudgetLine(child.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                                  className="w-32"
-                                  placeholder="0.00"
-                                  disabled={isChildDisabled(budget.id!, child)}
-                                />
-                              </TableCell>
-                              <TableCell>{formatCurrency(child.actual_amount)}</TableCell>
-                              <TableCell>{formatCurrency(child.committed_amount)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-            );
-          })}
-
-          {/* Regular Budget Lines */}
-          {regularBudgets.length > 0 && (
+          {/* Unified Budget List */}
+          {budgetLines.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Budget Lines</CardTitle>
@@ -496,38 +448,70 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {regularBudgets.map((line) => (
-                      <TableRow key={line.id || line.cost_code_id}>
-                        <TableCell>
-                          <span className="font-mono text-sm">{line.cost_code?.code}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            {line.cost_code?.description}
-                            {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <CurrencyInput
-                            value={line.budgeted_amount.toString()}
-                            onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                            className="w-32"
-                            placeholder="0.00"
-                          />
-                        </TableCell>
-                        <TableCell>{formatCurrency(line.actual_amount)}</TableCell>
-                        <TableCell>{formatCurrency(line.committed_amount)}</TableCell>
-                        <TableCell>
-                          <span className={`${
-                            (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
-                              ? 'text-destructive' 
-                              : 'text-muted-foreground'
-                          }`}>
-                            {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {buildUnifiedBudgetList().map((item, index) => {
+                      const { line, isChild, parentId, isOverBudget, remaining } = item;
+                      const variance = line.budgeted_amount - (line.actual_amount + line.committed_amount);
+                      
+                      return (
+                        <TableRow 
+                          key={line.id || line.cost_code_id} 
+                          className={isChild ? "bg-muted/30" : ""}
+                        >
+                          <TableCell className={isChild ? "pl-12" : ""}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm">{line.cost_code?.code}</span>
+                              {line.is_dynamic && (
+                                <>
+                                  <Badge variant="secondary" className="text-xs">Dynamic Budget</Badge>
+                                  {isOverBudget && (
+                                    <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                                      <AlertCircle className="h-3 w-3" />
+                                      Over Budget
+                                    </Badge>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              {line.cost_code?.description}
+                              {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <CurrencyInput
+                              value={line.budgeted_amount.toString()}
+                              onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
+                              className="w-32"
+                              placeholder="0.00"
+                              disabled={isChild && parentId ? isChildDisabled(parentId, line) : (line.is_dynamic && getChildBudgets(line.id!).length === 2)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {line.is_dynamic 
+                              ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))
+                              : formatCurrency(line.actual_amount)
+                            }
+                          </TableCell>
+                          <TableCell>
+                            {line.is_dynamic 
+                              ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.committed_amount, 0))
+                              : formatCurrency(line.committed_amount)
+                            }
+                          </TableCell>
+                          <TableCell>
+                            <span className={`${
+                              (line.is_dynamic ? (remaining ?? 0) < 0 : variance < 0)
+                                ? 'text-destructive font-semibold' 
+                                : 'text-muted-foreground'
+                            }`}>
+                              {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(variance)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
