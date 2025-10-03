@@ -148,7 +148,7 @@ export default function JobPunchClockSettings() {
           allow_early_punch_in: !!data.allow_early_punch_in,
           scheduled_start_time: data.scheduled_start_time || '08:00',
           early_punch_in_buffer_minutes: data.early_punch_in_buffer_minutes || 15,
-          require_timecard_change_approval: !!data.require_timecard_change_approval,
+          require_timecard_change_approval: (data as any).require_timecard_change_approval || false,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
@@ -409,6 +409,13 @@ export default function JobPunchClockSettings() {
                       <p className="text-sm text-muted-foreground">Permit manual time entries</p>
                     </div>
                     <Switch checked={settings.allow_manual_entry} onCheckedChange={(checked) => setSettings(s => ({...s, allow_manual_entry: checked}))} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Require Approval for Time Card Changes</Label>
+                      <p className="text-sm text-muted-foreground">Employee time card change requests need manager approval</p>
+                    </div>
+                    <Switch checked={settings.require_timecard_change_approval} onCheckedChange={(checked) => setSettings(s => ({...s, require_timecard_change_approval: checked}))} />
                   </div>
                 </div>
 

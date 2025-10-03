@@ -1417,6 +1417,7 @@ export type Database = {
           punch_time_window_start: string | null
           require_location: boolean | null
           require_photo: boolean | null
+          require_timecard_change_approval: boolean | null
           scheduled_start_time: string | null
           updated_at: string
         }
@@ -1450,6 +1451,7 @@ export type Database = {
           punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
+          require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
           updated_at?: string
         }
@@ -1483,6 +1485,7 @@ export type Database = {
           punch_time_window_start?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
+          require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
           updated_at?: string
         }
