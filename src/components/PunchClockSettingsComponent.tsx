@@ -39,6 +39,8 @@ interface PunchClockSettings {
   calculate_overtime: boolean;
   enable_distance_warnings: boolean;
   max_distance_from_job_meters: number;
+  company_policies: string;
+  overtime_past_window_threshold_minutes: number;
 }
 
 interface PunchClockSettings {
