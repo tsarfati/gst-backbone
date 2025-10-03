@@ -41,6 +41,7 @@ interface JobSettings {
   allow_early_punch_in: boolean;
   scheduled_start_time?: string;
   early_punch_in_buffer_minutes: number;
+  require_timecard_change_approval: boolean;
 }
 
 const defaultJobSettings: JobSettings = {
@@ -68,6 +69,7 @@ const defaultJobSettings: JobSettings = {
   allow_early_punch_in: false,
   scheduled_start_time: '08:00',
   early_punch_in_buffer_minutes: 15,
+  require_timecard_change_approval: false,
 };
 
 export default function JobPunchClockSettings() {
@@ -146,6 +148,7 @@ export default function JobPunchClockSettings() {
           allow_early_punch_in: !!data.allow_early_punch_in,
           scheduled_start_time: data.scheduled_start_time || '08:00',
           early_punch_in_buffer_minutes: data.early_punch_in_buffer_minutes || 15,
+          require_timecard_change_approval: !!data.require_timecard_change_approval,
         });
       } else {
         setSettings({ ...defaultJobSettings, job_id: jobId });
@@ -186,6 +189,7 @@ export default function JobPunchClockSettings() {
         allow_early_punch_in: settings.allow_early_punch_in,
         scheduled_start_time: settings.scheduled_start_time,
         early_punch_in_buffer_minutes: settings.early_punch_in_buffer_minutes,
+        require_timecard_change_approval: settings.require_timecard_change_approval,
         created_by: profile?.user_id || user?.id,
       };
 
