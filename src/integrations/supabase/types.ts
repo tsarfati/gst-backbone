@@ -3089,6 +3089,10 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          proposed_cost_code_id: string | null
+          proposed_job_id: string | null
+          proposed_punch_in_time: string | null
+          proposed_punch_out_time: string | null
           reason: string
           requested_at: string
           review_notes: string | null
@@ -3102,6 +3106,10 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          proposed_cost_code_id?: string | null
+          proposed_job_id?: string | null
+          proposed_punch_in_time?: string | null
+          proposed_punch_out_time?: string | null
           reason: string
           requested_at?: string
           review_notes?: string | null
@@ -3115,6 +3123,10 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          proposed_cost_code_id?: string | null
+          proposed_job_id?: string | null
+          proposed_punch_in_time?: string | null
+          proposed_punch_out_time?: string | null
           reason?: string
           requested_at?: string
           review_notes?: string | null
