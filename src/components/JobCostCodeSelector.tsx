@@ -97,17 +97,24 @@ export default function JobCostCodeSelector({
     if (!master) return null;
 
     // Check if a job-specific code already exists (by code+type)
-    const { data: existing } = await supabase
+  const { data: existing } = await supabase
       .from('cost_codes')
-      .select('id, code, description, type')
+      .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
       .eq('code', master.code)
-      .eq('type', (master.type || null) as any)
       .maybeSingle();
 
     if (existing) {
-      // Reactivate if needed
-      await supabase.from('cost_codes').update({ is_active: true }).eq('id', existing.id);
+      // Reactivate and align metadata with master
+      await supabase
+        .from('cost_codes')
+        .update({ 
+          is_active: true,
+          // Keep code stable, align type/description when missing or different
+          type: (master.type || existing.type || null) as any,
+          description: master.description || existing.description
+        })
+        .eq('id', existing.id);
       return existing as CostCode;
     }
 
@@ -137,16 +144,22 @@ export default function JobCostCodeSelector({
   // Ensure by code/type (used when copying from previous job)
   const ensureJobCostCodeByCodeType = async (code: string, type?: string | null, description?: string | null) => {
     if (!jobId || !currentCompany) return null;
-    const { data: existing } = await supabase
+  const { data: existing } = await supabase
       .from('cost_codes')
-      .select('id, code, description, type')
+      .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
       .eq('code', code)
-      .eq('type', (type || null) as any)
       .maybeSingle();
 
     if (existing) {
-      await supabase.from('cost_codes').update({ is_active: true }).eq('id', existing.id);
+      await supabase
+        .from('cost_codes')
+        .update({ 
+          is_active: true,
+          type: (type || existing.type || null) as any,
+          description: description || existing.description
+        })
+        .eq('id', existing.id);
       return existing as CostCode;
     }
 

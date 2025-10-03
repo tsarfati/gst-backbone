@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CostCode {
   id: string;
@@ -89,17 +90,26 @@ export default function JobCostBudgetView() {
         </Alert>
       )}
 
-      <JobBudgetManager 
-        jobId={id!} 
-        jobName={job.name}
-        selectedCostCodes={selectedCostCodes}
-      />
-
-      <JobCostCodeSelector 
-        jobId={id!} 
-        selectedCostCodes={selectedCostCodes}
-        onSelectedCostCodesChange={setSelectedCostCodes}
-      />
+      <Tabs defaultValue="budget">
+        <TabsList>
+          <TabsTrigger value="budget">Budget</TabsTrigger>
+          <TabsTrigger value="cost-codes">Cost Codes</TabsTrigger>
+        </TabsList>
+        <TabsContent value="budget" className="mt-6">
+          <JobBudgetManager 
+            jobId={id!} 
+            jobName={job.name}
+            selectedCostCodes={selectedCostCodes}
+          />
+        </TabsContent>
+        <TabsContent value="cost-codes" className="mt-6">
+          <JobCostCodeSelector 
+            jobId={id!} 
+            selectedCostCodes={selectedCostCodes}
+            onSelectedCostCodesChange={setSelectedCostCodes}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -160,28 +160,28 @@ export default function JobDetails() {
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger 
               value="details" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
             >
               <FileText className="h-4 w-4 mr-2" />
               Job Details
             </TabsTrigger>
             <TabsTrigger 
               value="committed-costs" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
             >
               <Calculator className="h-4 w-4 mr-2" />
               Committed Costs
             </TabsTrigger>
             <TabsTrigger 
               value="cost-budget"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
             >
               <DollarSign className="h-4 w-4 mr-2" />
               Cost Codes & Budget
             </TabsTrigger>
             <TabsTrigger 
               value="forecasting"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Forecasting
@@ -189,7 +189,7 @@ export default function JobDetails() {
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
                 value="delivery-tickets"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
               >
                 <Package className="h-4 w-4 mr-2" />
                 Delivery Tickets
@@ -197,7 +197,7 @@ export default function JobDetails() {
             )}
             <TabsTrigger 
               value="visitor-logs"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary"
             >
               <Users className="h-4 w-4 mr-2" />
               Visitor Logs
