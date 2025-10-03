@@ -473,8 +473,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                         <TableRow 
                           key={line.id || line.cost_code_id} 
                           className={cn(
-                            isChild && "bg-muted/30",
-                            line.is_dynamic && "bg-primary/5"
+                            (isChild || line.is_dynamic) && "bg-primary/5 hover:bg-primary/10 transition-colors"
                           )}
                         >
                           <TableCell className={isChild ? "pl-12" : ""}>
