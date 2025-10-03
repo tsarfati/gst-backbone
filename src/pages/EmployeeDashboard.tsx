@@ -498,8 +498,8 @@ export default function EmployeeDashboard() {
             user_id: userId,
             reason: changeReason,
             status: 'pending',
-            proposed_punch_in_time: changeRequestData.proposed_punch_in_time || null,
-            proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? new Date(changeRequestData.proposed_punch_in_time).toISOString() : null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? new Date(changeRequestData.proposed_punch_out_time).toISOString() : null,
             proposed_job_id: changeRequestData.proposed_job_id || null,
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
           });
@@ -734,9 +734,21 @@ export default function EmployeeDashboard() {
                         onClick={() => {
                           setSelectedTimeCard(card);
                           // Pre-populate with the current timecard data
+                          // Convert to datetime-local format (YYYY-MM-DDTHH:MM) without timezone shift
+                          const formatForInput = (dateStr: string | null) => {
+                            if (!dateStr) return '';
+                            const date = new Date(dateStr);
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const hours = String(date.getHours()).padStart(2, '0');
+                            const minutes = String(date.getMinutes()).padStart(2, '0');
+                            return `${year}-${month}-${day}T${hours}:${minutes}`;
+                          };
+                          
                           setChangeRequestData({
-                            proposed_punch_in_time: card.punch_in_time || '',
-                            proposed_punch_out_time: card.punch_out_time || '',
+                            proposed_punch_in_time: formatForInput(card.punch_in_time),
+                            proposed_punch_out_time: formatForInput(card.punch_out_time),
                             proposed_job_id: card.job_id || '',
                             proposed_cost_code_id: card.cost_code_id || ''
                           });
@@ -996,12 +1008,10 @@ export default function EmployeeDashboard() {
                 <Input
                   id="punch-in"
                   type="datetime-local"
-                  value={changeRequestData.proposed_punch_in_time ? 
-                    new Date(changeRequestData.proposed_punch_in_time).toISOString().slice(0, 16) : 
-                    ''}
+                  value={changeRequestData.proposed_punch_in_time}
                   onChange={(e) => setChangeRequestData({
                     ...changeRequestData,
-                    proposed_punch_in_time: e.target.value ? new Date(e.target.value).toISOString() : ''
+                    proposed_punch_in_time: e.target.value
                   })}
                   className="text-sm"
                 />
@@ -1015,12 +1025,10 @@ export default function EmployeeDashboard() {
                 <Input
                   id="punch-out"
                   type="datetime-local"
-                  value={changeRequestData.proposed_punch_out_time ? 
-                    new Date(changeRequestData.proposed_punch_out_time).toISOString().slice(0, 16) : 
-                    ''}
+                  value={changeRequestData.proposed_punch_out_time}
                   onChange={(e) => setChangeRequestData({
                     ...changeRequestData,
-                    proposed_punch_out_time: e.target.value ? new Date(e.target.value).toISOString() : ''
+                    proposed_punch_out_time: e.target.value
                   })}
                   className="text-sm"
                 />
