@@ -140,7 +140,7 @@ export default function JobCostCodeSelector({
         .update({ 
           is_active: true,
           description: master.description || existing.description,
-          type: null
+          type: (master.type ?? existing.type) as any
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
@@ -161,7 +161,7 @@ export default function JobCostCodeSelector({
           job_id: jobId,
           code: master.code,
           description: master.description,
-          type: null,
+          type: (master.type as any),
           is_active: true,
         } as any
       ] as any)
@@ -190,7 +190,7 @@ export default function JobCostCodeSelector({
         .update({ 
           is_active: true,
           description: description || existing.description,
-          type: null
+          type: (type ?? existing.type) as any
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
@@ -206,7 +206,7 @@ export default function JobCostCodeSelector({
           job_id: jobId,
           code,
           description,
-          type: null,
+          type: (type as any),
           is_active: true,
         } as any
       ] as any)
@@ -228,7 +228,7 @@ export default function JobCostCodeSelector({
     const master = masterCostCodes.find((cc) => cc.id === codeId);
     if (!master) return;
     const isDup = selectedCostCodes.some(
-      (sc) => sc.code === master.code
+      (sc) => sc.code === master.code && normalizeType(sc.type) === normalizeType(master.type)
     );
     if (isDup) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
@@ -315,12 +315,12 @@ export default function JobCostCodeSelector({
         return;
       }
 
-      // Find which codes are new (not already selected)
-      const newCodes = data.filter(
-        cc => !selectedCostCodes.some(sc => sc.id === cc.id)
+      // Find which codes are new by code + type (not by id, since we'll recreate for this job)
+      const toCreate = data.filter(
+        (cc) => !selectedCostCodes.some(sc => sc.code === cc.code && normalizeType(sc.type) === normalizeType(cc.type))
       );
 
-      if (newCodes.length === 0) {
+      if (toCreate.length === 0) {
         toast({
           title: "Already Selected",
           description: "All cost codes from this job are already selected",
@@ -328,12 +328,19 @@ export default function JobCostCodeSelector({
         return;
       }
 
-      onSelectedCostCodesChange([...selectedCostCodes, ...newCodes]);
+      const created = (
+        await Promise.all(
+          toCreate.map(cc => ensureJobCostCodeByCodeType(cc.code, cc.type, cc.description))
+        )
+      ).filter(Boolean) as CostCode[];
+
+      const merged = [...selectedCostCodes, ...created].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }));
+      onSelectedCostCodesChange(merged);
       setSelectedPreviousJobId("");
-      
+
       toast({
         title: "Cost Codes Copied",
-        description: `${newCodes.length} cost codes copied from previous job`,
+        description: `${created.length} cost codes copied from previous job`,
       });
     } catch (error) {
       console.error('Error copying cost codes:', error);
@@ -346,7 +353,7 @@ export default function JobCostCodeSelector({
   };
 
   const availableCostCodes = masterCostCodes.filter(
-    mc => !selectedCostCodes.some(sc => sc.code === mc.code)
+    mc => !selectedCostCodes.some(sc => sc.code === mc.code && normalizeType(sc.type) === normalizeType(mc.type))
   );
 
   if (loading) {
