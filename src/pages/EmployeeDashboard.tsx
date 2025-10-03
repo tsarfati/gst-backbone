@@ -106,42 +106,42 @@ export default function EmployeeDashboard() {
         // Load time cards via edge function for PIN users
         const pin = localStorage.getItem('employee_pin');
         if (pin) {
-          const { data: timeCardsData, error: tcError } = await supabase.functions.invoke('punch-clock', {
-            body: { 
-              action: 'get_time_cards',
-              pin 
-            }
+          // Fetch from /time-cards endpoint
+          const tcResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/time-cards?pin=${encodeURIComponent(pin)}&limit=50`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
           });
           
-          if (!tcError && timeCardsData?.time_cards) {
-            setTimeCards(timeCardsData.time_cards);
+          if (tcResponse.ok) {
+            const tcData = await tcResponse.json();
+            setTimeCards(tcData);
           }
           
-          // Load contacts via edge function
-          const { data: contactsData, error: contactsError } = await supabase.functions.invoke('punch-clock', {
-            body: { 
-              action: 'get_contacts',
-              pin 
-            }
+          // Fetch from /contacts endpoint
+          const contactsResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/contacts?pin=${encodeURIComponent(pin)}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
           });
           
-          if (!contactsError && contactsData?.contacts) {
-            setCompanyContacts(contactsData.contacts);
+          if (contactsResponse.ok) {
+            const contactsData = await contactsResponse.json();
+            setCompanyContacts(contactsData);
           }
           
-          // Load jobs and cost codes for change requests
-          const { data: initData } = await supabase.functions.invoke('punch-clock', {
-            body: { 
-              action: 'init',
-              pin 
-            }
+          // Fetch from /init endpoint (POST) for jobs and cost codes
+          const initResponse = await fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/init?pin=${encodeURIComponent(pin)}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
           });
           
-          if (initData?.jobs) {
-            setAllJobs(initData.jobs.map((j: any) => ({ id: j.id, name: j.name })));
-          }
-          if (initData?.cost_codes) {
-            setAllCostCodes(initData.cost_codes);
+          if (initResponse.ok) {
+            const initData = await initResponse.json();
+            if (initData?.jobs) {
+              setAllJobs(initData.jobs.map((j: any) => ({ id: j.id, name: j.name })));
+            }
+            if (initData?.cost_codes) {
+              setAllCostCodes(initData.cost_codes);
+            }
           }
         }
         
@@ -444,9 +444,10 @@ export default function EmployeeDashboard() {
           throw new Error('PIN not found');
         }
         
-        const { data, error } = await supabase.functions.invoke('punch-clock', {
-          body: {
-            action: 'request_change',
+        const response = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/request-change', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             pin,
             time_card_id: selectedTimeCard.id,
             reason: changeReason,
@@ -454,10 +455,13 @@ export default function EmployeeDashboard() {
             proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
             proposed_job_id: changeRequestData.proposed_job_id || null,
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
-          }
+          })
         });
         
-        if (error) throw error;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to submit request');
+        }
       } else {
         // Direct database insert for regular users
         const { error } = await supabase

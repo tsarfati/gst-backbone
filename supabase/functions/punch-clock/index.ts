@@ -405,44 +405,33 @@ serve(async (req) => {
         if (jobSettings?.allow_early_punch_in && jobSettings?.scheduled_start_time) {
           const currentTime = new Date();
           
-          // Get local time in HH:MM format
-          const currentHour = currentTime.getHours();
-          const currentMinute = currentTime.getMinutes();
-          const currentTotalMinutes = currentHour * 60 + currentMinute;
-          
           // Parse scheduled start time (format: "HH:MM")
           const [startHour, startMinute] = jobSettings.scheduled_start_time.split(':').map(Number);
-          const scheduledStartMinutes = startHour * 60 + startMinute;
           
-          // Calculate difference in minutes (handle day wrap-around)
-          let minutesEarly = scheduledStartMinutes - currentTotalMinutes;
+          // Create a scheduled start time for today
+          const scheduledStartToday = new Date(currentTime);
+          scheduledStartToday.setHours(startHour, startMinute, 0, 0);
           
-          // If scheduled time is before current time (e.g., 22:00 when it's 21:00), it's for today
-          // If difference is negative and large, the scheduled time might be tomorrow
-          if (minutesEarly < -720) { // More than 12 hours in the past, assume it's tomorrow
-            minutesEarly = 1440 + minutesEarly; // Add 24 hours
-          }
+          // Calculate time difference in minutes
+          const timeDiffMs = scheduledStartToday.getTime() - currentTime.getTime();
+          const minutesUntilStart = Math.floor(timeDiffMs / 60000);
           
-          if (minutesEarly > 0) {
+          console.log(`Current time: ${currentTime.toISOString()}, Scheduled: ${scheduledStartToday.toISOString()}, Minutes until start: ${minutesUntilStart}`);
+          
+          // If minutesUntilStart is positive, user is early
+          if (minutesUntilStart > 0) {
             const bufferMinutes = jobSettings.early_punch_in_buffer_minutes || 15;
             
-            if (minutesEarly > bufferMinutes) {
-              return errorResponse(`Cannot punch in more than ${bufferMinutes} minutes before scheduled start time (${jobSettings.scheduled_start_time}). You are ${minutesEarly} minutes early.`, 400);
+            if (minutesUntilStart > bufferMinutes) {
+              return errorResponse(`Cannot punch in more than ${bufferMinutes} minutes before scheduled start time (${jobSettings.scheduled_start_time}). You are ${minutesUntilStart} minutes early.`, 400);
             }
             
-            // Set actual punch time to scheduled start time
-            const scheduledStartDate = new Date(currentTime);
-            scheduledStartDate.setHours(startHour, startMinute, 0, 0);
+            // User is within the buffer, set actual punch time to scheduled start time
+            actualPunchTime = scheduledStartToday.toISOString();
             
-            // If the scheduled time has already passed today, it must be for tomorrow
-            if (scheduledStartDate < currentTime) {
-              scheduledStartDate.setDate(scheduledStartDate.getDate() + 1);
-            }
-            
-            actualPunchTime = scheduledStartDate.toISOString();
-            
-            earlyPunchWarning = `You punched in ${minutesEarly} minutes early. Your paid time will begin at ${jobSettings.scheduled_start_time}.`;
+            earlyPunchWarning = `You punched in ${minutesUntilStart} minutes early. Your paid time will begin at ${jobSettings.scheduled_start_time}.`;
           }
+          // If minutesUntilStart is negative, user is late or on time - allow normal punch in
         }
 
         // Capture device and network information
