@@ -130,56 +130,73 @@ export default function TimeSheets() {
     if (!user || !currentCompany?.id) return;
 
     try {
-      // Get user IDs for this company
+      // Get all unique user IDs who have time cards for this company
+      const { data: timeCardUsers } = await supabase
+        .from('time_cards')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .neq('status', 'deleted');
+      
+      const timeCardUserIds: string[] = [...new Set((timeCardUsers || []).map(u => u.user_id))];
+      
+      // Get user IDs for this company from user_company_access
       const { data: companyUsers } = await supabase
         .from('user_company_access')
         .select('user_id')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
       
-      const companyUserIds = (companyUsers || []).map(u => u.user_id);
-      if (companyUserIds.length === 0) {
-        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      // Combine both sets of user IDs
+      const allUserIds: string[] = [...new Set([
+        ...(companyUsers || []).map(u => u.user_id),
+        ...timeCardUserIds
+      ])];
+      
+      if (allUserIds.length === 0) {
+        allUserIds.push('00000000-0000-0000-0000-000000000000');
       }
       
-      // Load both regular users and PIN employees for this company
-      const profilesResponse: any = await (supabase as any)
+      // Load regular users
+      const profilesResponse = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, display_name')
-        .in('user_id', companyUserIds);
+        .in('user_id', allUserIds);
       
-      const pinEmployeesResponse: any = await (supabase as any)
+      // Load all PIN employees for this company (including inactive ones with time cards)
+      const pinEmployeesResponse = await (supabase as any)
         .from('pin_employees')
         .select('id, first_name, last_name, display_name')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+        .eq('company_id', currentCompany.id);
 
-      const employeeOptions = [];
+      const employeeOptions: Array<{id: string, name: string}> = [];
+      const addedIds = new Set<string>();
 
       // Add regular users
       if (profilesResponse.data) {
-        const sorted = [...profilesResponse.data].sort((a, b) => 
-          (a.first_name || '').localeCompare(b.first_name || '')
-        );
-        employeeOptions.push(...sorted.map(emp => ({
-          id: emp.user_id,
-          name: emp.display_name || 
-                (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
-                 emp.first_name || emp.last_name || 'Unknown Employee')
-        })));
+        for (const emp of profilesResponse.data) {
+          employeeOptions.push({
+            id: emp.user_id,
+            name: emp.display_name || 
+                  (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
+                   emp.first_name || emp.last_name || 'Unknown Employee')
+          });
+          addedIds.add(emp.user_id);
+        }
       }
 
-      // Add PIN employees
+      // Add all PIN employees (active or with time cards)
       if (pinEmployeesResponse.data) {
-        const sorted = [...pinEmployeesResponse.data].sort((a, b) => 
-          (a.first_name || '').localeCompare(b.first_name || '')
-        );
-        employeeOptions.push(...sorted.map(emp => ({
-          id: emp.id,
-          name: emp.display_name || 
-                (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
-                 emp.first_name || emp.last_name || 'Unknown Employee')
-        })));
+        for (const emp of pinEmployeesResponse.data) {
+          if (!addedIds.has(emp.id)) {
+            employeeOptions.push({
+              id: emp.id,
+              name: emp.display_name || 
+                    (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
+                     emp.first_name || emp.last_name || 'Unknown Employee')
+            });
+            addedIds.add(emp.id);
+          }
+        }
       }
 
       // Sort combined list by name
