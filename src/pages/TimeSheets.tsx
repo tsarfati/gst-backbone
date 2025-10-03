@@ -151,15 +151,16 @@ export default function TimeSheets() {
         .from('pin_employee_timecard_settings')
         .select('pin_employee_id')
         .eq('company_id', currentCompany.id);
-      const pinEmployeeIds: string[] = [...new Set((pinSettings || []).map((s: any) => s.pin_employee_id as string))];
+      
+      const pinEmployeeIds = (pinSettings || []).map((s: any) => s.pin_employee_id as string).filter(Boolean);
       
       // Combine IDs from company access, time cards, and pin settings
       const combinedIds = [
-        ...((companyUsers || []).map((u: any) => u.user_id as string)),
+        ...(companyUsers || []).map((u: any) => u.user_id as string),
         ...timeCardUserIds,
         ...pinEmployeeIds,
       ];
-      const allUserIds: string[] = Array.from(new Set(combinedIds));
+      const allUserIds = Array.from(new Set(combinedIds)).filter(Boolean);
       
       if (allUserIds.length === 0) {
         // prevent empty IN() errors
@@ -247,8 +248,7 @@ export default function TimeSheets() {
         `)
         .eq('company_id', currentCompany.id)
         .neq('status', 'deleted')
-        .order('punch_in_time', { ascending: false })
-        .limit(100);
+        .order('punch_in_time', { ascending: false });
 
       // Filter records based on user role and selection
       if (!isManager) {
