@@ -29,6 +29,7 @@ interface UserProfile {
   pin_code?: string;
   jobs?: { id: string; name: string; }[];
   has_global_job_access?: boolean;
+  is_pin_employee?: boolean;
 }
 
 const roleColors = {
@@ -86,26 +87,44 @@ export default function UserSettings() {
 
       if (companyError) throw companyError;
 
-      if (!companyUsers || companyUsers.length === 0) {
-        setUsers([]);
-        setLoading(false);
-        return;
-      }
+      const userIds = companyUsers?.map(u => u.user_id) || [];
 
-      const userIds = companyUsers.map(u => u.user_id);
-
-      const { data, error } = await supabase
+      // Fetch regular users
+      const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
         .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code, has_global_job_access')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (profilesError) throw profilesError;
+
+      // Fetch PIN employees for this company
+      const { data: pinEmployees, error: pinError } = await (supabase as any)
+        .from('pin_employees')
+        .select('id, first_name, last_name, display_name, created_at')
+        .eq('company_id', currentCompany.id)
+        .order('created_at', { ascending: false });
+
+      if (pinError) throw pinError;
+
+      // Convert PIN employees to UserProfile format
+      const pinEmployeeProfiles: UserProfile[] = (pinEmployees || []).map(emp => ({
+        id: emp.id,
+        user_id: emp.id,
+        first_name: emp.first_name,
+        last_name: emp.last_name,
+        display_name: emp.display_name || `${emp.first_name} ${emp.last_name}`,
+        role: 'employee' as const,
+        created_at: emp.created_at,
+        jobs: [],
+        has_global_job_access: false,
+        is_pin_employee: true
+      }));
       
-      // Fetch jobs for each user
-      const usersWithJobs = await Promise.all((data || []).map(async (user) => {
+      // Fetch jobs for regular users
+      const regularUsersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
         if (user.has_global_job_access) {
-          return { ...user, jobs: [] };
+          return { ...user, jobs: [], is_pin_employee: false };
         }
         
         const { data: userJobs } = await supabase
@@ -114,10 +133,20 @@ export default function UserSettings() {
           .eq('user_id', user.user_id);
         
         const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
-        return { ...user, jobs };
+        return { ...user, jobs, is_pin_employee: false };
       }));
+
+      // Combine regular users and PIN employees
+      const allUsers = [...regularUsersWithJobs, ...pinEmployeeProfiles];
       
-      setUsers(usersWithJobs);
+      // Sort by name
+      allUsers.sort((a, b) => {
+        const nameA = a.display_name || `${a.first_name} ${a.last_name}`;
+        const nameB = b.display_name || `${b.first_name} ${b.last_name}`;
+        return nameA.localeCompare(nameB);
+      });
+      
+      setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -240,6 +269,9 @@ export default function UserSettings() {
                               >
                                 {roleLabels[user.role as keyof typeof roleLabels]}
                               </Badge>
+                              {user.is_pin_employee && (
+                                <Badge variant="outline">PIN Employee</Badge>
+                              )}
                               {user.has_global_job_access && (
                                 <Badge variant="outline">All Jobs Access</Badge>
                               )}
