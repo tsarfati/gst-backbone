@@ -291,14 +291,16 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-lg">{group.baseCode}</span>
-                  {isDynamic && <Badge variant="default">Active</Badge>}
-                  <Badge variant="outline">{group.costCodes.length} cost codes</Badge>
+                  {isDynamic && group.dynamicBudget?.cost_code && (
+                    <>
+                      <Badge variant="default">Active</Badge>
+                      <span className="text-sm font-medium text-primary">
+                        {group.dynamicBudget.cost_code.code} - {group.dynamicBudget.cost_code.description}
+                      </span>
+                    </>
+                  )}
+                  {!isDynamic && <Badge variant="outline">{group.costCodes.length} cost codes</Badge>}
                 </div>
-                {isDynamic && group.dynamicBudget?.cost_code && (
-                  <div className="text-sm font-medium text-primary">
-                    Dynamic Budget: {group.dynamicBudget.cost_code.code} - {group.dynamicBudget.cost_code.description}
-                  </div>
-                )}
                 <div className="space-y-1 text-sm text-muted-foreground pl-4 border-l-2 border-muted">
                   {group.costCodes.map(cc => (
                     <div key={cc.cost_code_id} className="flex items-center gap-2">
