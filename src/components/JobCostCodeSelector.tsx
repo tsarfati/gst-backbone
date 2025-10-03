@@ -127,20 +127,27 @@ export default function JobCostCodeSelector({
     const master = masterCostCodes.find(cc => cc.id === masterCostCodeId);
     if (!master) return null;
 
-    const { data: existing } = await supabase
+    // Look for an existing job-specific cost code with the SAME code and type
+    let existingQuery = supabase
       .from('cost_codes')
       .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
-      .eq('code', master.code)
-      .maybeSingle();
+      .eq('code', master.code) as any;
+
+    if (master.type) {
+      existingQuery = existingQuery.eq('type', master.type as any);
+    } else {
+      existingQuery = existingQuery.is('type', null);
+    }
+
+    const { data: existing } = await (existingQuery as any).maybeSingle();
 
     if (existing) {
       const { data: updated, error: updErr } = await supabase
         .from('cost_codes')
         .update({ 
           is_active: true,
-          description: master.description || existing.description,
-          type: (master.type ?? existing.type) as any
+          description: master.description || existing.description
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
@@ -177,20 +184,27 @@ export default function JobCostCodeSelector({
 
   const ensureJobCostCodeByCodeType = async (code: string, type?: string | null, description?: string | null) => {
     if (!jobId || !currentCompany) return null;
-    const { data: existing } = await supabase
+    // Look for existing with same code AND type
+    let existingQuery = supabase
       .from('cost_codes')
       .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
-      .eq('code', code)
-      .maybeSingle();
+      .eq('code', code) as any;
+
+    if (type) {
+      existingQuery = existingQuery.eq('type', type as any);
+    } else {
+      existingQuery = existingQuery.is('type', null);
+    }
+
+    const { data: existing } = await (existingQuery as any).maybeSingle();
 
     if (existing) {
       const { data: updated } = await supabase
         .from('cost_codes')
         .update({ 
           is_active: true,
-          description: description || existing.description,
-          type: (type ?? existing.type) as any
+          description: description || existing.description
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
