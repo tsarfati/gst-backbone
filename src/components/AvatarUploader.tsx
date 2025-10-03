@@ -15,26 +15,50 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
 
+  const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
 
       setUploading(true);
-      const ext = file.name.split('.').pop();
-      const filePath = `users/${userId}/${Date.now()}.${ext || 'jpg'}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      // PIN-authenticated flow: upload via Edge Function
+      const pinUserStr = localStorage.getItem('punch_clock_user');
+      if (pinUserStr) {
+        const { pin } = JSON.parse(pinUserStr);
+        const base64 = await fileToBase64(file);
+        const res = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/upload-photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin, image: base64 })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Upload failed');
+        onChange(data.publicUrl);
+        toast({ title: 'Avatar updated', description: 'Your photo has been uploaded.' });
+      } else {
+        // Regular authenticated flow: upload to avatars bucket
+        const ext = file.name.split('.').pop();
+        const filePath = `users/${userId}/${Date.now()}.${ext || 'jpg'}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, file, { upsert: true });
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const publicUrl = data.publicUrl;
+        if (uploadError) throw uploadError;
 
-      onChange(publicUrl);
-      toast({ title: 'Avatar updated', description: 'Your photo has been uploaded.' });
+        const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        const publicUrl = data.publicUrl;
+        onChange(publicUrl);
+        toast({ title: 'Avatar updated', description: 'Your photo has been uploaded.' });
+      }
     } catch (err) {
       console.error('Avatar upload error:', err);
       toast({ title: 'Upload failed', description: 'Could not upload avatar.', variant: 'destructive' });

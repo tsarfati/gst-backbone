@@ -126,23 +126,22 @@ export default function EmployeeDashboard() {
         avatar_url: profile?.avatar_url || ''
       }));
       
-      // For PIN employees, load phone and email from pin_employees
+      // For PIN employees, load phone from pin_employees (email optional)
       if (isPinUser) {
         const { data: pinData } = await supabase
           .from('pin_employees')
-          .select('phone, email, avatar_url')
+          .select('phone, avatar_url')
           .eq('id', userId)
           .maybeSingle();
         if (pinData) {
           setProfileData(prev => ({
             ...prev,
-            email: pinData.email || '',
-            phone: pinData.phone || '',
-            avatar_url: pinData.avatar_url || prev.avatar_url
+            phone: (pinData as any).phone || '',
+            avatar_url: (pinData as any).avatar_url || prev.avatar_url
           }));
         }
       } else {
-        // For regular users, load email from auth.users via edge function or direct query
+        // For regular users, load email from auth.users
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (authUser) {
           setProfileData(prev => ({

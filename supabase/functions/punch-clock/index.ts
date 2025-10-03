@@ -157,6 +157,94 @@ serve(async (req) => {
       });
     }
 
+    // New endpoints for PIN-authenticated access
+    if (req.method === "GET" && url.pathname.endsWith("/time-cards")) {
+      const pin = url.searchParams.get("pin") || "";
+      const limitParam = url.searchParams.get("limit");
+      const limit = Math.min(Math.max(Number(limitParam) || 50, 1), 100);
+      const userRow = await validatePin(supabaseAdmin, pin);
+      if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      const { data, error } = await supabaseAdmin
+        .from('time_cards')
+        .select('*')
+        .eq('user_id', userRow.user_id)
+        .neq('status', 'deleted')
+        .order('punch_in_time', { ascending: false })
+        .limit(limit);
+      if (error) return errorResponse(error.message, 500);
+
+      return new Response(JSON.stringify(data || []), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } else if (req.method === "GET" && url.pathname.endsWith("/contacts")) {
+      const pin = url.searchParams.get("pin") || "";
+      const userRow = await validatePin(supabaseAdmin, pin);
+      if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      // Collect assigned jobs for PIN employees
+      let assignedJobs: string[] = [];
+      if (userRow.is_pin_employee) {
+        const { data: allSettings } = await supabaseAdmin
+          .from('pin_employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('pin_employee_id', userRow.user_id);
+        if (allSettings?.length) {
+          const set = new Set<string>();
+          for (const s of allSettings) (s.assigned_jobs || []).forEach((j: string) => set.add(j));
+          assignedJobs = Array.from(set);
+        }
+      }
+
+      // Load jobs and derive contact user ids
+      const { data: jobsData } = await supabaseAdmin
+        .from('jobs')
+        .select('id, name, project_manager_user_id, created_by')
+        .in('id', assignedJobs);
+
+      const userIds = new Set<string>();
+      (jobsData || []).forEach((j: any) => {
+        if (j.project_manager_user_id) userIds.add(j.project_manager_user_id);
+        if (j.created_by) userIds.add(j.created_by);
+      });
+
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .in('user_id', Array.from(userIds));
+
+      const contacts = (profiles || []).map((p: any) => ({
+        id: p.user_id,
+        name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        title: p.role || 'Manager',
+        email: p.email || null,
+        phone: p.phone || null,
+        department: p.role || null
+      }));
+
+      return new Response(JSON.stringify(contacts), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } else if (req.method === "POST" && url.pathname.endsWith("/request-change")) {
+      const body = await req.json().catch(() => null) as any;
+      const { pin, time_card_id, reason, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id } = body || {};
+      if (!pin || !time_card_id || !reason) return errorResponse("Missing required fields", 400);
+      const userRow = await validatePin(supabaseAdmin, pin);
+      if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      const { error } = await supabaseAdmin
+        .from('time_card_change_requests')
+        .insert({
+          time_card_id,
+          user_id: userRow.user_id,
+          reason,
+          status: 'pending',
+          proposed_punch_in_time: proposed_punch_in_time || null,
+          proposed_punch_out_time: proposed_punch_out_time || null,
+          proposed_job_id: proposed_job_id || null,
+          proposed_cost_code_id: proposed_cost_code_id || null
+        });
+      if (error) return errorResponse(error.message, 500);
+
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
     if (req.method === "POST" && url.pathname.endsWith("/upload-photo")) {
       try {
         const body = await req.json();

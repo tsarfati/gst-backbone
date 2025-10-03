@@ -2274,6 +2274,7 @@ export type Database = {
           created_by: string
           department: string | null
           display_name: string
+          email: string | null
           first_name: string
           group_id: string | null
           id: string
@@ -2290,6 +2291,7 @@ export type Database = {
           created_by: string
           department?: string | null
           display_name: string
+          email?: string | null
           first_name: string
           group_id?: string | null
           id?: string
@@ -2306,6 +2308,7 @@ export type Database = {
           created_by?: string
           department?: string | null
           display_name?: string
+          email?: string | null
           first_name?: string
           group_id?: string | null
           id?: string
