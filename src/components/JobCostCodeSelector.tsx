@@ -45,51 +45,6 @@ export default function JobCostCodeSelector({
   // Helpers
   const normalizeType = (t?: string | null) => (t ?? 'other');
 
-  // Link parent_cost_code_id based on code patterns if trigger isn't installed
-  const linkParentIfApplicable = async (record: { id: string; code: string; parent_cost_code_id?: string | null }) => {
-    if (!jobId || record.parent_cost_code_id) return record;
-    const codeText = record.code;
-    let parentId: string | null = null;
-
-    // Child pattern: e.g., 1.09-labor -> parent 1.09
-    const childMatch = codeText.match(/^(\d+\.\d+)-[a-zA-Z]+/);
-    if (childMatch) {
-      const parentCode = childMatch[1];
-      const { data: parent } = await supabase
-        .from('cost_codes')
-        .select('id')
-        .eq('job_id', jobId)
-        .eq('code', parentCode)
-        .maybeSingle();
-      parentId = parent?.id || null;
-    }
-
-    // Parent pattern: e.g., 1.09 -> link to dynamic group 1.0
-    if (!parentId && /^\d+\.\d+$/.test(codeText) && !/^\d+\.0$/.test(codeText)) {
-      const groupCode = `${codeText.split('.')[0]}.0`;
-      const { data: group } = await supabase
-        .from('cost_codes')
-        .select('id')
-        .eq('job_id', jobId)
-        .eq('code', groupCode)
-        .eq('is_active', true)
-        .maybeSingle();
-      parentId = group?.id || null;
-    }
-
-    if (parentId) {
-      const { data: updated } = await supabase
-        .from('cost_codes')
-        .update({ parent_cost_code_id: parentId })
-        .eq('id', record.id)
-        .select('id, code, description, type, parent_cost_code_id')
-        .maybeSingle();
-      return (updated as any) || record;
-    }
-
-    return record;
-  };
-
   useEffect(() => {
     loadMasterCostCodes();
     loadPreviousJobs();
@@ -123,9 +78,9 @@ export default function JobCostCodeSelector({
     try {
       const { data, error } = await supabase
         .from('cost_codes')
-        .select('id, code, description, type, is_dynamic_group')
+        .select('id, code, description, type')
         .eq('company_id', currentCompany.id)
-        .is('job_id', null) // Get company master cost codes (not job-specific)
+        .is('job_id', null)
         .eq('is_active', true)
         .order('code');
 
@@ -168,10 +123,9 @@ export default function JobCostCodeSelector({
     const master = masterCostCodes.find(cc => cc.id === masterCostCodeId);
     if (!master) return null;
 
-    // Check if a job-specific code already exists (BY code + type)
     let query = supabase
       .from('cost_codes')
-      .select('id, code, description, type, is_active, parent_cost_code_id')
+      .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
       .eq('code', master.code);
     if (master.type) {
@@ -182,7 +136,6 @@ export default function JobCostCodeSelector({
     const { data: existing } = await query.maybeSingle();
 
     if (existing) {
-      // Reactivate and align metadata with master (do not change type uniqueness)
       const { data: updated, error: updErr } = await supabase
         .from('cost_codes')
         .update({ 
@@ -190,18 +143,16 @@ export default function JobCostCodeSelector({
           description: master.description || existing.description
         })
         .eq('id', existing.id)
-        .select('id, code, description, type, parent_cost_code_id')
+        .select('id, code, description, type')
         .maybeSingle();
       if (updErr) {
         console.error('Error reactivating job cost code', updErr);
         toast({ title: 'Error', description: 'You do not have permission to modify cost codes', variant: 'destructive' });
         return null;
       }
-      const linked = await linkParentIfApplicable(updated as any);
-      return linked as CostCode;
+      return updated as CostCode;
     }
 
-    // Create job-specific record cloned from master
     const { data: created, error: createErr } = await supabase
       .from('cost_codes')
       .insert([
@@ -214,23 +165,21 @@ export default function JobCostCodeSelector({
           is_active: true,
         } as any
       ] as any)
-      .select('id, code, description, type, parent_cost_code_id')
+      .select('id, code, description, type')
       .maybeSingle();
     if (createErr) {
       console.error('Error creating job cost code', createErr);
       toast({ title: 'Error', description: 'Failed to add cost code to job', variant: 'destructive' });
       return null;
     }
-    const linked = await linkParentIfApplicable(created as any);
-    return linked as CostCode;
+    return created as CostCode;
   };
 
-  // Ensure by code/type (used when copying from previous job)
   const ensureJobCostCodeByCodeType = async (code: string, type?: string | null, description?: string | null) => {
     if (!jobId || !currentCompany) return null;
     let query = supabase
       .from('cost_codes')
-      .select('id, code, description, type, is_active, parent_cost_code_id')
+      .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
       .eq('code', code);
     if (type) query = query.eq('type', type as any); else query = query.is('type', null);
@@ -245,9 +194,9 @@ export default function JobCostCodeSelector({
           description: description || existing.description
         })
         .eq('id', existing.id)
-        .select('id, code, description, type, parent_cost_code_id')
+        .select('id, code, description, type')
         .maybeSingle();
-      return await linkParentIfApplicable((updated as any) || existing);
+      return (updated as any) || existing;
     }
 
     const { data: created, error } = await supabase
@@ -262,14 +211,14 @@ export default function JobCostCodeSelector({
           is_active: true,
         } as any
       ] as any)
-      .select('id, code, description, type, parent_cost_code_id')
+      .select('id, code, description, type')
       .maybeSingle();
     if (error) {
       console.error('Error creating job cost code', error);
       toast({ title: 'Error', description: 'Failed to add cost code to job', variant: 'destructive' });
       return null;
     }
-    return await linkParentIfApplicable(created as any);
+    return created as CostCode;
   };
 
   const handleAddCostCode = async (costCodeId?: string) => {
@@ -290,11 +239,8 @@ export default function JobCostCodeSelector({
     const jobCode = await ensureJobCostCode(codeId);
     if (!jobCode) return;
 
-    // Create budget entry automatically when cost code is assigned
     if (jobId) {
       const user = await supabase.auth.getUser();
-      const isDynamic = master.is_dynamic_group || false;
-
       const { error: budgetErr } = await supabase
         .from('job_budgets')
         .upsert(
@@ -304,7 +250,7 @@ export default function JobCostCodeSelector({
             budgeted_amount: 0,
             actual_amount: 0,
             committed_amount: 0,
-            is_dynamic: isDynamic,
+            is_dynamic: false,
             created_by: user.data.user?.id,
           },
           { onConflict: 'job_id,cost_code_id' }

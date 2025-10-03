@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
+import { Plus, Save, ChevronDown, ChevronRight, AlertCircle, Layers } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/formatNumber";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -37,6 +34,12 @@ interface BudgetLine {
   cost_code?: CostCode;
 }
 
+interface BudgetGroup {
+  baseCode: string;
+  costCodes: (BudgetLine & { cost_code: CostCode })[];
+  dynamicBudget?: BudgetLine;
+}
+
 interface DynamicBudgetSummary {
   parent_budget_id: string;
   dynamic_budget: number;
@@ -48,14 +51,9 @@ interface DynamicBudgetSummary {
 
 export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: JobBudgetManagerProps) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
-  const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dynamicSummaries, setDynamicSummaries] = useState<Record<string, DynamicBudgetSummary>>({});
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [newDynamicBudget, setNewDynamicBudget] = useState({ cost_code_id: "", budgeted_amount: "" });
-  const [newChildCode, setNewChildCode] = useState<Record<string, { code: string; description: string }>>({});
-  const [availableCostCodes, setAvailableCostCodes] = useState<CostCode[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,7 +70,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
   const loadData = async () => {
     try {
-      // Load existing budget lines
       const { data: budgetData, error: budgetError } = await supabase
         .from('job_budgets')
         .select(`
@@ -81,8 +78,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
             id,
             code,
             description,
-            type,
-            parent_cost_code_id
+            type
           )
         `)
         .eq('job_id', jobId)
@@ -90,7 +86,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
       if (budgetError) throw budgetError;
 
-      // Normalize cost code relation key so UI can render code/description
       const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
         id: bd.id,
         cost_code_id: bd.cost_code_id,
@@ -99,43 +94,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         committed_amount: bd.committed_amount,
         is_dynamic: bd.is_dynamic,
         parent_budget_id: bd.parent_budget_id,
-        cost_code: bd.cost_codes // supabase join alias
+        cost_code: bd.cost_codes
       }));
 
       setBudgetLines(normalizedBudgetLines);
-
-      // Load dynamic summaries
-      const { data: summariesData, error: summariesError } = await supabase
-        .from('dynamic_budget_summary')
-        .select('*')
-        .eq('job_id', jobId);
-
-      if (summariesError) throw summariesError;
-
-      const summariesMap: Record<string, DynamicBudgetSummary> = {};
-      summariesData?.forEach(summary => {
-        summariesMap[summary.parent_budget_id] = summary;
-      });
-      setDynamicSummaries(summariesMap);
-
-      // Load available cost codes for dynamic budgets
-      const { data: jobData } = await supabase
-        .from('jobs')
-        .select('company_id')
-        .eq('id', jobId)
-        .single();
-
-      if (jobData) {
-        const { data: availableCodes } = await supabase
-          .from('cost_codes')
-          .select('*')
-          .eq('job_id', jobId)
-          .eq('is_active', true)
-          .is('parent_cost_code_id', null)
-          .order('code', { ascending: true });
-
-        setAvailableCostCodes(availableCodes || []);
-      }
     } catch (error) {
       console.error('Error loading budget data:', error);
       toast({
@@ -149,9 +111,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   };
 
   const populateBudgetLines = async () => {
-    console.log('populateBudgetLines called with', selectedCostCodes.length, 'cost codes');
-
-    // Always start from the database so we don't lose persisted lines
     const { data: budgetData, error: budgetError } = await supabase
       .from('job_budgets')
       .select(`
@@ -160,8 +119,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           id,
           code,
           description,
-          type,
-          parent_cost_code_id
+          type
         )
       `)
       .eq('job_id', jobId)
@@ -172,7 +130,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       return;
     }
 
-    // Normalize from DB
     const existing: BudgetLine[] = (budgetData || []).map((bd: any) => ({
       id: bd.id,
       cost_code_id: bd.cost_code_id,
@@ -184,7 +141,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       cost_code: bd.cost_codes,
     }));
 
-    // Merge: ensure EVERY selected cost code is present as a budget row (even if not saved yet)
     const byCostCodeId = new Map(existing.map((e) => [e.cost_code_id, e]));
     selectedCostCodes.forEach((cc) => {
       if (!byCostCodeId.has(cc.id)) {
@@ -200,177 +156,118 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       }
     });
 
-    // Sort by cost code (numeric-aware)
     const merged = Array.from(byCostCodeId.values()).sort((a, b) =>
       (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
     );
 
-    console.log('Setting', merged.length, 'merged budget lines');
     setBudgetLines(merged);
   };
 
 
-  const updateBudgetLine = (index: number, field: keyof BudgetLine, value: any) => {
-    const updated = [...budgetLines];
-    updated[index] = { ...updated[index], [field]: value };
+  const updateBudgetLine = (costCodeId: string, field: keyof BudgetLine, value: any) => {
+    const updated = budgetLines.map(line => 
+      line.cost_code_id === costCodeId ? { ...line, [field]: value } : line
+    );
     setBudgetLines(updated);
   };
 
+  // Extract base code (e.g., "1.01" from "1.01-labor")
+  const getBaseCode = (code: string): string | null => {
+    const match = code.match(/^(\d+\.\d+)/);
+    return match ? match[1] : null;
+  };
 
-  const handleCreateDynamicBudget = async () => {
-    if (!newDynamicBudget.cost_code_id || !newDynamicBudget.budgeted_amount) {
-      toast({
-        title: "Missing information",
-        description: "Please select a cost code and enter a budget amount",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Get the selected cost code to check if it's a dynamic parent/group
-    const selectedCostCode = availableCostCodes.find(cc => cc.id === newDynamicBudget.cost_code_id);
+  // Group cost codes by their base number
+  const groupCostCodesByBase = (): BudgetGroup[] => {
+    const groups: Record<string, BudgetGroup> = {};
     
-    if (selectedCostCode) {
-      // Check if this is a dynamic group (ends with .0) or dynamic parent
-      const isDynamicGroup = selectedCostCode.code.match(/^\d+\.0$/);
-      const isDynamicParent = selectedCostCode.code.match(/^\d+\.\d+$/) && !isDynamicGroup;
+    budgetLines.forEach(line => {
+      if (!line.cost_code) return;
       
-      if (isDynamicGroup || isDynamicParent) {
-        // Count existing child codes
-        const codePrefix = selectedCostCode.code.replace(/\.0$/, ''); // e.g., "1" from "1.0"
-        const childPattern = isDynamicGroup 
-          ? `${codePrefix}.` // For group "1.0", match "1.01", "1.02", etc.
-          : `${selectedCostCode.code}-`; // For parent "1.09", match "1.09-labor", etc.
-        
-        const { data: childCodes, error: childError } = await supabase
-          .from('cost_codes')
-          .select('id')
-          .eq('job_id', jobId)
-          .eq('is_active', true)
-          .like('code', `${childPattern}%`);
-        
-        if (childError) {
-          console.error('Error checking child codes:', childError);
-        } else if (!childCodes || childCodes.length < 2) {
-          toast({
-            title: "Validation Error",
-            description: `A ${isDynamicGroup ? 'dynamic group' : 'dynamic parent'} must have at least 2 child cost codes assigned to this job before creating a dynamic budget`,
-            variant: "destructive"
-          });
-          return;
+      // Skip if this is already a dynamic budget parent
+      if (line.is_dynamic) {
+        const baseCode = line.cost_code.code;
+        if (!groups[baseCode]) {
+          groups[baseCode] = {
+            baseCode,
+            costCodes: [],
+            dynamicBudget: line
+          };
+        } else {
+          groups[baseCode].dynamicBudget = line;
         }
+        return;
       }
-    }
+      
+      // Skip if this line is a child of a dynamic budget
+      if (line.parent_budget_id) return;
+      
+      const baseCode = getBaseCode(line.cost_code.code);
+      if (baseCode && line.cost_code.code.includes('-')) {
+        if (!groups[baseCode]) {
+          groups[baseCode] = {
+            baseCode,
+            costCodes: [],
+            dynamicBudget: undefined
+          };
+        }
+        groups[baseCode].costCodes.push(line as BudgetLine & { cost_code: CostCode });
+      }
+    });
+    
+    // Only return groups with 2+ cost codes
+    return Object.values(groups).filter(g => g.costCodes.length >= 2);
+  };
+
+  const handleMakeDynamic = async (baseCode: string) => {
+    const group = groupCostCodesByBase().find(g => g.baseCode === baseCode);
+    if (!group || group.costCodes.length < 2) return;
 
     const user = await supabase.auth.getUser();
     if (!user.data.user) return;
 
-    const { error } = await supabase
-      .from('job_budgets')
-      .insert({
-        job_id: jobId,
-        cost_code_id: newDynamicBudget.cost_code_id,
-        budgeted_amount: parseFloat(newDynamicBudget.budgeted_amount),
-        actual_amount: 0,
-        committed_amount: 0,
-        is_dynamic: true,
-        created_by: user.data.user.id
+    try {
+      // Create dynamic budget entry with the base code
+      const { data: dynamicBudget, error: dynamicError } = await supabase
+        .from('job_budgets')
+        .insert({
+          job_id: jobId,
+          cost_code_id: group.costCodes[0].cost_code_id, // Use first cost code ID as parent
+          budgeted_amount: 0,
+          actual_amount: 0,
+          committed_amount: 0,
+          is_dynamic: true,
+          created_by: user.data.user.id
+        })
+        .select()
+        .single();
+
+      if (dynamicError) throw dynamicError;
+
+      // Update all child cost codes to link to this dynamic budget
+      const updatePromises = group.costCodes.map(line => 
+        supabase
+          .from('job_budgets')
+          .update({ parent_budget_id: dynamicBudget.id })
+          .eq('id', line.id)
+      );
+
+      await Promise.all(updatePromises);
+
+      toast({
+        title: "Success",
+        description: `Dynamic budget created for ${baseCode}`,
       });
 
-    if (error) {
+      loadData();
+    } catch (error) {
+      console.error('Error creating dynamic budget:', error);
       toast({
         title: "Error",
         description: "Failed to create dynamic budget",
-        variant: "destructive"
+        variant: "destructive",
       });
-      return;
     }
-
-    toast({
-      title: "Success",
-      description: "Dynamic budget created successfully"
-    });
-
-    setNewDynamicBudget({ cost_code_id: "", budgeted_amount: "" });
-    loadData();
-  };
-
-  const handleCreateChildCostCode = async (parentBudgetId: string) => {
-    const childData = newChildCode[parentBudgetId];
-    if (!childData?.code || !childData?.description) {
-      toast({
-        title: "Missing information",
-        description: "Please enter cost code and description",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) return;
-
-    const parentBudget = budgetLines.find(b => b.id === parentBudgetId);
-    if (!parentBudget) return;
-
-    const { data: jobData } = await supabase
-      .from('jobs')
-      .select('company_id')
-      .eq('id', jobId)
-      .single();
-
-    // Create child cost code
-    const { data: newCostCode, error: costCodeError } = await supabase
-      .from('cost_codes')
-      .insert({
-        job_id: jobId,
-        code: childData.code,
-        description: childData.description,
-        parent_cost_code_id: parentBudget.cost_code_id,
-        company_id: jobData?.company_id,
-        is_active: true
-      })
-      .select()
-      .single();
-
-    if (costCodeError) {
-      toast({
-        title: "Error",
-        description: "Failed to create child cost code",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Create child budget entry
-    const { error: budgetError } = await supabase
-      .from('job_budgets')
-      .insert({
-        job_id: jobId,
-        cost_code_id: newCostCode.id,
-        budgeted_amount: 0,
-        actual_amount: 0,
-        committed_amount: 0,
-        is_dynamic: false,
-        parent_budget_id: parentBudgetId,
-        created_by: user.data.user.id
-      });
-
-    if (budgetError) {
-      toast({
-        title: "Error",
-        description: "Failed to create child budget entry",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    toast({
-      title: "Success",
-      description: "Child cost code created successfully"
-    });
-
-    setNewChildCode(prev => ({ ...prev, [parentBudgetId]: { code: "", description: "" } }));
-    loadData();
   };
 
   const saveBudget = async () => {
@@ -378,38 +275,42 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     try {
       const user = await supabase.auth.getUser();
       
-      // Only save non-dynamic budget lines (regular budgets)
-      const regularBudgets = budgetLines.filter(line => !line.is_dynamic && !line.parent_budget_id);
-      
-      // Delete existing regular budget lines
-      await supabase
-        .from('job_budgets')
-        .delete()
-        .eq('job_id', jobId)
-        .eq('is_dynamic', false)
-        .is('parent_budget_id', null);
+      // Update all budget lines
+      const updatePromises = budgetLines
+        .filter(line => line.id) // Only update existing lines
+        .map(line => 
+          supabase
+            .from('job_budgets')
+            .update({
+              budgeted_amount: line.budgeted_amount,
+              actual_amount: line.actual_amount || 0,
+              committed_amount: line.committed_amount || 0,
+            })
+            .eq('id', line.id)
+        );
 
-      if (regularBudgets.length > 0) {
-        // Insert new budget lines
-        const budgetInserts = regularBudgets.map(line => ({
+      await Promise.all(updatePromises);
+
+      // Insert new budget lines (those without IDs)
+      const newLines = budgetLines.filter(line => !line.id);
+      if (newLines.length > 0) {
+        const budgetInserts = newLines.map(line => ({
           job_id: jobId,
           cost_code_id: line.cost_code_id,
           budgeted_amount: line.budgeted_amount,
           actual_amount: line.actual_amount || 0,
           committed_amount: line.committed_amount || 0,
+          is_dynamic: line.is_dynamic || false,
+          parent_budget_id: line.parent_budget_id || null,
           created_by: user.data.user?.id
         }));
 
-        const { error } = await supabase
-          .from('job_budgets')
-          .insert(budgetInserts);
-
-        if (error) throw error;
+        await supabase.from('job_budgets').insert(budgetInserts);
       }
 
-      // Update job total budget (including dynamic budgets)
+      // Update job total budget
       const totalBudget = budgetLines
-        .filter(line => !line.parent_budget_id) // Only top-level budgets
+        .filter(line => !line.parent_budget_id)
         .reduce((sum, line) => sum + (line.budgeted_amount || 0), 0);
       
       await supabase
@@ -435,62 +336,54 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     }
   };
 
-  const toggleGroup = (budgetId: string) => {
+  const toggleGroup = (baseCode: string) => {
     setExpandedGroups(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(budgetId)) {
-        newSet.delete(budgetId);
+      if (newSet.has(baseCode)) {
+        newSet.delete(baseCode);
       } else {
-        newSet.add(budgetId);
+        newSet.add(baseCode);
       }
       return newSet;
     });
   };
 
-  const availableParentCostCodes = availableCostCodes.filter(cc => 
-    !budgetLines.some(b => b.cost_code_id === cc.id && b.is_dynamic)
-  );
+  // Get all dynamic budgets
+  const dynamicBudgets = budgetLines.filter(b => b.is_dynamic && b.cost_code);
+  
+  // Get regular budgets (not dynamic, not children)
+  const regularBudgets = budgetLines.filter(b => !b.is_dynamic && !b.parent_budget_id && b.cost_code);
+  
+  // Get child budgets for a parent
+  const getChildBudgets = (parentId: string) => 
+    budgetLines.filter(b => b.parent_budget_id === parentId && b.cost_code);
 
-  const dynamicBudgets = budgetLines.filter(b => b.is_dynamic);
-  const regularBudgets = budgetLines
-    .filter(b => !b.is_dynamic && !b.parent_budget_id)
-    .sort((a, b) => (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' }));
-  const getChildBudgets = (parentId: string) => budgetLines
-    .filter(b => b.parent_budget_id === parentId)
-    .sort((a, b) => (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' }));
-
-  // UI-only rules for dynamic parent and child cost codes based on code patterns
-  const isDynamicParentCode = (code?: string) => !!code && /^\d+\.\d+$/.test(code) && !/^\d+\.0$/.test(code);
-  const getChildrenForParentCode = (parentCode: string) =>
-    budgetLines.filter(b => b.cost_code?.code?.startsWith(`${parentCode}-`));
-
-  const disabledChildrenIds = new Set<string>();
-  // Apply rules:
-  // - If exactly 2 children + dynamic parent assigned: disable both children inputs
-  // - If 3+ children + dynamic parent assigned: once one child has a budget set, disable the others
-  budgetLines.forEach((line) => {
-    const code = line.cost_code?.code;
-    if (isDynamicParentCode(code)) {
-      const parentCode = code!;
-      const children = getChildrenForParentCode(parentCode);
-      if (children.length >= 2) {
-        if (children.length === 2) {
-          children.forEach(c => disabledChildrenIds.add(c.cost_code_id));
-        } else {
-          const anySetChild = children.find(c => (c.budgeted_amount || 0) > 0);
-          if (anySetChild) {
-            children.forEach(c => {
-              if ((c.budgeted_amount || 0) === 0) disabledChildrenIds.add(c.cost_code_id);
-            });
-          }
-        }
+  // Check if child inputs should be disabled based on dynamic budget rules
+  const isChildDisabled = (parentId: string, childLine: BudgetLine): boolean => {
+    const children = getChildBudgets(parentId);
+    
+    // Rule 1: If exactly 2 children, disable both
+    if (children.length === 2) {
+      return true;
+    }
+    
+    // Rule 2: If 3+ children and one has a budget set, disable the others
+    if (children.length >= 3) {
+      const anySetChild = children.find(c => (c.budgeted_amount || 0) > 0);
+      if (anySetChild && (childLine.budgeted_amount || 0) === 0) {
+        return true;
       }
     }
-  });
+    
+    return false;
+  };
 
   const totalBudget = budgetLines
     .filter(line => !line.parent_budget_id)
     .reduce((sum, line) => sum + (line.budgeted_amount || 0), 0);
+
+  // Get groups that can be made dynamic
+  const potentialDynamicGroups = groupCostCodesByBase();
 
   if (loading) {
     return <div>Loading budget data...</div>;
@@ -502,7 +395,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         <CardTitle>Job Budget - {jobName}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Budget Display */}
         <div className="space-y-4">
           <div className="flex justify-end">
             <Button onClick={saveBudget} disabled={saving} size="sm">
@@ -511,24 +403,60 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
             </Button>
           </div>
 
+          {/* Groups that can be made dynamic */}
+          {potentialDynamicGroups.filter(g => !g.dynamicBudget).length > 0 && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  Available Dynamic Budget Groups
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {potentialDynamicGroups.filter(g => !g.dynamicBudget).map(group => (
+                  <div key={group.baseCode} className="flex items-center justify-between p-3 bg-background rounded-lg border">
+                    <div>
+                      <span className="font-mono font-semibold">{group.baseCode}</span>
+                      <span className="text-sm text-muted-foreground ml-3">
+                        {group.costCodes.length} cost codes can be grouped
+                      </span>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {group.costCodes.map(cc => cc.cost_code?.code).join(', ')}
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleMakeDynamic(group.baseCode)}
+                    >
+                      <Layers className="h-4 w-4 mr-2" />
+                      Make Dynamic
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Dynamic Budgets with nested children */}
           {dynamicBudgets.map(budget => {
-            const summary = dynamicSummaries[budget.id!];
             const childBudgets = getChildBudgets(budget.id!);
-            const isExpanded = expandedGroups.has(budget.id!);
+            const isExpanded = expandedGroups.has(budget.cost_code?.code || budget.id!);
+            const childrenSum = childBudgets.reduce((sum, c) => sum + (c.actual_amount + c.committed_amount), 0);
+            const remaining = budget.budgeted_amount - childrenSum;
+            const isOverBudget = remaining < 0;
 
             return (
-              <Card key={budget.id} className={summary?.is_over_budget ? "border-destructive" : ""}>
-                <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(budget.id!)}>
+              <Card key={budget.id} className={isOverBudget ? "border-destructive" : ""}>
+                <Collapsible open={isExpanded} onOpenChange={() => toggleGroup(budget.cost_code?.code || budget.id!)}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-70">
                         {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold">{budget.cost_code?.code}</span>
-                          <span>{budget.cost_code?.description}</span>
+                          <span className="font-mono font-bold">{getBaseCode(budget.cost_code?.code || '')}</span>
                           <Badge variant="secondary">Dynamic Budget</Badge>
-                          {summary?.is_over_budget && (
+                          {isOverBudget && (
                             <Badge variant="destructive" className="flex items-center gap-1">
                               <AlertCircle className="h-3 w-3" />
                               Over Budget
@@ -536,94 +464,71 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                           )}
                         </div>
                       </CollapsibleTrigger>
+                      <div className="flex items-center gap-4 text-sm">
+                        <CurrencyInput
+                          value={budget.budgeted_amount.toString()}
+                          onChange={(value) => updateBudgetLine(budget.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
+                          className="w-32"
+                          placeholder="0.00"
+                          disabled={childBudgets.length === 2}
+                        />
+                      </div>
                     </div>
-                    {summary && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm pl-7">
-                        <div>
-                          <div className="text-muted-foreground">Budget</div>
-                          <div className="font-semibold">{formatCurrency(summary.dynamic_budget)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">Actual</div>
-                          <div className="font-semibold">{formatCurrency(summary.total_actual_from_children)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">Committed</div>
-                          <div className="font-semibold">{formatCurrency(summary.total_committed_from_children)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">Remaining</div>
-                          <div className={`font-semibold ${summary.remaining_budget < 0 ? 'text-destructive' : ''}`}>
-                            {formatCurrency(summary.remaining_budget)}
-                          </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm pl-7">
+                      <div>
+                        <div className="text-muted-foreground">Budget</div>
+                        <div className="font-semibold">{formatCurrency(budget.budgeted_amount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Actual</div>
+                        <div className="font-semibold">{formatCurrency(childBudgets.reduce((s, c) => s + c.actual_amount, 0))}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Committed</div>
+                        <div className="font-semibold">{formatCurrency(childBudgets.reduce((s, c) => s + c.committed_amount, 0))}</div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Remaining</div>
+                        <div className={`font-semibold ${isOverBudget ? 'text-destructive' : ''}`}>
+                          {formatCurrency(remaining)}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="space-y-4">
-                      {/* Child Cost Codes */}
-                      {childBudgets.length > 0 && (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Cost Code</TableHead>
-                              <TableHead>Description</TableHead>
-                              <TableHead>Actual</TableHead>
-                              <TableHead>Committed</TableHead>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cost Code</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Budgeted</TableHead>
+                            <TableHead>Actual</TableHead>
+                            <TableHead>Committed</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {childBudgets.map(child => (
+                            <TableRow key={child.id}>
+                              <TableCell>
+                                <span className="font-mono text-sm">{child.cost_code?.code}</span>
+                              </TableCell>
+                              <TableCell>{child.cost_code?.description}</TableCell>
+                              <TableCell>
+                                <CurrencyInput
+                                  value={child.budgeted_amount.toString()}
+                                  onChange={(value) => updateBudgetLine(child.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
+                                  className="w-32"
+                                  placeholder="0.00"
+                                  disabled={isChildDisabled(budget.id!, child)}
+                                />
+                              </TableCell>
+                              <TableCell>{formatCurrency(child.actual_amount)}</TableCell>
+                              <TableCell>{formatCurrency(child.committed_amount)}</TableCell>
                             </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {childBudgets.map(child => (
-                              <TableRow key={child.id}>
-                                <TableCell>
-                                  <span className="font-mono text-sm">{child.cost_code?.code}</span>
-                                </TableCell>
-                                <TableCell>{child.cost_code?.description}</TableCell>
-                                <TableCell>{formatCurrency(child.actual_amount)}</TableCell>
-                                <TableCell>{formatCurrency(child.committed_amount)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-
-                      {/* Add Child Cost Code */}
-                      <div className="border-t pt-4 space-y-4">
-                        <Label className="text-sm font-medium">Add Child Cost Code</Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-sm">Cost Code</Label>
-                            <Input
-                              value={newChildCode[budget.id!]?.code || ""}
-                              onChange={(e) => setNewChildCode(prev => ({
-                                ...prev,
-                                [budget.id!]: { ...prev[budget.id!], code: e.target.value }
-                              }))}
-                              placeholder={`e.g., ${budget.cost_code?.code}.01`}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-sm">Description</Label>
-                            <Input
-                              value={newChildCode[budget.id!]?.description || ""}
-                              onChange={(e) => setNewChildCode(prev => ({
-                                ...prev,
-                                [budget.id!]: { ...prev[budget.id!], description: e.target.value }
-                              }))}
-                              placeholder="e.g., Materials"
-                            />
-                          </div>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleCreateChildCostCode(budget.id!)}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Child Cost Code
-                        </Button>
-                      </div>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </CardContent>
                   </CollapsibleContent>
                 </Collapsible>
@@ -635,7 +540,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           {regularBudgets.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Regular Budget Lines</CardTitle>
+                <CardTitle className="text-base">Budget Lines</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -650,42 +555,38 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {regularBudgets.map((line, index) => {
-                      const actualIndex = budgetLines.findIndex(b => b.id === line.id);
-                      return (
-                        <TableRow key={line.id || index}>
-                          <TableCell>
-                            <span className="font-mono text-sm">{line.cost_code?.code}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              {line.cost_code?.description}
-                              {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <CurrencyInput
-                              value={line.budgeted_amount.toString()}
-                              onChange={(value) => updateBudgetLine(actualIndex, 'budgeted_amount', parseFloat(value) || 0)}
-                              className="w-32"
-                              placeholder="0.00"
-                              disabled={disabledChildrenIds.has(line.cost_code_id)}
-                            />
-                          </TableCell>
-                          <TableCell>{formatCurrency(line.actual_amount)}</TableCell>
-                          <TableCell>{formatCurrency(line.committed_amount)}</TableCell>
-                          <TableCell>
-                            <span className={`${
-                              (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
-                                ? 'text-destructive' 
-                                : 'text-muted-foreground'
-                            }`}>
-                              {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {regularBudgets.map((line) => (
+                      <TableRow key={line.id || line.cost_code_id}>
+                        <TableCell>
+                          <span className="font-mono text-sm">{line.cost_code?.code}</span>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            {line.cost_code?.description}
+                            {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <CurrencyInput
+                            value={line.budgeted_amount.toString()}
+                            onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
+                            className="w-32"
+                            placeholder="0.00"
+                          />
+                        </TableCell>
+                        <TableCell>{formatCurrency(line.actual_amount)}</TableCell>
+                        <TableCell>{formatCurrency(line.committed_amount)}</TableCell>
+                        <TableCell>
+                          <span className={`${
+                            (line.budgeted_amount - (line.actual_amount + line.committed_amount)) < 0 
+                              ? 'text-destructive' 
+                              : 'text-muted-foreground'
+                          }`}>
+                            {formatCurrency(line.budgeted_amount - (line.actual_amount + line.committed_amount))}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
