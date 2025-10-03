@@ -735,8 +735,8 @@ export default function EmployeeDashboard() {
                           setSelectedTimeCard(card);
                           // Pre-populate with the current timecard data
                           setChangeRequestData({
-                            proposed_punch_in_time: card.punch_in_time,
-                            proposed_punch_out_time: card.punch_out_time,
+                            proposed_punch_in_time: card.punch_in_time || '',
+                            proposed_punch_out_time: card.punch_out_time || '',
                             proposed_job_id: card.job_id || '',
                             proposed_cost_code_id: card.cost_code_id || ''
                           });
@@ -979,8 +979,10 @@ export default function EmployeeDashboard() {
                 <h4 className="font-medium text-sm">Current Time Card</h4>
                 <div className="text-sm text-muted-foreground">
                   {format(new Date(selectedTimeCard.punch_in_time), 'MMM dd, yyyy • h:mm a')} - 
-                  {format(new Date(selectedTimeCard.punch_out_time), 'h:mm a')} 
-                  <span className="ml-1">({selectedTimeCard.total_hours.toFixed(2)} hrs)</span>
+                  {selectedTimeCard.punch_out_time ? format(new Date(selectedTimeCard.punch_out_time), 'h:mm a') : 'Still punched in'} 
+                  {selectedTimeCard.punch_out_time && (
+                    <span className="ml-1">({selectedTimeCard.total_hours.toFixed(2)} hrs)</span>
+                  )}
                 </div>
               </div>
             )}
