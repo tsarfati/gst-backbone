@@ -90,7 +90,19 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
       if (budgetError) throw budgetError;
 
-      setBudgetLines(budgetData || []);
+      // Normalize cost code relation key so UI can render code/description
+      const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
+        id: bd.id,
+        cost_code_id: bd.cost_code_id,
+        budgeted_amount: bd.budgeted_amount,
+        actual_amount: bd.actual_amount,
+        committed_amount: bd.committed_amount,
+        is_dynamic: bd.is_dynamic,
+        parent_budget_id: bd.parent_budget_id,
+        cost_code: bd.cost_codes // supabase join alias
+      }));
+
+      setBudgetLines(normalizedBudgetLines);
 
       // Load dynamic summaries
       const { data: summariesData, error: summariesError } = await supabase
