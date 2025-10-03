@@ -139,20 +139,30 @@ export default function TimeSheets() {
       
       const timeCardUserIds: string[] = [...new Set((timeCardUsers || []).map(u => u.user_id))];
       
-      // Get user IDs for this company from user_company_access
+      // Get user IDs for this company from user_company_access (regular users)
       const { data: companyUsers } = await supabase
         .from('user_company_access')
         .select('user_id')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
       
-      // Combine both sets of user IDs
-      const allUserIds: string[] = [...new Set([
-        ...(companyUsers || []).map(u => u.user_id),
-        ...timeCardUserIds
-      ])];
+      // Get PIN employees assigned to this company via settings
+      const { data: pinSettings } = await (supabase as any)
+        .from('pin_employee_timecard_settings')
+        .select('pin_employee_id')
+        .eq('company_id', currentCompany.id);
+      const pinEmployeeIds: string[] = [...new Set((pinSettings || []).map((s: any) => s.pin_employee_id as string))];
+      
+      // Combine IDs from company access, time cards, and pin settings
+      const combinedIds = [
+        ...((companyUsers || []).map((u: any) => u.user_id as string)),
+        ...timeCardUserIds,
+        ...pinEmployeeIds,
+      ];
+      const allUserIds: string[] = Array.from(new Set(combinedIds));
       
       if (allUserIds.length === 0) {
+        // prevent empty IN() errors
         allUserIds.push('00000000-0000-0000-0000-000000000000');
       }
       
@@ -162,11 +172,11 @@ export default function TimeSheets() {
         .select('user_id, first_name, last_name, display_name')
         .in('user_id', allUserIds);
       
-      // Load all PIN employees for this company (including inactive ones with time cards)
+      // Load PIN employees by IDs
       const pinEmployeesResponse = await (supabase as any)
         .from('pin_employees')
         .select('id, first_name, last_name, display_name')
-        .eq('company_id', currentCompany.id);
+        .in('id', allUserIds);
 
       const employeeOptions: Array<{id: string, name: string}> = [];
       const addedIds = new Set<string>();
@@ -184,7 +194,7 @@ export default function TimeSheets() {
         }
       }
 
-      // Add all PIN employees (active or with time cards)
+      // Add PIN employees
       if (pinEmployeesResponse.data) {
         for (const emp of pinEmployeesResponse.data) {
           if (!addedIds.has(emp.id)) {
