@@ -203,7 +203,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     setBudgetLines(updated);
   };
 
-  // Extract base code (e.g., "1.01" from "1.01-labor")
+  // Extract base code (e.g., "01.01" from "01.01" or "1.01-labor")
   const getBaseCode = (code: string): string | null => {
     const match = code.match(/^(\d+\.\d+)/);
     return match ? match[1] : null;
@@ -235,7 +235,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       if (line.parent_budget_id) return;
       
       const baseCode = getBaseCode(line.cost_code.code);
-      if (baseCode && line.cost_code.code.includes('-')) {
+      if (baseCode) {
         if (!groups[baseCode]) {
           groups[baseCode] = {
             baseCode,
