@@ -281,11 +281,12 @@ export default function VendorEdit() {
         });
         navigate(`/vendors/${id}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving vendor:', error);
+      const errorMessage = error?.message || error?.details || error?.hint || 'Unknown error';
       toast({
         title: "Error",
-        description: `Failed to ${isAddMode ? 'create' : 'update'} vendor: ${(error as any)?.message || 'Unknown error'}`,
+        description: `Failed to ${isAddMode ? 'create' : 'update'} vendor: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {

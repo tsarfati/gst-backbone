@@ -265,6 +265,18 @@ export default function JobCostCodeSelector({
     setSelectedCodeId("");
     setCostCodePopoverOpen(false);
 
+    // Reload the list from database to ensure parent is synced
+    setTimeout(async () => {
+      const { data: refreshed } = await supabase
+        .from('cost_codes')
+        .select('id, code, description, type')
+        .eq('job_id', jobId)
+        .eq('is_active', true);
+      if (refreshed) {
+        onSelectedCostCodesChange(refreshed as CostCode[]);
+      }
+    }, 100);
+
     toast({ title: 'Cost Code Added', description: `${master.code} - ${master.description} added to job` });
   };
 
