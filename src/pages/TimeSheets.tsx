@@ -269,6 +269,28 @@ export default function TimeSheets() {
         return;
       }
 
+      // If a specific employee is selected and there are no time cards, check if there are punches today
+      if (isManager && selectedEmployeeId && selectedEmployeeId !== 'all' && (!timeCardData || timeCardData.length === 0)) {
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        const { data: punchesToday } = await supabase
+          .from('punch_records')
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .eq('user_id', selectedEmployeeId)
+          .gte('punch_time', startOfDay.toISOString())
+          .lte('punch_time', endOfDay.toISOString())
+          .limit(1);
+        if ((punchesToday || []).length > 0) {
+          toast({
+            title: 'Punches detected',
+            description: 'Punches were recorded today but no time card was created yet. Ensure punch out or manual entry.',
+          });
+        }
+      }
+
       // Get unique user IDs, job IDs, and cost code IDs
       const userIds = [...new Set((timeCardData || []).map(tc => tc.user_id))];
       const jobIds = [...new Set((timeCardData || []).map(tc => tc.job_id).filter(Boolean))];
