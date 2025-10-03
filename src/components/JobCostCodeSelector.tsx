@@ -83,10 +83,13 @@ export default function JobCostCodeSelector({
         .is('job_id', null)
         .eq('is_active', true)
         .eq('is_dynamic_group', false)
+        .neq('type', 'dynamic_group')
+        .neq('type', 'dynamic_parent')
         .order('code');
 
       if (error) throw error;
-      setMasterCostCodes(data || []);
+      const cleaned = (data || []).filter(cc => !/^\d+\.0$/.test(cc.code));
+      setMasterCostCodes(cleaned);
     } catch (error) {
       console.error('Error loading master cost codes:', error);
       toast({
@@ -296,7 +299,10 @@ export default function JobCostCodeSelector({
         .from('cost_codes')
         .select('id, code, description, type')
         .eq('job_id', selectedPreviousJobId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_dynamic_group', false)
+        .neq('type', 'dynamic_group')
+        .neq('type', 'dynamic_parent');
 
       if (error) throw error;
 

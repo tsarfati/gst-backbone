@@ -658,7 +658,7 @@ export default function JobCostSetup() {
                   <p className="text-sm text-muted-foreground">
                     Required columns: code, description, type
                     <br />
-                    Valid types: dynamic_group, dynamic_parent, material, labor, sub, equipment, other
+                    Valid types: material, labor, sub, equipment, other
                   </p>
                 </div>
                 <div className="flex justify-end space-x-2">

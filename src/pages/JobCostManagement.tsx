@@ -31,7 +31,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   is_active: boolean;
   job_id?: string | null;
   chart_account_id?: string | null;
@@ -102,18 +102,27 @@ export default function JobCostManagement() {
           )
         `)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
+        .neq('type', 'dynamic_group')
+        .neq('type', 'dynamic_parent')
         .order('code');
 
       if (costCodesError) throw costCodesError;
 
-      // Transform the data to include chart account info
-      const transformedCostCodes = costCodesData?.map(code => ({
-        ...code,
-        chart_account_number: code.chart_of_accounts?.account_number || code.chart_account_number,
-        chart_account_name: code.chart_of_accounts?.account_name
-      })) || [];
+      const transformedCostCodes = (costCodesData || [])
+        .filter((code: any) => code.is_dynamic_group === false && code.type !== 'dynamic_group' && code.type !== 'dynamic_parent' && !/^\d+\.0$/.test(code.code))
+        .map((code: any) => ({
+          id: code.id,
+          code: code.code,
+          description: code.description,
+          type: (['material','labor','sub','equipment','other'].includes((code.type || 'other') as string) ? (code.type || 'other') : 'other') as CostCode['type'],
+          is_active: code.is_active,
+          job_id: code.job_id,
+          chart_account_id: code.chart_account_id || null,
+          chart_account_number: code.chart_of_accounts?.account_number || code.chart_account_number || null
+        }));
 
-      setCostCodes(transformedCostCodes);
+      setCostCodes(transformedCostCodes as CostCode[]);
 
       // Load jobs
       const { data: jobsData, error: jobsError } = await supabase
