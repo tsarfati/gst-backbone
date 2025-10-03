@@ -214,7 +214,12 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Job Access Permissions</CardTitle>
+        <div>
+          <CardTitle>Punch Clock Job Access</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Control which jobs this {userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app
+          </p>
+        </div>
         {!hasGlobalAccess && (
           <Button onClick={saveJobAccess} disabled={saving}>
             {saving ? (
@@ -232,30 +237,32 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
         )}
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Global Access Toggle */}
-        <div className="p-4 border rounded-lg bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="global-access" className="text-sm font-medium">
-                Global Job Access
-              </Label>
-              <div className="text-xs text-muted-foreground">
-                Grant access to all jobs and their associated bills
+        {/* Global Access Toggle - Only for non-employee roles */}
+        {userRole !== 'employee' && (
+          <div className="p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="global-access" className="text-sm font-medium">
+                  Global Job Access
+                </Label>
+                <div className="text-xs text-muted-foreground">
+                  Grant access to all jobs in the punch clock app
+                </div>
               </div>
+              <Switch
+                id="global-access"
+                checked={hasGlobalAccess}
+                onCheckedChange={handleGlobalAccessChange}
+              />
             </div>
-            <Switch
-              id="global-access"
-              checked={hasGlobalAccess}
-              onCheckedChange={handleGlobalAccessChange}
-            />
           </div>
-        </div>
+        )}
 
         {/* Individual Job Access */}
-        {!hasGlobalAccess && (
+        {(!hasGlobalAccess || userRole === 'employee') && (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Select specific jobs this user can access. This includes viewing job details, associated bills, and related documents.
+              Select specific jobs this {userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app.
             </div>
             
             {jobs.length === 0 ? (
@@ -310,10 +317,10 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
           </div>
         )}
 
-        {hasGlobalAccess && (
+        {hasGlobalAccess && userRole !== 'employee' && (
           <div className="text-center py-8 text-muted-foreground">
             <Building className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>User has global access to all jobs</p>
+            <p>User has global access to all jobs in the punch clock</p>
             <p className="text-xs">Disable global access to configure specific job permissions</p>
           </div>
         )}
