@@ -10,6 +10,7 @@ import PayablesSettings from '@/components/PayablesSettings';
 import JobSettings from '@/components/JobSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
+import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
 import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Calculator } from 'lucide-react';
 
@@ -33,15 +34,14 @@ export default function CompanySettingsPage() {
   return (
     <div className="container mx-auto py-10 px-4">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Company Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your company-specific configurations and preferences
-          </p>
-        </div>
-        
-        <div className="flex items-center justify-end">
-          <Button onClick={handleSaveSettings}>Save Changes</Button>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Company Settings</h1>
+            <p className="text-muted-foreground">
+              Manage your company-specific configurations and preferences
+            </p>
+          </div>
+          <CompanySettingsSaveButton />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

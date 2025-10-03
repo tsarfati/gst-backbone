@@ -207,7 +207,7 @@ export default function PunchClockSettingsComponent() {
           company_policies: settings.company_policies,
           overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
           created_by: user?.id
-        });
+        }, { onConflict: 'job_id,company_id' });
 
       if (error) throw error;
       
@@ -249,12 +249,6 @@ export default function PunchClockSettingsComponent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button onClick={saveSettings} disabled={saving}>
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? 'Saving...' : 'Save Changes'}
-        </Button>
-      </div>
 
       <Tabs defaultValue="general" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
@@ -289,7 +283,7 @@ export default function PunchClockSettingsComponent() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="overtime-past-window">Overtime Past Window Threshold (minutes)</Label>
+                  <Label htmlFor="overtime-past-window">Punch Out Grace Period to Count Time Past Punch Time Window (minutes)</Label>
                   <Input
                     id="overtime-past-window"
                     type="number"

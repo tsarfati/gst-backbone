@@ -183,11 +183,12 @@ export default function EmployeeDashboard() {
           .from('time_cards')
           .select('*')
           .eq('user_id', userId)
-          .neq('status', 'deleted')
           .order('punch_in_time', { ascending: false })
           .limit(50);
         
-        setTimeCards(timeCardsData || []);
+        if (timeCardsData) {
+          setTimeCards(timeCardsData.filter(tc => tc.status !== 'deleted'));
+        }
         
         // Load email from auth.users
         const { data: { user: authUser } } = await supabase.auth.getUser();

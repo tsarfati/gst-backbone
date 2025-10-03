@@ -87,7 +87,6 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
           id={inputId}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={handleFileChange}
           disabled={disabled || uploading}

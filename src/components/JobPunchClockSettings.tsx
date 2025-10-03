@@ -253,12 +253,6 @@ export default function JobPunchClockSettings() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex justify-end mb-2">
-              <Button onClick={saveJobSettings} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
 
             {loading ? (
               <div className="text-muted-foreground">Loading job settings...</div>
@@ -377,8 +371,9 @@ export default function JobPunchClockSettings() {
                     <Input type="number" value={settings.grace_period_minutes} onChange={(e) => setSettings(s => ({...s, grace_period_minutes: parseInt(e.target.value)}))} min={0} max={15} />
                   </div>
                   <div className="space-y-2">
-                    <Label>OT Past Window Threshold (min)</Label>
+                    <Label>Punch Out Grace Period (min)</Label>
                     <Input type="number" value={settings.overtime_past_window_threshold_minutes} onChange={(e) => setSettings(s => ({...s, overtime_past_window_threshold_minutes: parseInt(e.target.value)}))} min={0} max={120} />
+                    <p className="text-xs text-muted-foreground">Grace period past punch window end to count time past window</p>
                     <p className="text-xs text-muted-foreground">Minutes past window end before all subsequent time is OT</p>
                   </div>
                 </div>
