@@ -239,15 +239,18 @@ export default function VendorEdit() {
         logo_url: logoUrl
       };
 
-      if (isAddMode) {
-        const { data, error } = await supabase
-          .from('vendors')
-          .insert({
-            company_id: currentCompany?.id || profile?.current_company_id,
-            ...vendorData
-          })
-          .select()
-          .single();
+        if (isAddMode) {
+          const companyId = currentCompany?.id || profile?.current_company_id;
+          if (!companyId) {
+            toast({ title: "Missing Company", description: "Select a company before creating a vendor.", variant: "destructive" });
+            setSaving(false);
+            return;
+          }
+          const { data, error } = await supabase
+            .from('vendors')
+            .insert([{ company_id: companyId, ...vendorData }])
+            .select()
+            .single();
 
         if (error) throw error;
 
@@ -275,7 +278,7 @@ export default function VendorEdit() {
       console.error('Error saving vendor:', error);
       toast({
         title: "Error",
-        description: `Failed to ${isAddMode ? 'create' : 'update'} vendor`,
+        description: `Failed to ${isAddMode ? 'create' : 'update'} vendor: ${(error as any)?.message || 'Unknown error'}`,
         variant: "destructive",
       });
     } finally {

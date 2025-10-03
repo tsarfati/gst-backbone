@@ -418,6 +418,35 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const regularBudgets = budgetLines.filter(b => !b.is_dynamic && !b.parent_budget_id);
   const getChildBudgets = (parentId: string) => budgetLines.filter(b => b.parent_budget_id === parentId);
 
+  // UI-only rules for dynamic parent and child cost codes based on code patterns
+  const isDynamicParentCode = (code?: string) => !!code && /^\d+\.\d+$/.test(code) && !/^\d+\.0$/.test(code);
+  const getChildrenForParentCode = (parentCode: string) =>
+    budgetLines.filter(b => b.cost_code?.code?.startsWith(`${parentCode}-`));
+
+  const disabledChildrenIds = new Set<string>();
+  // Apply rules:
+  // - If exactly 2 children + dynamic parent assigned: disable both children inputs
+  // - If 3+ children + dynamic parent assigned: once one child has a budget set, disable the others
+  budgetLines.forEach((line) => {
+    const code = line.cost_code?.code;
+    if (isDynamicParentCode(code)) {
+      const parentCode = code!;
+      const children = getChildrenForParentCode(parentCode);
+      if (children.length >= 2) {
+        if (children.length === 2) {
+          children.forEach(c => disabledChildrenIds.add(c.cost_code_id));
+        } else {
+          const anySetChild = children.find(c => (c.budgeted_amount || 0) > 0);
+          if (anySetChild) {
+            children.forEach(c => {
+              if ((c.budgeted_amount || 0) === 0) disabledChildrenIds.add(c.cost_code_id);
+            });
+          }
+        }
+      }
+    }
+  });
+
   const totalBudget = budgetLines
     .filter(line => !line.parent_budget_id)
     .reduce((sum, line) => sum + (line.budgeted_amount || 0), 0);
@@ -599,6 +628,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                               onChange={(value) => updateBudgetLine(actualIndex, 'budgeted_amount', parseFloat(value) || 0)}
                               className="w-32"
                               placeholder="0.00"
+                              disabled={disabledChildrenIds.has(line.cost_code_id)}
                             />
                           </TableCell>
                           <TableCell>{formatCurrency(line.actual_amount)}</TableCell>
@@ -624,7 +654,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           {budgetLines.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                No budget lines available. Select cost codes for this job or create dynamic budgets.
+                No budget lines available. Select cost codes for this job to start budgeting.
               </CardContent>
             </Card>
           )}
