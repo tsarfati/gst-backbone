@@ -402,19 +402,23 @@ const mapContainer = useRef<HTMLDivElement>(null);
                       </div>
                     )}
                     
-                    <div 
-                      ref={mapContainer} 
-                      className="w-full h-[300px] rounded-md border"
-                    />
+                    <div className="relative w-full h-[300px] rounded-md border overflow-hidden">
+                      {/* Static placeholder while map loads */}
+                      {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
+                        <img
+                          src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x300?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
+                          alt="Map preview of punch location"
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
 
-                    {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
-                      <img
-                        src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x300?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
-                        alt="Map preview of punch location"
-                        className="w-full h-[300px] rounded-md border object-cover"
-                        loading="lazy"
+                      {/* Live map fills the same placeholder */}
+                      <div
+                        ref={mapContainer}
+                        className={`absolute inset-0 ${mapReady ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
                       />
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               )}

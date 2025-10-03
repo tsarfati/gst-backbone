@@ -98,12 +98,16 @@ export default function EmployeeDashboard() {
   }, [user]);
 
   const loadData = async () => {
-    if (!user) return;
+    // Allow PIN-only mode when no Supabase session (e.g., mobile webview)
+    const storedPunchUserStr = localStorage.getItem('punch_clock_user');
+    let fallbackPin: string | null = null;
+    try { fallbackPin = storedPunchUserStr ? JSON.parse(storedPunchUserStr).pin : null; } catch { fallbackPin = null; }
+    if (!user && !fallbackPin) return;
     
     setLoading(true);
     try {
-      const userId = (user as any).user_id || (user as any).id;
-      
+      const userId = (user as any)?.user_id || (user as any)?.id;
+
       // Use different endpoints for PIN vs regular users
       if (isPinAuthenticated) {
         // Load time cards via edge function for PIN users
