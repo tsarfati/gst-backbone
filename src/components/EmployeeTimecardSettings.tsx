@@ -106,14 +106,27 @@ export default function EmployeeTimecardSettings({
   };
 
   const loadJobs = async () => {
+    if (!currentCompany?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from('jobs')
         .select('id, name, address')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
-      setJobs(data || []);
+      
+      // Remove duplicates by id
+      const uniqueJobs = data?.reduce((acc, job) => {
+        if (!acc.find(j => j.id === job.id)) {
+          acc.push(job);
+        }
+        return acc;
+      }, [] as Job[]);
+      
+      setJobs(uniqueJobs || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
     }

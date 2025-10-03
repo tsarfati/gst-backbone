@@ -167,6 +167,12 @@ export const generateCommitmentStatusReport = async (
   );
 
   // Download
-  const fileName = `Commitment_Status_${subcontract.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
-  pdf.save(fileName);
+  try {
+    const fileName = `Commitment_Status_${subcontract.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    pdf.save(fileName);
+    return true;
+  } catch (error) {
+    console.error('Error saving PDF:', error);
+    throw error;
+  }
 };

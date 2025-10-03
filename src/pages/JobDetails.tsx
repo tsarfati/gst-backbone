@@ -4,12 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
+import JobCostBudgetView from "@/components/JobCostBudgetView";
+import JobDeliveryTicketsView from "@/components/JobDeliveryTicketsView";
+import JobVisitorLogsView from "@/components/JobVisitorLogsView";
+import JobForecastingView from "@/components/JobForecastingView";
 
 
 interface Job {
@@ -137,7 +141,7 @@ export default function JobDetails() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" onClick={() => navigate("/jobs")}>
+        <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
@@ -171,10 +175,16 @@ export default function JobDetails() {
             <TabsTrigger 
               value="cost-budget"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              onClick={() => navigate(`/jobs/${id}/cost-budget`)}
             >
               <DollarSign className="h-4 w-4 mr-2" />
               Cost Codes & Budget
+            </TabsTrigger>
+            <TabsTrigger 
+              value="forecasting"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Forecasting
             </TabsTrigger>
             <TabsTrigger 
               value="time-tracking"
@@ -187,7 +197,6 @@ export default function JobDetails() {
               <TabsTrigger 
                 value="delivery-tickets"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-                onClick={() => navigate(`/jobs/${id}/delivery-tickets`)}
               >
                 <Package className="h-4 w-4 mr-2" />
                 Delivery Tickets
@@ -196,7 +205,6 @@ export default function JobDetails() {
             <TabsTrigger 
               value="visitor-logs"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-              onClick={() => navigate(`/jobs/${id}/visitor-logs`)}
             >
               <Users className="h-4 w-4 mr-2" />
               Visitor Logs
@@ -288,6 +296,14 @@ export default function JobDetails() {
             <CommittedCosts jobId={id!} />
           </TabsContent>
 
+          <TabsContent value="cost-budget" className="p-6">
+            <JobCostBudgetView />
+          </TabsContent>
+
+          <TabsContent value="forecasting" className="p-6">
+            <JobForecastingView />
+          </TabsContent>
+
           <TabsContent value="time-tracking" className="p-0">
             <div className="min-h-[600px]">
               <iframe 
@@ -296,6 +312,14 @@ export default function JobDetails() {
                 title="Punch Clock Dashboard"
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="delivery-tickets" className="p-6">
+            <JobDeliveryTicketsView />
+          </TabsContent>
+
+          <TabsContent value="visitor-logs" className="p-6">
+            <JobVisitorLogsView />
           </TabsContent>
         </Tabs>
       </Card>
