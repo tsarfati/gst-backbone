@@ -98,11 +98,13 @@ export default function UserSettings() {
 
       if (profilesError) throw profilesError;
 
-      // Fetch PIN employees for this company
+      // Fetch PIN employees that match the company user IDs
+      // Note: pin_employees table doesn't have company_id, so we filter by the IDs we got from user_company_access
       const { data: pinEmployees, error: pinError } = await (supabase as any)
         .from('pin_employees')
-        .select('id, first_name, last_name, display_name, created_at')
-        .eq('company_id', currentCompany.id)
+        .select('id, first_name, last_name, display_name, created_at, is_active')
+        .in('id', userIds)
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (pinError) throw pinError;
