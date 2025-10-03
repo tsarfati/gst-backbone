@@ -52,14 +52,13 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       if (jobsError) throw jobsError;
       setJobs(jobsData || []);
 
-      // Load user's global job access setting
-      const { data: profileData, error: profileError } = await supabase
+      // Load user's global job access setting (only for regular users, not PIN employees)
+      const { data: profileData } = await supabase
         .from('profiles')
         .select('has_global_job_access')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (profileError) throw profileError;
       setHasGlobalAccess(profileData?.has_global_job_access || false);
 
       // Load user's specific job access
@@ -90,6 +89,22 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
 
   const handleGlobalAccessChange = async (globalAccess: boolean) => {
     try {
+      // Only update if the user exists in profiles (not a PIN employee)
+      const { data: profileExists } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!profileExists) {
+        toast({
+          title: "Not Available",
+          description: "Global access is not available for PIN employees",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ has_global_job_access: globalAccess })
