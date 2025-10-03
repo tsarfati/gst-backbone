@@ -91,14 +91,48 @@ export default function UserDetails() {
 
   const fetchUserDetails = async () => {
     try {
-      const { data, error } = await supabase
+      // First try to fetch from profiles table (regular users)
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setUser(data);
+      if (profileData) {
+        setUser(profileData);
+        setLoading(false);
+        return;
+      }
+
+      // If not found in profiles, try pin_employees table
+      const { data: pinData, error: pinError } = await (supabase as any)
+        .from('pin_employees')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (pinError) throw pinError;
+
+      if (pinData) {
+        // Transform PIN employee data to match UserProfile interface
+        setUser({
+          user_id: pinData.id,
+          display_name: pinData.display_name || `${pinData.first_name} ${pinData.last_name}`,
+          first_name: pinData.first_name,
+          last_name: pinData.last_name,
+          email: pinData.email,
+          phone: pinData.phone,
+          role: 'employee',
+          status: 'approved',
+          has_global_job_access: false,
+          avatar_url: pinData.avatar_url,
+          created_at: pinData.created_at,
+          department: pinData.department,
+          notes: pinData.notes
+        });
+      } else {
+        throw new Error('User not found');
+      }
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({
@@ -115,15 +149,36 @@ export default function UserDetails() {
     if (!currentCompany) return;
 
     try {
-      const { data, error } = await supabase
+      // Try to fetch jobs from user_job_access (regular users)
+      const { data: userJobsData, error: userJobsError } = await supabase
         .from('user_job_access')
         .select('job_id, jobs(id, name)')
         .eq('user_id', userId);
 
-      if (error) throw error;
-      
-      const jobs = data?.map((item: any) => item.jobs).filter(Boolean) || [];
-      setUserJobs(jobs);
+      if (userJobsData && userJobsData.length > 0) {
+        const jobs = userJobsData.map((item: any) => item.jobs).filter(Boolean) || [];
+        setUserJobs(jobs);
+        return;
+      }
+
+      // If no jobs found, try pin_employee_timecard_settings
+      const { data: pinSettingsData } = await (supabase as any)
+        .from('pin_employee_timecard_settings')
+        .select('assigned_jobs')
+        .eq('pin_employee_id', userId)
+        .maybeSingle();
+
+      if (pinSettingsData?.assigned_jobs && pinSettingsData.assigned_jobs.length > 0) {
+        // Fetch job details for the assigned job IDs
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', pinSettingsData.assigned_jobs);
+
+        if (jobsData) {
+          setUserJobs(jobsData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching user jobs:', error);
     }
