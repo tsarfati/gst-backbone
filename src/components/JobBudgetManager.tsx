@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/formatNumber";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -455,18 +456,21 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                       return (
                         <TableRow 
                           key={line.id || line.cost_code_id} 
-                          className={isChild ? "bg-muted/30" : ""}
+                          className={cn(
+                            isChild && "bg-muted/30",
+                            line.is_dynamic && "bg-primary/5"
+                          )}
                         >
                           <TableCell className={isChild ? "pl-12" : ""}>
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-sm">{line.cost_code?.code}</span>
                               {line.is_dynamic && (
                                 <>
-                                  <Badge variant="secondary" className="text-xs">Dynamic Budget</Badge>
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Dynamic</Badge>
                                   {isOverBudget && (
-                                    <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                                      <AlertCircle className="h-3 w-3" />
-                                      Over Budget
+                                    <Badge variant="destructive" className="flex items-center gap-1 text-[10px] px-1.5 py-0">
+                                      <AlertCircle className="h-2.5 w-2.5" />
+                                      Over
                                     </Badge>
                                   )}
                                 </>

@@ -404,7 +404,7 @@ export default function JobCostCodeSelector({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b">
+        <div className="pb-4 border-b">
           <div className="space-y-2">
             <label className="text-sm font-medium">Copy from Previous Job</label>
             <div className="flex gap-2">
@@ -430,19 +430,6 @@ export default function JobCostCodeSelector({
                 Copy
               </Button>
             </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Select All Cost Codes</label>
-            <Button 
-              onClick={handleSelectAll} 
-              variant="outline"
-              size="sm"
-              className="w-full"
-              disabled={disabled}
-            >
-              <CheckSquare className="h-4 w-4 mr-2" />
-              Select All ({availableCostCodes.length} available)
-            </Button>
           </div>
         </div>
 
