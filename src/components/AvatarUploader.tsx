@@ -86,17 +86,30 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
       </Avatar>
       <div className="flex flex-wrap items-center gap-2">
         <input
-          id={inputId}
+          id={`${inputId}-gallery`}
           type="file"
-          accept="image/*;capture=camera"
+          accept="image/*"
           className="hidden"
           onChange={handleFileChange}
           disabled={disabled || uploading}
-          capture={isMobile ? 'environment' : undefined as any}
         />
-        <label htmlFor={inputId}>
-          <Button variant="outline" type="button" disabled={disabled || uploading}>
-            {uploading ? 'Uploading...' : 'Take/Upload Photo'}
+        <input
+          id={`${inputId}-camera`}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+          disabled={disabled || uploading}
+          capture={isMobile ? ('environment' as any) : (undefined as any)}
+        />
+        <label htmlFor={`${inputId}-gallery`}>
+          <Button variant="outline" type="button" disabled={disabled || uploading} aria-label="Upload Photo from device">
+            {uploading ? 'Uploading...' : 'Upload Photo'}
+          </Button>
+        </label>
+        <label htmlFor={`${inputId}-camera`}>
+          <Button variant="outline" type="button" disabled={disabled || uploading} aria-label="Take Photo with camera">
+            {uploading ? 'Uploading...' : 'Take Photo'}
           </Button>
         </label>
         {value && (

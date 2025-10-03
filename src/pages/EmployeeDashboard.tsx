@@ -478,8 +478,8 @@ export default function EmployeeDashboard() {
             pin,
             time_card_id: selectedTimeCard.id,
             reason: changeReason,
-            proposed_punch_in_time: changeRequestData.proposed_punch_in_time || null,
-            proposed_punch_out_time: changeRequestData.proposed_punch_out_time || null,
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? new Date(changeRequestData.proposed_punch_in_time).toISOString() : null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? new Date(changeRequestData.proposed_punch_out_time).toISOString() : null,
             proposed_job_id: changeRequestData.proposed_job_id || null,
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
           })

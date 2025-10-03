@@ -97,17 +97,46 @@ export default function EmployeeTimecardSettings({
 
       if (accessError) throw accessError;
       const userIds = (accessData || []).map(a => a.user_id);
+      const filterIds = userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'];
 
-      // Load profile-based employees for this company only
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, display_name, first_name, last_name, role')
-        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
-        .eq('role', 'employee')
-        .order('display_name');
+      // Load both standard profiles and PIN employees who have access
+      const [profilesRes, pinsRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, user_id, display_name, first_name, last_name, role')
+          .in('user_id', filterIds)
+          .eq('role', 'employee')
+          .order('display_name'),
+        supabase
+          .from('pin_employees')
+          .select('id, display_name, first_name, last_name, is_active')
+          .in('id', filterIds)
+          .eq('is_active', true)
+          .order('display_name')
+      ]);
 
-      if (error) throw error;
-      setEmployees(data || []);
+      if (profilesRes.error) throw profilesRes.error;
+      if (pinsRes.error && (pinsRes.error as any).code !== 'PGRST116') throw pinsRes.error;
+
+      const profileEmployees = (profilesRes.data || []).map((p: any) => ({
+        id: p.id,
+        user_id: p.user_id,
+        display_name: p.display_name,
+        first_name: p.first_name,
+        last_name: p.last_name,
+        role: p.role || 'employee'
+      } as Employee));
+
+      const pinEmployees = (pinsRes.data || []).map((pe: any) => ({
+        id: pe.id,
+        user_id: pe.id,
+        display_name: pe.display_name,
+        first_name: pe.first_name,
+        last_name: pe.last_name,
+        role: 'employee'
+      } as Employee));
+
+      setEmployees([...(profileEmployees || []), ...(pinEmployees || [])]);
     } catch (error) {
       console.error('Error loading employees:', error);
       toast({
