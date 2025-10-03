@@ -77,7 +77,7 @@ export default function EmployeeTimecardSettings({
     loadEmployees();
     loadJobs();
     loadCostCodes();
-  }, []);
+  }, [currentCompany?.id]);
 
   useEffect(() => {
     if (selectedEmployeeId) {
@@ -86,10 +86,23 @@ export default function EmployeeTimecardSettings({
   }, [selectedEmployeeId]);
 
   const loadEmployees = async () => {
+    if (!currentCompany?.id) return;
     try {
+      // Find users with active access to this company
+      const { data: accessData, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+      const userIds = (accessData || []).map(a => a.user_id);
+
+      // Load profile-based employees for this company only
       const { data, error } = await supabase
         .from('profiles')
         .select('id, user_id, display_name, first_name, last_name, role')
+        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
         .eq('role', 'employee')
         .order('display_name');
 
@@ -133,11 +146,13 @@ export default function EmployeeTimecardSettings({
   };
 
   const loadCostCodes = async () => {
+    if (!currentCompany?.id) return;
     try {
       const { data, error } = await supabase
         .from('cost_codes')
         .select('id, code, description, type')
         .eq('is_active', true)
+        .eq('company_id', currentCompany.id)
         .order('code');
 
       if (error) throw error;
@@ -229,7 +244,7 @@ export default function EmployeeTimecardSettings({
       
       const settingsData = {
         user_id: settings.user_id,
-        company_id: profile.current_company_id || profile.user_id,
+        company_id: currentCompany?.id,
         assigned_jobs: settings.assigned_jobs,
         assigned_cost_codes: settings.assigned_cost_codes,
         default_job_id: settings.default_job_id,

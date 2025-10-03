@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AvatarUploaderProps {
   value?: string;
@@ -14,6 +15,7 @@ interface AvatarUploaderProps {
 export default function AvatarUploader({ value, onChange, disabled, userId }: AvatarUploaderProps) {
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  const isMobile = useIsMobile();
 
   const fileToBase64 = (file: File) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -86,10 +88,11 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
         <input
           id={inputId}
           type="file"
-          accept="image/*"
+          accept="image/*;capture=camera"
           className="hidden"
           onChange={handleFileChange}
           disabled={disabled || uploading}
+          capture={isMobile ? 'environment' : undefined as any}
         />
         <label htmlFor={inputId}>
           <Button variant="outline" type="button" disabled={disabled || uploading}>

@@ -46,10 +46,9 @@ interface ChangeRequest {
 }
 
 export default function EmployeeDashboard() {
-  const { user, profile, signOut } = usePunchClockAuth();
+  const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const isPinUser = (user as any)?.is_pin_employee;
   
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
@@ -106,7 +105,7 @@ export default function EmployeeDashboard() {
       const userId = (user as any).user_id || (user as any).id;
       
       // Use different endpoints for PIN vs regular users
-      if (isPinUser) {
+      if (isPinAuthenticated) {
         // Load time cards via edge function for PIN users
         const pinObj = localStorage.getItem('punch_clock_user');
         const pin = pinObj ? JSON.parse(pinObj).pin : null;
@@ -455,7 +454,7 @@ export default function EmployeeDashboard() {
     try {
       const userId = (user as any).user_id || (user as any).id;
       
-      if (isPinUser) {
+      if (isPinAuthenticated) {
         // Use edge function for PIN users
         const pin = localStorage.getItem('employee_pin');
         if (!pin) {
