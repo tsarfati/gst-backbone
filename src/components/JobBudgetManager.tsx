@@ -148,40 +148,48 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
     }
   };
 
-  const populateBudgetLines = () => {
+  const populateBudgetLines = async () => {
     console.log('populateBudgetLines called with', selectedCostCodes.length, 'cost codes');
     
     if (selectedCostCodes.length === 0) {
-      console.log('No cost codes selected, clearing budget lines');
-      setBudgetLines([]);
+      console.log('No cost codes selected, retaining existing budget lines');
       return;
     }
 
-    const newBudgetLines: BudgetLine[] = selectedCostCodes.map(costCode => {
-      // Check if we already have a budget line for this cost code
-      const existingLine = budgetLines.find(bl => bl.cost_code_id === costCode.id);
-      
-      console.log('Processing cost code:', costCode.code, 'existing:', !!existingLine);
-      
-      if (existingLine) {
-        return {
-          ...existingLine,
-          cost_code: costCode
-        };
-      }
-      
-      // Create new budget line with zero amounts
-      return {
-        cost_code_id: costCode.id,
-        budgeted_amount: 0,
-        actual_amount: 0,
-        committed_amount: 0,
-        cost_code: costCode
-      };
-    });
+    // Reload budget lines from database to get the latest data
+    const { data: budgetData, error: budgetError } = await supabase
+      .from('job_budgets')
+      .select(`
+        *,
+        cost_codes (
+          id,
+          code,
+          description,
+          type,
+          parent_cost_code_id
+        )
+      `)
+      .eq('job_id', jobId)
+      .order('created_at', { ascending: true });
 
-    console.log('Setting', newBudgetLines.length, 'budget lines');
-    setBudgetLines(newBudgetLines);
+    if (budgetError) {
+      console.error('Error loading budget lines:', budgetError);
+      return;
+    }
+
+    const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
+      id: bd.id,
+      cost_code_id: bd.cost_code_id,
+      budgeted_amount: bd.budgeted_amount,
+      actual_amount: bd.actual_amount,
+      committed_amount: bd.committed_amount,
+      is_dynamic: bd.is_dynamic,
+      parent_budget_id: bd.parent_budget_id,
+      cost_code: bd.cost_codes
+    }));
+
+    console.log('Setting', normalizedBudgetLines.length, 'budget lines from database');
+    setBudgetLines(normalizedBudgetLines);
   };
 
 

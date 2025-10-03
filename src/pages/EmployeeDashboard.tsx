@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock } from 'lucide-react';
+import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -702,206 +702,244 @@ export default function EmployeeDashboard() {
           </TabsList>
 
           <TabsContent value="timecards" className="space-y-4">
-            {/* Pending Approval Section */}
-            {timeCards.filter(card => card.status === 'pending_approval').length > 0 && (
-              <Card className="border-amber-500 bg-amber-50/50 dark:bg-amber-950/20">
-                <CardHeader className="p-4">
-                  <CardTitle className="text-base sm:text-xl flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                    Pending Approval ({timeCards.filter(card => card.status === 'pending_approval').length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 p-4">
-                  {timeCards.filter(card => card.status === 'pending_approval').map((card) => (
-                    <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg bg-background">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                          <span className="font-medium text-sm sm:text-base">
-                            {format(new Date(card.punch_in_time), 'MMM dd, yyyy')}
-                          </span>
-                          <Badge variant="secondary" className="text-xs">
-                            {card.status}
-                          </Badge>
-                        </div>
-                        <div className="text-xs sm:text-sm text-muted-foreground">
-                          {format(new Date(card.punch_in_time), 'h:mm a')} - 
-                          {format(new Date(card.punch_out_time), 'h:mm a')} 
-                          <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedTimeCard(card);
-                          const formatForInput = (dateStr: string | null) => {
-                            if (!dateStr) return '';
-                            const date = new Date(dateStr);
-                            const year = date.getFullYear();
-                            const month = String(date.getMonth() + 1).padStart(2, '0');
-                            const day = String(date.getDate()).padStart(2, '0');
-                            const hours = String(date.getHours()).padStart(2, '0');
-                            const minutes = String(date.getMinutes()).padStart(2, '0');
-                            return `${year}-${month}-${day}T${hours}:${minutes}`;
-                          };
-                          
-                          setChangeRequestData({
-                            proposed_punch_in_time: formatForInput(card.punch_in_time),
-                            proposed_punch_out_time: formatForInput(card.punch_out_time),
-                            proposed_job_id: card.job_id || '',
-                            proposed_cost_code_id: card.cost_code_id || ''
-                          });
-                          setShowChangeDialog(true);
-                        }}
-                        className="w-full sm:w-auto text-xs sm:text-sm"
-                      >
-                        Request Change
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            <Tabs defaultValue="all" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="all">All Time Cards</TabsTrigger>
+                <TabsTrigger value="pending">
+                  Pending Review
+                  {changeRequests.filter(r => r.status === 'pending').length > 0 && (
+                    <Badge variant="destructive" className="ml-2 text-xs">
+                      {changeRequests.filter(r => r.status === 'pending').length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-            {/* All Time Cards Grouped by Week */}
-            <Card>
-              <CardHeader className="p-4">
-                <CardTitle className="text-base sm:text-xl">All Time Cards</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6 p-4">
-                {timeCards.filter(card => card.status !== 'deleted').length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No time cards yet</p>
-                ) : (
-                  (() => {
-                    // Group time cards by week
-                    const grouped = timeCards
-                      .filter(card => card.status !== 'deleted')
-                      .reduce((acc, card) => {
-                        const date = new Date(card.punch_in_time);
-                        // Get week start (Sunday)
-                        const dayOfWeek = date.getDay();
-                        const weekStart = new Date(date);
-                        weekStart.setDate(date.getDate() - dayOfWeek);
-                        weekStart.setHours(0, 0, 0, 0);
-                        const weekKey = weekStart.toISOString();
+              <TabsContent value="all">
+                <Card>
+                  <CardHeader className="p-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base sm:text-xl">Time Cards</CardTitle>
+                      {(() => {
+                        const grouped = timeCards
+                          .filter(card => card.status !== 'deleted')
+                          .reduce((acc, card) => {
+                            const date = new Date(card.punch_in_time);
+                            const dayOfWeek = date.getDay();
+                            const weekStart = new Date(date);
+                            weekStart.setDate(date.getDate() - dayOfWeek);
+                            weekStart.setHours(0, 0, 0, 0);
+                            const weekKey = weekStart.toISOString();
+                            if (!acc[weekKey]) {
+                              acc[weekKey] = { start: weekStart, cards: [] };
+                            }
+                            acc[weekKey].cards.push(card);
+                            return acc;
+                          }, {} as Record<string, { start: Date; cards: TimeCard[] }>);
                         
-                        if (!acc[weekKey]) {
-                          acc[weekKey] = { start: weekStart, cards: [] };
-                        }
-                        acc[weekKey].cards.push(card);
-                        return acc;
-                      }, {} as Record<string, { start: Date; cards: TimeCard[] }>);
-                    
-                    // Sort by week (newest first)
-                    const sortedWeeks = Object.entries(grouped).sort((a, b) => 
-                      b[1].start.getTime() - a[1].start.getTime()
-                    );
-                    
-                    return sortedWeeks.map(([weekKey, { start, cards }]) => {
-                      const weekEnd = new Date(start);
-                      weekEnd.setDate(start.getDate() + 6);
-                      const totalHours = cards.reduce((sum, card) => sum + card.total_hours, 0);
-                      
-                      return (
-                        <div key={weekKey} className="space-y-3">
-                          <div className="flex items-center justify-between border-b pb-2">
-                            <h3 className="font-semibold text-sm sm:text-base">
-                              Week of {format(start, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
-                            </h3>
-                            <Badge variant="outline" className="text-xs">
-                              {totalHours.toFixed(2)} hrs
-                            </Badge>
+                        const sortedWeeks = Object.entries(grouped)
+                          .sort((a, b) => b[1].start.getTime() - a[1].start.getTime())
+                          .map(([, w]) => w.start);
+                        
+                        const [selectedWeekIndex, setSelectedWeekIndex] = React.useState(0);
+                        const currentWeek = sortedWeeks[selectedWeekIndex];
+                        
+                        if (!currentWeek) return null;
+                        
+                        const weekEnd = new Date(currentWeek);
+                        weekEnd.setDate(currentWeek.getDate() + 6);
+                        
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedWeekIndex(Math.min(selectedWeekIndex + 1, sortedWeeks.length - 1))}
+                              disabled={selectedWeekIndex >= sortedWeeks.length - 1}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm font-medium whitespace-nowrap">
+                              {format(currentWeek, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedWeekIndex(Math.max(selectedWeekIndex - 1, 0))}
+                              disabled={selectedWeekIndex <= 0}
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <div className="space-y-2">
-                            {cards.map((card) => (
-                              <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
-                                <div className="flex-1 space-y-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                                    <span className="font-medium text-sm sm:text-base">
-                                      {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
-                                    </span>
-                                    <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
-                                      {card.status}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-xs sm:text-sm text-muted-foreground">
-                                    {format(new Date(card.punch_in_time), 'h:mm a')} - 
-                                    {format(new Date(card.punch_out_time), 'h:mm a')} 
-                                    <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
-                                  </div>
-                                </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedTimeCard(card);
-                                    const formatForInput = (dateStr: string | null) => {
-                                      if (!dateStr) return '';
-                                      const date = new Date(dateStr);
-                                      const year = date.getFullYear();
-                                      const month = String(date.getMonth() + 1).padStart(2, '0');
-                                      const day = String(date.getDate()).padStart(2, '0');
-                                      const hours = String(date.getHours()).padStart(2, '0');
-                                      const minutes = String(date.getMinutes()).padStart(2, '0');
-                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
-                                    };
-                                    
-                                    setChangeRequestData({
-                                      proposed_punch_in_time: formatForInput(card.punch_in_time),
-                                      proposed_punch_out_time: formatForInput(card.punch_out_time),
-                                      proposed_job_id: card.job_id || '',
-                                      proposed_cost_code_id: card.cost_code_id || ''
-                                    });
-                                    setShowChangeDialog(true);
-                                  }}
-                                  className="w-full sm:w-auto text-xs sm:text-sm"
-                                >
-                                  Request Change
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()
-                )}
-              </CardContent>
-            </Card>
-
-            {changeRequests.length > 0 && (
-              <Card>
-                <CardHeader className="p-4">
-                  <CardTitle className="text-base sm:text-xl">Change Requests</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 p-4">
-                  {changeRequests.map((request) => (
-                    <div key={request.id} className="p-3 sm:p-4 border rounded-lg space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant={
-                          request.status === 'approved' ? 'default' : 
-                          request.status === 'rejected' ? 'destructive' : 
-                          'secondary'
-                        } className="text-xs">
-                          {request.status}
-                        </Badge>
-                        <span className="text-xs sm:text-sm text-muted-foreground">
-                          {format(new Date(request.requested_at), 'MMM dd, yyyy')}
-                        </span>
-                      </div>
-                      <p className="text-xs sm:text-sm"><strong>Reason:</strong> {request.reason}</p>
-                      {request.review_notes && (
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          <strong>Response:</strong> {request.review_notes}
-                        </p>
-                      )}
+                        );
+                      })()}
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                  </CardHeader>
+                  <CardContent className="space-y-3 p-4">
+                    {timeCards.filter(card => card.status !== 'deleted').length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">No time cards yet</p>
+                    ) : (
+                      (() => {
+                        const grouped = timeCards
+                          .filter(card => card.status !== 'deleted')
+                          .reduce((acc, card) => {
+                            const date = new Date(card.punch_in_time);
+                            const dayOfWeek = date.getDay();
+                            const weekStart = new Date(date);
+                            weekStart.setDate(date.getDate() - dayOfWeek);
+                            weekStart.setHours(0, 0, 0, 0);
+                            const weekKey = weekStart.toISOString();
+                            if (!acc[weekKey]) {
+                              acc[weekKey] = { start: weekStart, cards: [] };
+                            }
+                            acc[weekKey].cards.push(card);
+                            return acc;
+                          }, {} as Record<string, { start: Date; cards: TimeCard[] }>);
+                        
+                        const sortedWeeks = Object.entries(grouped).sort((a, b) => 
+                          b[1].start.getTime() - a[1].start.getTime()
+                        );
+                        
+                        return sortedWeeks.map(([weekKey, { start, cards }]) => {
+                          const weekEnd = new Date(start);
+                          weekEnd.setDate(start.getDate() + 6);
+                          const totalHours = cards.reduce((sum, card) => sum + card.total_hours, 0);
+                          
+                          return (
+                            <div key={weekKey} className="space-y-3">
+                              <div className="flex items-center justify-between border-b pb-2">
+                                <h3 className="font-semibold text-sm sm:text-base">
+                                  Week of {format(start, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+                                </h3>
+                                <Badge variant="outline" className="text-xs">
+                                  {totalHours.toFixed(2)} hrs
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                {cards.map((card) => (
+                                  <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
+                                    <div className="flex-1 space-y-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                        <span className="font-medium text-sm sm:text-base">
+                                          {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
+                                        </span>
+                                        <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                                          {card.status}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-xs sm:text-sm text-muted-foreground">
+                                        {format(new Date(card.punch_in_time), 'h:mm a')} - 
+                                        {format(new Date(card.punch_out_time), 'h:mm a')} 
+                                        <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setSelectedTimeCard(card);
+                                        const formatForInput = (dateStr: string | null) => {
+                                          if (!dateStr) return '';
+                                          const date = new Date(dateStr);
+                                          const year = date.getFullYear();
+                                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                                          const day = String(date.getDate()).padStart(2, '0');
+                                          const hours = String(date.getHours()).padStart(2, '0');
+                                          const minutes = String(date.getMinutes()).padStart(2, '0');
+                                          return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                        };
+                                        setChangeRequestData({
+                                          proposed_punch_in_time: formatForInput(card.punch_in_time),
+                                          proposed_punch_out_time: formatForInput(card.punch_out_time),
+                                          proposed_job_id: card.job_id || '',
+                                          proposed_cost_code_id: card.cost_code_id || ''
+                                        });
+                                        setShowChangeDialog(true);
+                                      }}
+                                      className="w-full sm:w-auto text-xs sm:text-sm"
+                                    >
+                                      Request Change
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="pending">
+                <Card>
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-base sm:text-xl">Pending Review</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 p-4">
+                    {changeRequests.filter(r => r.status === 'pending').length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">No pending change requests</p>
+                    ) : (
+                      changeRequests.filter(r => r.status === 'pending').map((request) => (
+                        <div key={request.id} className="p-3 sm:p-4 border rounded-lg space-y-2 bg-amber-50/50 dark:bg-amber-950/20 border-amber-500">
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant="secondary" className="text-xs">
+                              Pending Review
+                            </Badge>
+                            <span className="text-xs sm:text-sm text-muted-foreground">
+                              {format(new Date(request.requested_at), 'MMM dd, yyyy h:mm a')}
+                            </span>
+                          </div>
+                          <p className="text-xs sm:text-sm"><strong>Reason:</strong> {request.reason}</p>
+                          {request.proposed_punch_in_time && (
+                            <p className="text-xs sm:text-sm">
+                              <strong>Proposed In:</strong> {format(new Date(request.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}
+                            </p>
+                          )}
+                          {request.proposed_punch_out_time && (
+                            <p className="text-xs sm:text-sm">
+                              <strong>Proposed Out:</strong> {format(new Date(request.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+
+                    {changeRequests.filter(r => r.status !== 'pending').length > 0 && (
+                      <>
+                        <div className="border-t pt-4 mt-4">
+                          <h3 className="font-semibold text-sm mb-3">Reviewed Requests</h3>
+                        </div>
+                        {changeRequests.filter(r => r.status !== 'pending').map((request) => (
+                          <div key={request.id} className="p-3 sm:p-4 border rounded-lg space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Badge variant={
+                                request.status === 'approved' ? 'default' : 
+                                request.status === 'rejected' ? 'destructive' : 
+                                'secondary'
+                              } className="text-xs">
+                                {request.status}
+                              </Badge>
+                              <span className="text-xs sm:text-sm text-muted-foreground">
+                                {format(new Date(request.requested_at), 'MMM dd, yyyy')}
+                              </span>
+                            </div>
+                            <p className="text-xs sm:text-sm"><strong>Reason:</strong> {request.reason}</p>
+                            {request.review_notes && (
+                              <p className="text-xs sm:text-sm text-muted-foreground">
+                                <strong>Response:</strong> {request.review_notes}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="manual">

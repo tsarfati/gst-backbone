@@ -248,7 +248,11 @@ export default function VendorEdit() {
           }
           const { data, error } = await supabase
             .from('vendors')
-            .insert([{ company_id: companyId, ...vendorData }])
+            .insert([{ 
+              ...vendorData,
+              company_id: companyId,
+              created_by: user.id
+            }])
             .select()
             .single();
 
