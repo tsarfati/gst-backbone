@@ -103,11 +103,11 @@ export default function VendorEdit() {
     if (!user || !id) return;
     
     try {
+      // Let RLS handle company access check, don't filter by company_id
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
         .eq('id', id)
-        .eq('company_id', currentCompany?.id || profile?.current_company_id)
         .maybeSingle();
 
       if (error) throw error;
@@ -257,11 +257,11 @@ export default function VendorEdit() {
         });
         navigate("/vendors");
       } else {
+        // Let RLS handle access control, don't filter by company
         const { error } = await supabase
           .from('vendors')
           .update(vendorData)
-          .eq('id', id)
-          .eq('company_id', currentCompany?.id || profile?.current_company_id);
+          .eq('id', id);
 
         if (error) throw error;
 
@@ -287,11 +287,11 @@ export default function VendorEdit() {
     if (!user || !id) return;
     
     try {
+      // Let RLS handle access control
       const { error } = await supabase
         .from('vendors')
         .update({ is_active: false })
-        .eq('id', id)
-        .eq('company_id', currentCompany?.id || profile?.current_company_id);
+        .eq('id', id);
 
       if (error) throw error;
 
@@ -317,11 +317,11 @@ export default function VendorEdit() {
     const newStatus = !formData.is_active;
     
     try {
+      // Let RLS handle access control
       const { error } = await supabase
         .from('vendors')
         .update({ is_active: newStatus })
-        .eq('id', id)
-        .eq('company_id', currentCompany?.id || profile?.current_company_id);
+        .eq('id', id);
 
       if (error) throw error;
 

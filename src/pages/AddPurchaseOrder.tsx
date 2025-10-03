@@ -77,11 +77,10 @@ export default function AddPurchaseOrder() {
         if (jobsError) throw jobsError;
         setJobs(jobsData || []);
 
-        // Fetch vendors filtered by allowed types and company
+        // Fetch vendors filtered by allowed types (RLS will handle company access)
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
           .select('id, name, vendor_type')
-          .eq('company_id', companyId)
           .eq('is_active', true)
           .in('vendor_type', allowedTypes)
           .order('name');
