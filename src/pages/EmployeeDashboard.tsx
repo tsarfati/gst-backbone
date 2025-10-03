@@ -702,23 +702,25 @@ export default function EmployeeDashboard() {
           </TabsList>
 
           <TabsContent value="timecards" className="space-y-4">
-            <Card>
-              <CardHeader className="p-4">
-                <CardTitle className="text-base sm:text-xl">My Time Cards</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 p-4">
-                {timeCards.filter(card => card.status !== 'deleted').length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No time cards yet</p>
-                ) : (
-                  timeCards.filter(card => card.status !== 'deleted').map((card) => (
-                    <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
+            {/* Pending Approval Section */}
+            {timeCards.filter(card => card.status === 'pending_approval').length > 0 && (
+              <Card className="border-amber-500 bg-amber-50/50 dark:bg-amber-950/20">
+                <CardHeader className="p-4">
+                  <CardTitle className="text-base sm:text-xl flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    Pending Approval ({timeCards.filter(card => card.status === 'pending_approval').length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 p-4">
+                  {timeCards.filter(card => card.status === 'pending_approval').map((card) => (
+                    <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg bg-background">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                           <span className="font-medium text-sm sm:text-base">
                             {format(new Date(card.punch_in_time), 'MMM dd, yyyy')}
                           </span>
-                          <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                          <Badge variant="secondary" className="text-xs">
                             {card.status}
                           </Badge>
                         </div>
@@ -733,8 +735,6 @@ export default function EmployeeDashboard() {
                         size="sm"
                         onClick={() => {
                           setSelectedTimeCard(card);
-                          // Pre-populate with the current timecard data
-                          // Convert to datetime-local format (YYYY-MM-DDTHH:MM) without timezone shift
                           const formatForInput = (dateStr: string | null) => {
                             if (!dateStr) return '';
                             const date = new Date(dateStr);
@@ -759,7 +759,114 @@ export default function EmployeeDashboard() {
                         Request Change
                       </Button>
                     </div>
-                  ))
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* All Time Cards Grouped by Week */}
+            <Card>
+              <CardHeader className="p-4">
+                <CardTitle className="text-base sm:text-xl">All Time Cards</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 p-4">
+                {timeCards.filter(card => card.status !== 'deleted').length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No time cards yet</p>
+                ) : (
+                  (() => {
+                    // Group time cards by week
+                    const grouped = timeCards
+                      .filter(card => card.status !== 'deleted')
+                      .reduce((acc, card) => {
+                        const date = new Date(card.punch_in_time);
+                        // Get week start (Sunday)
+                        const dayOfWeek = date.getDay();
+                        const weekStart = new Date(date);
+                        weekStart.setDate(date.getDate() - dayOfWeek);
+                        weekStart.setHours(0, 0, 0, 0);
+                        const weekKey = weekStart.toISOString();
+                        
+                        if (!acc[weekKey]) {
+                          acc[weekKey] = { start: weekStart, cards: [] };
+                        }
+                        acc[weekKey].cards.push(card);
+                        return acc;
+                      }, {} as Record<string, { start: Date; cards: TimeCard[] }>);
+                    
+                    // Sort by week (newest first)
+                    const sortedWeeks = Object.entries(grouped).sort((a, b) => 
+                      b[1].start.getTime() - a[1].start.getTime()
+                    );
+                    
+                    return sortedWeeks.map(([weekKey, { start, cards }]) => {
+                      const weekEnd = new Date(start);
+                      weekEnd.setDate(start.getDate() + 6);
+                      const totalHours = cards.reduce((sum, card) => sum + card.total_hours, 0);
+                      
+                      return (
+                        <div key={weekKey} className="space-y-3">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <h3 className="font-semibold text-sm sm:text-base">
+                              Week of {format(start, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              {totalHours.toFixed(2)} hrs
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            {cards.map((card) => (
+                              <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="font-medium text-sm sm:text-base">
+                                      {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
+                                    </span>
+                                    <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                                      {card.status}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-xs sm:text-sm text-muted-foreground">
+                                    {format(new Date(card.punch_in_time), 'h:mm a')} - 
+                                    {format(new Date(card.punch_out_time), 'h:mm a')} 
+                                    <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTimeCard(card);
+                                    const formatForInput = (dateStr: string | null) => {
+                                      if (!dateStr) return '';
+                                      const date = new Date(dateStr);
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      const hours = String(date.getHours()).padStart(2, '0');
+                                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                    };
+                                    
+                                    setChangeRequestData({
+                                      proposed_punch_in_time: formatForInput(card.punch_in_time),
+                                      proposed_punch_out_time: formatForInput(card.punch_out_time),
+                                      proposed_job_id: card.job_id || '',
+                                      proposed_cost_code_id: card.cost_code_id || ''
+                                    });
+                                    setShowChangeDialog(true);
+                                  }}
+                                  className="w-full sm:w-auto text-xs sm:text-sm"
+                                >
+                                  Request Change
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
                 )}
               </CardContent>
             </Card>
@@ -815,14 +922,39 @@ export default function EmployeeDashboard() {
               <CardHeader className="p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between">
                   <CardTitle className="text-base sm:text-xl">Edit Profile</CardTitle>
-                  <Button
-                    variant={editingProfile ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => editingProfile ? handleUpdateProfile() : setEditingProfile(true)}
-                    className="w-full sm:w-auto"
-                  >
-                    {editingProfile ? 'Save Changes' : <><Edit2 className="h-4 w-4 mr-2" />Edit</>}
-                  </Button>
+                  {editingProfile ? (
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingProfile(false);
+                          loadData(); // Reset to original data
+                        }}
+                        className="flex-1 sm:flex-initial"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleUpdateProfile}
+                        className="flex-1 sm:flex-initial"
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingProfile(true)}
+                      className="w-full sm:w-auto"
+                    >
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 p-4">

@@ -102,16 +102,24 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
           disabled={disabled || uploading}
           capture={isMobile ? ('environment' as any) : (undefined as any)}
         />
-        <label htmlFor={`${inputId}-gallery`}>
-          <Button variant="outline" type="button" disabled={disabled || uploading} aria-label="Upload Photo from device">
-            {uploading ? 'Uploading...' : 'Upload Photo'}
-          </Button>
-        </label>
-        <label htmlFor={`${inputId}-camera`}>
-          <Button variant="outline" type="button" disabled={disabled || uploading} aria-label="Take Photo with camera">
-            {uploading ? 'Uploading...' : 'Take Photo'}
-          </Button>
-        </label>
+        <Button 
+          variant="outline" 
+          type="button" 
+          disabled={disabled || uploading} 
+          aria-label="Upload Photo from device"
+          onClick={() => document.getElementById(`${inputId}-gallery`)?.click()}
+        >
+          {uploading ? 'Uploading...' : 'Upload Photo'}
+        </Button>
+        <Button 
+          variant="outline" 
+          type="button" 
+          disabled={disabled || uploading} 
+          aria-label="Take Photo with camera"
+          onClick={() => document.getElementById(`${inputId}-camera`)?.click()}
+        >
+          {uploading ? 'Uploading...' : 'Take Photo'}
+        </Button>
         {value && (
           <Button
             variant="secondary"
