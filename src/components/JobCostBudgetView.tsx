@@ -130,13 +130,7 @@ export default function JobCostBudgetView() {
           <JobCostCodeSelector 
             jobId={id!} 
             selectedCostCodes={selectedCostCodes}
-            onSelectedCostCodesChange={(codes) => {
-              setSelectedCostCodes(codes);
-              // Auto-switch to budget tab after selecting codes
-              if (codes.length > 0) {
-                setTimeout(() => setActiveTab("budget"), 500);
-              }
-            }}
+            onSelectedCostCodesChange={setSelectedCostCodes}
           />
         </TabsContent>
       </Tabs>

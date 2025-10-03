@@ -230,6 +230,7 @@ export default function JobCostCodeSelector({
     const isDup = selectedCostCodes.some(
       (sc) => sc.code === master.code && normalizeType(sc.type) === normalizeType(master.type)
     );
+    console.log("Checking duplicate for", master.code, master.type, "isDup:", isDup, "existing codes:", selectedCostCodes.map(sc => `${sc.code}-${sc.type}`));
     if (isDup) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
       return;
@@ -260,6 +261,7 @@ export default function JobCostCodeSelector({
     }
 
     onSelectedCostCodesChange([...selectedCostCodes, jobCode].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' })));
+    console.log("Added cost code, new list:", [...selectedCostCodes, jobCode].map(cc => `${cc.code}-${cc.type}`));
     setSelectedCodeId("");
     setCostCodePopoverOpen(false);
 

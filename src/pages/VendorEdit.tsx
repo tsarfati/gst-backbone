@@ -93,11 +93,12 @@ export default function VendorEdit() {
   };
 
   useEffect(() => {
+    console.log("VendorEdit: currentCompany changed:", currentCompany);
     if (!isAddMode && id && user) {
       loadPaymentMethods();
       loadComplianceDocuments();
     }
-  }, [id, isAddMode, user]);
+  }, [id, isAddMode, user, currentCompany]);
 
   const loadVendor = async () => {
     if (!user || !id) return;
