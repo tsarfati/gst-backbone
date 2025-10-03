@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,9 @@ export default function JobDetails() {
   const { profile } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'details';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -156,7 +159,7 @@ export default function JobDetails() {
 
       {/* Tabbed Content */}
       <Card>
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); if (val === 'details') { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.delete('tab'); return sp; }); } else { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.set('tab', val); return sp; }); } }} className="w-full">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger 
               value="details" 

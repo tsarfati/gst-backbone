@@ -16,6 +16,7 @@ interface CostCode {
   code: string;
   description: string;
   type?: string;
+  is_dynamic_group?: boolean;
 }
 
 interface JobCostCodeSelectorProps {
@@ -51,7 +52,7 @@ export default function JobCostCodeSelector({
     try {
       const { data, error } = await supabase
         .from('cost_codes')
-        .select('id, code, description, type')
+        .select('id, code, description, type, is_dynamic_group')
         .eq('company_id', currentCompany.id)
         .is('job_id', null) // Get company master cost codes (not job-specific)
         .eq('is_active', true)
@@ -189,28 +190,28 @@ export default function JobCostCodeSelector({
     const codeId = costCodeId || selectedCodeId;
     if (!codeId) return;
 
-    // Get the master cost code to check its type
+    // Get the master cost code to check its dynamic behavior
     const masterCode = masterCostCodes.find(cc => cc.id === codeId);
-    
-    // Check if this is a dynamic group or dynamic parent that requires child codes
+
+    // Only run dynamic validation for actual dynamic groups/parents
     if (masterCode && jobId) {
-      const isDynamicGroup = masterCode.code.match(/^\d+\.0$/);
-      const isDynamicParent = masterCode.code.match(/^\d+\.\d+$/) && !isDynamicGroup;
-      
+      const isDynamicGroup = !!masterCode.is_dynamic_group;
+      const major = masterCode.code.split('.')[0];
+      const hasDynamicGroup = masterCostCodes.some(cc => cc.code === `${major}.0` && cc.is_dynamic_group);
+      const isDynamicParent = /^\d+\.\d+$/.test(masterCode.code) && !isDynamicGroup && hasDynamicGroup;
+
       if (isDynamicGroup || isDynamicParent) {
         // Count existing child codes in this job
         const codePrefix = masterCode.code.replace(/\.0$/, '');
-        const childPattern = isDynamicGroup 
-          ? `${codePrefix}.`
-          : `${masterCode.code}-`;
-        
+        const childPattern = isDynamicGroup ? `${codePrefix}.` : `${masterCode.code}-`;
+
         const { data: childCodes, error: childError } = await supabase
           .from('cost_codes')
           .select('id')
           .eq('job_id', jobId)
           .eq('is_active', true)
           .like('code', `${childPattern}%`);
-        
+
         if (childError) {
           console.error('Error checking child codes:', childError);
         } else if (!childCodes || childCodes.length < 2) {

@@ -734,7 +734,7 @@ export default function JobEdit() {
             <p className="text-sm text-muted-foreground">
               Manage job cost codes and budget allocations for this project.
             </p>
-            <Button onClick={() => navigate(`/jobs/${id}/cost-budget`)}>
+            <Button onClick={() => navigate(`/jobs/${id}?tab=cost-budget`)}>
               <FileText className="h-4 w-4 mr-2" />
               Manage Cost Codes & Budget
             </Button>
