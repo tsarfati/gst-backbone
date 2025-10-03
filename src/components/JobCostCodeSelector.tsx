@@ -82,6 +82,7 @@ export default function JobCostCodeSelector({
         .eq('company_id', currentCompany.id)
         .is('job_id', null)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       if (error) throw error;
@@ -123,24 +124,20 @@ export default function JobCostCodeSelector({
     const master = masterCostCodes.find(cc => cc.id === masterCostCodeId);
     if (!master) return null;
 
-    let query = supabase
+    const { data: existing } = await supabase
       .from('cost_codes')
       .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
-      .eq('code', master.code);
-    if (master.type) {
-      query = query.eq('type', master.type as any);
-    } else {
-      query = query.is('type', null);
-    }
-    const { data: existing } = await query.maybeSingle();
+      .eq('code', master.code)
+      .maybeSingle();
 
     if (existing) {
       const { data: updated, error: updErr } = await supabase
         .from('cost_codes')
         .update({ 
           is_active: true,
-          description: master.description || existing.description
+          description: master.description || existing.description,
+          type: null
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
@@ -161,7 +158,7 @@ export default function JobCostCodeSelector({
           job_id: jobId,
           code: master.code,
           description: master.description,
-          type: (master.type || null) as any,
+          type: null,
           is_active: true,
         } as any
       ] as any)
@@ -177,21 +174,20 @@ export default function JobCostCodeSelector({
 
   const ensureJobCostCodeByCodeType = async (code: string, type?: string | null, description?: string | null) => {
     if (!jobId || !currentCompany) return null;
-    let query = supabase
+    const { data: existing } = await supabase
       .from('cost_codes')
       .select('id, code, description, type, is_active')
       .eq('job_id', jobId)
-      .eq('code', code);
-    if (type) query = query.eq('type', type as any); else query = query.is('type', null);
-
-    const { data: existing } = await query.maybeSingle();
+      .eq('code', code)
+      .maybeSingle();
 
     if (existing) {
       const { data: updated } = await supabase
         .from('cost_codes')
         .update({ 
           is_active: true,
-          description: description || existing.description
+          description: description || existing.description,
+          type: null
         })
         .eq('id', existing.id)
         .select('id, code, description, type')
@@ -207,7 +203,7 @@ export default function JobCostCodeSelector({
           job_id: jobId,
           code,
           description,
-          type: (type || null) as any,
+          type: null,
           is_active: true,
         } as any
       ] as any)
@@ -229,7 +225,7 @@ export default function JobCostCodeSelector({
     const master = masterCostCodes.find((cc) => cc.id === codeId);
     if (!master) return;
     const isDup = selectedCostCodes.some(
-      (sc) => sc.code === master.code && normalizeType(sc.type) === normalizeType(master.type)
+      (sc) => sc.code === master.code
     );
     if (isDup) {
       toast({ title: 'Already Selected', description: 'This cost code is already selected for this job', variant: 'destructive' });
@@ -278,7 +274,7 @@ export default function JobCostCodeSelector({
 
   const handleSelectAll = async () => {
     const candidates = masterCostCodes.filter(
-      mc => !selectedCostCodes.some(sc => sc.code === mc.code && sc.type === mc.type)
+      mc => !selectedCostCodes.some(sc => sc.code === mc.code)
     );
 
     if (candidates.length === 0) {
@@ -344,7 +340,7 @@ export default function JobCostCodeSelector({
   };
 
   const availableCostCodes = masterCostCodes.filter(
-    mc => !selectedCostCodes.some(sc => sc.code === mc.code && sc.type === mc.type)
+    mc => !selectedCostCodes.some(sc => sc.code === mc.code)
   );
 
   if (loading) {

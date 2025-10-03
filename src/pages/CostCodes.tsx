@@ -17,10 +17,10 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   is_active: boolean;
   job_id?: string | null;
-  is_dynamic_group?: boolean;
+}
 }
 
 export default function CostCodes() {
@@ -34,7 +34,7 @@ export default function CostCodes() {
   const [newCode, setNewCode] = useState<{
     code: string;
     description: string;
-    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   }>({
     code: "",
     description: "",
@@ -42,8 +42,6 @@ export default function CostCodes() {
   });
 
   const costTypeOptions = [
-    { value: 'dynamic_group', label: 'Dynamic Group', icon: Building, color: 'bg-indigo-100 text-indigo-800' },
-    { value: 'dynamic_parent', label: 'Dynamic Parent', icon: Calculator, color: 'bg-cyan-100 text-cyan-800' },
     { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
     { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
     { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
@@ -65,6 +63,7 @@ export default function CostCodes() {
         .eq('company_id', currentCompany.id)
         .is('job_id', null) // Only company-wide cost codes
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       if (error) throw error;
@@ -100,7 +99,6 @@ export default function CostCodes() {
           type: newCode.type,
           company_id: currentCompany?.id || '',
           is_active: true,
-          is_dynamic_group: newCode.type === 'dynamic_group',
           job_id: null // Company-wide cost code
         })
         .select()

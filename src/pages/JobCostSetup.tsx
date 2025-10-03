@@ -39,12 +39,11 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
+  type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   is_active: boolean;
   job_id?: string | null;
   chart_account_id?: string | null;
   chart_account_number?: string | null;
-  is_dynamic_group?: boolean;
 }
 
 interface Job {
@@ -84,7 +83,7 @@ export default function JobCostSetup() {
   const [newTemplate, setNewTemplate] = useState<{
     code: string;
     description: string;
-    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other' | 'dynamic_group' | 'dynamic_parent';
+    type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
     is_default: boolean;
   }>({
     code: "",
@@ -94,8 +93,6 @@ export default function JobCostSetup() {
   });
 
   const costTypeOptions = [
-    { value: 'dynamic_group', label: 'Dynamic Group', icon: Building, color: 'bg-indigo-100 text-indigo-800' },
-    { value: 'dynamic_parent', label: 'Dynamic Parent', icon: Calculator, color: 'bg-cyan-100 text-cyan-800' },
     { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
     { value: 'labor', label: 'Labor', icon: Users, color: 'bg-green-100 text-green-800' },
     { value: 'sub', label: 'Subcontractor', icon: Hammer, color: 'bg-purple-100 text-purple-800' },
@@ -121,6 +118,7 @@ export default function JobCostSetup() {
         .is('job_id', null)
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       if (costCodesError) throw costCodesError;
@@ -165,7 +163,6 @@ export default function JobCostSetup() {
         type: newTemplate.type,
         company_id: currentCompany?.id,
         is_active: true,
-        is_dynamic_group: newTemplate.type === 'dynamic_group',
         job_id: null // General cost code template
       };
 
@@ -213,7 +210,6 @@ export default function JobCostSetup() {
         code: editingCode.code,
         description: editingCode.description,
         type: editingCode.type,
-        is_dynamic_group: editingCode.type === 'dynamic_group',
       };
 
       const { error } = await supabase
@@ -425,7 +421,7 @@ export default function JobCostSetup() {
   };
 
   const downloadCsvTemplate = () => {
-    const csvContent = "code,description,type,is_dynamic_group\n1.0,Labor Group,labor,true\n1.09,General Labor,labor,false\n1.09-labor,General Labor - Labor,labor,false\n1.09-material,General Labor - Materials,material,false\n2.0,Materials Group,material,true\n2.01,Concrete & Masonry,material,false";
+    const csvContent = "code,description,type\n1.01,TEMPORARY UTILITIES,other\n1.02,PROJECT OFFICE,other";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -444,7 +440,7 @@ export default function JobCostSetup() {
       // Fetch all cost codes for the current company
       const { data: costCodesData, error } = await supabase
         .from('cost_codes')
-        .select('code, description, type, is_dynamic_group')
+        .select('code, description, type')
         .is('job_id', null)
         .eq('company_id', currentCompany.id)
         .eq('is_active', true)
@@ -462,15 +458,14 @@ export default function JobCostSetup() {
       }
 
       // Create CSV content
-      const headers = ['code', 'description', 'type', 'is_dynamic_group'];
+      const headers = ['code', 'description', 'type'];
       const csvRows = [headers.join(',')];
       
       costCodesData.forEach(code => {
         const row = [
           code.code,
-          `"${code.description.replace(/"/g, '""')}"`, // Escape quotes in description
-          code.type,
-          code.is_dynamic_group || false
+          `"${code.description.replace(/"/g, '""')}"`,
+          code.type
         ];
         csvRows.push(row.join(','));
       });
