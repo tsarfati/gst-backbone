@@ -190,6 +190,41 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       return;
     }
 
+    // Get the selected cost code to check if it's a dynamic parent/group
+    const selectedCostCode = availableCostCodes.find(cc => cc.id === newDynamicBudget.cost_code_id);
+    
+    if (selectedCostCode) {
+      // Check if this is a dynamic group (ends with .0) or dynamic parent
+      const isDynamicGroup = selectedCostCode.code.match(/^\d+\.0$/);
+      const isDynamicParent = selectedCostCode.code.match(/^\d+\.\d+$/) && !isDynamicGroup;
+      
+      if (isDynamicGroup || isDynamicParent) {
+        // Count existing child codes
+        const codePrefix = selectedCostCode.code.replace(/\.0$/, ''); // e.g., "1" from "1.0"
+        const childPattern = isDynamicGroup 
+          ? `${codePrefix}.` // For group "1.0", match "1.01", "1.02", etc.
+          : `${selectedCostCode.code}-`; // For parent "1.09", match "1.09-labor", etc.
+        
+        const { data: childCodes, error: childError } = await supabase
+          .from('cost_codes')
+          .select('id')
+          .eq('job_id', jobId)
+          .eq('is_active', true)
+          .like('code', `${childPattern}%`);
+        
+        if (childError) {
+          console.error('Error checking child codes:', childError);
+        } else if (!childCodes || childCodes.length < 2) {
+          toast({
+            title: "Validation Error",
+            description: `A ${isDynamicGroup ? 'dynamic group' : 'dynamic parent'} must have at least 2 child cost codes assigned to this job before creating a dynamic budget`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+    }
+
     const user = await supabase.auth.getUser();
     if (!user.data.user) return;
 

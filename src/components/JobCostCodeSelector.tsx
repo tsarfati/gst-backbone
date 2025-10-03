@@ -176,6 +176,41 @@ export default function JobCostCodeSelector({
     const codeId = costCodeId || selectedCodeId;
     if (!codeId) return;
 
+    // Get the master cost code to check its type
+    const masterCode = masterCostCodes.find(cc => cc.id === codeId);
+    
+    // Check if this is a dynamic group or dynamic parent that requires child codes
+    if (masterCode && jobId) {
+      const isDynamicGroup = masterCode.code.match(/^\d+\.0$/);
+      const isDynamicParent = masterCode.code.match(/^\d+\.\d+$/) && !isDynamicGroup;
+      
+      if (isDynamicGroup || isDynamicParent) {
+        // Count existing child codes in this job
+        const codePrefix = masterCode.code.replace(/\.0$/, '');
+        const childPattern = isDynamicGroup 
+          ? `${codePrefix}.`
+          : `${masterCode.code}-`;
+        
+        const { data: childCodes, error: childError } = await supabase
+          .from('cost_codes')
+          .select('id')
+          .eq('job_id', jobId)
+          .eq('is_active', true)
+          .like('code', `${childPattern}%`);
+        
+        if (childError) {
+          console.error('Error checking child codes:', childError);
+        } else if (!childCodes || childCodes.length < 2) {
+          toast({ 
+            title: 'Validation Error', 
+            description: `A ${isDynamicGroup ? 'dynamic group' : 'dynamic parent'} must have at least 2 child cost codes assigned to this job first`,
+            variant: 'destructive' 
+          });
+          return;
+        }
+      }
+    }
+
     const jobCode = await ensureJobCostCode(codeId);
     if (!jobCode) return;
 
