@@ -17,6 +17,8 @@ interface Job {
   id: string;
   name: string;
   address?: string;
+  status?: string;
+  company_id?: string;
 }
 
 interface CostCode {
@@ -226,7 +228,7 @@ function PunchClockApp() {
       if (hasGlobal) {
         const result = await supabase
           .from('jobs')
-          .select('id, name, address, status')
+          .select('id, name, address, status, company_id')
           .in('status', ['active', 'planning'])
           .order('name');
         data = result.data;
@@ -234,7 +236,7 @@ function PunchClockApp() {
       } else if (assignedJobs && assignedJobs.length > 0) {
         const result = await supabase
           .from('jobs')
-          .select('id, name, address, status')
+          .select('id, name, address, status, company_id')
           .in('id', assignedJobs)
           .order('name');
         data = result.data;
@@ -995,7 +997,7 @@ function PunchClockApp() {
       .from('punch_records')
       .insert({
         user_id: userId,
-        company_id: profile?.company_id,
+        company_id: (profile as any)?.current_company_id,
         job_id: selectedJob,
         cost_code_id: selectedCostCode,
         punch_type: 'punched_in',
