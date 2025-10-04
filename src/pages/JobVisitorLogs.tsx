@@ -6,11 +6,13 @@ import { ArrowLeft, Settings } from "lucide-react";
 import { VisitorReports } from "@/components/VisitorReports";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { VisitorLogSettings } from "@/components/VisitorLogSettings";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function JobVisitorLogs() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { user } = useAuth();
 
   if (!id) {
     return (
@@ -32,20 +34,22 @@ export default function JobVisitorLogs() {
             <p className="text-muted-foreground">Job site visitor check-in records</p>
           </div>
         </div>
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline">
-              <Settings className="h-4 w-4 mr-2" />
-              Setup
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Visitor Log Settings</DialogTitle>
-            </DialogHeader>
-            <VisitorLogSettings />
-          </DialogContent>
-        </Dialog>
+        {user && (
+          <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Settings className="h-4 w-4 mr-2" />
+                Setup
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Visitor Log Settings</DialogTitle>
+              </DialogHeader>
+              <VisitorLogSettings />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <Card>
