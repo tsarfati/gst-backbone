@@ -272,11 +272,19 @@ export default function TimecardReports() {
         query = query.in('job_id', filters.jobs);
       }
 
-      // Normalize date range to full days to avoid missing same-day punches
-      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
-      if (startISO) startISO.setHours(0, 0, 0, 0);
-      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
-      if (endISO) endISO.setHours(23, 59, 59, 999);
+      // Normalize date range to full days in UTC to avoid timezone gaps
+      const startISO = filters.startDate ? new Date(Date.UTC(
+        filters.startDate.getFullYear(),
+        filters.startDate.getMonth(),
+        filters.startDate.getDate(),
+        0, 0, 0, 0
+      )) : undefined;
+      const endISO = filters.endDate ? new Date(Date.UTC(
+        filters.endDate.getFullYear(),
+        filters.endDate.getMonth(),
+        filters.endDate.getDate(),
+        23, 59, 59, 999
+      )) : undefined;
 
       if (startISO) {
         query = query.gte('punch_in_time', startISO.toISOString());
@@ -398,11 +406,19 @@ export default function TimecardReports() {
         .neq('status', 'approved');
 
       // Apply date filters if they exist
-      // Normalize date range to full days
-      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
-      if (startISO) startISO.setHours(0, 0, 0, 0);
-      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
-      if (endISO) endISO.setHours(23, 59, 59, 999);
+      // Normalize date range to full days in UTC
+      const startISO = filters.startDate ? new Date(Date.UTC(
+        filters.startDate.getFullYear(),
+        filters.startDate.getMonth(),
+        filters.startDate.getDate(),
+        0, 0, 0, 0
+      )) : undefined;
+      const endISO = filters.endDate ? new Date(Date.UTC(
+        filters.endDate.getFullYear(),
+        filters.endDate.getMonth(),
+        filters.endDate.getDate(),
+        23, 59, 59, 999
+      )) : undefined;
       if (startISO) {
         query = query.gte('punch_in_time', startISO.toISOString());
       }
@@ -450,11 +466,19 @@ export default function TimecardReports() {
       if (filters.jobs.length > 0) {
         query = query.in('job_id', filters.jobs);
       }
-      // Normalize date range to full days
-      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
-      if (startISO) startISO.setHours(0, 0, 0, 0);
-      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
-      if (endISO) endISO.setHours(23, 59, 59, 999);
+      // Normalize date range to full days in UTC
+      const startISO = filters.startDate ? new Date(Date.UTC(
+        filters.startDate.getFullYear(),
+        filters.startDate.getMonth(),
+        filters.startDate.getDate(),
+        0, 0, 0, 0
+      )) : undefined;
+      const endISO = filters.endDate ? new Date(Date.UTC(
+        filters.endDate.getFullYear(),
+        filters.endDate.getMonth(),
+        filters.endDate.getDate(),
+        23, 59, 59, 999
+      )) : undefined;
       if (startISO) {
         query = query.gte('punch_time', startISO.toISOString());
       }
