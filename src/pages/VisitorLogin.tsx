@@ -323,56 +323,46 @@ export default function VisitorLogin() {
                   <Building2 className="h-4 w-4" />
                   <span>Company {settings?.require_company_name ? '*' : ''}</span>
                 </Label>
-                {subcontractors.length > 0 ? (
-                  <Select
-                    value={showCustomCompany ? 'custom' : formData.vendor_id}
-                    onValueChange={(value) => {
-                      if (value === 'custom') {
-                        setShowCustomCompany(true);
-                        setFormData(prev => ({ ...prev, vendor_id: '' }));
-                      } else {
-                        setShowCustomCompany(false);
-                        setFormData(prev => ({ ...prev, vendor_id: value, company_name: '' }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className={inputBgClass}>
-                      <SelectValue placeholder="Select your company" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subcontractors.map((sub) => (
-                        <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
-                          {sub.vendors?.name || 'Unknown Vendor'}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="custom">
-                        <span className="text-primary">+ Other Company (Enter Manually)</span>
+                <Select
+                  value={showCustomCompany ? 'not_listed' : formData.vendor_id || ''}
+                  onValueChange={(value) => {
+                    if (value === 'not_listed') {
+                      setShowCustomCompany(true);
+                      setFormData(prev => ({ ...prev, vendor_id: '', company_name: '' }));
+                    } else {
+                      setShowCustomCompany(false);
+                      setFormData(prev => ({ ...prev, vendor_id: value, company_name: '' }));
+                    }
+                  }}
+                  required={settings?.require_company_name}
+                >
+                  <SelectTrigger className={inputBgClass}>
+                    <SelectValue placeholder="Select your company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subcontractors.map((sub) => (
+                      <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
+                        {sub.vendors?.name || 'Unknown Vendor'}
                       </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="company_name"
-                    value={formData.company_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
-                    placeholder="Enter your company name"
-                    className={inputBgClass}
-                    required={settings?.require_company_name}
-                  />
-                )}
+                    ))}
+                    <SelectItem value="not_listed">
+                      Not Listed
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Custom Company Name Input */}
-              {showCustomCompany && subcontractors.length > 0 && (
+              {/* Custom Company Name Input - shown when "Not Listed" is selected */}
+              {showCustomCompany && (
                 <div className="space-y-2">
-                  <Label htmlFor="custom_company_name" className={textClass}>Company Name *</Label>
+                  <Label htmlFor="custom_company_name" className={textClass}>Company Name {settings?.require_company_name ? '*' : ''}</Label>
                   <Input
                     id="custom_company_name"
                     value={formData.company_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                     placeholder="Enter your company name"
                     className={inputBgClass}
-                    required
+                    required={settings?.require_company_name}
                   />
                 </div>
               )}
