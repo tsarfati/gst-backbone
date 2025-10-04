@@ -47,6 +47,16 @@ interface PunchRecord {
   user_agent?: string | null;
 }
 
+interface TimeCard {
+  id: string;
+  user_id: string;
+  job_id: string;
+  punch_in_time: string;
+  punch_out_time: string;
+  total_hours: number;
+  status: string;
+}
+
 export default function PunchClockDashboard() {
   const { currentCompany } = useCompany();
   const [active, setActive] = useState<CurrentStatus[]>([]);
@@ -61,6 +71,7 @@ export default function PunchClockDashboard() {
   const [employeeToPunchOut, setEmployeeToPunchOut] = useState<CurrentStatus | null>(null);
   const [timeCardModalOpen, setTimeCardModalOpen] = useState(false);
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
+  const [pendingTimeCards, setPendingTimeCards] = useState<TimeCard[]>([]);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -426,6 +437,52 @@ export default function PunchClockDashboard() {
     }
   };
 
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+    
+    const loadPendingTimeCards = async () => {
+      const { data } = await supabase
+        .from('time_cards')
+        .select(`
+          id,
+          user_id,
+          job_id,
+          punch_in_time,
+          punch_out_time,
+          total_hours,
+          status
+        `)
+        .eq('company_id', currentCompany.id)
+        .in('status', ['submitted', 'draft'])
+        .order('punch_in_time', { ascending: false })
+        .limit(20);
+      
+      setPendingTimeCards(data || []);
+    };
+    
+    loadPendingTimeCards();
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('pending-time-cards')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_cards'
+        },
+        () => {
+          loadPendingTimeCards();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentCompany?.id]);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="w-full space-y-0">
@@ -452,94 +509,147 @@ export default function PunchClockDashboard() {
           </div>
         </div>
 
-        <div className={`grid ${active.length === 0 && recentOuts.length === 0 ? 'grid-rows-1' : active.length === 0 || recentOuts.length === 0 ? 'grid-rows-1' : 'grid-rows-2'} h-full`}>
-          {/* Currently Punched In */}
-          <Card className="w-full rounded-none border-x-0 border-t-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+          {/* Left Side - Pending Approval */}
+          <Card className="w-full rounded-none border-l-0 border-t-0 border-b lg:border-b-0 lg:border-r">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Users className="h-6 w-6" />
-                Currently Punched In ({active.length})
+                <Clock className="h-6 w-6" />
+                Pending Approval ({pendingTimeCards.length})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 flex-1 min-h-0 overflow-y-auto">
-              {active.length === 0 && (
+            <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-12rem)]">
+              {pendingTimeCards.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
-                  <p className="text-muted-foreground text-lg">No employees are currently punched in.</p>
+                  <p className="text-muted-foreground text-lg">None pending approval</p>
                 </div>
-              )}
-              {active.map((row) => {
-                const prof = profiles[row.user_id];
-                const job = jobs[row.job_id];
-                return (
-                   <div key={row.id} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50">
-                     <div className="flex items-center gap-4 min-w-0 flex-1">
-                       <Avatar className="h-12 w-12">
-                          <AvatarImage src={(
-                            () => {
-                              const url = (prof?.avatar_url || row.punch_in_photo_url || undefined) as string | undefined;
-                              if (!url) return undefined;
-                              if (url.startsWith('http')) return url;
-                              const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
-                              return data.publicUrl || undefined;
-                            }
-                          )()} />
-                         <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                       </Avatar>
+              ) : (
+                pendingTimeCards.map((tc) => {
+                  const prof = profiles[tc.user_id];
+                  const job = tc.job_id ? jobs[tc.job_id] : undefined;
+                  return (
+                    <div 
+                      key={tc.id} 
+                      className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer"
+                      onClick={() => {
+                        setSelectedTimeCardId(tc.id);
+                        setTimeCardModalOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={prof?.avatar_url} />
+                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                        </Avatar>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
                           <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                          {row.cost_code_id && costCodes[row.cost_code_id] && (
-                            <div className="text-sm font-medium text-primary mt-1">
-                              {costCodes[row.cost_code_id].code} - {costCodes[row.cost_code_id].description}
-                            </div>
-                          )}
-                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock className="h-4 w-4" /> {format(new Date(row.punch_in_time), 'MMM d, h:mm a')}
-                            </span>
-                            {row.punch_in_location_lat && row.punch_in_location_lng && (
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin className="h-4 w-4" />
-                                Location Available
-                              </span>
-                            )}
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                            <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                          </div>
+                          <div className="text-sm font-medium text-primary mt-1">
+                            {tc.total_hours.toFixed(2)} hours
                           </div>
                         </div>
-                     </div>
-                      {isAdmin ? (
-                        <div className="flex gap-2">
-                          <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
-                            View Details
-                          </Button>
-                          <Button 
-                            size="lg" 
-                            variant="destructive" 
-                            onClick={() => handleAdminPunchOut(row)}
-                          >
-                            Punch Out
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
-                          View Details
-                        </Button>
-                      )}
-                   </div>
-                );
-              })}
+                      </div>
+                      <Badge variant={tc.status === 'submitted' ? 'secondary' : 'outline'}>
+                        {tc.status}
+                      </Badge>
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
-          {/* Recently Punched Out */}
-          {(recentOuts.length > 0 || active.length === 0) && (
-            <Card className="w-full rounded-none border-x-0 border-b-0">
+          {/* Right Side - Punched In/Out */}
+          <div className="flex flex-col">
+            {/* Currently Punched In */}
+            <Card className="w-full rounded-none border-r-0 border-t-0 border-x-0 lg:border-t-0 flex-1">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Users className="h-6 w-6" />
+                  Currently Punched In ({active.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 overflow-y-auto max-h-[calc(50vh-8rem)]">
+                {active.length === 0 && (
+                  <div className="flex items-center justify-center h-32">
+                    <p className="text-muted-foreground text-lg">No employees are currently punched in.</p>
+                  </div>
+                )}
+                {active.map((row) => {
+                  const prof = profiles[row.user_id];
+                  const job = jobs[row.job_id];
+                  return (
+                     <div key={row.id} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50">
+                       <div className="flex items-center gap-4 min-w-0 flex-1">
+                         <Avatar className="h-12 w-12">
+                            <AvatarImage src={(
+                              () => {
+                                const url = (prof?.avatar_url || row.punch_in_photo_url || undefined) as string | undefined;
+                                if (!url) return undefined;
+                                if (url.startsWith('http')) return url;
+                                const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
+                                return data.publicUrl || undefined;
+                              }
+                            )()} />
+                           <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                         </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
+                            <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
+                            {row.cost_code_id && costCodes[row.cost_code_id] && (
+                              <div className="text-sm font-medium text-primary mt-1">
+                                {costCodes[row.cost_code_id].code} - {costCodes[row.cost_code_id].description}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="h-4 w-4" /> {format(new Date(row.punch_in_time), 'MMM d, h:mm a')}
+                              </span>
+                              {row.punch_in_location_lat && row.punch_in_location_lng && (
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="h-4 w-4" />
+                                  Location Available
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                       </div>
+                        {isAdmin ? (
+                          <div className="flex gap-2">
+                            <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
+                              View Details
+                            </Button>
+                            <Button 
+                              size="lg" 
+                              variant="destructive" 
+                              onClick={() => handleAdminPunchOut(row)}
+                            >
+                              Punch Out
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
+                            View Details
+                          </Button>
+                        )}
+                     </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Recently Punched Out */}
+            <Card className="w-full rounded-none border-r-0 border-b-0 border-x-0 flex-1">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Clock className="h-6 w-6" />
                   Recently Punched Out ({recentOuts.length})
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4 flex-1 min-h-0 overflow-y-auto">
+              <CardContent className="space-y-4 overflow-y-auto max-h-[calc(50vh-8rem)]">
                 {recentOuts.length === 0 && (
                   <div className="flex items-center justify-center h-32">
                     <p className="text-muted-foreground text-lg">No recent punch outs.</p>
@@ -576,7 +686,7 @@ export default function PunchClockDashboard() {
                 })}
               </CardContent>
             </Card>
-          )}
+          </div>
         </div>
       </div>
 

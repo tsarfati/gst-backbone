@@ -79,6 +79,7 @@ export default function TimeSheets() {
   const [deleteTimeCardId, setDeleteTimeCardId] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
   const navigate = useNavigate();
@@ -527,8 +528,19 @@ export default function TimeSheets() {
     }
   };
 
-  const getSortedTimeCards = () => {
-    const sorted = [...timeCards].sort((a, b) => {
+  const getFilteredAndSortedTimeCards = () => {
+    let filtered = timeCards;
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'pending') {
+        filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
+      } else {
+        filtered = filtered.filter(tc => tc.status === statusFilter);
+      }
+    }
+    
+    const sorted = [...filtered].sort((a, b) => {
       let aValue: any, bValue: any;
       
       switch (sortField) {
@@ -674,6 +686,18 @@ export default function TimeSheets() {
               </SelectContent>
             </Select>
           )}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-48 h-11">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+            </SelectContent>
+          </Select>
           <TimeSheetsViewSelector
             currentView={currentView}
             onViewChange={viewPreference.setCurrentView}
@@ -797,7 +821,7 @@ export default function TimeSheets() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getSortedTimeCards().map((timeCard) => (
+                      {getFilteredAndSortedTimeCards().map((timeCard) => (
                         <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-muted/30">
                           {isManager && (
                             <TableCell className="font-medium">

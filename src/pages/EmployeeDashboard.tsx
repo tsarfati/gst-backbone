@@ -827,73 +827,72 @@ export default function EmployeeDashboard() {
                           b[1].start.getTime() - a[1].start.getTime()
                         );
                         
-                        return sortedWeeks.map(([weekKey, { start, cards }]) => {
-                          const weekEnd = new Date(start);
-                          weekEnd.setDate(start.getDate() + 6);
-                          const totalHours = cards.reduce((sum, card) => sum + card.total_hours, 0);
-                          
-                          return (
-                            <div key={weekKey} className="space-y-3">
-                              <div className="flex items-center justify-between border-b pb-2">
-                                <h3 className="font-semibold text-sm sm:text-base">
-                                  Week of {format(start, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
-                                </h3>
-                                <Badge variant="outline" className="text-xs">
-                                  {totalHours.toFixed(2)} hrs
-                                </Badge>
-                              </div>
-                              <div className="space-y-2">
-                                {cards.map((card) => (
-                                  <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
-                                    <div className="flex-1 space-y-2">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                                        <span className="font-medium text-sm sm:text-base">
-                                          {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
-                                        </span>
-                                        <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
-                                          {card.status}
-                                        </Badge>
-                                      </div>
-                                      <div className="text-xs sm:text-sm text-muted-foreground">
-                                        {format(new Date(card.punch_in_time), 'h:mm a')} - 
-                                        {format(new Date(card.punch_out_time), 'h:mm a')} 
-                                        <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
-                                      </div>
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        setSelectedTimeCard(card);
-                                        const formatForInput = (dateStr: string | null) => {
-                                          if (!dateStr) return '';
-                                          const date = new Date(dateStr);
-                                          const year = date.getFullYear();
-                                          const month = String(date.getMonth() + 1).padStart(2, '0');
-                                          const day = String(date.getDate()).padStart(2, '0');
-                                          const hours = String(date.getHours()).padStart(2, '0');
-                                          const minutes = String(date.getMinutes()).padStart(2, '0');
-                                          return `${year}-${month}-${day}T${hours}:${minutes}`;
-                                        };
-                                        setChangeRequestData({
-                                          proposed_punch_in_time: formatForInput(card.punch_in_time),
-                                          proposed_punch_out_time: formatForInput(card.punch_out_time),
-                                          proposed_job_id: card.job_id || '',
-                                          proposed_cost_code_id: card.cost_code_id || ''
-                                        });
-                                        setShowChangeDialog(true);
-                                      }}
-                                      className="w-full sm:w-auto text-xs sm:text-sm"
-                                    >
-                                      Request Change
-                                    </Button>
+                        // Filter to only show the selected week
+                        const selectedWeekEntry = sortedWeeks[selectedWeekIndex];
+                        if (!selectedWeekEntry) return null;
+                        
+                        const [weekKey, { start, cards }] = selectedWeekEntry;
+                        return (
+                          <div key={weekKey} className="space-y-3">
+                            <div className="flex items-center justify-between border-b pb-2">
+                            <h3 className="font-semibold text-sm sm:text-base">
+                              Week of {format(start, 'MMM dd')} - {format(new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000), 'MMM dd, yyyy')}
+                            </h3>
+                            <Badge variant="outline" className="text-xs">
+                              {cards.reduce((sum, card) => sum + card.total_hours, 0).toFixed(2)} hrs
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            {cards.map((card) => (
+                              <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                                    <span className="font-medium text-sm sm:text-base">
+                                      {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
+                                    </span>
+                                    <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
+                                      {card.status}
+                                    </Badge>
                                   </div>
-                                ))}
+                                  <div className="text-xs sm:text-sm text-muted-foreground">
+                                    {format(new Date(card.punch_in_time), 'h:mm a')} - 
+                                    {format(new Date(card.punch_out_time), 'h:mm a')} 
+                                    <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTimeCard(card);
+                                    const formatForInput = (dateStr: string | null) => {
+                                      if (!dateStr) return '';
+                                      const date = new Date(dateStr);
+                                      const year = date.getFullYear();
+                                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                                      const day = String(date.getDate()).padStart(2, '0');
+                                      const hours = String(date.getHours()).padStart(2, '0');
+                                      const minutes = String(date.getMinutes()).padStart(2, '0');
+                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                    };
+                                    setChangeRequestData({
+                                      proposed_punch_in_time: formatForInput(card.punch_in_time),
+                                      proposed_punch_out_time: formatForInput(card.punch_out_time),
+                                      proposed_job_id: card.job_id || '',
+                                      proposed_cost_code_id: card.cost_code_id || ''
+                                    });
+                                    setShowChangeDialog(true);
+                                  }}
+                                  className="w-full sm:w-auto text-xs sm:text-sm"
+                                >
+                                  Request Change
+                                </Button>
                               </div>
-                            </div>
-                          );
-                        });
+                            ))}
+                          </div>
+                        </div>
+                        );
                       })()
                     )}
                   </CardContent>
