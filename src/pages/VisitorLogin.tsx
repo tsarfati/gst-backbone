@@ -68,6 +68,16 @@ export default function VisitorLogin() {
     }
   }, [qrCode]);
 
+  const resolveColor = (value?: string) => {
+    if (!value) return undefined;
+    const v = value.trim();
+    // If value looks like HSL triplet (e.g., "350 76% 39%"), wrap in hsl()
+    if (/^\d+\s+\d+%\s+\d+%$/.test(v)) return `hsl(${v})`;
+    // If already hsl(...) or hex or rgb/rgba, return as-is
+    if (/^hsl\(/i.test(v) || /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) || /^rgb\(/i.test(v)) return v;
+    return v;
+  };
+
   const loadJobAndSettings = async () => {
     try {
       // Find job by QR code
@@ -253,7 +263,7 @@ export default function VisitorLogin() {
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   } : settings?.background_color ? {
-    backgroundColor: settings.background_color,
+    backgroundColor: resolveColor(settings.background_color),
   } : {};
 
   const isDark = settings?.theme === 'dark';
@@ -263,7 +273,7 @@ export default function VisitorLogin() {
     : 'bg-white/30 backdrop-blur-md border-black/20';
   const headerBgClass = isDark ? 'bg-black/95' : 'bg-white/95';
   const textClass = settings?.text_color ? '' : (isDark ? 'text-white' : 'text-foreground');
-  const textStyle = settings?.text_color ? { color: settings.text_color } : {};
+  const textStyle = settings?.text_color ? { color: resolveColor(settings.text_color) } : {};
 
   return (
     <div 
@@ -420,8 +430,8 @@ export default function VisitorLogin() {
                 className="w-full"
                 disabled={submitting}
                 style={{ 
-                  backgroundColor: settings?.button_color,
-                  borderColor: settings?.button_color 
+                  backgroundColor: resolveColor(settings?.button_color),
+                  borderColor: resolveColor(settings?.button_color)
                 }}
               >
                 {submitting ? (
@@ -470,8 +480,8 @@ export default function VisitorLogin() {
               }}
               className="w-full"
               style={{ 
-                backgroundColor: settings?.button_color,
-                borderColor: settings?.button_color 
+                backgroundColor: resolveColor(settings?.button_color),
+                borderColor: resolveColor(settings?.button_color) 
               }}
             >
               Check In Another Visitor
