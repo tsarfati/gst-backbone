@@ -65,6 +65,7 @@ export default function TimecardReports() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [company, setCompany] = useState<CompanyBranding | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'timecards' | 'punches'>('timecards');
   const [punches, setPunches] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
     employees: [],
@@ -496,6 +497,10 @@ export default function TimecardReports() {
 
       setPunches(transformed);
       console.log('Transformed punch records:', transformed.length);
+      if (records.length === 0 && transformed.length > 0 && activeTab !== 'punches') {
+        setActiveTab('punches');
+        toast({ title: 'Showing punches', description: 'No time cards found for filters; showing punch records.'});
+      }
     } catch (error) {
       console.error('Error loading punch records:', error);
     }
@@ -597,7 +602,7 @@ export default function TimecardReports() {
         />
 
         {/* Report Views */}
-        <Tabs defaultValue="timecards" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timecards' | 'punches')} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="timecards">Time Cards</TabsTrigger>
             <TabsTrigger value="punches">Punch Tracking</TabsTrigger>
@@ -617,6 +622,7 @@ export default function TimecardReports() {
               onTimecardCreated={() => {
                 loadTimecardRecords();
                 loadPunchRecords();
+                setActiveTab('timecards');
               }}
             />
           </TabsContent>
