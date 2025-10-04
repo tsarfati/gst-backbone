@@ -406,13 +406,35 @@ export default function EmployeeDashboard() {
       
       // Common loading for both user types
       // Load change requests
-      const { data: requestsData } = await supabase
-        .from('time_card_change_requests')
-        .select('*')
-        .eq('user_id', userId)
-        .order('requested_at', { ascending: false });
-      
-      setChangeRequests(requestsData || []);
+      if (isPinAuthenticated) {
+        // Use edge function for PIN users
+        const pinObj = localStorage.getItem('punch_clock_user');
+        const pin = pinObj ? JSON.parse(pinObj).pin : null;
+        if (pin) {
+          const changeRequestsResponse = await fetch(`${FUNCTION_BASE}/change-requests?pin=${encodeURIComponent(pin)}`, {
+            method: 'GET',
+            headers: { 
+              'Content-Type': 'application/json',
+              'apikey': ANON_KEY,
+              'Authorization': `Bearer ${ANON_KEY}`
+            }
+          });
+          
+          if (changeRequestsResponse.ok) {
+            const changeRequestsData = await changeRequestsResponse.json();
+            setChangeRequests(changeRequestsData);
+          }
+        }
+      } else {
+        // Direct database query for regular users
+        const { data: requestsData } = await supabase
+          .from('time_card_change_requests')
+          .select('*')
+          .eq('user_id', userId)
+          .order('requested_at', { ascending: false });
+        
+        setChangeRequests(requestsData || []);
+      }
       
       // Load profile/avatar
       setProfileData(prev => ({

@@ -221,6 +221,21 @@ serve(async (req) => {
       }));
 
       return new Response(JSON.stringify(contacts), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } else if (req.method === "GET" && url.pathname.endsWith("/change-requests")) {
+      const pin = url.searchParams.get("pin") || "";
+      const userRow = await validatePin(supabaseAdmin, pin);
+      if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      // Fetch change requests for this user
+      const { data, error } = await supabaseAdmin
+        .from('time_card_change_requests')
+        .select('*')
+        .eq('user_id', userRow.user_id)
+        .order('requested_at', { ascending: false });
+      
+      if (error) return errorResponse(error.message, 500);
+
+      return new Response(JSON.stringify(data || []), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     } else if (req.method === "POST" && url.pathname.endsWith("/request-change")) {
       const body = await req.json().catch(() => null) as any;
       const { pin, time_card_id, reason, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id } = body || {};
