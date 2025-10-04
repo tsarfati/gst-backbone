@@ -399,7 +399,7 @@ function PunchClockApp() {
     }
   };
 
-  const getCurrentLocation = () => {
+  const getCurrentLocation = (showError = false) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -410,13 +410,43 @@ function PunchClockApp() {
         },
         (error) => {
           console.error('Error getting location:', error);
-          toast({
-            title: 'Location Error',
-            description: 'Could not get your location. Please enable location services.',
-            variant: 'destructive'
-          });
+          // Only show error toast if explicitly requested (e.g., during punch in/out)
+          if (showError) {
+            let errorMessage = 'Could not get your location. ';
+            
+            switch(error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage += 'Please allow location access in your browser settings.';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMessage += 'Location information is unavailable.';
+                break;
+              case error.TIMEOUT:
+                errorMessage += 'Location request timed out. Please try again.';
+                break;
+              default:
+                errorMessage += 'Please enable location services.';
+            }
+            
+            toast({
+              title: 'Location Error',
+              description: errorMessage,
+              variant: 'destructive'
+            });
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
+    } else if (showError) {
+      toast({
+        title: 'Location Not Supported',
+        description: 'Your browser does not support location services.',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -425,6 +455,9 @@ function PunchClockApp() {
     console.log('currentPunch:', currentPunch);
     console.log('selectedJob:', selectedJob);
     console.log('selectedCostCode:', selectedCostCode);
+    
+    // Try to get location with error feedback when starting punch
+    getCurrentLocation(true);
     
     // First open the dialog, then start camera
     setShowCamera(true);
