@@ -62,10 +62,16 @@ export default function CompanyFiles() {
             Manage contracts, permits, insurance, and other company documents
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Upload Document
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate('/company-files/vault')} variant="outline">
+            <FolderArchive className="h-4 w-4 mr-2" />
+            Open Vault
+          </Button>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Upload Document
+          </Button>
+        </div>
       </div>
 
       {/* Quick Stats */}

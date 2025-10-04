@@ -459,7 +459,8 @@ export default function TimecardReports() {
 
       // Apply filters - need to handle both user_id and pin_employee_id
       if (filters.employees.length > 0) {
-        query = query.or(`user_id.in.(${filters.employees.join(',')}),pin_employee_id.in.(${filters.employees.join(',')})`);
+        const quotedIds = filters.employees.map((id) => `"${id}"`).join(',');
+        query = query.or(`user_id.in.(${quotedIds}),pin_employee_id.in.(${quotedIds})`);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
