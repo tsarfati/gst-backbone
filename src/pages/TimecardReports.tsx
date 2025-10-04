@@ -425,7 +425,7 @@ export default function TimecardReports() {
     try {
       let query = supabase
         .from('punch_records')
-        .select('id, user_id, pin_employee_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
+        .select('*')
         .eq('company_id', currentCompany.id)
         .order('punch_time', { ascending: false });
 
@@ -451,10 +451,10 @@ export default function TimecardReports() {
       console.log('Punch records loaded:', data?.length || 0, 'records');
 
 
-      const userIds = [...new Set((data || []).map(r => r.user_id).filter(Boolean))];
-      const pinEmployeeIds = [...new Set((data || []).map(r => r.pin_employee_id).filter(Boolean))];
-      const jobIds = [...new Set((data || []).map(r => r.job_id).filter(Boolean))];
-      const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
+      const userIds = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
+      const pinEmployeeIds = [...new Set((data || []).map((r: any) => r.pin_employee_id).filter(Boolean))];
+      const jobIds = [...new Set((data || []).map((r: any) => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((data || []).map((r: any) => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
