@@ -535,6 +535,9 @@ export default function TimeSheets() {
     if (statusFilter !== 'all') {
       if (statusFilter === 'pending') {
         filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
+      } else if (statusFilter === 'pending_approval') {
+        // Show only time cards with pending change requests
+        filtered = filtered.filter(tc => pendingChangeRequestTimeCardIds.includes(tc.id));
       } else {
         filtered = filtered.filter(tc => tc.status === statusFilter);
       }
@@ -632,20 +635,22 @@ export default function TimeSheets() {
 
   // State for pending change requests count
   const [pendingChangeRequestsCount, setPendingChangeRequestsCount] = useState(0);
+  const [pendingChangeRequestTimeCardIds, setPendingChangeRequestTimeCardIds] = useState<string[]>([]);
 
   // Load pending change requests count
   useEffect(() => {
     const loadPendingChangeRequestsCount = async () => {
       if (!currentCompany?.id) return;
       
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .from('time_card_change_requests')
-        .select('id', { count: 'exact', head: true })
+        .select('time_card_id')
         .eq('status', 'pending');
       
-      if (!error && count !== null) {
-        console.log('Pending change requests count:', count);
-        setPendingChangeRequestsCount(count);
+      if (!error && data) {
+        console.log('Pending change requests:', data);
+        setPendingChangeRequestsCount(data.length);
+        setPendingChangeRequestTimeCardIds(data.map(r => r.time_card_id));
       }
     };
 
@@ -734,7 +739,10 @@ export default function TimeSheets() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="pending_approval">
+                Pending Approval ({pendingChangeRequestsCount})
+              </SelectItem>
+              <SelectItem value="pending">Pending Review</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
               <SelectItem value="rejected">Rejected</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
@@ -775,7 +783,10 @@ export default function TimeSheets() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {isManager && (
-          <Card className="shadow-elevation-md">
+          <Card 
+            className="shadow-elevation-md cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setStatusFilter('pending_approval')}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground">Pending Approval</CardTitle>
             </CardHeader>
@@ -783,7 +794,7 @@ export default function TimeSheets() {
               <div className="text-3xl font-bold text-warning">
                 {pendingCards}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Requires review</p>
+              <p className="text-xs text-muted-foreground mt-1">Click to view all</p>
             </CardContent>
           </Card>
         )}

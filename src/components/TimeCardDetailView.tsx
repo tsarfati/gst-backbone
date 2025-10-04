@@ -605,8 +605,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status:</span>
-                      <Badge variant={getStatusColor(timeCard.status)}>
-                        {timeCard.status}
+                      <Badge variant={pendingChangeRequest ? 'secondary' : getStatusColor(timeCard.status)}>
+                        {pendingChangeRequest ? 'Pending Approval' : timeCard.status}
                       </Badge>
                     </div>
                     
