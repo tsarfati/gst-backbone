@@ -2599,6 +2599,7 @@ export type Database = {
           longitude: number | null
           notes: string | null
           photo_url: string | null
+          pin_employee_id: string | null
           punch_time: string
           punch_type: Database["public"]["Enums"]["punch_status"]
           user_agent: string | null
@@ -2615,6 +2616,7 @@ export type Database = {
           longitude?: number | null
           notes?: string | null
           photo_url?: string | null
+          pin_employee_id?: string | null
           punch_time?: string
           punch_type: Database["public"]["Enums"]["punch_status"]
           user_agent?: string | null
@@ -2631,6 +2633,7 @@ export type Database = {
           longitude?: number | null
           notes?: string | null
           photo_url?: string | null
+          pin_employee_id?: string | null
           punch_time?: string
           punch_type?: Database["public"]["Enums"]["punch_status"]
           user_agent?: string | null
@@ -2670,6 +2673,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "punch_records_pin_employee_id_fkey"
+            columns: ["pin_employee_id"]
+            isOneToOne: false
+            referencedRelation: "pin_employees"
             referencedColumns: ["id"]
           },
         ]
