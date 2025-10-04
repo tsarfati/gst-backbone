@@ -35,6 +35,7 @@ interface FilterState {
   hasNotes: boolean;
   hasOvertime: boolean;
   status: string[];
+  showDeleted: boolean;
 }
 
 interface TimecardReportFiltersProps {
@@ -106,6 +107,7 @@ export default function TimecardReportFilters({
     if (filters.hasNotes) count++;
     if (filters.hasOvertime) count++;
     if (filters.status.length > 0) count++;
+    if (filters.showDeleted) count++;
     return count;
   };
 
@@ -328,6 +330,17 @@ export default function TimecardReportFilters({
               />
               <Label htmlFor="has-overtime" className="text-sm">
                 Only records with overtime
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="show-deleted"
+                checked={filters.showDeleted}
+                onCheckedChange={(checked) => updateFilters({ showDeleted: !!checked })}
+              />
+              <Label htmlFor="show-deleted" className="text-sm">
+                Show deleted records
               </Label>
             </div>
           </div>

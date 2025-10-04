@@ -3235,6 +3235,7 @@ export type Database = {
           cost_code_id: string | null
           created_at: string
           created_via_punch_clock: boolean | null
+          deleted_at: string | null
           distance_from_job_meters: number | null
           distance_warning: boolean | null
           id: string
@@ -3269,6 +3270,7 @@ export type Database = {
           cost_code_id?: string | null
           created_at?: string
           created_via_punch_clock?: boolean | null
+          deleted_at?: string | null
           distance_from_job_meters?: number | null
           distance_warning?: boolean | null
           id?: string
@@ -3303,6 +3305,7 @@ export type Database = {
           cost_code_id?: string | null
           created_at?: string
           created_via_punch_clock?: boolean | null
+          deleted_at?: string | null
           distance_from_job_meters?: number | null
           distance_warning?: boolean | null
           id?: string

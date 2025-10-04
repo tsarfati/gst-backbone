@@ -53,6 +53,7 @@ interface FilterState {
   hasNotes: boolean;
   hasOvertime: boolean;
   status: string[];
+  showDeleted: boolean;
 }
 
 export default function TimecardReports() {
@@ -73,7 +74,8 @@ export default function TimecardReports() {
     locations: [],
     hasNotes: false,
     hasOvertime: false,
-    status: []
+    status: [],
+    showDeleted: false
   });
 
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
@@ -289,6 +291,11 @@ export default function TimecardReports() {
         query = query.gt('overtime_hours', 0);
       }
 
+      // By default, exclude deleted records unless showDeleted is true
+      if (!filters.showDeleted) {
+        query = query.is('deleted_at', null);
+      }
+
       const { data, error } = await query;
 
       if (error) throw error;
@@ -369,7 +376,8 @@ export default function TimecardReports() {
       locations: [],
       hasNotes: false,
       hasOvertime: false,
-      status: []
+      status: [],
+      showDeleted: false
     });
     // Reload after clearing
     Promise.all([loadTimecardRecords(), loadPunchRecords()]);
