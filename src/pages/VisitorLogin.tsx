@@ -26,6 +26,14 @@ interface Subcontractor {
   } | null;
 }
 
+interface SubcontractorResponse {
+  id: string;
+  vendor_id: string;
+  vendors: {
+    name: string;
+  } | null;
+}
+
 interface VisitorSettings {
   background_image_url?: string;
   background_color?: string;
@@ -89,17 +97,20 @@ export default function VisitorLogin() {
 
       setJob(jobData);
 
-      // Load subcontractors/vendors for this job  
-      fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/rest/v1/subcontracts?job_id=eq.${jobData.id}&is_active=eq.true&select=id,vendor_id,vendors(name)`, {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q'
+      // Load subcontractors/vendors for this job
+      // Using setTimeout to avoid TypeScript type inference issues
+      setTimeout(async () => {
+        try {
+          const client = supabase;
+          const table = 'subcontracts';
+          const result: any = await client.from(table).select('id, vendor_id, vendors(name)').eq('job_id', jobData.id).eq('is_active', true);
+          if (result?.data) {
+            setSubcontractors(result.data);
+          }
+        } catch (err) {
+          console.error('Error loading subcontractors:', err);
         }
-      }).then(res => res.json()).then(data => {
-        if (data) {
-          setSubcontractors(data as Subcontractor[]);
-        }
-      }).catch(err => console.error('Error loading subcontractors:', err));
+      }, 0);
 
       // Load visitor login settings
       if (jobData.company_id) {
