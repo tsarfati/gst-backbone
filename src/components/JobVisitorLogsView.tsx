@@ -1,52 +1,55 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Eye, Users, UserCheck } from "lucide-react";
+import { Users, FileText, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-
-interface VisitorLog {
-  id: string;
-  visitor_name: string;
-  visitor_company?: string;
-  visitor_phone?: string;
-  check_in_time: string;
-  check_out_time?: string;
-  purpose?: string;
-}
+import { useCompany } from "@/contexts/CompanyContext";
+import { VisitorDashboard } from "@/components/VisitorDashboard";
+import { VisitorReportsPage } from "@/components/VisitorReportsPage";
+import { VisitorLogSettingsEnhanced } from "@/components/VisitorLogSettingsEnhanced";
 
 export default function JobVisitorLogsView() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { toast } = useToast();
-  const [logs, setLogs] = useState<VisitorLog[]>([]);
+  const { currentCompany } = useCompany();
+  const [jobName, setJobName] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadLogs();
+    if (id) {
+      loadJobDetails();
+    }
   }, [id]);
 
-  const loadLogs = async () => {
-    if (!id) return;
-
+  const loadJobDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('visitor_logs')
-        .select('*')
-        .eq('job_id', id)
-        .order('check_in_time', { ascending: false })
-        .limit(10);
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select('name, company_id')
+        .eq('id', id)
+        .single();
 
-      if (error) throw error;
-      setLogs(data || []);
+      if (jobError) throw jobError;
+      
+      setJobName(jobData?.name || '');
+      
+      if (jobData?.company_id) {
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', jobData.company_id)
+          .single();
+        
+        setCompanyName(companyData?.name || '');
+      }
     } catch (error) {
-      console.error('Error loading visitor logs:', error);
+      console.error('Error loading job details:', error);
       toast({
         title: "Error",
-        description: "Failed to load visitor logs",
+        description: "Failed to load job details.",
         variant: "destructive",
       });
     } finally {
@@ -54,59 +57,56 @@ export default function JobVisitorLogsView() {
     }
   };
 
+  if (!id) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center text-muted-foreground">
+          Invalid job ID
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (loading) {
-    return <div className="p-6 text-center text-muted-foreground">Loading visitor logs...</div>;
+    return (
+      <Card>
+        <CardContent className="p-6 text-center text-muted-foreground">
+          Loading visitor logs...
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Recent Visitors</h3>
-        <Button onClick={() => navigate(`/jobs/${id}/visitor-logs`)}>
-          <Eye className="h-4 w-4 mr-2" />
-          View All
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <Tabs defaultValue="dashboard" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="dashboard" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Reports
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
 
-      {logs.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">No visitor logs found</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {logs.map((log) => (
-            <Card key={log.id}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{log.visitor_name}</span>
-                      {log.check_out_time ? (
-                        <Badge variant="secondary">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Checked Out
-                        </Badge>
-                      ) : (
-                        <Badge variant="default">On Site</Badge>
-                      )}
-                    </div>
-                    {log.visitor_company && (
-                      <div className="text-sm text-muted-foreground">{log.visitor_company}</div>
-                    )}
-                    <div className="text-xs text-muted-foreground mt-1">
-                      In: {format(new Date(log.check_in_time), 'MMM dd, h:mm a')}
-                      {log.check_out_time && ` • Out: ${format(new Date(log.check_out_time), 'h:mm a')}`}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+        <TabsContent value="dashboard" className="mt-6">
+          <VisitorDashboard jobId={id} companyName={companyName} jobName={jobName} />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-6">
+          <VisitorReportsPage jobId={id} jobName={jobName} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-6">
+          <VisitorLogSettingsEnhanced jobId={id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

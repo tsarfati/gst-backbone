@@ -18,11 +18,12 @@ interface Job {
   client: string;
 }
 
-interface JobSubcontractor {
+interface Subcontractor {
   id: string;
-  company_name: string;
-  contact_person: string;
-  phone: string;
+  vendor_id: string;
+  vendors: {
+    name: string;
+  } | null;
 }
 
 interface VisitorSettings {
@@ -43,18 +44,19 @@ export default function VisitorLogin() {
   const { toast } = useToast();
 
   const [job, setJob] = useState<Job | null>(null);
-  const [subcontractors, setSubcontractors] = useState<JobSubcontractor[]>([]);
+  const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [settings, setSettings] = useState<VisitorSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showCustomCompany, setShowCustomCompany] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState({
     visitor_name: '',
     visitor_phone: '',
     company_name: '',
-    subcontractor_id: '',
+    vendor_id: '',
     purpose_of_visit: '',
     notes: ''
   });
@@ -85,16 +87,17 @@ export default function VisitorLogin() {
 
       setJob(jobData);
 
-      // Load subcontractors for this job
-      const { data: subcontractorData } = await supabase
-        .from('job_subcontractors')
-        .select('id, company_name, contact_person, phone')
-        .eq('job_id', jobData.id)
-        .eq('is_active', true);
-
-      if (subcontractorData) {
-        setSubcontractors(subcontractorData);
-      }
+      // Load subcontractors/vendors for this job  
+      fetch(`https://watxvzoolmfjfijrgcvq.supabase.co/rest/v1/subcontracts?job_id=eq.${jobData.id}&is_active=eq.true&select=id,vendor_id,vendors(name)`, {
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q'
+        }
+      }).then(res => res.json()).then(data => {
+        if (data) {
+          setSubcontractors(data as Subcontractor[]);
+        }
+      }).catch(err => console.error('Error loading subcontractors:', err));
 
       // Load visitor login settings - we need to get company_id from job
       // For now, we'll use default settings as we don't have company_id in jobs table
@@ -134,10 +137,10 @@ export default function VisitorLogin() {
       return;
     }
 
-    if (settings?.require_company_name && !formData.company_name.trim() && !formData.subcontractor_id) {
+    if (settings?.require_company_name && !formData.company_name.trim() && !formData.vendor_id) {
       toast({
         title: "Missing Company",
-        description: "Please select a subcontractor or enter your company name.",
+        description: "Please select a vendor or enter your company name.",
         variant: "destructive",
       });
       return;
@@ -150,10 +153,10 @@ export default function VisitorLogin() {
         job_id: job.id,
         visitor_name: formData.visitor_name.trim(),
         visitor_phone: formData.visitor_phone.trim(),
-        company_name: formData.subcontractor_id ? 
-          subcontractors.find(s => s.id === formData.subcontractor_id)?.company_name : 
+        company_name: formData.vendor_id ? 
+          subcontractors.find(s => s.vendor_id === formData.vendor_id)?.vendors?.name : 
           formData.company_name.trim(),
-        subcontractor_id: formData.subcontractor_id || null,
+        vendor_id: formData.vendor_id || null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
         company_id: (job as any).company_id
@@ -283,46 +286,60 @@ export default function VisitorLogin() {
                 />
               </div>
 
-              {/* Subcontractor Selection */}
-              {subcontractors.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="subcontractor">Subcontractor</Label>
+              {/* Vendor Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="vendor" className="flex items-center space-x-2">
+                  <Building2 className="h-4 w-4" />
+                  <span>Company {settings?.require_company_name ? '*' : ''}</span>
+                </Label>
+                {subcontractors.length > 0 ? (
                   <Select
-                    value={formData.subcontractor_id}
-                    onValueChange={(value) => setFormData(prev => ({ 
-                      ...prev, 
-                      subcontractor_id: value,
-                      company_name: value ? '' : prev.company_name 
-                    }))}
+                    value={showCustomCompany ? 'custom' : formData.vendor_id}
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setShowCustomCompany(true);
+                        setFormData(prev => ({ ...prev, vendor_id: '' }));
+                      } else {
+                        setShowCustomCompany(false);
+                        setFormData(prev => ({ ...prev, vendor_id: value, company_name: '' }));
+                      }
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select your subcontractor" />
+                      <SelectValue placeholder="Select your company" />
                     </SelectTrigger>
                     <SelectContent>
                       {subcontractors.map((sub) => (
-                        <SelectItem key={sub.id} value={sub.id}>
-                          {sub.company_name}
-                          {sub.contact_person && ` - ${sub.contact_person}`}
+                        <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
+                          {sub.vendors?.name || 'Unknown Vendor'}
                         </SelectItem>
                       ))}
+                      <SelectItem value="custom">
+                        <span className="text-primary">+ Other Company (Enter Manually)</span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-              )}
-
-              {/* Company Name (if not subcontractor) */}
-              {!formData.subcontractor_id && (
-                <div className="space-y-2">
-                  <Label htmlFor="company_name" className="flex items-center space-x-2">
-                    <Building2 className="h-4 w-4" />
-                    <span>Company Name {settings?.require_company_name ? '*' : ''}</span>
-                  </Label>
+                ) : (
                   <Input
                     id="company_name"
                     value={formData.company_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                     placeholder="Enter your company name"
                     required={settings?.require_company_name}
+                  />
+                )}
+              </div>
+
+              {/* Custom Company Name Input */}
+              {showCustomCompany && subcontractors.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom_company_name">Company Name *</Label>
+                  <Input
+                    id="custom_company_name"
+                    value={formData.company_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
+                    placeholder="Enter your company name"
+                    required
                   />
                 </div>
               )}
@@ -401,10 +418,11 @@ export default function VisitorLogin() {
                   visitor_name: '',
                   visitor_phone: '',
                   company_name: '',
-                  subcontractor_id: '',
+                  vendor_id: '',
                   purpose_of_visit: '',
                   notes: ''
                 });
+                setShowCustomCompany(false);
               }}
               className="w-full"
               style={{ 

@@ -105,7 +105,7 @@ export default function JobVisitorLogs() {
         </TabsList>
 
         <TabsContent value="dashboard">
-          <VisitorDashboard jobId={id!} companyName={companyName} />
+          <VisitorDashboard jobId={id!} companyName={companyName} jobName={jobName} />
         </TabsContent>
 
         <TabsContent value="reports">

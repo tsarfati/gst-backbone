@@ -130,10 +130,6 @@ export default function ThemeSettings() {
               <Smartphone className="h-4 w-4" />
               Punch Clock Login
             </TabsTrigger>
-            <TabsTrigger value="visitor-login" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Visitor Login
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -329,9 +325,6 @@ export default function ThemeSettings() {
             <PunchClockLoginSettings />
           </TabsContent>
 
-          <TabsContent value="visitor-login">
-            <VisitorLogSettings />
-          </TabsContent>
         </Tabs>
       </div>
     </div>

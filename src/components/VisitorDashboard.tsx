@@ -30,6 +30,7 @@ interface EmployeeOnSite {
 interface VisitorDashboardProps {
   jobId: string;
   companyName: string;
+  jobName: string;
 }
 
 export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) {
