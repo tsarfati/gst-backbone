@@ -48,8 +48,46 @@ export default function CompanyVault() {
       toast({ title: 'Passphrase required', description: 'Enter your company vault passphrase to unlock.', variant: 'destructive' });
       return;
     }
-    setUnlocked(true);
-    await loadEntries();
+    
+    setLoading(true);
+    try {
+      // Fetch one entry to validate passphrase
+      const { data: testEntries, error } = await supabase
+        .from('vault_entries')
+        .select('*')
+        .eq('company_id', currentCompany?.id)
+        .limit(1);
+      
+      if (error) throw error;
+      
+      // If entries exist, validate passphrase by trying to decrypt one
+      if (testEntries && testEntries.length > 0) {
+        const testEntry = testEntries[0];
+        try {
+          await decryptJson(testEntry.data_ciphertext, testEntry.iv, testEntry.salt, passphrase);
+        } catch {
+          toast({ 
+            title: 'Incorrect passphrase', 
+            description: 'The passphrase you entered is incorrect.', 
+            variant: 'destructive' 
+          });
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Passphrase is valid (or no entries to check)
+      setUnlocked(true);
+      await loadEntries();
+    } catch (e: any) {
+      toast({ 
+        title: 'Error', 
+        description: e.message || 'Failed to unlock vault', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadEntries = async () => {
