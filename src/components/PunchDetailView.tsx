@@ -295,14 +295,26 @@ const mapContainer = useRef<HTMLDivElement>(null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Punch Record Details
-          </DialogTitle>
-          <DialogDescription>
-            {format(new Date(punch.punch_time), 'PPpp')} • {punch.punch_type === 'punched_in' ? 'Punch In' : 'Punch Out'}
-          </DialogDescription>
+        <DialogHeader className="flex flex-row items-center justify-between">
+          <div className="flex-1">
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Punch Record Details
+            </DialogTitle>
+            <DialogDescription>
+              {format(new Date(punch.punch_time), 'PPpp')} • {punch.punch_type === 'punched_in' ? 'Punch In' : 'Punch Out'}
+            </DialogDescription>
+          </div>
+          {showPunchOutButton && punch.punch_type === 'punched_in' && onPunchOut && punch.user_id && (
+            <Button
+              variant="destructive"
+              onClick={() => onPunchOut(punch.user_id!)}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Punch Out
+            </Button>
+          )}
         </DialogHeader>
 
         <div className="space-y-6">
@@ -467,20 +479,6 @@ const mapContainer = useRef<HTMLDivElement>(null);
             </Card>
           )}
         </div>
-        
-        {/* Punch Out Button for Active Punches */}
-        {showPunchOutButton && punch.punch_type === 'punched_in' && onPunchOut && punch.user_id && (
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => onPunchOut(punch.user_id!)}
-              className="gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Punch Out Employee
-            </Button>
-          </DialogFooter>
-        )}
       </DialogContent>
     </Dialog>
   );

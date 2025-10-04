@@ -71,7 +71,7 @@ export default function PunchClockDashboard() {
   const [employeeToPunchOut, setEmployeeToPunchOut] = useState<CurrentStatus | null>(null);
   const [timeCardModalOpen, setTimeCardModalOpen] = useState(false);
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
-  const [pendingTimeCards, setPendingTimeCards] = useState<TimeCard[]>([]);
+  const [pendingChangeRequests, setPendingChangeRequests] = useState<any[]>([]);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -444,40 +444,87 @@ export default function PunchClockDashboard() {
   useEffect(() => {
     if (!currentCompany?.id) return;
     
-    const loadPendingTimeCards = async () => {
+    const loadPendingChangeRequests = async () => {
       const { data } = await supabase
-        .from('time_cards')
+        .from('time_card_change_requests')
         .select(`
           id,
+          time_card_id,
           user_id,
-          job_id,
-          punch_in_time,
-          punch_out_time,
-          total_hours,
-          status
+          status,
+          created_at,
+          reason,
+          time_cards (
+            id,
+            user_id,
+            job_id,
+            punch_in_time,
+            punch_out_time,
+            total_hours
+          )
         `)
-        .eq('company_id', currentCompany.id)
-        .in('status', ['submitted', 'draft'])
-        .order('punch_in_time', { ascending: false })
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
         .limit(20);
       
-      setPendingTimeCards(data || []);
+      setPendingChangeRequests(data || []);
+      
+      // Load profiles and jobs for the change requests
+      if (data && data.length > 0) {
+        const userIds = Array.from(new Set(data.map(cr => cr.user_id)));
+        const jobIds = Array.from(new Set(data.map(cr => cr.time_cards?.job_id).filter(Boolean))) as string[];
+        
+        if (userIds.length) {
+          const [profilesResponse, pinEmployeesResponse] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('user_id, display_name, avatar_url')
+              .in('user_id', userIds),
+            supabase
+              .from('pin_employees')
+              .select('id, first_name, last_name, display_name, avatar_url')
+              .in('id', userIds)
+          ]);
+          
+          const profMap: Record<string, Profile> = {};
+          (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
+          (pinEmployeesResponse.data || []).forEach(p => { 
+            profMap[p.id] = {
+              user_id: p.id,
+              display_name: p.display_name || `${p.first_name} ${p.last_name}`,
+              avatar_url: p.avatar_url
+            };
+          });
+          setProfiles(prev => ({ ...prev, ...profMap }));
+        }
+        
+        if (jobIds.length) {
+          const { data: jobsData } = await supabase
+            .from('jobs')
+            .select('id, name')
+            .eq('company_id', currentCompany.id)
+            .in('id', jobIds);
+          const jobMap: Record<string, Job> = {};
+          (jobsData || []).forEach(j => { jobMap[j.id] = j; });
+          setJobs(prev => ({ ...prev, ...jobMap }));
+        }
+      }
     };
     
-    loadPendingTimeCards();
+    loadPendingChangeRequests();
     
     // Set up real-time subscription
     const channel = supabase
-      .channel('pending-time-cards')
+      .channel('pending-change-requests')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'time_cards'
+          table: 'time_card_change_requests'
         },
         () => {
-          loadPendingTimeCards();
+          loadPendingChangeRequests();
         }
       )
       .subscribe();
@@ -519,24 +566,25 @@ export default function PunchClockDashboard() {
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Clock className="h-6 w-6" />
-                Pending Approval ({pendingTimeCards.length})
+                Pending Approval ({pendingChangeRequests.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-12rem)]">
-              {pendingTimeCards.length === 0 ? (
+              {pendingChangeRequests.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
                   <p className="text-muted-foreground text-lg">None pending approval</p>
                 </div>
               ) : (
-                pendingTimeCards.map((tc) => {
-                  const prof = profiles[tc.user_id];
-                  const job = tc.job_id ? jobs[tc.job_id] : undefined;
+                pendingChangeRequests.map((cr) => {
+                  const prof = profiles[cr.user_id];
+                  const tc = cr.time_cards;
+                  const job = tc?.job_id ? jobs[tc.job_id] : undefined;
                   return (
                     <div 
-                      key={tc.id} 
+                      key={cr.id} 
                       className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer"
                       onClick={() => {
-                        setSelectedTimeCardId(tc.id);
+                        setSelectedTimeCardId(tc?.id || null);
                         setTimeCardModalOpen(true);
                       }}
                     >
@@ -548,16 +596,25 @@ export default function PunchClockDashboard() {
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
                           <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                            <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
-                          </div>
-                          <div className="text-sm font-medium text-primary mt-1">
-                            {tc.total_hours.toFixed(2)} hours
-                          </div>
+                          {tc?.punch_in_time && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                              <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                            </div>
+                          )}
+                          {tc?.total_hours && (
+                            <div className="text-sm font-medium text-primary mt-1">
+                              {tc.total_hours.toFixed(2)} hours
+                            </div>
+                          )}
+                          {cr.reason && (
+                            <div className="text-xs text-muted-foreground mt-1 italic line-clamp-1">
+                              {cr.reason}
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <Badge variant={tc.status === 'submitted' ? 'secondary' : 'outline'}>
-                        {tc.status}
+                      <Badge variant="secondary">
+                        Change Request
                       </Badge>
                     </div>
                   );
