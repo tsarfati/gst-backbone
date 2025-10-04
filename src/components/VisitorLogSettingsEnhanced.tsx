@@ -6,10 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Settings, Clock, MapPin, MessageSquare, Palette, Image, X, Upload, Eye } from 'lucide-react';
+import { Settings, MapPin, MessageSquare, Palette, X, Upload, Eye, Image as ImageIcon2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QrCode, Settings as SettingsIcon, Clock } from 'lucide-react';
+import { JobQRCode } from '@/components/JobQRCode';
 
 interface AutoLogoutSettings {
   id?: string;
@@ -69,6 +72,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [job, setJob] = useState<any>(null);
 
   useEffect(() => {
     if (currentCompany?.id && jobId) {
@@ -80,6 +84,16 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     if (!currentCompany?.id || !jobId) return;
 
     try {
+      // Load job data
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select('id, name, visitor_qr_code')
+        .eq('id', jobId)
+        .single();
+
+      if (jobError) throw jobError;
+      setJob(jobData);
+
       // Load auto-logout settings
       const { data: autoData, error: autoError } = await supabase
         .from('visitor_auto_logout_settings')
@@ -243,16 +257,59 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
         <div>
           <h2 className="text-2xl font-semibold">Visitor Log Settings</h2>
           <p className="text-muted-foreground">
-            Configure visitor login appearance and auto-logout rules
+            Configure QR codes, visitor login appearance and auto-logout rules
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving}>
-          <Settings className="mr-2 h-4 w-4" />
+          <SettingsIcon className="mr-2 h-4 w-4" />
           {saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
 
-      {/* Visual Customization */}
+      <Tabs defaultValue="qr-code" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="qr-code" className="flex items-center gap-2">
+            <QrCode className="h-4 w-4" />
+            QR Code
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="flex items-center gap-2">
+            <ImageIcon2 className="h-4 w-4" />
+            Appearance
+          </TabsTrigger>
+          <TabsTrigger value="auto-logout" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Auto Logout
+          </TabsTrigger>
+        </TabsList>
+
+        {/* QR Code Tab */}
+        <TabsContent value="qr-code" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <QrCode className="h-5 w-5" />
+                <span>Visitor Check-In QR Code</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Generate and manage QR codes for this job site. Visitors can scan this code to quickly check in.
+              </p>
+              
+              {job && (
+                <JobQRCode 
+                  jobId={jobId}
+                  jobName={job.name}
+                  visitorQrCode={job.visitor_qr_code}
+                  onQrCodeUpdate={(newCode) => setJob(prev => ({ ...prev, visitor_qr_code: newCode }))}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Appearance Tab */}
+        <TabsContent value="appearance" className="mt-6 space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -327,7 +384,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
               ) : (
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
                   <div className="text-center">
-                    <Image className="mx-auto h-8 w-8 text-muted-foreground" />
+                    <ImageIcon2 className="mx-auto h-8 w-8 text-muted-foreground" />
                     <div className="mt-2">
                       <Label htmlFor="background-image" className="cursor-pointer text-primary hover:underline">
                         Upload Background Image
@@ -627,6 +684,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

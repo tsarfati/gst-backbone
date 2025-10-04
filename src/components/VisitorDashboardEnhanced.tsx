@@ -189,20 +189,23 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
   return (
     <div className="space-y-6">
       {/* Summary Tiles */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {/* Total On Site */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'all' ? null : 'all')}
+          style={{
+            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)'
+          }}
         >
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-white">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total On Site</p>
-                <p className="text-4xl font-bold text-primary">{totalOnSite}</p>
+                <p className="text-sm font-medium opacity-90">Total On Site</p>
+                <p className="text-4xl font-bold">{totalOnSite}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <MapPin className="h-6 w-6 text-primary" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <MapPin className="h-6 w-6" />
               </div>
             </div>
           </CardContent>
@@ -210,17 +213,20 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Visitors */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-blue-500"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'visitors' ? null : 'visitors')}
+          style={{
+            background: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
+          }}
         >
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-white">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Visitors</p>
-                <p className="text-4xl font-bold text-blue-600">{visitors.length}</p>
+                <p className="text-sm font-medium opacity-90">Visitors</p>
+                <p className="text-4xl font-bold">{visitors.length}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <Users className="h-6 w-6" />
               </div>
             </div>
           </CardContent>
@@ -228,17 +234,20 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Employees */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-green-500"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'employees' ? null : 'employees')}
+          style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+          }}
         >
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-white">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Employees</p>
-                <p className="text-4xl font-bold text-green-600">{employees.length}</p>
+                <p className="text-sm font-medium opacity-90">Employees</p>
+                <p className="text-4xl font-bold">{employees.length}</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-green-600" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <Building2 className="h-6 w-6" />
               </div>
             </div>
           </CardContent>
@@ -246,18 +255,21 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Companies On Site */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-purple-500"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'companies' ? null : 'companies')}
+          style={{
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+          }}
         >
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-white">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Companies</p>
-                <p className="text-4xl font-bold text-purple-600">{companiesOnSite + 1}</p>
-                <p className="text-xs text-muted-foreground">Including GC</p>
+                <p className="text-sm font-medium opacity-90">Companies</p>
+                <p className="text-4xl font-bold">{companiesOnSite + 1}</p>
+                <p className="text-xs opacity-90">Including GC</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-purple-600" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <Building2 className="h-6 w-6" />
               </div>
             </div>
           </CardContent>

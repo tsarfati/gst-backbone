@@ -7,16 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, QrCode, Settings, Calculator, FileText } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
-import { JobQRCode } from "@/components/JobQRCode";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { VisitorLogSettings } from "@/components/VisitorLogSettings";
 import { formatCurrency } from "@/utils/formatNumber";
 
 export default function JobEdit() {
@@ -31,7 +28,6 @@ export default function JobEdit() {
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
   const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
-  const [visitorSettingsOpen, setVisitorSettingsOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -738,46 +734,6 @@ export default function JobEdit() {
               <FileText className="h-4 w-4 mr-2" />
               Manage Cost Codes & Budget
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Visitor Log Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
-              Visitor Log Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Configure visitor check-in settings and generate QR codes for this job site.
-            </p>
-            
-            {/* QR Code Component */}
-            <JobQRCode 
-              jobId={id!}
-              jobName={formData.name}
-              visitorQrCode={job?.visitor_qr_code}
-              onQrCodeUpdate={(newCode) => setJob(prev => ({ ...prev, visitor_qr_code: newCode }))}
-            />
-            
-            <div className="flex justify-end">
-              <Dialog open={visitorSettingsOpen} onOpenChange={setVisitorSettingsOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Visitor Log Settings
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Visitor Log Settings</DialogTitle>
-                  </DialogHeader>
-                  <VisitorLogSettings />
-                </DialogContent>
-              </Dialog>
-            </div>
           </CardContent>
         </Card>
       </div>
