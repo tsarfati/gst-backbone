@@ -36,9 +36,11 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
   const [loading, setLoading] = useState(true);
 
   // Filter states
+  const [reportType, setReportType] = useState<'range' | 'daily'>('range');
   const [companyFilter, setCompanyFilter] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dailyDate, setDailyDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [companies, setCompanies] = useState<string[]>([]);
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
 
   useEffect(() => {
     applyFilters();
-  }, [visitors, companyFilter, startDate, endDate]);
+  }, [visitors, companyFilter, startDate, endDate, reportType, dailyDate]);
 
   const loadVisitorLogs = async () => {
     try {
@@ -117,22 +119,36 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
       });
     }
 
-    // Date range filter
-    if (startDate) {
-      const start = new Date(startDate);
-      filtered = filtered.filter(visitor => {
-        const checkInDate = parseISO(visitor.check_in_time);
-        return checkInDate >= start;
-      });
-    }
+    // Report type filter
+    if (reportType === 'daily') {
+      const targetDate = new Date(dailyDate);
+      const targetStart = new Date(targetDate);
+      targetStart.setHours(0, 0, 0, 0);
+      const targetEnd = new Date(targetDate);
+      targetEnd.setHours(23, 59, 59, 999);
 
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(visitor => {
         const checkInDate = parseISO(visitor.check_in_time);
-        return checkInDate <= end;
+        return checkInDate >= targetStart && checkInDate <= targetEnd;
       });
+    } else {
+      // Date range filter
+      if (startDate) {
+        const start = new Date(startDate);
+        filtered = filtered.filter(visitor => {
+          const checkInDate = parseISO(visitor.check_in_time);
+          return checkInDate >= start;
+        });
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(visitor => {
+          const checkInDate = parseISO(visitor.check_in_time);
+          return checkInDate <= end;
+        });
+      }
     }
 
     setFilteredVisitors(filtered);
@@ -226,68 +242,113 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Company</Label>
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Companies</SelectItem>
-                  {companies.map((company) => (
-                    <SelectItem key={company} value={company}>
-                      {company}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {filteredVisitors.length} of {visitors.length} visitors
-            </p>
-            {(companyFilter !== 'all' || startDate || endDate) && (
+          <div className="space-y-4">
+            {/* Report Type Selector */}
+            <div className="grid grid-cols-2 gap-2">
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setCompanyFilter('all');
-                  setStartDate('');
-                  setEndDate('');
-                }}
+                variant={reportType === 'range' ? 'default' : 'outline'}
+                onClick={() => setReportType('range')}
+                className="w-full"
               >
-                Clear Filters
+                <Calendar className="mr-2 h-4 w-4" />
+                Date Range
               </Button>
-            )}
+              <Button
+                variant={reportType === 'daily' ? 'default' : 'outline'}
+                onClick={() => setReportType('daily')}
+                className="w-full"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Daily Report
+              </Button>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Company</Label>
+                <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Companies</SelectItem>
+                    {companies.map((company) => (
+                      <SelectItem key={company} value={company}>
+                        {company}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {reportType === 'daily' ? (
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Report Date</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={dailyDate}
+                      onChange={(e) => setDailyDate(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {reportType === 'daily' 
+                  ? `Showing ${filteredVisitors.length} visitor(s) for ${format(new Date(dailyDate), 'MMMM d, yyyy')}`
+                  : `Showing ${filteredVisitors.length} of ${visitors.length} visitors`
+                }
+              </p>
+              {(companyFilter !== 'all' || (reportType === 'range' && (startDate || endDate))) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCompanyFilter('all');
+                    if (reportType === 'range') {
+                      setStartDate('');
+                      setEndDate('');
+                    }
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

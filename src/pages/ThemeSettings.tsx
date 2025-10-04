@@ -18,7 +18,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, Smartphone, Users } from 'lucide-react';
 
-export default function ThemeSettings() {
+export default function ThemeSettings({ embedded = false }: { embedded?: boolean }) {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const { setTheme } = useTheme();
@@ -111,14 +111,16 @@ export default function ThemeSettings() {
   };
 
   return (
-    <div className="container mx-auto py-10 px-4">
+    <div className={embedded ? '' : 'container mx-auto py-10 px-4'}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Theme & Appearance</h1>
-          <p className="text-muted-foreground">
-            Customize the look and feel for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-3xl font-bold">Theme & Appearance</h1>
+            <p className="text-muted-foreground">
+              Customize the look and feel for {currentCompany?.display_name || currentCompany?.name || 'your company'}
+            </p>
+          </div>
+        )}
         
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">

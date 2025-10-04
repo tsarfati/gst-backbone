@@ -6,7 +6,7 @@ import { Users, FileText, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
-import { VisitorDashboard } from "@/components/VisitorDashboard";
+import { VisitorDashboardEnhanced } from "@/components/VisitorDashboardEnhanced";
 import { VisitorReportsPage } from "@/components/VisitorReportsPage";
 import { VisitorLogSettingsEnhanced } from "@/components/VisitorLogSettingsEnhanced";
 
@@ -96,7 +96,7 @@ export default function JobVisitorLogsView() {
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">
-          <VisitorDashboard jobId={id} companyName={companyName} jobName={jobName} />
+          <VisitorDashboardEnhanced jobId={id} companyName={companyName} jobName={jobName} />
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">

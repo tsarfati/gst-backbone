@@ -12,7 +12,8 @@ import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Calculator } from 'lucide-react';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
+import ThemeSettings from '@/pages/ThemeSettings';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -45,7 +46,7 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Building className="h-4 w-4" />
               Company Info
@@ -70,20 +71,14 @@ export default function CompanySettingsPage() {
               <DollarSign className="h-4 w-4" />
               Banking Settings
             </TabsTrigger>
+            <TabsTrigger value="theme" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Theme & Appearance
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
-            <Card>
-              <CardHeader>
-                <CardTitle>Company Configuration</CardTitle>
-                <CardDescription>
-                  Configure basic company information and general settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CompanySettings />
-              </CardContent>
-            </Card>
+            <CompanySettings />
           </TabsContent>
 
           <TabsContent value="payables">
@@ -187,8 +182,12 @@ export default function CompanySettingsPage() {
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
+               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="theme">
+            <ThemeSettings embedded />
           </TabsContent>
         </Tabs>
       </div>

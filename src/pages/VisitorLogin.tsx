@@ -99,17 +99,29 @@ export default function VisitorLogin() {
         }
       }).catch(err => console.error('Error loading subcontractors:', err));
 
-      // Load visitor login settings - we need to get company_id from job
-      // For now, we'll use default settings as we don't have company_id in jobs table
-      setSettings({
-        primary_color: '#3b82f6',
-        button_color: '#10b981',
-        confirmation_title: 'Welcome to the Job Site!',
-        confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
-        require_company_name: true,
-        require_purpose_visit: false,
-        enable_checkout: true,
-      });
+      // Load visitor login settings
+      if (jobData.company_id) {
+        const { data: settingsData } = await supabase
+          .from('visitor_login_settings')
+          .select('*')
+          .eq('company_id', jobData.company_id)
+          .maybeSingle();
+
+        if (settingsData) {
+          setSettings(settingsData);
+        } else {
+          // Use default settings
+          setSettings({
+            primary_color: '#3b82f6',
+            button_color: '#10b981',
+            confirmation_title: 'Welcome to the Job Site!',
+            confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
+            require_company_name: true,
+            require_purpose_visit: false,
+            enable_checkout: true,
+          });
+        }
+      }
 
     } catch (error) {
       console.error('Error loading job and settings:', error);
