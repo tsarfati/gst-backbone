@@ -137,7 +137,7 @@ export default function Vendors() {
                 transition-all duration-200 rounded-t-lg
                 ${letter === l
                   ? 'bg-background text-foreground border-t-2 border-x border-primary shadow-sm translate-y-[2px] z-10'
-                  : 'bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground border-t border-x border-transparent'
+                  : 'bg-muted/30 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 border-t border-x border-transparent'
                 }
               `}
             >

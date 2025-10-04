@@ -34,7 +34,7 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
   const { missingCount } = useVendorCompliance(vendor.id);
   
   return (
-    <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
+    <Card className="cursor-pointer animate-fade-in transition-all duration-200 hover:shadow-lg hover:border-primary/50 hover:scale-[1.02]" onClick={onClick}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-lg">
