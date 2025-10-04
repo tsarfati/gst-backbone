@@ -460,14 +460,25 @@ export default function PunchClockDashboard() {
             job_id,
             punch_in_time,
             punch_out_time,
-            total_hours
+            total_hours,
+            status
           )
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(20);
       
-      setPendingChangeRequests(data || []);
+      const deduped = (data || [])
+        .filter(cr => cr.time_cards && cr.time_cards.status !== 'approved' && cr.time_cards.status !== 'approved-edited')
+        .reduce((acc: Map<string, any>, cr: any) => {
+          const key = cr.time_card_id || cr.id;
+          const existing = acc.get(key);
+          if (!existing || new Date(cr.created_at) > new Date(existing.created_at)) {
+            acc.set(key, cr);
+          }
+          return acc;
+        }, new Map<string, any>());
+      setPendingChangeRequests(Array.from(deduped.values()));
       
       // Load profiles and jobs for the change requests
       if (data && data.length > 0) {
