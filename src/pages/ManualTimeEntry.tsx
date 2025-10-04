@@ -238,6 +238,15 @@ export default function ManualTimeEntry() {
     try {
       setLoading(true);
 
+      // Get the job's company_id
+      const { data: jobData, error: jobError } = await supabase
+        .from('jobs')
+        .select('company_id')
+        .eq('id', formData.job_id)
+        .single();
+
+      if (jobError) throw jobError;
+
       const punchInDateTime = new Date(`${formData.date}T${formData.punch_in_time}`);
       const punchOutDateTime = new Date(`${formData.date}T${formData.punch_out_time}`);
       const overtimeHours = calculateOvertime(totalHours);
@@ -248,7 +257,7 @@ export default function ManualTimeEntry() {
           user_id: formData.user_id,
           job_id: formData.job_id,
           cost_code_id: formData.cost_code_id,
-          company_id: currentCompany?.id || '',
+          company_id: jobData.company_id,
           punch_in_time: punchInDateTime.toISOString(),
           punch_out_time: punchOutDateTime.toISOString(),
           total_hours: totalHours,

@@ -341,31 +341,20 @@ serve(async (req) => {
         console.error('Inline image processing error:', e);
       }
 
-      // Get company_id for the user
-      let companyId: string | null = null;
-      if (userRow.is_pin_employee) {
-        const { data: companyAccess } = await supabaseAdmin
-          .from('user_company_access')
-          .select('company_id')
-          .eq('user_id', userRow.user_id)
-          .limit(1)
-          .maybeSingle();
-        companyId = companyAccess?.company_id || null;
-      } else {
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('current_company_id')
-          .eq('user_id', userRow.user_id)
-          .maybeSingle();
-        companyId = profile?.current_company_id || null;
-      }
-
-      if (!companyId) return errorResponse("Unable to determine company", 400);
-
       const now = new Date().toISOString();
 
       if (action === "in") {
         if (!job_id || !cost_code_id) return errorResponse("Missing job_id or cost_code_id");
+
+        // Get company_id from the job
+        const { data: jobData, error: jobError } = await supabaseAdmin
+          .from('jobs')
+          .select('company_id')
+          .eq('id', job_id)
+          .maybeSingle();
+
+        if (jobError || !jobData) return errorResponse("Unable to find job", 400);
+        const companyId = jobData.company_id;
 
         // Load punch clock settings for this job to check photo requirements and early punch in
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
@@ -567,6 +556,16 @@ serve(async (req) => {
         }
 
         console.log(`Found active punch for user ${userRow.user_id}, job: ${currentPunch.job_id}`);
+
+        // Get company_id from the job
+        const { data: jobData, error: jobError } = await supabaseAdmin
+          .from('jobs')
+          .select('company_id')
+          .eq('id', currentPunch.job_id)
+          .maybeSingle();
+
+        if (jobError || !jobData) return errorResponse("Unable to find job", 400);
+        const companyId = jobData.company_id;
 
         // Load punch clock settings for this job to check photo requirements
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
