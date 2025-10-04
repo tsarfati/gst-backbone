@@ -537,11 +537,9 @@ export default function TimeSheets() {
       if (statusFilter === 'pending') {
         filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
       } else if (statusFilter === 'pending_approval') {
-        // Show only time cards with pending change requests that aren't already approved
+        // Show time cards with pending change requests
         filtered = filtered.filter(tc => 
-          pendingChangeRequestTimeCardIds.includes(tc.id) && 
-          tc.status !== 'approved' && 
-          tc.status !== 'approved-edited'
+          pendingChangeRequestTimeCardIds.includes(tc.id)
         );
       } else {
         filtered = filtered.filter(tc => tc.status === statusFilter);
@@ -931,8 +929,8 @@ export default function TimeSheets() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Badge variant={getStatusColor(timeCard.status)}>
-                                {timeCard.status.toUpperCase()}
+                              <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)}>
+                                {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                               </Badge>
                               {timeCard.distance_warning && (
                                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -1048,20 +1046,20 @@ export default function TimeSheets() {
                            })}
                          </div>
                        </div>
-                      <div className="text-right space-y-2">
-                        <div className="font-bold text-xl flex items-center gap-2">
-                          <Clock className="h-5 w-5" />
-                          {timeCard.total_hours.toFixed(1)} hrs
-                        </div>
-                        {timeCard.overtime_hours > 0 && (
-                          <div className="text-sm text-warning font-medium">
-                            +{timeCard.overtime_hours.toFixed(1)} OT
-                          </div>
-                        )}
-                        <Badge variant={getStatusColor(timeCard.status)} className="ml-auto">
-                          {timeCard.status.toUpperCase()}
-                        </Badge>
-                      </div>
+                       <div className="text-right space-y-2">
+                         <div className="font-bold text-xl flex items-center gap-2">
+                           <Clock className="h-5 w-5" />
+                           {timeCard.total_hours.toFixed(1)} hrs
+                         </div>
+                         {timeCard.overtime_hours > 0 && (
+                           <div className="text-sm text-warning font-medium">
+                             +{timeCard.overtime_hours.toFixed(1)} OT
+                           </div>
+                         )}
+                         <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="ml-auto">
+                           {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                         </Badge>
+                       </div>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1239,16 +1237,16 @@ export default function TimeSheets() {
                             {new Date(timeCard.punch_in_time).toLocaleDateString()}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={getStatusColor(timeCard.status)} className="text-xs">
-                            {timeCard.status.toUpperCase()}
-                          </Badge>
-                          {timeCard.distance_warning && (
-                            <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                              <AlertTriangle className="h-3 w-3" />
-                            </Badge>
-                          )}
-                        </div>
+                         <div className="flex items-center gap-2">
+                           <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs">
+                             {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                           </Badge>
+                           {timeCard.distance_warning && (
+                             <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                               <AlertTriangle className="h-3 w-3" />
+                             </Badge>
+                           )}
+                         </div>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
@@ -1307,12 +1305,12 @@ export default function TimeSheets() {
                           <div className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </div>
-                          <div className="font-medium whitespace-nowrap">
-                            {timeCard.total_hours.toFixed(1)}h
-                          </div>
-                          <Badge variant={getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
-                            {timeCard.status.toUpperCase()}
-                          </Badge>
+                           <div className="font-medium whitespace-nowrap">
+                             {timeCard.total_hours.toFixed(1)}h
+                           </div>
+                           <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
+                             {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                           </Badge>
                         </div>
                         <div className="flex gap-1 ml-2">
                           <Button 
