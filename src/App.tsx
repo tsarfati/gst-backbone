@@ -143,7 +143,7 @@ function PublicRoutes() {
               <Route path="/pm-mobile-login" element={<PMobileLogin />} />
               <Route path="/pm-mobile-app" element={<PMobileApp />} />
               <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-              <Route path="/jobs/:id/visitor-logs" element={<JobVisitorLogs />} />
+              <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
             </Routes>
           </ReceiptProvider>
         </CompanyProvider>
@@ -332,6 +332,7 @@ function AppRoutes() {
   const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
+    || location.pathname.includes('/visitor-logs')
     || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname);
   
   if (isPublicRoute) {
