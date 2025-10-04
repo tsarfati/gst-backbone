@@ -601,7 +601,7 @@ export default function TimecardReports() {
             Comprehensive timecard reporting and analytics
           </p>
         </div>
-        <Button variant="outline" onClick={loadTimecardRecords} disabled={loading}>
+        <Button variant="outline" onClick={() => { setLoading(true); Promise.all([loadTimecardRecords(), loadPunchRecords()]).finally(() => setLoading(false)); }} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh Data
         </Button>
