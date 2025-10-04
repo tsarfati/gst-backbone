@@ -272,12 +272,18 @@ export default function TimecardReports() {
         query = query.in('job_id', filters.jobs);
       }
 
-      if (filters.startDate) {
-        query = query.gte('punch_in_time', filters.startDate.toISOString());
+      // Normalize date range to full days to avoid missing same-day punches
+      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
+      if (startISO) startISO.setHours(0, 0, 0, 0);
+      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
+      if (endISO) endISO.setHours(23, 59, 59, 999);
+
+      if (startISO) {
+        query = query.gte('punch_in_time', startISO.toISOString());
       }
 
-      if (filters.endDate) {
-        query = query.lte('punch_out_time', filters.endDate.toISOString());
+      if (endISO) {
+        query = query.lte('punch_out_time', endISO.toISOString());
       }
 
       if (filters.status.length > 0) {
@@ -392,11 +398,16 @@ export default function TimecardReports() {
         .neq('status', 'approved');
 
       // Apply date filters if they exist
-      if (filters.startDate) {
-        query = query.gte('punch_in_time', filters.startDate.toISOString());
+      // Normalize date range to full days
+      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
+      if (startISO) startISO.setHours(0, 0, 0, 0);
+      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
+      if (endISO) endISO.setHours(23, 59, 59, 999);
+      if (startISO) {
+        query = query.gte('punch_in_time', startISO.toISOString());
       }
-      if (filters.endDate) {
-        query = query.lte('punch_out_time', filters.endDate.toISOString());
+      if (endISO) {
+        query = query.lte('punch_out_time', endISO.toISOString());
       }
 
       // Apply employee filters if they exist
@@ -439,11 +450,16 @@ export default function TimecardReports() {
       if (filters.jobs.length > 0) {
         query = query.in('job_id', filters.jobs);
       }
-      if (filters.startDate) {
-        query = query.gte('punch_time', filters.startDate.toISOString());
+      // Normalize date range to full days
+      const startISO = filters.startDate ? new Date(filters.startDate) : undefined;
+      if (startISO) startISO.setHours(0, 0, 0, 0);
+      const endISO = filters.endDate ? new Date(filters.endDate) : undefined;
+      if (endISO) endISO.setHours(23, 59, 59, 999);
+      if (startISO) {
+        query = query.gte('punch_time', startISO.toISOString());
       }
-      if (filters.endDate) {
-        query = query.lte('punch_time', filters.endDate.toISOString());
+      if (endISO) {
+        query = query.lte('punch_time', endISO.toISOString());
       }
 
       const { data, error } = await query;
