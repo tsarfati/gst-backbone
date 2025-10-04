@@ -3425,6 +3425,60 @@ export type Database = {
           },
         ]
       }
+      vault_entries: {
+        Row: {
+          algo: string
+          company_id: string
+          created_at: string
+          created_by: string
+          data_ciphertext: string
+          id: string
+          iv: string
+          notes_ciphertext: string | null
+          salt: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          url: string | null
+          username: string | null
+          version: number
+        }
+        Insert: {
+          algo?: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          data_ciphertext: string
+          id?: string
+          iv: string
+          notes_ciphertext?: string | null
+          salt: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string | null
+          username?: string | null
+          version?: number
+        }
+        Update: {
+          algo?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          data_ciphertext?: string
+          id?: string
+          iv?: string
+          notes_ciphertext?: string | null
+          salt?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          url?: string | null
+          username?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       vendor_compliance_documents: {
         Row: {
           created_at: string
