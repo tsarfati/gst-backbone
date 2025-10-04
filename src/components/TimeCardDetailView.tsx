@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History } from 'lucide-react';
+import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -492,6 +492,54 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             {formatDate(timeCard.punch_in_time)}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Change Request Alert - Show prominently if there's a pending change request */}
+        {pendingChangeRequest && (
+          <Card className="border-warning bg-warning/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-warning">
+                <AlertCircle className="h-5 w-5" />
+                Pending Change Request
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="bg-background rounded-md p-4 border-l-4 border-warning">
+                <p className="text-sm font-semibold text-muted-foreground mb-1">Reason for Change:</p>
+                <p className="text-base font-medium">{pendingChangeRequest.reason || 'No reason provided'}</p>
+              </div>
+              
+              {pendingChangeRequest.requested_changes && (
+                <div className="bg-background rounded-md p-4 space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground mb-2">Requested Changes:</p>
+                  <div className="space-y-1 text-sm">
+                    {pendingChangeRequest.requested_changes.punch_in_time && (
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-muted-foreground">Punch In Time:</span>
+                        <span className="font-medium">
+                          {format(new Date(pendingChangeRequest.requested_changes.punch_in_time), 'MMM dd, yyyy h:mm a')}
+                        </span>
+                      </div>
+                    )}
+                    {pendingChangeRequest.requested_changes.punch_out_time && (
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-muted-foreground">Punch Out Time:</span>
+                        <span className="font-medium">
+                          {format(new Date(pendingChangeRequest.requested_changes.punch_out_time), 'MMM dd, yyyy h:mm a')}
+                        </span>
+                      </div>
+                    )}
+                    {pendingChangeRequest.requested_changes.break_minutes !== undefined && (
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-muted-foreground">Break Minutes:</span>
+                        <span className="font-medium">{pendingChangeRequest.requested_changes.break_minutes} minutes</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'audit' | 'map')} className="w-full">
           <div className="flex justify-between items-center mb-4">
