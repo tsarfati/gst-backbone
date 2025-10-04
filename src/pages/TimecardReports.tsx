@@ -425,13 +425,13 @@ export default function TimecardReports() {
     try {
       let query = supabase
         .from('punch_records')
-        .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
+        .select('id, user_id, pin_employee_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
         .eq('company_id', currentCompany.id)
         .order('punch_time', { ascending: false });
 
-      // Apply filters
+      // Apply filters - need to handle both user_id and pin_employee_id
       if (filters.employees.length > 0) {
-        query = query.in('user_id', filters.employees);
+        query = query.or(`user_id.in.(${filters.employees.join(',')}),pin_employee_id.in.(${filters.employees.join(',')})`);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
@@ -448,13 +448,17 @@ export default function TimecardReports() {
       const { data, error } = await query;
       if (error) throw error;
 
-      const userIds = [...new Set((data || []).map(r => r.user_id))];
+      console.log('Punch records loaded:', data?.length || 0, 'records');
+
+
+      const userIds = [...new Set((data || []).map(r => r.user_id).filter(Boolean))];
+      const pinEmployeeIds = [...new Set((data || []).map(r => r.pin_employee_id).filter(Boolean))];
       const jobIds = [...new Set((data || []).map(r => r.job_id).filter(Boolean))];
       const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
-        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [] },
+        pinEmployeeIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', pinEmployeeIds) : { data: [] },
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds) : { data: [] },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
       ]);
@@ -466,7 +470,7 @@ export default function TimecardReports() {
 
       const transformed = (data || []).map((r: any) => {
         const profile = profilesMap.get(r.user_id);
-        const pinEmp = pinMap.get(r.user_id);
+        const pinEmp = pinMap.get(r.pin_employee_id);
         const employee_name = profile?.display_name || pinEmp?.display_name ||
           ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
            (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
@@ -475,6 +479,7 @@ export default function TimecardReports() {
         return {
           id: r.id,
           user_id: r.user_id,
+          pin_employee_id: r.pin_employee_id,
           employee_name,
           job_name: job?.name || 'Unknown Job',
           cost_code: code ? `${code.code} - ${code.description}` : 'Unknown Code',
@@ -490,6 +495,7 @@ export default function TimecardReports() {
       });
 
       setPunches(transformed);
+      console.log('Transformed punch records:', transformed.length);
     } catch (error) {
       console.error('Error loading punch records:', error);
     }
