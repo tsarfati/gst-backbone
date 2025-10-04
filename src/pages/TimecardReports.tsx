@@ -454,12 +454,14 @@ export default function TimecardReports() {
 
       const userIds = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
       const pinEmployeeIds = [...new Set((data || []).map((r: any) => r.pin_employee_id).filter(Boolean))];
+      // Also check if user_id might be a pin_employee_id
+      const allPossiblePinIds = [...new Set([...pinEmployeeIds, ...userIds])];
       const jobIds = [...new Set((data || []).map((r: any) => r.job_id).filter(Boolean))];
       const costCodeIds = [...new Set((data || []).map((r: any) => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
-        pinEmployeeIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', pinEmployeeIds) : { data: [] },
+        allPossiblePinIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', allPossiblePinIds) : { data: [] },
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds) : { data: [] },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
       ]);
@@ -471,7 +473,7 @@ export default function TimecardReports() {
 
       const transformed = (data || []).map((r: any) => {
         const profile = profilesMap.get(r.user_id);
-        const pinEmp = pinMap.get(r.pin_employee_id);
+        const pinEmp = pinMap.get(r.pin_employee_id) || pinMap.get(r.user_id); // Check if user_id is actually a pin_employee_id
         const employee_name = profile?.display_name || pinEmp?.display_name ||
           ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
            (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
