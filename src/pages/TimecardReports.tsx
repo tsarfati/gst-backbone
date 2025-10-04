@@ -608,6 +608,10 @@ export default function TimecardReports() {
             <PunchTrackingReport
               records={punches}
               loading={loading}
+              onTimecardCreated={() => {
+                loadTimecardRecords();
+                loadPunchRecords();
+              }}
             />
           </TabsContent>
         </Tabs>

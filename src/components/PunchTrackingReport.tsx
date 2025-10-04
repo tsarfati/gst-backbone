@@ -3,10 +3,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Download, Clock, MapPin, Camera } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Download, Clock, MapPin, Camera, Link as LinkIcon } from "lucide-react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface PunchRecord {
   id: string;
@@ -28,9 +31,13 @@ interface PunchRecord {
 interface PunchTrackingReportProps {
   records: PunchRecord[];
   loading: boolean;
+  onTimecardCreated?: () => void;
 }
 
-export function PunchTrackingReport({ records, loading }: PunchTrackingReportProps) {
+export function PunchTrackingReport({ records, loading, onTimecardCreated }: PunchTrackingReportProps) {
+  const { toast } = useToast();
+  const [selectedPunches, setSelectedPunches] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
   const handleExportPDF = () => {
     const doc = new jsPDF();
     
@@ -77,6 +84,111 @@ export function PunchTrackingReport({ records, loading }: PunchTrackingReportPro
     return punchType === "punched_in" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800";
   };
 
+  const togglePunchSelection = (punchId: string) => {
+    setSelectedPunches(prev => 
+      prev.includes(punchId) 
+        ? prev.filter(id => id !== punchId)
+        : [...prev, punchId]
+    );
+  };
+
+  const handleCreateTimecard = async () => {
+    if (selectedPunches.length !== 2) {
+      toast({
+        title: "Invalid Selection",
+        description: "Please select exactly one punch-in and one punch-out record",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const selectedRecords = records.filter(r => selectedPunches.includes(r.id));
+    const punchIn = selectedRecords.find(r => r.punch_type === "punched_in");
+    const punchOut = selectedRecords.find(r => r.punch_type === "punched_out");
+
+    if (!punchIn || !punchOut) {
+      toast({
+        title: "Invalid Selection",
+        description: "You must select one punch-in and one punch-out record",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (new Date(punchOut.punch_time) <= new Date(punchIn.punch_time)) {
+      toast({
+        title: "Invalid Time Range",
+        description: "Punch-out must be after punch-in",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Calculate hours
+      const totalHours = (new Date(punchOut.punch_time).getTime() - new Date(punchIn.punch_time).getTime()) / (1000 * 60 * 60);
+      let breakMinutes = 0;
+      let adjustedHours = totalHours;
+
+      if (totalHours > 6) {
+        breakMinutes = 30;
+        adjustedHours = totalHours - 0.5;
+      }
+
+      const overtimeHours = Math.max(0, adjustedHours - 8);
+
+      // Get company_id from the first record with a job
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select('company_id')
+        .eq('id', punchIn.job_id || punchOut.job_id)
+        .single();
+
+      const { error } = await supabase
+        .from('time_cards')
+        .insert({
+          user_id: punchIn.user_id || punchIn.pin_employee_id,
+          job_id: punchIn.job_id,
+          cost_code_id: punchIn.cost_code_id,
+          company_id: jobData?.company_id,
+          punch_in_time: punchIn.punch_time,
+          punch_out_time: punchOut.punch_time,
+          total_hours: adjustedHours,
+          overtime_hours: overtimeHours,
+          break_minutes: breakMinutes,
+          punch_in_location_lat: punchIn.latitude,
+          punch_in_location_lng: punchIn.longitude,
+          punch_out_location_lat: punchOut.latitude,
+          punch_out_location_lng: punchOut.longitude,
+          punch_in_photo_url: punchIn.photo_url,
+          punch_out_photo_url: punchOut.photo_url,
+          notes: punchOut.notes,
+          status: 'approved',
+          created_via_punch_clock: true
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Time card created successfully"
+      });
+
+      setSelectedPunches([]);
+      onTimecardCreated?.();
+    } catch (error) {
+      console.error('Error creating timecard:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create time card",
+        variant: "destructive"
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="p-6">
@@ -99,18 +211,30 @@ export function PunchTrackingReport({ records, loading }: PunchTrackingReportPro
         <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="text-lg font-semibold">Individual Punch Tracking</h3>
-            <p className="text-sm text-muted-foreground">Total Punches: {records.length}</p>
+            <p className="text-sm text-muted-foreground">
+              Total Punches: {records.length}
+              {selectedPunches.length > 0 && ` • ${selectedPunches.length} selected`}
+            </p>
           </div>
-          <Button onClick={handleExportPDF} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
+          <div className="flex gap-2">
+            {selectedPunches.length === 2 && (
+              <Button onClick={handleCreateTimecard} size="sm" disabled={creating}>
+                <LinkIcon className="h-4 w-4 mr-2" />
+                {creating ? "Creating..." : "Create Timecard"}
+              </Button>
+            )}
+            <Button onClick={handleExportPDF} variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">Select</TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Date & Time</TableHead>
                 <TableHead>Type</TableHead>
@@ -124,6 +248,12 @@ export function PunchTrackingReport({ records, loading }: PunchTrackingReportPro
             <TableBody>
               {records.map((record) => (
                 <TableRow key={record.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedPunches.includes(record.id)}
+                      onCheckedChange={() => togglePunchSelection(record.id)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{record.employee_name}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
