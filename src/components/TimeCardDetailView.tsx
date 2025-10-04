@@ -465,15 +465,49 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       });
 
       // Reload the time card details
-      await loadTimeCardDetails();
-      
-      // Close the modal
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error approving change request:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to approve change request.",
+        description: "Failed to approve change request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleApproveTimeCard = async () => {
+    if (!user || !isManager) return;
+    
+    try {
+      setApproving(true);
+
+      // Update the time card status to approved
+      const { error } = await supabase
+        .from('time_cards')
+        .update({
+          status: 'approved',
+          approved_by: user.id,
+          approved_at: new Date().toISOString()
+        })
+        .eq('id', timeCard.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Time Card Approved",
+        description: "The time card has been approved successfully.",
+      });
+
+      // Reload the time card details
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error approving time card:', error);
+      toast({
+        title: "Error",
+        description: "Failed to approve time card. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -631,9 +665,22 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status:</span>
-                      <Badge variant={pendingChangeRequest ? 'secondary' : getStatusColor(timeCard.status)}>
-                        {pendingChangeRequest ? 'Pending Approval' : (timeCard.status === 'approved-edited' ? 'Approved (Edited)' : timeCard.status)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={pendingChangeRequest ? 'secondary' : getStatusColor(timeCard.status)}>
+                          {pendingChangeRequest ? 'Pending Approval' : (timeCard.status === 'approved-edited' ? 'Approved (Edited)' : timeCard.status)}
+                        </Badge>
+                        {isManager && timeCard.status === 'submitted' && !pendingChangeRequest && (
+                          <Button 
+                            onClick={handleApproveTimeCard}
+                            disabled={approving}
+                            size="sm"
+                            className="gap-2"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            {approving ? 'Approving...' : 'Approve'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     
                     {timeCard.review_notes && (
