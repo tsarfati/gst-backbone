@@ -3738,6 +3738,7 @@ export type Database = {
           primary_color: string | null
           require_company_name: boolean | null
           require_purpose_visit: boolean | null
+          theme: string
           updated_at: string
         }
         Insert: {
@@ -3754,6 +3755,7 @@ export type Database = {
           primary_color?: string | null
           require_company_name?: boolean | null
           require_purpose_visit?: boolean | null
+          theme?: string
           updated_at?: string
         }
         Update: {
@@ -3770,6 +3772,7 @@ export type Database = {
           primary_color?: string | null
           require_company_name?: boolean | null
           require_purpose_visit?: boolean | null
+          theme?: string
           updated_at?: string
         }
         Relationships: []
