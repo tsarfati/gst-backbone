@@ -537,8 +537,12 @@ export default function TimeSheets() {
       if (statusFilter === 'pending') {
         filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
       } else if (statusFilter === 'pending_approval') {
-        // Show only time cards with pending change requests
-        filtered = filtered.filter(tc => pendingChangeRequestTimeCardIds.includes(tc.id));
+        // Show only time cards with pending change requests that aren't already approved
+        filtered = filtered.filter(tc => 
+          pendingChangeRequestTimeCardIds.includes(tc.id) && 
+          tc.status !== 'approved' && 
+          tc.status !== 'approved-edited'
+        );
       } else {
         filtered = filtered.filter(tc => tc.status === statusFilter);
       }
