@@ -9,7 +9,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { startOfWeek, endOfWeek, subDays } from 'date-fns';
 import TimecardReportFilters from '@/components/TimecardReportFilters';
 import TimecardReportViews from '@/components/TimecardReportViews';
+import { PunchTrackingReport } from '@/components/PunchTrackingReport';
 import { exportTimecardToPDF, ReportData, CompanyBranding } from '@/utils/pdfExport';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Employee {
   id: string;
@@ -581,12 +583,26 @@ export default function TimecardReports() {
         />
 
         {/* Report Views */}
-        <TimecardReportViews
-          records={records}
-          summary={summary}
-          loading={loading}
-          onExportPDF={handleExportPDF}
-        />
+        <Tabs defaultValue="timecards" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="timecards">Time Cards</TabsTrigger>
+            <TabsTrigger value="punches">Punch Tracking</TabsTrigger>
+          </TabsList>
+          <TabsContent value="timecards">
+            <TimecardReportViews
+              records={records}
+              summary={summary}
+              loading={loading}
+              onExportPDF={handleExportPDF}
+            />
+          </TabsContent>
+          <TabsContent value="punches">
+            <PunchTrackingReport
+              records={punches}
+              loading={loading}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
