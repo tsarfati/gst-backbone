@@ -459,8 +459,8 @@ export default function TimecardReports() {
 
       // Apply filters - need to handle both user_id and pin_employee_id
       if (filters.employees.length > 0) {
-        const ids = filters.employees.join(',');
-        query = query.or(`user_id.in.(${ids}),pin_employee_id.in.(${ids})`);
+        const quotedIds = filters.employees.map((id) => `"${id}"`).join(',');
+        query = query.or(`user_id.in.(${quotedIds}),pin_employee_id.in.(${quotedIds})`);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
@@ -502,8 +502,8 @@ export default function TimecardReports() {
           .gte('punch_time', fallbackStart.toISOString())
           .order('punch_time', { ascending: false });
         if (filters.employees.length > 0) {
-          const ids = filters.employees.join(',');
-          q2 = q2.or(`user_id.in.(${ids}),pin_employee_id.in.(${ids})`);
+          const quotedIds = filters.employees.map((id) => `"${id}"`).join(',');
+          q2 = q2.or(`user_id.in.(${quotedIds}),pin_employee_id.in.(${quotedIds})`);
         }
         if (filters.jobs.length > 0) q2 = q2.in('job_id', filters.jobs);
         const { data: d2 } = await q2;
