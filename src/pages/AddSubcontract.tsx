@@ -93,10 +93,11 @@ export default function AddSubcontract() {
         if (jobsError) throw jobsError;
         setJobs(jobsData || []);
 
-        // Fetch vendors filtered by allowed types (RLS will handle company access)
+        // Fetch vendors filtered by company and allowed types
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
           .select('id, name, vendor_type')
+          .eq('company_id', companyId)
           .eq('is_active', true)
           .in('vendor_type', allowedTypes)
           .order('name');
