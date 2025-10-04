@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, FileText, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Users, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -17,6 +18,7 @@ export default function JobVisitorLogsView() {
   const [jobName, setJobName] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -89,24 +91,30 @@ export default function JobVisitorLogsView() {
             <FileText className="h-4 w-4" />
             Reports
           </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Settings
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">
-          <VisitorDashboardEnhanced jobId={id} companyName={companyName} jobName={jobName} />
+          <VisitorDashboardEnhanced 
+            jobId={id} 
+            companyName={companyName} 
+            jobName={jobName}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">
           <VisitorReportsPage jobId={id} jobName={jobName} />
         </TabsContent>
-
-        <TabsContent value="settings" className="mt-6">
-          <VisitorLogSettingsEnhanced jobId={id} />
-        </TabsContent>
       </Tabs>
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Visitor Log Settings</DialogTitle>
+          </DialogHeader>
+          <VisitorLogSettingsEnhanced jobId={id} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

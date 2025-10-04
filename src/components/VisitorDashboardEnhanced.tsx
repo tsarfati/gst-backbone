@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronRight, Building2, Users, MapPin, Clock, Phone, FileText } from 'lucide-react';
+import { ChevronRight, Building2, Users, MapPin, Clock, Phone, FileText, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -35,9 +36,10 @@ interface VisitorDashboardProps {
   jobId: string;
   companyName: string;
   jobName: string;
+  onOpenSettings?: () => void;
 }
 
-export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboardProps) {
+export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }: VisitorDashboardProps) {
   const { toast } = useToast();
   const [visitors, setVisitors] = useState<VisitorOnSite[]>([]);
   const [employees, setEmployees] = useState<EmployeeOnSite[]>([]);
@@ -188,11 +190,21 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
   return (
     <div className="space-y-6">
+      {/* Header with Settings Button */}
+      <div className="flex justify-end">
+        {onOpenSettings && (
+          <Button variant="outline" onClick={onOpenSettings} className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </Button>
+        )}
+      </div>
+
       {/* Summary Tiles */}
       <div className="grid grid-cols-4 gap-4">
         {/* Total On Site */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
+          className="cursor-pointer hover:shadow-xl hover:scale-105 hover:brightness-110 transition-all duration-300 border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'all' ? null : 'all')}
           style={{
             background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)'
@@ -213,7 +225,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Visitors */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
+          className="cursor-pointer hover:shadow-xl hover:scale-105 hover:brightness-110 transition-all duration-300 border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'visitors' ? null : 'visitors')}
           style={{
             background: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
@@ -234,7 +246,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Employees */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
+          className="cursor-pointer hover:shadow-xl hover:scale-105 hover:brightness-110 transition-all duration-300 border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'employees' ? null : 'employees')}
           style={{
             background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
@@ -255,7 +267,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
 
         {/* Companies On Site */}
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-all border-0 overflow-hidden"
+          className="cursor-pointer hover:shadow-xl hover:scale-105 hover:brightness-110 transition-all duration-300 border-0 overflow-hidden"
           onClick={() => setFocusedSection(focusedSection === 'companies' ? null : 'companies')}
           style={{
             background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
@@ -316,7 +328,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName }: VisitorDashboar
                           <p className="font-medium">
                             {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                           </p>
-                          <p className="text-xs text-muted-foreground">Employee</p>
+                          <p className="text-xs text-muted-foreground">{companyName}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
