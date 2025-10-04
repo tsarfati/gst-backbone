@@ -630,6 +630,48 @@ export default function TimeSheets() {
     );
   };
 
+  // State for pending change requests count
+  const [pendingChangeRequestsCount, setPendingChangeRequestsCount] = useState(0);
+
+  // Load pending change requests count
+  useEffect(() => {
+    const loadPendingChangeRequestsCount = async () => {
+      if (!currentCompany?.id) return;
+      
+      const { count, error } = await supabase
+        .from('time_card_change_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      if (!error && count !== null) {
+        console.log('Pending change requests count:', count);
+        setPendingChangeRequestsCount(count);
+      }
+    };
+
+    loadPendingChangeRequestsCount();
+
+    // Subscribe to changes in time_card_change_requests
+    const channel = supabase
+      .channel('change-requests-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_card_change_requests'
+        },
+        () => {
+          loadPendingChangeRequestsCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentCompany?.id]);
+
   // Calculate summary statistics
   const thisWeekCards = timeCards.filter(tc => {
     const cardDate = new Date(tc.punch_in_time);
@@ -642,7 +684,7 @@ export default function TimeSheets() {
   const approvedHoursThisWeek = thisWeekCards
     .filter(tc => tc.status === 'approved')
     .reduce((sum, tc) => sum + tc.total_hours, 0);
-  const pendingCards = timeCards.filter(tc => tc.status === 'submitted' || tc.status === 'draft').length;
+  const pendingCards = pendingChangeRequestsCount;
 
   if (loading) {
     return (

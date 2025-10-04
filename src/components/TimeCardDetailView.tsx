@@ -78,6 +78,11 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
   const isManager = currentUserRole === 'admin' || currentUserRole === 'controller' || currentUserRole === 'project_manager';
   
+  console.log('TimeCardDetailView - Current user role:', currentUserRole);
+  console.log('TimeCardDetailView - isManager:', isManager);
+  console.log('TimeCardDetailView - Company ID:', currentCompany?.id);
+  console.log('TimeCardDetailView - User companies:', userCompanies);
+  
   // Extract nested data for easier use
   const job = timeCard?.jobs;
   const costCode = timeCard?.cost_codes;
@@ -202,14 +207,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       setTimeCard(data as any);
       
       // Check for pending change requests
-      const { data: changeRequestData } = await supabase
+      const { data: changeRequestData, error: changeRequestError } = await supabase
         .from('time_card_change_requests')
         .select('*')
         .eq('time_card_id', timeCardId)
         .eq('status', 'pending')
-        .single();
+        .maybeSingle();
       
-      setPendingChangeRequest(changeRequestData);
+      console.log('Pending change request:', changeRequestData);
+      setPendingChangeRequest(changeRequestData || null);
       
       // Load distance warning settings if job exists
       if (timeCardData.job_id) {
@@ -508,35 +514,22 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 <p className="text-base font-medium">{pendingChangeRequest.reason || 'No reason provided'}</p>
               </div>
               
-              {pendingChangeRequest.requested_changes && (
-                <div className="bg-background rounded-md p-4 space-y-2">
-                  <p className="text-sm font-semibold text-muted-foreground mb-2">Requested Changes:</p>
-                  <div className="space-y-1 text-sm">
-                    {pendingChangeRequest.requested_changes.punch_in_time && (
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-muted-foreground">Punch In Time:</span>
-                        <span className="font-medium">
-                          {format(new Date(pendingChangeRequest.requested_changes.punch_in_time), 'MMM dd, yyyy h:mm a')}
-                        </span>
-                      </div>
-                    )}
-                    {pendingChangeRequest.requested_changes.punch_out_time && (
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-muted-foreground">Punch Out Time:</span>
-                        <span className="font-medium">
-                          {format(new Date(pendingChangeRequest.requested_changes.punch_out_time), 'MMM dd, yyyy h:mm a')}
-                        </span>
-                      </div>
-                    )}
-                    {pendingChangeRequest.requested_changes.break_minutes !== undefined && (
-                      <div className="flex justify-between items-center py-1">
-                        <span className="text-muted-foreground">Break Minutes:</span>
-                        <span className="font-medium">{pendingChangeRequest.requested_changes.break_minutes} minutes</span>
-                      </div>
-                    )}
+              {/* Show any change details that exist */}
+              <div className="bg-background rounded-md p-4 space-y-2">
+                <p className="text-sm font-semibold text-muted-foreground mb-2">Request Details:</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted-foreground">Requested At:</span>
+                    <span className="font-medium">
+                      {format(new Date(pendingChangeRequest.created_at), 'MMM dd, yyyy h:mm a')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge variant="secondary">{pendingChangeRequest.status}</Badge>
                   </div>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         )}
