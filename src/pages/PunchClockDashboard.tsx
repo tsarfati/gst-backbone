@@ -296,6 +296,10 @@ export default function PunchClockDashboard() {
       job_latitude: job?.latitude,
       job_longitude: job?.longitude,
       job_address: job?.address,
+      user_id: row.user_id,
+      job_id: row.job_id,
+      cost_code_id: row.cost_code_id,
+      current_status_id: row.id,
     });
     setDetailOpen(true);
   };
@@ -509,8 +513,8 @@ export default function PunchClockDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-          {/* Left Side - Pending Approval */}
+        <div className="grid grid-cols-1 lg:grid-cols-[40%_60%] gap-0">
+          {/* Left Side - Pending Approval (40%) */}
           <Card className="w-full rounded-none border-l-0 border-t-0 border-b lg:border-b-0 lg:border-r">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
@@ -582,7 +586,11 @@ export default function PunchClockDashboard() {
                   const prof = profiles[row.user_id];
                   const job = jobs[row.job_id];
                   return (
-                     <div key={row.id} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50">
+                     <div 
+                       key={row.id} 
+                       className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer transition-colors"
+                       onClick={() => openDetailForActive(row)}
+                     >
                        <div className="flex items-center gap-4 min-w-0 flex-1">
                          <Avatar className="h-12 w-12">
                             <AvatarImage src={(
@@ -617,24 +625,6 @@ export default function PunchClockDashboard() {
                             </div>
                           </div>
                        </div>
-                        {isAdmin ? (
-                          <div className="flex gap-2">
-                            <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
-                              View Details
-                            </Button>
-                            <Button 
-                              size="lg" 
-                              variant="destructive" 
-                              onClick={() => handleAdminPunchOut(row)}
-                            >
-                              Punch Out
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button size="lg" variant="outline" onClick={() => openDetailForActive(row)}>
-                            View Details
-                          </Button>
-                        )}
                      </div>
                   );
                 })}
@@ -690,7 +680,19 @@ export default function PunchClockDashboard() {
         </div>
       </div>
 
-      <PunchDetailView open={detailOpen} onOpenChange={setDetailOpen} punch={selectedDetail} />
+      <PunchDetailView 
+        open={detailOpen} 
+        onOpenChange={setDetailOpen} 
+        punch={selectedDetail}
+        showPunchOutButton={isAdmin && selectedDetail?.punch_type === 'punched_in'}
+        onPunchOut={(userId) => {
+          const currentStatus = active.find(a => a.user_id === userId);
+          if (currentStatus) {
+            handleAdminPunchOut(currentStatus);
+            setDetailOpen(false);
+          }
+        }}
+      />
       
       <TimeCardDetailModal 
         open={timeCardModalOpen} 

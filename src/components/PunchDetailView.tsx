@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Clock, User, Camera, Globe, Monitor } from 'lucide-react';
+import { MapPin, Clock, User, Camera, Globe, Monitor, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useEffect, useRef } from 'react';
 import { geocodeAddress } from '@/utils/geocoding';
 import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
 
 interface PunchDetailData {
   id: string;
@@ -26,15 +27,21 @@ interface PunchDetailData {
   job_latitude?: number;
   job_longitude?: number;
   job_address?: string;
+  user_id?: string;
+  job_id?: string;
+  cost_code_id?: string;
+  current_status_id?: string;
 }
 
 interface PunchDetailViewProps {
   punch: PunchDetailData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPunchOut?: (userId: string) => void;
+  showPunchOutButton?: boolean;
 }
 
-export default function PunchDetailView({ punch, open, onOpenChange }: PunchDetailViewProps) {
+export default function PunchDetailView({ punch, open, onOpenChange, onPunchOut, showPunchOutButton }: PunchDetailViewProps) {
 const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const marker = useRef<mapboxgl.Marker | null>(null);
@@ -460,6 +467,20 @@ const mapContainer = useRef<HTMLDivElement>(null);
             </Card>
           )}
         </div>
+        
+        {/* Punch Out Button for Active Punches */}
+        {showPunchOutButton && punch.punch_type === 'punched_in' && onPunchOut && punch.user_id && (
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              onClick={() => onPunchOut(punch.user_id!)}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Punch Out Employee
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
