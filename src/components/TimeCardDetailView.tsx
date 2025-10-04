@@ -14,6 +14,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { geocodeAddress } from '@/utils/geocoding';
 import { calculateDistance, formatDistance } from '@/utils/distanceCalculation';
+import { useToast } from '@/hooks/use-toast';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
 
@@ -55,6 +56,7 @@ interface TimeCardDetail {
 
 export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: TimeCardDetailViewProps) {
   const { user, profile } = useAuth();
+  const { toast } = useToast();
   const [timeCard, setTimeCard] = useState<TimeCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -65,6 +67,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   } | null>(null);
   const [punchInDistance, setPunchInDistance] = useState<number | null>(null);
   const [punchOutDistance, setPunchOutDistance] = useState<number | null>(null);
+  const [pendingChangeRequest, setPendingChangeRequest] = useState<any>(null);
+  const [approving, setApproving] = useState(false);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -192,6 +196,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       console.log('Final time card data:', data);
       setTimeCard(data as any);
+      
+      // Check for pending change requests
+      const { data: changeRequestData } = await supabase
+        .from('time_card_change_requests')
+        .select('*')
+        .eq('time_card_id', timeCardId)
+        .eq('status', 'pending')
+        .single();
+      
+      setPendingChangeRequest(changeRequestData);
       
       // Load distance warning settings if job exists
       if (timeCardData.job_id) {
@@ -402,6 +416,46 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const handleApproveChangeRequest = async () => {
+    if (!pendingChangeRequest || !isManager) return;
+
+    try {
+      setApproving(true);
+
+      // Update the change request status to approved
+      const { error: updateError } = await supabase
+        .from('time_card_change_requests')
+        .update({
+          status: 'approved',
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', pendingChangeRequest.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Change Request Approved",
+        description: "The time card change request has been approved successfully.",
+      });
+
+      // Reload the time card details
+      await loadTimeCardDetails();
+      
+      // Close the modal
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error approving change request:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to approve change request.",
+        variant: "destructive",
+      });
+    } finally {
+      setApproving(false);
+    }
   };
 
   if (loading) {
@@ -681,6 +735,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
         <div className="flex justify-between gap-2 pt-4 border-t">
           <div className="flex gap-2">
+            {isManager && pendingChangeRequest && (
+              <Button 
+                onClick={handleApproveChangeRequest}
+                disabled={approving}
+                className="gap-2"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {approving ? 'Approving...' : 'Approve Change Request'}
+              </Button>
+            )}
             {(user?.id === timeCard.user_id || isManager) && (
               <Button 
                 variant="outline"
