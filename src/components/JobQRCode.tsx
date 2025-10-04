@@ -23,7 +23,7 @@ function QRCodeDisplay({ qrCode }: { qrCode: string }) {
   useEffect(() => {
     const generateQRImage = async () => {
       try {
-        const qrData = `${window.location.origin}/visitor/${qrCode}`;
+        const qrData = `https://gst-backbone.lovable.app/visitor/${qrCode}`;
         const qrCodeDataURL = await QRCode.toDataURL(qrData, {
           width: 128,
           margin: 1,
@@ -142,7 +142,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
   };
 
   const copyQrCodeLink = () => {
-    const link = `${window.location.origin}/visitor/${qrCode}`;
+    const link = `https://gst-backbone.lovable.app/visitor/${qrCode}`;
     navigator.clipboard.writeText(link);
     toast({
       title: "Link Copied",
@@ -152,7 +152,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
 
   const downloadQrCode = async () => {
     try {
-      const qrData = `${window.location.origin}/visitor/${qrCode}`;
+      const qrData = `https://gst-backbone.lovable.app/visitor/${qrCode}`;
       
       // Generate actual QR code using the qrcode library
       const qrCodeDataURL = await QRCode.toDataURL(qrData, {
@@ -221,7 +221,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
     );
   }
 
-  const visitorLink = `${window.location.origin}/visitor/${qrCode}`;
+  const visitorLink = `https://gst-backbone.lovable.app/visitor/${qrCode}`;
 
   return (
     <Card>
