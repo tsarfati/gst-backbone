@@ -537,9 +537,11 @@ export default function TimeSheets() {
       if (statusFilter === 'pending') {
         filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
       } else if (statusFilter === 'pending_approval') {
-        // Show time cards with pending change requests
+        // Show time cards with pending change requests that are not already approved
         filtered = filtered.filter(tc => 
-          pendingChangeRequestTimeCardIds.includes(tc.id)
+          pendingChangeRequestTimeCardIds.includes(tc.id) &&
+          tc.status !== 'approved' &&
+          tc.status !== 'approved-edited'
         );
       } else {
         filtered = filtered.filter(tc => tc.status === statusFilter);
@@ -692,7 +694,11 @@ export default function TimeSheets() {
   const approvedHoursThisWeek = thisWeekCards
     .filter(tc => tc.status === 'approved')
     .reduce((sum, tc) => sum + tc.total_hours, 0);
-  const pendingCards = pendingChangeRequestsCount;
+  const pendingCards = timeCards.filter(tc => 
+    pendingChangeRequestTimeCardIds.includes(tc.id) && 
+    tc.status !== 'approved' && 
+    tc.status !== 'approved-edited'
+  ).length;
 
   if (loading) {
     return (
@@ -743,7 +749,7 @@ export default function TimeSheets() {
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending_approval">
-                Pending Approval ({pendingChangeRequestsCount})
+                Pending Approval ({pendingCards})
               </SelectItem>
               <SelectItem value="pending">Pending Review</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -929,8 +935,8 @@ export default function TimeSheets() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)}>
-                                {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                              <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)}>
+                                {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                               </Badge>
                               {timeCard.distance_warning && (
                                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -1056,8 +1062,8 @@ export default function TimeSheets() {
                              +{timeCard.overtime_hours.toFixed(1)} OT
                            </div>
                          )}
-                         <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="ml-auto">
-                           {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                         <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="ml-auto">
+                           {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                          </Badge>
                        </div>
                     </div>
@@ -1238,8 +1244,8 @@ export default function TimeSheets() {
                           </div>
                         </div>
                          <div className="flex items-center gap-2">
-                           <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs">
-                             {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                           <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs">
+                             {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                            </Badge>
                            {timeCard.distance_warning && (
                              <Badge variant="destructive" className="flex items-center gap-1 text-xs">
@@ -1308,8 +1314,8 @@ export default function TimeSheets() {
                            <div className="font-medium whitespace-nowrap">
                              {timeCard.total_hours.toFixed(1)}h
                            </div>
-                           <Badge variant={pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
-                             {pendingChangeRequestTimeCardIds.includes(timeCard.id) ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                           <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
+                             {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                            </Badge>
                         </div>
                         <div className="flex gap-1 ml-2">
