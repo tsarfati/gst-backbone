@@ -30,6 +30,7 @@ interface VisitorLoginSettings {
   id?: string;
   company_id: string;
   background_image_url?: string;
+  background_color?: string;
   header_logo_url?: string;
   primary_color: string;
   button_color: string;
@@ -62,6 +63,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
   const [loginSettings, setLoginSettings] = useState<VisitorLoginSettings>({
     company_id: currentCompany?.id || '',
+    background_color: '#3b82f6',
     primary_color: '#3b82f6',
     button_color: '#10b981',
     confirmation_title: 'Welcome to the Job Site!',
@@ -443,6 +445,33 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
               </div>
             </div>
           </div>
+
+          <Separator />
+
+          {/* Background Color (shown if no image uploaded) */}
+          {!loginSettings.background_image_url && (
+            <div className="space-y-2">
+              <Label htmlFor="background-color">Background Color</Label>
+              <p className="text-sm text-muted-foreground">
+                Used when no background image is uploaded
+              </p>
+              <div className="flex space-x-2">
+                <Input
+                  id="background-color"
+                  type="color"
+                  value={loginSettings.background_color || '#3b82f6'}
+                  onChange={(e) => setLoginSettings(prev => ({ ...prev, background_color: e.target.value }))}
+                  className="w-16 h-10 p-1 border-none"
+                />
+                <Input
+                  value={loginSettings.background_color || '#3b82f6'}
+                  onChange={(e) => setLoginSettings(prev => ({ ...prev, background_color: e.target.value }))}
+                  placeholder="#3b82f6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+          )}
 
           <Separator />
 

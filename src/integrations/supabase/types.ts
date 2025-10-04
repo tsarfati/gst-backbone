@@ -3725,6 +3725,7 @@ export type Database = {
       }
       visitor_login_settings: {
         Row: {
+          background_color: string | null
           background_image_url: string | null
           button_color: string | null
           company_id: string
@@ -3742,6 +3743,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          background_color?: string | null
           background_image_url?: string | null
           button_color?: string | null
           company_id: string
@@ -3759,6 +3761,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          background_color?: string | null
           background_image_url?: string | null
           button_color?: string | null
           company_id?: string

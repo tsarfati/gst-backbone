@@ -28,6 +28,7 @@ interface Subcontractor {
 
 interface VisitorSettings {
   background_image_url?: string;
+  background_color?: string;
   header_logo_url?: string;
   primary_color: string;
   button_color: string;
@@ -36,6 +37,7 @@ interface VisitorSettings {
   require_company_name: boolean;
   require_purpose_visit: boolean;
   enable_checkout: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export default function VisitorLogin() {
@@ -108,10 +110,14 @@ export default function VisitorLogin() {
           .maybeSingle();
 
         if (settingsData) {
-          setSettings(settingsData);
+          setSettings({
+            ...settingsData,
+            theme: (settingsData as any).theme === 'dark' ? 'dark' : 'light',
+          });
         } else {
           // Use default settings
           setSettings({
+            background_color: '#3b82f6',
             primary_color: '#3b82f6',
             button_color: '#10b981',
             confirmation_title: 'Welcome to the Job Site!',
@@ -119,6 +125,7 @@ export default function VisitorLogin() {
             require_company_name: true,
             require_purpose_visit: false,
             enable_checkout: true,
+            theme: 'light',
           });
         }
       }
@@ -227,23 +234,33 @@ export default function VisitorLogin() {
     backgroundImage: `url(${settings.background_image_url})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
+  } : settings?.background_color ? {
+    backgroundColor: settings.background_color,
   } : {};
+
+  const isDark = settings?.theme === 'dark';
+  const inputBgClass = isDark ? 'bg-black text-white border-white/20' : 'bg-white text-black border-input';
+  const cardBgClass = isDark 
+    ? 'bg-black/30 backdrop-blur-md border-white/20' 
+    : 'bg-white/30 backdrop-blur-md border-black/20';
+  const headerBgClass = isDark ? 'bg-black/95' : 'bg-white/95';
+  const textClass = isDark ? 'text-white' : 'text-foreground';
 
   return (
     <div 
-      className="min-h-screen flex flex-col bg-gradient-to-br from-primary/10 via-background to-secondary/10"
+      className="min-h-screen flex flex-col"
       style={backgroundStyle}
     >
       {/* Header */}
-      <div className="bg-white/95 backdrop-blur-sm border-b shadow-sm">
+      <div className={`${headerBgClass} backdrop-blur-sm border-b shadow-sm`}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {settings?.header_logo_url ? (
               <img src={settings.header_logo_url} alt="Company Logo" className="h-10 object-contain" />
             ) : (
               <div className="flex items-center space-x-2">
-                <Building2 className="h-8 w-8 text-primary" />
-                <span className="text-xl font-semibold">Visitor Check-In</span>
+                <Building2 className={`h-8 w-8 ${isDark ? 'text-white' : 'text-primary'}`} />
+                <span className={`text-xl font-semibold ${textClass}`}>Visitor Check-In</span>
               </div>
             )}
           </div>
@@ -252,13 +269,13 @@ export default function VisitorLogin() {
 
       {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm">
+        <Card className={`w-full max-w-md ${cardBgClass}`}>
           <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center space-x-2">
-              <MapPin className="h-5 w-5 text-primary" />
+            <CardTitle className={`flex items-center justify-center space-x-2 ${textClass}`}>
+              <MapPin className={`h-5 w-5 ${isDark ? 'text-white' : 'text-primary'}`} />
               <span>Job Site Check-In</span>
             </CardTitle>
-            <div className="space-y-1 text-sm text-muted-foreground">
+            <div className={`space-y-1 text-sm ${isDark ? 'text-white/70' : 'text-muted-foreground'}`}>
               <p className="font-medium">{job.name}</p>
               <p>{job.address}</p>
               {job.client && <p>Client: {job.client}</p>}
@@ -269,7 +286,7 @@ export default function VisitorLogin() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Visitor Name */}
               <div className="space-y-2">
-                <Label htmlFor="visitor_name" className="flex items-center space-x-2">
+                <Label htmlFor="visitor_name" className={`flex items-center space-x-2 ${textClass}`}>
                   <Users className="h-4 w-4" />
                   <span>Full Name *</span>
                 </Label>
@@ -278,13 +295,14 @@ export default function VisitorLogin() {
                   value={formData.visitor_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, visitor_name: e.target.value }))}
                   placeholder="Enter your full name"
+                  className={inputBgClass}
                   required
                 />
               </div>
 
               {/* Phone Number */}
               <div className="space-y-2">
-                <Label htmlFor="visitor_phone" className="flex items-center space-x-2">
+                <Label htmlFor="visitor_phone" className={`flex items-center space-x-2 ${textClass}`}>
                   <Phone className="h-4 w-4" />
                   <span>Phone Number *</span>
                 </Label>
@@ -294,13 +312,14 @@ export default function VisitorLogin() {
                   value={formData.visitor_phone}
                   onChange={(e) => setFormData(prev => ({ ...prev, visitor_phone: e.target.value }))}
                   placeholder="(555) 123-4567"
+                  className={inputBgClass}
                   required
                 />
               </div>
 
               {/* Vendor Selection */}
               <div className="space-y-2">
-                <Label htmlFor="vendor" className="flex items-center space-x-2">
+                <Label htmlFor="vendor" className={`flex items-center space-x-2 ${textClass}`}>
                   <Building2 className="h-4 w-4" />
                   <span>Company {settings?.require_company_name ? '*' : ''}</span>
                 </Label>
@@ -317,7 +336,7 @@ export default function VisitorLogin() {
                       }
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={inputBgClass}>
                       <SelectValue placeholder="Select your company" />
                     </SelectTrigger>
                     <SelectContent>
@@ -337,6 +356,7 @@ export default function VisitorLogin() {
                     value={formData.company_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                     placeholder="Enter your company name"
+                    className={inputBgClass}
                     required={settings?.require_company_name}
                   />
                 )}
@@ -345,12 +365,13 @@ export default function VisitorLogin() {
               {/* Custom Company Name Input */}
               {showCustomCompany && subcontractors.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="custom_company_name">Company Name *</Label>
+                  <Label htmlFor="custom_company_name" className={textClass}>Company Name *</Label>
                   <Input
                     id="custom_company_name"
                     value={formData.company_name}
                     onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                     placeholder="Enter your company name"
+                    className={inputBgClass}
                     required
                   />
                 </div>
@@ -359,12 +380,13 @@ export default function VisitorLogin() {
               {/* Purpose of Visit */}
               {settings?.require_purpose_visit && (
                 <div className="space-y-2">
-                  <Label htmlFor="purpose_of_visit">Purpose of Visit *</Label>
+                  <Label htmlFor="purpose_of_visit" className={textClass}>Purpose of Visit *</Label>
                   <Input
                     id="purpose_of_visit"
                     value={formData.purpose_of_visit}
                     onChange={(e) => setFormData(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
                     placeholder="e.g., Delivery, Inspection, Installation"
+                    className={inputBgClass}
                     required
                   />
                 </div>
@@ -372,12 +394,13 @@ export default function VisitorLogin() {
 
               {/* Notes */}
               <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
+                <Label htmlFor="notes" className={textClass}>Additional Notes</Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="Any additional information..."
+                  className={inputBgClass}
                   rows={3}
                 />
               </div>
