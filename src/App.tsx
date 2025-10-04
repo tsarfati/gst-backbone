@@ -330,7 +330,9 @@ function AppRoutes() {
   const location = useLocation();
   
   const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
-  const isPublicRoute = publicExactPaths.includes(location.pathname) || location.pathname.startsWith('/visitor/') || location.pathname.match(/^\/jobs\/[^/]+\/visitor-logs$/);
+  const isPublicRoute = publicExactPaths.includes(location.pathname)
+    || location.pathname.startsWith('/visitor/')
+    || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname);
   
   if (isPublicRoute) {
     return <PublicRoutes />;
