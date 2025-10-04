@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
@@ -56,6 +57,7 @@ interface TimeCardDetail {
 
 export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: TimeCardDetailViewProps) {
   const { user, profile } = useAuth();
+  const { currentCompany, userCompanies } = useCompany();
   const { toast } = useToast();
   const [timeCard, setTimeCard] = useState<TimeCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,7 +74,9 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  // Get user's role for the current company
+  const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
+  const isManager = currentUserRole === 'admin' || currentUserRole === 'controller' || currentUserRole === 'project_manager';
   
   // Extract nested data for easier use
   const job = timeCard?.jobs;
