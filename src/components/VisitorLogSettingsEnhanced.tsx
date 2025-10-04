@@ -53,14 +53,37 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
   const loadSettings = async () => {
     if (!currentCompany?.id || !jobId) return;
 
-    // For now, just use local state since the table doesn't exist yet
-    // We'll create it via migration
-    setSettings(prev => ({ 
-      ...prev, 
-      job_id: jobId,
-      company_id: currentCompany.id 
-    }));
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('visitor_auto_logout_settings')
+        .select('*')
+        .eq('job_id', jobId)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setSettings(data);
+      } else {
+        setSettings(prev => ({ 
+          ...prev, 
+          job_id: jobId,
+          company_id: currentCompany.id 
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading auto-logout settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load settings.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -68,8 +91,21 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
     setSaving(true);
     try {
-      // For now, just show success message
-      // The table will be created via migration
+      const settingsData = {
+        ...settings,
+        job_id: jobId,
+        company_id: currentCompany.id,
+      };
+
+      const { error } = await supabase
+        .from('visitor_auto_logout_settings')
+        .upsert([settingsData], { 
+          onConflict: 'job_id,company_id',
+          ignoreDuplicates: false 
+        });
+
+      if (error) throw error;
+
       toast({
         title: "Settings Saved",
         description: "Auto-logout settings have been saved successfully.",

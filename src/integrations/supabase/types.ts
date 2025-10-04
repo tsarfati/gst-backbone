@@ -3659,6 +3659,70 @@ export type Database = {
           },
         ]
       }
+      visitor_auto_logout_settings: {
+        Row: {
+          auto_logout_enabled: boolean
+          auto_logout_hours: number
+          company_id: string
+          created_at: string
+          geolocation_distance_meters: number
+          geolocation_logout_enabled: boolean
+          id: string
+          job_id: string
+          sms_check_enabled: boolean
+          sms_check_interval_hours: number
+          updated_at: string
+        }
+        Insert: {
+          auto_logout_enabled?: boolean
+          auto_logout_hours?: number
+          company_id: string
+          created_at?: string
+          geolocation_distance_meters?: number
+          geolocation_logout_enabled?: boolean
+          id?: string
+          job_id: string
+          sms_check_enabled?: boolean
+          sms_check_interval_hours?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_logout_enabled?: boolean
+          auto_logout_hours?: number
+          company_id?: string
+          created_at?: string
+          geolocation_distance_meters?: number
+          geolocation_logout_enabled?: boolean
+          id?: string
+          job_id?: string
+          sms_check_enabled?: boolean
+          sms_check_interval_hours?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_auto_logout_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_auto_logout_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "visitor_auto_logout_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visitor_login_settings: {
         Row: {
           background_image_url: string | null
