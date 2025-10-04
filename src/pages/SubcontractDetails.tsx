@@ -100,11 +100,15 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
     
     try {
       // Fetch company info
-      const { data: companyData } = await supabase
+      const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .select('name, logo_url')
         .eq('id', subcontract.jobs?.company_id)
-        .single();
+        .maybeSingle();
+
+      if (companyError) {
+        console.error('Error fetching company:', companyError);
+      }
 
       await generateCommitmentStatusReport(
         {
