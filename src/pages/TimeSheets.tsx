@@ -420,6 +420,7 @@ export default function TimeSheets() {
       case 'draft': return 'outline';
       case 'submitted': return 'secondary';
       case 'approved': return 'default';
+      case 'approved-edited': return 'default';
       case 'rejected': return 'destructive';
       default: return 'outline';
     }

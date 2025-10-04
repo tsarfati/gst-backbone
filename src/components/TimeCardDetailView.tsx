@@ -405,6 +405,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return 'default';
+      case 'approved-edited': return 'default';
       case 'rejected': return 'destructive';
       case 'submitted': return 'secondary';
       default: return 'outline';
@@ -435,7 +436,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       setApproving(true);
 
       // Update the change request status to approved
-      const { error: updateError } = await supabase
+      const { error: changeRequestError } = await supabase
         .from('time_card_change_requests')
         .update({
           status: 'approved',
@@ -444,11 +445,23 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         })
         .eq('id', pendingChangeRequest.id);
 
-      if (updateError) throw updateError;
+      if (changeRequestError) throw changeRequestError;
+
+      // Update the time card status to approved-edited
+      const { error: timeCardError } = await supabase
+        .from('time_cards')
+        .update({
+          status: 'approved-edited',
+          approved_by: user?.id,
+          approved_at: new Date().toISOString()
+        })
+        .eq('id', timeCard.id);
+
+      if (timeCardError) throw timeCardError;
 
       toast({
         title: "Change Request Approved",
-        description: "The time card change request has been approved successfully.",
+        description: "The time card has been marked as approved-edited.",
       });
 
       // Reload the time card details
@@ -619,7 +632,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Status:</span>
                       <Badge variant={pendingChangeRequest ? 'secondary' : getStatusColor(timeCard.status)}>
-                        {pendingChangeRequest ? 'Pending Approval' : timeCard.status}
+                        {pendingChangeRequest ? 'Pending Approval' : (timeCard.status === 'approved-edited' ? 'Approved (Edited)' : timeCard.status)}
                       </Badge>
                     </div>
                     
