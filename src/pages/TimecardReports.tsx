@@ -62,6 +62,7 @@ export default function TimecardReports() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [company, setCompany] = useState<CompanyBranding | null>(null);
   const [loading, setLoading] = useState(false);
+  const [punches, setPunches] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
     employees: [],
     jobs: [],
@@ -85,47 +86,75 @@ export default function TimecardReports() {
       loadJobs(),
       loadCompany()
     ]);
-    loadTimecardRecords();
+    await Promise.all([
+      loadTimecardRecords(),
+      loadPunchRecords()
+    ]);
   };
 
   const loadEmployees = async () => {
     if (!currentCompany?.id) return;
     
     try {
-      // Get user IDs for this company
+      // Get regular users for this company
       const { data: companyUsers } = await supabase
         .from('user_company_access')
         .select('user_id')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
       
-      const companyUserIds = (companyUsers || []).map(u => u.user_id);
-      if (companyUserIds.length === 0) {
-        companyUserIds.push('00000000-0000-0000-0000-000000000000');
+      const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
+
+      // Get PIN employees linked to this company via settings or existing data
+      const [pinSettingsRes, tcUsersRes, punchUsersRes] = await Promise.all([
+        (supabase as any)
+          .from('pin_employee_timecard_settings')
+          .select('pin_employee_id')
+          .eq('company_id', currentCompany.id),
+        supabase
+          .from('time_cards')
+          .select('user_id')
+          .eq('company_id', currentCompany.id),
+        supabase
+          .from('punch_records')
+          .select('user_id')
+          .eq('company_id', currentCompany.id),
+      ]);
+
+      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
+      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map(r => r.user_id);
+      const idsFromPunches: string[] = (punchUsersRes.data || []).map(r => r.user_id);
+
+      // Candidates for PIN employees are any ids seen in settings or activity
+      const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
+      if (companyUserIds.length === 0 && candidateIds.length === 0) {
+        setEmployees([]);
+        return;
       }
-      
+
+      // Load regular users
       const profilesRes: any = await (supabase as any)
         .from('profiles')
         .select('user_id, display_name, first_name, last_name')
-        .in('user_id', companyUserIds);
+        .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
       
+      // Load PIN employees by id list (will naturally filter to only PIN users)
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
         .select('id, display_name, first_name, last_name')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+        .in('id', candidateIds.length > 0 ? candidateIds : ['00000000-0000-0000-0000-000000000000']);
 
       const list: Employee[] = [];
 
       // Sort profiles and PIN employees before adding to list
-      const sortedProfiles = (profilesRes.data || []).sort((a, b) => 
+      const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) => 
         (a.display_name || '').localeCompare(b.display_name || '')
       );
-      const sortedPins = (pinRes.data || []).sort((a, b) => 
+      const sortedPins = (pinRes.data || []).sort((a: any, b: any) => 
         (a.display_name || '').localeCompare(b.display_name || '')
       );
 
-      sortedProfiles.forEach(p => {
+      sortedProfiles.forEach((p: any) => {
         list.push({
           id: p.user_id,
           user_id: p.user_id,
@@ -135,14 +164,17 @@ export default function TimecardReports() {
         });
       });
 
-      sortedPins.forEach(p => {
-        list.push({
-          id: p.id,
-          user_id: p.id,
-          display_name: p.display_name,
-          first_name: p.first_name,
-          last_name: p.last_name,
-        });
+      sortedPins.forEach((p: any) => {
+        // Avoid duplicates if a user exists as a regular profile too
+        if (!list.find((e) => e.user_id === p.id)) {
+          list.push({
+            id: p.id,
+            user_id: p.id,
+            display_name: p.display_name,
+            first_name: p.first_name,
+            last_name: p.last_name,
+          });
+        }
       });
 
       setEmployees(list);
@@ -323,7 +355,7 @@ export default function TimecardReports() {
   };
 
   const handleApplyFilters = () => {
-    loadTimecardRecords();
+    Promise.all([loadTimecardRecords(), loadPunchRecords()]);
   };
 
   const handleClearFilters = () => {
@@ -337,6 +369,8 @@ export default function TimecardReports() {
       hasOvertime: false,
       status: []
     });
+    // Reload after clearing
+    Promise.all([loadTimecardRecords(), loadPunchRecords()]);
   };
 
   const checkForUnapprovedPunches = async (): Promise<boolean> => {
@@ -373,6 +407,81 @@ export default function TimecardReports() {
     } catch (error) {
       console.error('Error checking for unapproved punches:', error);
       return false;
+    }
+  };
+
+  const loadPunchRecords = async () => {
+    if (!currentCompany?.id) return;
+    try {
+      let query = supabase
+        .from('punch_records')
+        .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
+        .eq('company_id', currentCompany.id)
+        .order('punch_time', { ascending: false });
+
+      // Apply filters
+      if (filters.employees.length > 0) {
+        query = query.in('user_id', filters.employees);
+      } else if (!isManager) {
+        query = query.eq('user_id', user?.id);
+      }
+      if (filters.jobs.length > 0) {
+        query = query.in('job_id', filters.jobs);
+      }
+      if (filters.startDate) {
+        query = query.gte('punch_time', filters.startDate.toISOString());
+      }
+      if (filters.endDate) {
+        query = query.lte('punch_time', filters.endDate.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const userIds = [...new Set((data || []).map(r => r.user_id))];
+      const jobIds = [...new Set((data || []).map(r => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
+
+      const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
+        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
+        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [] },
+        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds) : { data: [] },
+        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
+      ]);
+
+      const profilesMap = new Map((profilesData.data || []).map((p: any) => [p.user_id, p]));
+      const pinMap = new Map((pinEmployeesData.data || []).map((p: any) => [p.id, p]));
+      const jobsMap = new Map((jobsData.data || []).map((j: any) => [j.id, j]));
+      const costCodesMap = new Map((costCodesData.data || []).map((c: any) => [c.id, c]));
+
+      const transformed = (data || []).map((r: any) => {
+        const profile = profilesMap.get(r.user_id);
+        const pinEmp = pinMap.get(r.user_id);
+        const employee_name = profile?.display_name || pinEmp?.display_name ||
+          ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
+           (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
+        const job = jobsMap.get(r.job_id);
+        const code = costCodesMap.get(r.cost_code_id);
+        return {
+          id: r.id,
+          user_id: r.user_id,
+          employee_name,
+          job_name: job?.name || 'Unknown Job',
+          cost_code: code ? `${code.code} - ${code.description}` : 'Unknown Code',
+          punch_time: r.punch_time,
+          punch_type: r.punch_type,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          photo_url: r.photo_url,
+          ip_address: r.ip_address,
+          user_agent: r.user_agent,
+          notes: r.notes,
+        };
+      });
+
+      setPunches(transformed);
+    } catch (error) {
+      console.error('Error loading punch records:', error);
     }
   };
 
