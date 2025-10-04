@@ -10,6 +10,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import PunchDetailView from "@/components/PunchDetailView";
 
 interface PunchRecord {
   id: string;
@@ -38,6 +39,8 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
   const { toast } = useToast();
   const [selectedPunches, setSelectedPunches] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [selectedPunch, setSelectedPunch] = useState<any>(null);
+  const [showPunchDetail, setShowPunchDetail] = useState(false);
   const handleExportPDF = () => {
     const doc = new jsPDF();
     
@@ -247,8 +250,27 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
             </TableHeader>
             <TableBody>
               {records.map((record) => (
-                <TableRow key={record.id}>
-                  <TableCell>
+                <TableRow 
+                  key={record.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={(e) => {
+                    // Don't trigger if clicking checkbox
+                    if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
+                    setSelectedPunch({
+                      punch_time: record.punch_time,
+                      punch_type: record.punch_type,
+                      employee_name: record.employee_name,
+                      job_name: record.job_name,
+                      cost_code: record.cost_code,
+                      latitude: record.latitude,
+                      longitude: record.longitude,
+                      photo_url: record.photo_url,
+                      notes: record.notes
+                    });
+                    setShowPunchDetail(true);
+                  }}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={selectedPunches.includes(record.id)}
                       onCheckedChange={() => togglePunchSelection(record.id)}
@@ -297,6 +319,13 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
           </Table>
         </div>
       </Card>
+
+      {/* Punch Detail Modal */}
+      <PunchDetailView
+        punch={selectedPunch}
+        open={showPunchDetail}
+        onOpenChange={setShowPunchDetail}
+      />
     </div>
   );
 }
