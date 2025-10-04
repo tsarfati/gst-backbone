@@ -503,10 +503,23 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         {pendingChangeRequest && (
           <Card className="border-warning bg-warning/5">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-warning">
-                <AlertCircle className="h-5 w-5" />
-                Pending Change Request
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-warning">
+                  <AlertCircle className="h-5 w-5" />
+                  Pending Change Request
+                </CardTitle>
+                {isManager && (
+                  <Button 
+                    onClick={handleApproveChangeRequest}
+                    disabled={approving}
+                    className="gap-2 bg-warning hover:bg-warning/90 text-warning-foreground"
+                    size="sm"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {approving ? 'Approving...' : 'Approve'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="bg-background rounded-md p-4 border-l-4 border-warning">
@@ -780,16 +793,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
         <div className="flex justify-between gap-2 pt-4 border-t">
           <div className="flex gap-2">
-            {isManager && pendingChangeRequest && (
-              <Button 
-                onClick={handleApproveChangeRequest}
-                disabled={approving}
-                className="gap-2"
-              >
-                <CheckCircle className="h-4 w-4" />
-                {approving ? 'Approving...' : 'Approve Change Request'}
-              </Button>
-            )}
             {(user?.id === timeCard.user_id || isManager) && (
               <Button 
                 variant="outline"
