@@ -38,6 +38,7 @@ interface VisitorLoginSettings {
   require_company_name: boolean;
   require_purpose_visit: boolean;
   enable_checkout: boolean;
+  theme: 'light' | 'dark';
 }
 
 interface VisitorLogSettingsEnhancedProps {
@@ -68,6 +69,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     require_company_name: true,
     require_purpose_visit: false,
     enable_checkout: true,
+    theme: 'light',
   });
 
   const [loading, setLoading] = useState(true);
@@ -128,7 +130,10 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
       }
 
       if (loginData) {
-        setLoginSettings(loginData);
+        setLoginSettings({
+          ...loginData,
+          theme: (loginData as any).theme || 'light', // Default to light if theme is not set
+        });
       } else {
         setLoginSettings(prev => ({ ...prev, company_id: currentCompany.id }));
       }
@@ -408,6 +413,39 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
           <Separator />
 
+          {/* Theme Selection */}
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Theme</Label>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Login Page Theme</Label>
+                <p className="text-sm text-muted-foreground">
+                  Choose light or dark theme for the visitor login page
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={loginSettings.theme === 'light' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLoginSettings(prev => ({ ...prev, theme: 'light' }))}
+                >
+                  Light
+                </Button>
+                <Button
+                  type="button"
+                  variant={loginSettings.theme === 'dark' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLoginSettings(prev => ({ ...prev, theme: 'dark' }))}
+                >
+                  Dark
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Color Customization */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -530,160 +568,163 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      {/* Time-Based Auto Logout */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="h-5 w-5" />
-            <span>Time-Based Auto Logout</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base">Enable Auto Logout</Label>
-              <p className="text-sm text-muted-foreground">
-                Automatically check out visitors after a set time period
-              </p>
-            </div>
-            <Switch
-              checked={autoLogoutSettings.auto_logout_enabled}
-              onCheckedChange={(checked) => 
-                setAutoLogoutSettings(prev => ({ ...prev, auto_logout_enabled: checked }))
-              }
-            />
-          </div>
+        {/* Auto Logout Tab */}
+        <TabsContent value="auto-logout" className="mt-6 space-y-6">
+          {/* Time-Based Auto Logout */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Clock className="h-5 w-5" />
+                <span>Time-Based Auto Logout</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Enable Auto Logout</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically check out visitors after a set time period
+                  </p>
+                </div>
+                <Switch
+                  checked={autoLogoutSettings.auto_logout_enabled}
+                  onCheckedChange={(checked) => 
+                    setAutoLogoutSettings(prev => ({ ...prev, auto_logout_enabled: checked }))
+                  }
+                />
+              </div>
 
-          {autoLogoutSettings.auto_logout_enabled && (
-            <div className="space-y-2">
-              <Label htmlFor="auto-logout-hours">Auto Logout After (hours)</Label>
-              <Input
-                id="auto-logout-hours"
-                type="number"
-                min="1"
-                max="24"
-                value={autoLogoutSettings.auto_logout_hours}
-                onChange={(e) => setAutoLogoutSettings(prev => ({ 
-                  ...prev, 
-                  auto_logout_hours: parseInt(e.target.value) || 8 
-                }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Visitors will be automatically checked out after this many hours
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {autoLogoutSettings.auto_logout_enabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="auto-logout-hours">Auto Logout After (hours)</Label>
+                  <Input
+                    id="auto-logout-hours"
+                    type="number"
+                    min="1"
+                    max="24"
+                    value={autoLogoutSettings.auto_logout_hours}
+                    onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                      ...prev, 
+                      auto_logout_hours: parseInt(e.target.value) || 8 
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Visitors will be automatically checked out after this many hours
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Geolocation-Based Auto Logout */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <MapPin className="h-5 w-5" />
-            <span>Geolocation-Based Auto Logout</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base">Enable Geolocation Tracking</Label>
-              <p className="text-sm text-muted-foreground">
-                Check out visitors when they leave the job site area
-              </p>
-            </div>
-            <Switch
-              checked={autoLogoutSettings.geolocation_logout_enabled}
-              onCheckedChange={(checked) => 
-                setAutoLogoutSettings(prev => ({ ...prev, geolocation_logout_enabled: checked }))
-              }
-            />
-          </div>
+          {/* Geolocation-Based Auto Logout */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MapPin className="h-5 w-5" />
+                <span>Geolocation-Based Auto Logout</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Enable Geolocation Tracking</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Check out visitors when they leave the job site area
+                  </p>
+                </div>
+                <Switch
+                  checked={autoLogoutSettings.geolocation_logout_enabled}
+                  onCheckedChange={(checked) => 
+                    setAutoLogoutSettings(prev => ({ ...prev, geolocation_logout_enabled: checked }))
+                  }
+                />
+              </div>
 
-          {autoLogoutSettings.geolocation_logout_enabled && (
-            <div className="space-y-2">
-              <Label htmlFor="distance-meters">Distance Threshold (meters)</Label>
-              <Input
-                id="distance-meters"
-                type="number"
-                min="100"
-                max="5000"
-                step="50"
-                value={autoLogoutSettings.geolocation_distance_meters}
-                onChange={(e) => setAutoLogoutSettings(prev => ({ 
-                  ...prev, 
-                  geolocation_distance_meters: parseInt(e.target.value) || 500 
-                }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                Auto check-out when visitor moves beyond this distance from the job site
-              </p>
-            </div>
-          )}
+              {autoLogoutSettings.geolocation_logout_enabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="distance-meters">Distance Threshold (meters)</Label>
+                  <Input
+                    id="distance-meters"
+                    type="number"
+                    min="100"
+                    max="5000"
+                    step="50"
+                    value={autoLogoutSettings.geolocation_distance_meters}
+                    onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                      ...prev, 
+                      geolocation_distance_meters: parseInt(e.target.value) || 500 
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Auto check-out when visitor moves beyond this distance from the job site
+                  </p>
+                </div>
+              )}
 
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              <strong>Note:</strong> Geolocation tracking requires visitors to grant location 
-              permissions on their device. Tracking updates every few minutes while they're on site.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> Geolocation tracking requires visitors to grant location 
+                  permissions on their device. Tracking updates every few minutes while they're on site.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* SMS Check-In Reminder */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <MessageSquare className="h-5 w-5" />
-            <span>SMS Check-In Reminder</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-base">Enable SMS Reminders</Label>
-              <p className="text-sm text-muted-foreground">
-                Send text messages asking if visitor is still on site
-              </p>
-            </div>
-            <Switch
-              checked={autoLogoutSettings.sms_check_enabled}
-              onCheckedChange={(checked) => 
-                setAutoLogoutSettings(prev => ({ ...prev, sms_check_enabled: checked }))
-              }
-            />
-          </div>
+          {/* SMS Check-In Reminder */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageSquare className="h-5 w-5" />
+                <span>SMS Check-In Reminder</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Enable SMS Reminders</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Send text messages asking if visitor is still on site
+                  </p>
+                </div>
+                <Switch
+                  checked={autoLogoutSettings.sms_check_enabled}
+                  onCheckedChange={(checked) => 
+                    setAutoLogoutSettings(prev => ({ ...prev, sms_check_enabled: checked }))
+                  }
+                />
+              </div>
 
-          {autoLogoutSettings.sms_check_enabled && (
-            <div className="space-y-2">
-              <Label htmlFor="sms-interval">Check Interval (hours)</Label>
-              <Input
-                id="sms-interval"
-                type="number"
-                min="1"
-                max="12"
-                value={autoLogoutSettings.sms_check_interval_hours}
-                onChange={(e) => setAutoLogoutSettings(prev => ({ 
-                  ...prev, 
-                  sms_check_interval_hours: parseInt(e.target.value) || 4 
-                }))}
-              />
-              <p className="text-xs text-muted-foreground">
-                How often to send SMS reminders to visitors still checked in
-              </p>
-            </div>
-          )}
+              {autoLogoutSettings.sms_check_enabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="sms-interval">Check Interval (hours)</Label>
+                  <Input
+                    id="sms-interval"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={autoLogoutSettings.sms_check_interval_hours}
+                    onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                      ...prev, 
+                      sms_check_interval_hours: parseInt(e.target.value) || 4 
+                    }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    How often to send SMS reminders to visitors still checked in
+                  </p>
+                </div>
+              )}
 
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              <strong>SMS Message:</strong> Visitors will receive a text asking "Are you still at 
-              [Job Name]? Reply YES if still on site, or NO if you've left." Replying NO will 
-              automatically check them out.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong>SMS Message:</strong> Visitors will receive a text asking "Are you still at 
+                  [Job Name]? Reply YES if still on site, or NO if you've left." Replying NO will 
+                  automatically check them out.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
