@@ -125,18 +125,26 @@ export default function Vendors() {
           </Button>
         </div>
       </div>
-      {/* Alphabet navigation */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {letters.map((l) => (
-          <Button
-            key={l}
-            size="sm"
-            variant={letter === l ? 'default' : 'outline'}
-            onClick={() => setLetter(l)}
-          >
-            {l}
-          </Button>
-        ))}
+      {/* Alphabet navigation - rolodex style */}
+      <div className="relative mb-6 border-b border-border">
+        <div className="flex overflow-x-auto scrollbar-hide pb-2 gap-1">
+          {letters.map((l) => (
+            <button
+              key={l}
+              onClick={() => setLetter(l)}
+              className={`
+                relative px-4 py-2 min-w-[2.5rem] text-sm font-medium
+                transition-all duration-200 rounded-t-lg
+                ${letter === l
+                  ? 'bg-background text-foreground border-t-2 border-x border-primary shadow-sm translate-y-[2px] z-10'
+                  : 'bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground border-t border-x border-transparent'
+                }
+              `}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
       {renderVendors()}
