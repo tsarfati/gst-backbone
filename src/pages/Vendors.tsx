@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVendorViewPreference } from "@/hooks/useVendorViewPreference";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMemo, useState } from "react";
 
 export default function Vendors() {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ export default function Vendors() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView } = useVendorViewPreference();
+  const [letter, setLetter] = useState<string>('All');
+  const letters = useMemo(() => ['All', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'], []);
 
   const fetchVendors = async () => {
     if (!currentCompany) return [] as any[];
@@ -45,6 +48,16 @@ export default function Vendors() {
     enabled: !!user && !!currentCompany,
     staleTime: 5 * 60 * 1000,
   });
+
+  const filteredVendors = useMemo(() => {
+    if (!vendors) return [] as any[];
+    if (letter === 'All') return vendors;
+    const regex = /^[A-Z]/i;
+    if (letter === '#') {
+      return vendors.filter((v: any) => !regex.test((v.name || '').trim()));
+    }
+    return vendors.filter((v: any) => (v.name || '').toUpperCase().startsWith(letter));
+  }, [vendors, letter]);
 
   const handleVendorClick = (vendor: any) => {
     navigate(`/vendors/${vendor.id}`);
@@ -81,15 +94,15 @@ export default function Vendors() {
       case "tiles":
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {vendors.map((vendor) => (
+            {filteredVendors.map((vendor) => (
               <VendorCard key={vendor.id} vendor={vendor} onClick={() => handleVendorClick(vendor)} />
             ))}
           </div>
         );
       case "list":
-        return <VendorListView vendors={vendors} onVendorClick={handleVendorClick} />;
+        return <VendorListView vendors={filteredVendors} onVendorClick={handleVendorClick} />;
       case "compact":
-        return <VendorCompactView vendors={vendors} onVendorClick={handleVendorClick} />;
+        return <VendorCompactView vendors={filteredVendors} onVendorClick={handleVendorClick} />;
       default:
         return null;
     }
@@ -111,6 +124,19 @@ export default function Vendors() {
             Add Vendor
           </Button>
         </div>
+      </div>
+      {/* Alphabet navigation */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {letters.map((l) => (
+          <Button
+            key={l}
+            size="sm"
+            variant={letter === l ? 'default' : 'outline'}
+            onClick={() => setLetter(l)}
+          >
+            {l}
+          </Button>
+        ))}
       </div>
 
       {renderVendors()}

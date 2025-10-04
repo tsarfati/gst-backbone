@@ -459,8 +459,8 @@ export default function TimecardReports() {
 
       // Apply filters - need to handle both user_id and pin_employee_id
       if (filters.employees.length > 0) {
-        const quotedIds = filters.employees.map((id) => `"${id}"`).join(',');
-        query = query.or(`user_id.in.(${quotedIds}),pin_employee_id.in.(${quotedIds})`);
+        const ids = filters.employees.join(',');
+        query = query.or(`user_id.in.(${ids}),pin_employee_id.in.(${ids})`);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
@@ -490,15 +490,33 @@ export default function TimecardReports() {
       const { data, error } = await query;
       if (error) throw error;
 
-      console.log('Punch records loaded:', data?.length || 0, 'records');
+      let punchData: any[] = data || [];
 
+      // Fallback: if none returned, try last 3 days window to guard against date boundary issues
+      if (punchData.length === 0) {
+        const fallbackStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() - 3, 0, 0, 0, 0));
+        let q2 = supabase
+          .from('punch_records')
+          .select('*')
+          .eq('company_id', currentCompany.id)
+          .gte('punch_time', fallbackStart.toISOString())
+          .order('punch_time', { ascending: false });
+        if (filters.employees.length > 0) {
+          const ids = filters.employees.join(',');
+          q2 = q2.or(`user_id.in.(${ids}),pin_employee_id.in.(${ids})`);
+        }
+        if (filters.jobs.length > 0) q2 = q2.in('job_id', filters.jobs);
+        const { data: d2 } = await q2;
+        punchData = d2 || [];
+      }
 
-      const userIds = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
-      const pinEmployeeIds = [...new Set((data || []).map((r: any) => r.pin_employee_id).filter(Boolean))];
-      // Also check if user_id might be a pin_employee_id
+      console.log('Punch records loaded:', punchData.length, 'records');
+
+      const userIds = [...new Set((punchData || []).map((r: any) => r.user_id).filter(Boolean))];
+      const pinEmployeeIds = [...new Set((punchData || []).map((r: any) => r.pin_employee_id).filter(Boolean))];
       const allPossiblePinIds = [...new Set([...pinEmployeeIds, ...userIds])];
-      const jobIds = [...new Set((data || []).map((r: any) => r.job_id).filter(Boolean))];
-      const costCodeIds = [...new Set((data || []).map((r: any) => r.cost_code_id).filter(Boolean))];
+      const jobIds = [...new Set((punchData || []).map((r: any) => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set((punchData || []).map((r: any) => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
@@ -512,9 +530,9 @@ export default function TimecardReports() {
       const jobsMap = new Map((jobsData.data || []).map((j: any) => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map((c: any) => [c.id, c]));
 
-      const transformed = (data || []).map((r: any) => {
+      const transformed = (punchData || []).map((r: any) => {
         const profile = profilesMap.get(r.user_id);
-        const pinEmp = pinMap.get(r.pin_employee_id) || pinMap.get(r.user_id); // Check if user_id is actually a pin_employee_id
+        const pinEmp = pinMap.get(r.pin_employee_id) || pinMap.get(r.user_id);
         const employee_name = profile?.display_name || pinEmp?.display_name ||
           ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
            (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
