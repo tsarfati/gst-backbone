@@ -21,17 +21,7 @@ interface Job {
 interface Subcontractor {
   id: string;
   vendor_id: string;
-  vendors: {
-    name: string;
-  } | null;
-}
-
-interface SubcontractorResponse {
-  id: string;
-  vendor_id: string;
-  vendors: {
-    name: string;
-  } | null;
+  vendor_name: string;
 }
 
 interface VisitorSettings {
@@ -97,20 +87,17 @@ export default function VisitorLogin() {
 
       setJob(jobData);
 
-      // Load subcontractors/vendors for this job
-      // Using setTimeout to avoid TypeScript type inference issues
-      setTimeout(async () => {
+      // Load subcontractors using RPC function
+      (async () => {
         try {
-          const client = supabase;
-          const table = 'subcontracts';
-          const result: any = await client.from(table).select('id, vendor_id, vendors(name)').eq('job_id', jobData.id).eq('is_active', true);
-          if (result?.data) {
-            setSubcontractors(result.data);
+          const result = await supabase.rpc('get_job_subcontractors', { p_job_id: jobData.id });
+          if (result.data) {
+            setSubcontractors(result.data as Subcontractor[]);
           }
         } catch (err) {
           console.error('Error loading subcontractors:', err);
         }
-      }, 0);
+      })();
 
       // Load visitor login settings
       if (jobData.company_id) {
@@ -184,7 +171,7 @@ export default function VisitorLogin() {
         visitor_name: formData.visitor_name.trim(),
         visitor_phone: formData.visitor_phone.trim(),
         company_name: formData.vendor_id ? 
-          subcontractors.find(s => s.vendor_id === formData.vendor_id)?.vendors?.name : 
+          subcontractors.find(s => s.vendor_id === formData.vendor_id)?.vendor_name : 
           formData.company_name.trim(),
         vendor_id: formData.vendor_id || null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
@@ -353,7 +340,7 @@ export default function VisitorLogin() {
                   <SelectContent>
                     {subcontractors.map((sub) => (
                       <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
-                        {sub.vendors?.name || 'Unknown Vendor'}
+                        {sub.vendor_name || 'Unknown Vendor'}
                       </SelectItem>
                     ))}
                     <SelectItem value="not_listed">

@@ -3911,6 +3911,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_job_subcontractors: {
+        Args: { p_job_id: string }
+        Returns: {
+          id: string
+          vendor_id: string
+          vendor_name: string
+        }[]
+      }
       get_mapbox_token: {
         Args: Record<PropertyKey, never>
         Returns: string
