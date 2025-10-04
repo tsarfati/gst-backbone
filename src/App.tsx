@@ -108,6 +108,7 @@ import PMobileApp from "./pages/PMobileApp";
 import PMobileLogin from "./pages/PMobileLogin";
 import MobileMessages from "./pages/MobileMessages";
 import VisitorLogin from "./pages/VisitorLogin";
+import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 
@@ -143,6 +144,7 @@ function PublicRoutes() {
               <Route path="/pm-mobile-login" element={<PMobileLogin />} />
               <Route path="/pm-mobile-app" element={<PMobileApp />} />
               <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+              <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
               <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
             </Routes>
           </ReceiptProvider>
@@ -333,7 +335,8 @@ function AppRoutes() {
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
-    || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname);
+    || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname)
+    || /^\/visitor\/checkout\/[^/]+$/.test(location.pathname);
   
   if (isPublicRoute) {
     return <PublicRoutes />;

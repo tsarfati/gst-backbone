@@ -30,6 +30,7 @@ interface VisitorSettings {
   header_logo_url?: string;
   primary_color: string;
   button_color: string;
+  text_color?: string;
   confirmation_title: string;
   confirmation_message: string;
   require_company_name: boolean;
@@ -118,6 +119,7 @@ export default function VisitorLogin() {
             background_color: '#3b82f6',
             primary_color: '#3b82f6',
             button_color: '#10b981',
+            text_color: '#000000',
             confirmation_title: 'Welcome to the Job Site!',
             confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
             require_company_name: true,
@@ -179,12 +181,30 @@ export default function VisitorLogin() {
         company_id: (job as any).company_id
       };
 
-      const { error } = await supabase
+      const { data: insertedLog, error } = await supabase
         .from('visitor_logs')
-        .insert([visitorLogData]);
+        .insert([visitorLogData])
+        .select('id, checkout_token')
+        .single();
 
       if (error) {
         throw error;
+      }
+
+      // Send SMS with checkout link if enabled
+      if (insertedLog) {
+        try {
+          await supabase.functions.invoke('send-visitor-sms', {
+            body: {
+              visitor_log_id: insertedLog.id,
+              phone_number: formData.visitor_phone.trim(),
+              job_id: job.id,
+            }
+          });
+        } catch (smsError) {
+          console.error('Failed to send SMS:', smsError);
+          // Don't fail the check-in if SMS fails
+        }
       }
 
       setShowConfirmation(true);
@@ -242,7 +262,8 @@ export default function VisitorLogin() {
     ? 'bg-black/30 backdrop-blur-md border-white/20' 
     : 'bg-white/30 backdrop-blur-md border-black/20';
   const headerBgClass = isDark ? 'bg-black/95' : 'bg-white/95';
-  const textClass = isDark ? 'text-white' : 'text-foreground';
+  const textClass = settings?.text_color ? '' : (isDark ? 'text-white' : 'text-foreground');
+  const textStyle = settings?.text_color ? { color: settings.text_color } : {};
 
   return (
     <div 
@@ -258,7 +279,7 @@ export default function VisitorLogin() {
             ) : (
               <div className="flex items-center space-x-2">
                 <Building2 className={`h-8 w-8 ${isDark ? 'text-white' : 'text-primary'}`} />
-                <span className={`text-xl font-semibold ${textClass}`}>Visitor Check-In</span>
+                <span className={`text-xl font-semibold ${textClass}`} style={textStyle}>Visitor Check-In</span>
               </div>
             )}
           </div>
@@ -269,11 +290,11 @@ export default function VisitorLogin() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className={`w-full max-w-md ${cardBgClass}`}>
           <CardHeader className="text-center">
-            <CardTitle className={`flex items-center justify-center space-x-2 ${textClass}`}>
+            <CardTitle className={`flex items-center justify-center space-x-2 ${textClass}`} style={textStyle}>
               <MapPin className={`h-5 w-5 ${isDark ? 'text-white' : 'text-primary'}`} />
               <span>Job Site Check-In</span>
             </CardTitle>
-            <div className={`space-y-1 text-sm ${isDark ? 'text-white/70' : 'text-muted-foreground'}`}>
+            <div className={`space-y-1 text-sm ${isDark ? 'text-white/70' : 'text-muted-foreground'}`} style={textStyle}>
               <p className="font-medium">{job.name}</p>
               <p>{job.address}</p>
               {job.client && <p>Client: {job.client}</p>}
@@ -284,7 +305,7 @@ export default function VisitorLogin() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Visitor Name */}
               <div className="space-y-2">
-                <Label htmlFor="visitor_name" className={`flex items-center space-x-2 ${textClass}`}>
+                <Label htmlFor="visitor_name" className={`flex items-center space-x-2 ${textClass}`} style={textStyle}>
                   <Users className="h-4 w-4" />
                   <span>Full Name *</span>
                 </Label>
@@ -300,7 +321,7 @@ export default function VisitorLogin() {
 
               {/* Phone Number */}
               <div className="space-y-2">
-                <Label htmlFor="visitor_phone" className={`flex items-center space-x-2 ${textClass}`}>
+                <Label htmlFor="visitor_phone" className={`flex items-center space-x-2 ${textClass}`} style={textStyle}>
                   <Phone className="h-4 w-4" />
                   <span>Phone Number *</span>
                 </Label>
@@ -317,7 +338,7 @@ export default function VisitorLogin() {
 
               {/* Vendor Selection */}
               <div className="space-y-2">
-                <Label htmlFor="vendor" className={`flex items-center space-x-2 ${textClass}`}>
+                <Label htmlFor="vendor" className={`flex items-center space-x-2 ${textClass}`} style={textStyle}>
                   <Building2 className="h-4 w-4" />
                   <span>Company {settings?.require_company_name ? '*' : ''}</span>
                 </Label>
@@ -353,7 +374,7 @@ export default function VisitorLogin() {
               {/* Custom Company Name Input - shown when "Not Listed" is selected */}
               {showCustomCompany && (
                 <div className="space-y-2">
-                  <Label htmlFor="custom_company_name" className={textClass}>Company Name {settings?.require_company_name ? '*' : ''}</Label>
+                  <Label htmlFor="custom_company_name" className={textClass} style={textStyle}>Company Name {settings?.require_company_name ? '*' : ''}</Label>
                   <Input
                     id="custom_company_name"
                     value={formData.company_name}
@@ -368,7 +389,7 @@ export default function VisitorLogin() {
               {/* Purpose of Visit */}
               {settings?.require_purpose_visit && (
                 <div className="space-y-2">
-                  <Label htmlFor="purpose_of_visit" className={textClass}>Purpose of Visit *</Label>
+                  <Label htmlFor="purpose_of_visit" className={textClass} style={textStyle}>Purpose of Visit *</Label>
                   <Input
                     id="purpose_of_visit"
                     value={formData.purpose_of_visit}
@@ -382,7 +403,7 @@ export default function VisitorLogin() {
 
               {/* Notes */}
               <div className="space-y-2">
-                <Label htmlFor="notes" className={textClass}>Additional Notes</Label>
+                <Label htmlFor="notes" className={textClass} style={textStyle}>Additional Notes</Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}

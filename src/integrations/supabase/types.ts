@@ -3669,8 +3669,10 @@ export type Database = {
           geolocation_logout_enabled: boolean
           id: string
           job_id: string
+          send_sms_on_checkin: boolean | null
           sms_check_enabled: boolean
           sms_check_interval_hours: number
+          sms_message_template: string | null
           updated_at: string
         }
         Insert: {
@@ -3682,8 +3684,10 @@ export type Database = {
           geolocation_logout_enabled?: boolean
           id?: string
           job_id: string
+          send_sms_on_checkin?: boolean | null
           sms_check_enabled?: boolean
           sms_check_interval_hours?: number
+          sms_message_template?: string | null
           updated_at?: string
         }
         Update: {
@@ -3695,8 +3699,10 @@ export type Database = {
           geolocation_logout_enabled?: boolean
           id?: string
           job_id?: string
+          send_sms_on_checkin?: boolean | null
           sms_check_enabled?: boolean
           sms_check_interval_hours?: number
+          sms_message_template?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3739,6 +3745,7 @@ export type Database = {
           primary_color: string | null
           require_company_name: boolean | null
           require_purpose_visit: boolean | null
+          text_color: string | null
           theme: string
           updated_at: string
         }
@@ -3757,6 +3764,7 @@ export type Database = {
           primary_color?: string | null
           require_company_name?: boolean | null
           require_purpose_visit?: boolean | null
+          text_color?: string | null
           theme?: string
           updated_at?: string
         }
@@ -3775,6 +3783,7 @@ export type Database = {
           primary_color?: string | null
           require_company_name?: boolean | null
           require_purpose_visit?: boolean | null
+          text_color?: string | null
           theme?: string
           updated_at?: string
         }
@@ -3784,6 +3793,8 @@ export type Database = {
         Row: {
           check_in_time: string
           check_out_time: string | null
+          checked_out_at: string | null
+          checkout_token: string | null
           company_id: string
           company_name: string | null
           created_at: string
@@ -3799,6 +3810,8 @@ export type Database = {
         Insert: {
           check_in_time?: string
           check_out_time?: string | null
+          checked_out_at?: string | null
+          checkout_token?: string | null
           company_id: string
           company_name?: string | null
           created_at?: string
@@ -3814,6 +3827,8 @@ export type Database = {
         Update: {
           check_in_time?: string
           check_out_time?: string | null
+          checked_out_at?: string | null
+          checkout_token?: string | null
           company_id?: string
           company_name?: string | null
           created_at?: string

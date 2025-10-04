@@ -24,6 +24,8 @@ interface AutoLogoutSettings {
   geolocation_distance_meters: number;
   sms_check_enabled: boolean;
   sms_check_interval_hours: number;
+  send_sms_on_checkin: boolean;
+  sms_message_template: string;
 }
 
 interface VisitorLoginSettings {
@@ -34,6 +36,7 @@ interface VisitorLoginSettings {
   header_logo_url?: string;
   primary_color: string;
   button_color: string;
+  text_color?: string;
   confirmation_title: string;
   confirmation_message: string;
   require_company_name: boolean;
@@ -59,6 +62,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     geolocation_distance_meters: 500,
     sms_check_enabled: false,
     sms_check_interval_hours: 4,
+    send_sms_on_checkin: false,
+    sms_message_template: 'Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}',
   });
 
   const [loginSettings, setLoginSettings] = useState<VisitorLoginSettings>({
@@ -66,6 +71,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     background_color: '#3b82f6',
     primary_color: '#3b82f6',
     button_color: '#10b981',
+    text_color: '#000000',
     confirmation_title: 'Welcome to the Job Site!',
     confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
     require_company_name: true,
@@ -514,6 +520,25 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="text-color">Text Color</Label>
+              <div className="flex space-x-2">
+                <Input
+                  id="text-color"
+                  type="color"
+                  value={loginSettings.text_color || '#000000'}
+                  onChange={(e) => setLoginSettings(prev => ({ ...prev, text_color: e.target.value }))}
+                  className="w-16 h-10 p-1 border-none"
+                />
+                <Input
+                  value={loginSettings.text_color || '#000000'}
+                  onChange={(e) => setLoginSettings(prev => ({ ...prev, text_color: e.target.value }))}
+                  placeholder="#000000"
+                  className="flex-1"
+                />
+              </div>
+            </div>
           </div>
 
           <Separator />
@@ -706,51 +731,93 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <MessageSquare className="h-5 w-5" />
-                <span>SMS Check-In Reminder</span>
+                <span>SMS Notifications</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-base">Enable SMS Reminders</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Send text messages asking if visitor is still on site
-                  </p>
+              {/* SMS on Check-In */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Send SMS on Check-In</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Send checkout link via SMS when visitor checks in
+                    </p>
+                  </div>
+                  <Switch
+                    checked={autoLogoutSettings.send_sms_on_checkin}
+                    onCheckedChange={(checked) => 
+                      setAutoLogoutSettings(prev => ({ ...prev, send_sms_on_checkin: checked }))
+                    }
+                  />
                 </div>
-                <Switch
-                  checked={autoLogoutSettings.sms_check_enabled}
-                  onCheckedChange={(checked) => 
-                    setAutoLogoutSettings(prev => ({ ...prev, sms_check_enabled: checked }))
-                  }
-                />
+
+                {autoLogoutSettings.send_sms_on_checkin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="sms-template">SMS Message Template</Label>
+                    <Textarea
+                      id="sms-template"
+                      value={autoLogoutSettings.sms_message_template}
+                      onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                        ...prev, 
+                        sms_message_template: e.target.value 
+                      }))}
+                      placeholder="Thanks for checking in at {{job_name}} on {{date_time}}..."
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Available placeholders: <code>{'{{job_name}}'}</code>, <code>{'{{date_time}}'}</code>, <code>{'{{checkout_link}}'}</code>
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {autoLogoutSettings.sms_check_enabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="sms-interval">Check Interval (hours)</Label>
-                  <Input
-                    id="sms-interval"
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={autoLogoutSettings.sms_check_interval_hours}
-                    onChange={(e) => setAutoLogoutSettings(prev => ({ 
-                      ...prev, 
-                      sms_check_interval_hours: parseInt(e.target.value) || 4 
-                    }))}
+              <Separator />
+
+              {/* SMS Check-In Reminders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Enable SMS Reminders</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Send text messages asking if visitor is still on site
+                    </p>
+                  </div>
+                  <Switch
+                    checked={autoLogoutSettings.sms_check_enabled}
+                    onCheckedChange={(checked) => 
+                      setAutoLogoutSettings(prev => ({ ...prev, sms_check_enabled: checked }))
+                    }
                   />
-                  <p className="text-xs text-muted-foreground">
-                    How often to send SMS reminders to visitors still checked in
+                </div>
+
+                {autoLogoutSettings.sms_check_enabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="sms-interval">Check Interval (hours)</Label>
+                    <Input
+                      id="sms-interval"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={autoLogoutSettings.sms_check_interval_hours}
+                      onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                        ...prev, 
+                        sms_check_interval_hours: parseInt(e.target.value) || 4 
+                      }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      How often to send SMS reminders to visitors still checked in
+                    </p>
+                  </div>
+                )}
+
+                <div className="bg-muted/50 p-4 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>SMS Message:</strong> Visitors will receive a text asking "Are you still at 
+                    [Job Name]? Reply YES if still on site, or NO if you've left." Replying NO will 
+                    automatically check them out.
                   </p>
                 </div>
-              )}
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  <strong>SMS Message:</strong> Visitors will receive a text asking "Are you still at 
-                  [Job Name]? Reply YES if still on site, or NO if you've left." Replying NO will 
-                  automatically check them out.
-                </p>
               </div>
             </CardContent>
           </Card>
