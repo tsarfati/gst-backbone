@@ -183,20 +183,26 @@ export default function EmployeeQRCardsReport() {
     const doc = new jsPDF();
     doc.setFont(customization.font);
     
-      // Add logo if provided (40mm base width, scaled by logoScale)
-      if (customization.logoUrl) {
-        try {
+    // Add logo if provided (40mm base width, scaled by logoScale)
+    if (customization.logoUrl) {
+      try {
+        await new Promise<void>((resolve, reject) => {
           const img = new Image();
+          img.onload = () => {
+            const aspectRatio = img.height / img.width;
+            const logoWidth = 40 * customization.logoScale;
+            const logoHeight = logoWidth * aspectRatio;
+            const xPos = 105 - (logoWidth / 2); // Center the logo
+            doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
+            resolve();
+          };
+          img.onerror = () => reject(new Error("Failed to load logo"));
           img.src = customization.logoUrl;
-          const aspectRatio = img.height / img.width;
-          const logoWidth = 40 * customization.logoScale;
-          const logoHeight = logoWidth * aspectRatio;
-          const xPos = 105 - (logoWidth / 2); // Center the logo
-          doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
-        } catch (e) {
-          console.warn("Could not add logo to PDF");
-        }
+        });
+      } catch (e) {
+        console.warn("Could not add logo to PDF");
       }
+    }
     
     // Header
     doc.setFontSize(20);
@@ -258,16 +264,22 @@ export default function EmployeeQRCardsReport() {
 
       doc.setFont(customization.font);
       
-    // Add logo if provided (40mm base width, scaled by logoScale)
-    if (customization.logoUrl) {
-      try {
-        const img = new Image();
-        img.src = customization.logoUrl;
-        const aspectRatio = img.height / img.width;
-        const logoWidth = 40 * customization.logoScale;
-        const logoHeight = logoWidth * aspectRatio;
-        const xPos = 105 - (logoWidth / 2); // Center the logo
-        doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
+      // Add logo if provided (40mm base width, scaled by logoScale)
+      if (customization.logoUrl) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const aspectRatio = img.height / img.width;
+              const logoWidth = 40 * customization.logoScale;
+              const logoHeight = logoWidth * aspectRatio;
+              const xPos = 105 - (logoWidth / 2); // Center the logo
+              doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
+              resolve();
+            };
+            img.onerror = () => reject(new Error("Failed to load logo"));
+            img.src = customization.logoUrl;
+          });
       } catch (e) {
         console.warn("Could not add logo to PDF");
       }
