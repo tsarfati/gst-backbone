@@ -77,34 +77,8 @@ export default function AllEmployees() {
 
       let userIds = (accessData || []).map(a => a.user_id);
 
-      // Auto-grant access for recent PIN employees created by this admin that are missing access
-      try {
-        if (profile?.user_id) {
-          const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const { data: recentPins } = await supabase
-            .from('pin_employees')
-            .select('id, created_by, created_at')
-            .eq('is_active', true)
-            .eq('created_by', profile.user_id)
-            .gte('created_at', since);
+      // Auto-grant logic removed to prevent cross-company leakage of PIN employees
 
-          const missingPins = (recentPins || []).filter(pe => !userIds.includes(pe.id));
-          if (missingPins.length && currentCompany?.id) {
-            for (const pe of missingPins) {
-              const { error: grantErr } = await supabase.rpc('admin_grant_company_access', {
-                p_user_id: pe.id,
-                p_company_id: currentCompany.id,
-                p_role: 'employee',
-                p_granted_by: profile.user_id,
-                p_is_active: true
-              });
-              if (!grantErr) userIds.push(pe.id);
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Auto-grant access skipped:', e);
-      }
 
       // Fetch regular employees from profiles
       const { data: profileData, error: profileError } = await supabase
