@@ -2526,6 +2526,7 @@ export type Database = {
           break_reminder_minutes: number | null
           calculate_overtime: boolean | null
           company_id: string
+          cost_code_selection_timing: string | null
           created_at: string
           enable_distance_warnings: boolean | null
           enable_punch_rounding: boolean | null
@@ -2552,6 +2553,7 @@ export type Database = {
           break_reminder_minutes?: number | null
           calculate_overtime?: boolean | null
           company_id: string
+          cost_code_selection_timing?: string | null
           created_at?: string
           enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null
@@ -2578,6 +2580,7 @@ export type Database = {
           break_reminder_minutes?: number | null
           calculate_overtime?: boolean | null
           company_id?: string
+          cost_code_selection_timing?: string | null
           created_at?: string
           enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null

@@ -57,7 +57,10 @@ function PunchClockApp() {
   const [faceDetectionResult, setFaceDetectionResult] = useState<{ hasFace: boolean; confidence?: number } | null>(null);
   const [isDetectingFace, setIsDetectingFace] = useState(false);
   const [loginSettings, setLoginSettings] = useState<any>({});
-  const [punchSettings, setPunchSettings] = useState<any>({ manual_photo_capture: true });
+  const [punchSettings, setPunchSettings] = useState<any>({ 
+    manual_photo_capture: true,
+    cost_code_selection_timing: 'punch_in'
+  });
   const [punchOutNote, setPunchOutNote] = useState('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
@@ -167,8 +170,8 @@ function PunchClockApp() {
     try {
       const { data, error } = await supabase
         .from('job_punch_clock_settings')
-        .select('manual_photo_capture')
-        .eq('job_id', '00000000-0000-0000-0000-000000000000')
+        .select('manual_photo_capture, cost_code_selection_timing')
+        .is('job_id', null)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -177,7 +180,10 @@ function PunchClockApp() {
       }
 
       if (data) {
-        setPunchSettings(data);
+        setPunchSettings({
+          manual_photo_capture: data.manual_photo_capture !== false,
+          cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_in'
+        });
       }
     } catch (error) {
       console.error('Error loading punch settings:', error);

@@ -78,6 +78,7 @@ interface PunchClockSettings {
   pwa_icon_512_url: string;
   enable_install_prompt: boolean;
   show_install_button: boolean;
+  cost_code_selection_timing: 'punch_in' | 'punch_out';
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -106,7 +107,8 @@ const defaultSettings: PunchClockSettings = {
   pwa_icon_192_url: '',
   pwa_icon_512_url: '',
   enable_install_prompt: true,
-  show_install_button: true
+  show_install_button: true,
+  cost_code_selection_timing: 'punch_in'
 };
 
 export default function PunchClockSettings() {
@@ -188,7 +190,8 @@ export default function PunchClockSettings() {
           pwa_icon_192_url: data.pwa_icon_192_url ? `${data.pwa_icon_192_url}?t=${Date.now()}` : '',
           pwa_icon_512_url: data.pwa_icon_512_url ? `${data.pwa_icon_512_url}?t=${Date.now()}` : '',
           enable_install_prompt: data.enable_install_prompt !== false,
-          show_install_button: (data as any).show_install_button !== false
+          show_install_button: (data as any).show_install_button !== false,
+          cost_code_selection_timing: ((data as any).cost_code_selection_timing as 'punch_in' | 'punch_out') || 'punch_in'
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
@@ -239,8 +242,9 @@ export default function PunchClockSettings() {
           pwa_icon_512_url: settings.pwa_icon_512_url,
           enable_install_prompt: settings.enable_install_prompt,
           show_install_button: settings.show_install_button,
+          cost_code_selection_timing: settings.cost_code_selection_timing,
           created_by: user?.id
-        });
+        } as any);
 
       if (error) throw error;
       
@@ -631,6 +635,27 @@ export default function PunchClockSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Cost Code Selection Timing</Label>
+                <Select
+                  value={settings.cost_code_selection_timing}
+                  onValueChange={(value) => updateSetting('cost_code_selection_timing', value as 'punch_in' | 'punch_out')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="punch_in">Select at Punch In</SelectItem>
+                    <SelectItem value="punch_out">Select at Punch Out</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  When set to "Punch Out", employees only select the job when punching in, and select their Daily Task (cost code) when punching out
+                </p>
+              </div>
+
+              <Separator />
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Allow Manual Time Entry</Label>
