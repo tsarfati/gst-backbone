@@ -127,6 +127,7 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
           user_id: punchUser.user_id,
           display_name: punchUser.name,
           role: punchUser.role,
+          current_company_id: punchUser.current_company_id,
           first_name: punchUser.name.split(' ')[0],
           last_name: punchUser.name.split(' ').slice(1).join(' ')
         });
