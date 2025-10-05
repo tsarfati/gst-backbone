@@ -46,19 +46,20 @@ export const useDynamicManifest = () => {
           ]
         };
 
-        // Update manifest link
+        // Update manifest link(s)
         const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
         const manifestURL = URL.createObjectURL(manifestBlob);
-        
-        let manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-        if (manifestLink) {
-          manifestLink.href = manifestURL;
+
+        const manifestLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]'));
+        if (manifestLinks.length > 0) {
+          manifestLinks.forEach((link) => (link.href = manifestURL));
         } else {
-          manifestLink = document.createElement('link');
+          const manifestLink = document.createElement('link');
           manifestLink.rel = 'manifest';
           manifestLink.href = manifestURL;
           document.head.appendChild(manifestLink);
         }
+        console.log('[useDynamicManifest] Manifest updated', { name: manifest.name, icons: manifest.icons });
 
         // Update apple-touch-icon and favicons with cache-busting
         const addCacheBust = (url: string) => {
@@ -81,6 +82,15 @@ export const useDynamicManifest = () => {
         }
         appleTouchIcon.href = icon192;
         appleTouchIcon.sizes = '180x180';
+        // Precomposed variant for older iOS
+        let applePrecomposed = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon-precomposed"]');
+        if (!applePrecomposed) {
+          applePrecomposed = document.createElement('link');
+          applePrecomposed.rel = 'apple-touch-icon-precomposed';
+          document.head.appendChild(applePrecomposed);
+        }
+        applePrecomposed.href = icon192;
+        applePrecomposed.sizes = '180x180';
 
         // Generic favicon (most browsers)
         let genericFavicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]:not([sizes])');
