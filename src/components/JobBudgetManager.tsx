@@ -407,8 +407,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const isChildDisabled = (parentId: string, childLine: BudgetLine): boolean => {
     const children = getChildBudgets(parentId);
     
-    // Disable children when there are 2 or more
-    if (children.length >= 2) {
+    // Disable children when there are 2 or less
+    if (children.length <= 2) {
       return true;
     }
     
