@@ -46,6 +46,13 @@ export const useDynamicManifest = () => {
           ]
         };
 
+        // Persist for early manifest usage before React mounts
+        try {
+          localStorage.setItem('pwa_app_name', manifest.name);
+          if (data?.pwa_icon_192_url) localStorage.setItem('pwa_icon_192_url', data.pwa_icon_192_url);
+          if (data?.pwa_icon_512_url) localStorage.setItem('pwa_icon_512_url', data.pwa_icon_512_url);
+        } catch {}
+
         // Update manifest link(s)
         const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
         const manifestURL = URL.createObjectURL(manifestBlob);
