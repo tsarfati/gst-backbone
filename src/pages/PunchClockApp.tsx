@@ -919,7 +919,8 @@ function PunchClockApp() {
           return;
         }
         
-        if (action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
+        // Only validate cost code if settings have loaded
+        if (punchSettingsLoaded && action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
           toast({
             title: 'Missing Information',
             description: 'Please select a cost code before punching in.',
@@ -930,7 +931,7 @@ function PunchClockApp() {
           return;
         }
 
-        if (action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
+        if (punchSettingsLoaded && action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
           toast({
             title: 'Missing Information',
             description: 'Please select your daily task before punching out.',
@@ -975,9 +976,11 @@ function PunchClockApp() {
             pin,
             action,
             job_id: action === 'in' ? selectedJob : undefined,
-            cost_code_id: punchSettings.cost_code_selection_timing === 'punch_in' 
-              ? (action === 'in' ? selectedCostCode : undefined)
-              : (action === 'out' ? selectedCostCode : undefined),
+            cost_code_id: punchSettingsLoaded 
+              ? (punchSettings.cost_code_selection_timing === 'punch_in' 
+                  ? (action === 'in' ? selectedCostCode : undefined)
+                  : (action === 'out' ? selectedCostCode : undefined))
+              : undefined,
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: photoUrl,
@@ -1055,7 +1058,8 @@ function PunchClockApp() {
       if (currentPunch) {
         await punchOut(photoUrl);
       } else {
-        const requiresCostCode = punchSettings.cost_code_selection_timing === 'punch_in';
+        // Only validate cost code requirement if settings have loaded
+        const requiresCostCode = punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in';
         if (!selectedJob || (requiresCostCode && !selectedCostCode)) {
           toast({ 
             title: 'Missing Information', 
@@ -1089,8 +1093,8 @@ function PunchClockApp() {
 
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
     
-    // Use cost code if timing is punch_in, otherwise null
-    const costCodeToUse = punchSettings.cost_code_selection_timing === 'punch_in' ? selectedCostCode : null;
+    // Use cost code if timing is punch_in, otherwise null (only if settings loaded)
+    const costCodeToUse = punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' ? selectedCostCode : null;
 
     // Create punch record
     const { error: punchError } = await supabase
@@ -1130,8 +1134,8 @@ function PunchClockApp() {
 
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
     
-    // Use selected cost code if timing is punch_out, otherwise use the one from punch in
-    const costCodeToUse = punchSettings.cost_code_selection_timing === 'punch_out' 
+    // Use selected cost code if timing is punch_out, otherwise use the one from punch in (only if settings loaded)
+    const costCodeToUse = punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_out' 
       ? selectedCostCode 
       : currentPunch.cost_code_id;
 
