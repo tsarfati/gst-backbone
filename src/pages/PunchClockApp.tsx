@@ -61,6 +61,7 @@ function PunchClockApp() {
     manual_photo_capture: true,
     cost_code_selection_timing: 'punch_in'
   });
+  const [punchSettingsLoaded, setPunchSettingsLoaded] = useState(false);
   const [punchOutNote, setPunchOutNote] = useState('');
   const [isCapturing, setIsCapturing] = useState(false);
   const [faceDetectionInterval, setFaceDetectionInterval] = useState<NodeJS.Timeout | null>(null);
@@ -97,6 +98,9 @@ function PunchClockApp() {
     loadLoginSettings();
     if (profile) {
       loadPunchSettings();
+    } else {
+      // If profile not yet available, keep settings as not loaded to avoid wrong UI
+      setPunchSettingsLoaded(false);
     }
   }, [profile]);
 
@@ -121,7 +125,7 @@ function PunchClockApp() {
         getCurrentLocation();
       }
     }
-  }, [user, isPinAuthenticated]);
+  }, [user, isPinAuthenticated, punchSettingsLoaded]);
 
   // Reload cost codes when job selection changes
   useEffect(() => {
@@ -130,7 +134,7 @@ function PunchClockApp() {
     } else {
       setCostCodes([]);
     }
-  }, [selectedJob, user, isPinAuthenticated]);
+  }, [selectedJob, user, isPinAuthenticated, punchSettingsLoaded]);
 
   // Ensure selections stay valid when lists change
   useEffect(() => {
@@ -175,6 +179,7 @@ function PunchClockApp() {
       console.log('Loading punch settings for company:', companyId);
       if (!companyId) {
         console.log('No company ID found in profile');
+        // Defer until company id is available; don't mark settings as loaded yet
         return;
       }
 
@@ -199,11 +204,14 @@ function PunchClockApp() {
         };
         console.log('Setting punch settings to:', newSettings);
         setPunchSettings(newSettings);
+        setPunchSettingsLoaded(true);
       } else {
         console.log('No punch settings found, using defaults');
+        setPunchSettingsLoaded(true);
       }
     } catch (error) {
       console.error('Error loading punch settings:', error);
+      // In case of error, avoid falsely requiring cost code; keep as not loaded
     }
   };
 
@@ -1351,7 +1359,7 @@ function PunchClockApp() {
               </div>
 
               {/* Show cost code selector at punch in ONLY if setting is punch_in */}
-              {punchSettings.cost_code_selection_timing === 'punch_in' && selectedJob && (
+              {punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' && selectedJob && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Select Cost Code</label>
                   <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
@@ -1394,10 +1402,9 @@ function PunchClockApp() {
           <Button
             onClick={() => {
               console.log('Punch button clicked');
-              const requiresCostCode = (
-                !currentPunch && punchSettings.cost_code_selection_timing === 'punch_in'
-              ) || (
-                currentPunch && punchSettings.cost_code_selection_timing === 'punch_out'
+              const requiresCostCode = punchSettingsLoaded && (
+                (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in') ||
+                (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out')
               );
               const isDisabled = isLoading || (!currentPunch && !selectedJob) || (requiresCostCode && !selectedCostCode);
               console.log('Button disabled?', isDisabled);
@@ -1406,10 +1413,10 @@ function PunchClockApp() {
             disabled={
               isLoading || 
               (!currentPunch && !selectedJob) || 
-              // Punch in: only require cost code if setting is 'punch_in'
-              (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
-              // Punch out: only require cost code if setting is 'punch_out'
-              (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode)
+              // Punch in: only require cost code if setting is 'punch_in' and settings loaded
+              (!currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
+              // Punch out: only require cost code if setting is 'punch_out' and settings loaded
+              (currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode)
             }
             className={`w-full h-16 text-lg font-semibold ${
               currentPunch 
