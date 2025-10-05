@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
+import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut, Menu } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -1179,7 +1179,7 @@ function PunchClockApp() {
                 size="sm"
                 onClick={() => navigate('/employee-dashboard')}
               >
-                <User className="h-4 w-4" />
+                <Menu className="h-5 w-5" />
               </Button>
             </div>
           </CardHeader>
