@@ -13,6 +13,7 @@ import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
+import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 
 const navigationCategories = [
   {
@@ -392,6 +393,9 @@ export function AppSidebar() {
 export default function Layout() {
   const location = useLocation();
   const isPunchClockPage = location.pathname === '/time-tracking';
+
+  // Ensure dynamic manifest/icons are updated under CompanyProvider
+  useDynamicManifest();
 
   return (
     <SidebarProvider>
