@@ -53,119 +53,44 @@ export const useDynamicManifest = () => {
           if (data?.pwa_icon_512_url) localStorage.setItem('pwa_icon_512_url', data.pwa_icon_512_url);
         } catch {}
 
-        // Update manifest link(s)
-        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-        const manifestURL = URL.createObjectURL(manifestBlob);
-
-        const manifestLinks = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]'));
-        if (manifestLinks.length > 0) {
-          manifestLinks.forEach((link) => (link.href = manifestURL));
-        } else {
-          const manifestLink = document.createElement('link');
-          manifestLink.rel = 'manifest';
-          manifestLink.href = manifestURL;
-          document.head.appendChild(manifestLink);
+        // Tell the service worker to cache icons at fixed same-origin paths
+        const icon192Url = data?.pwa_icon_192_url || '/punch-clock-icon-192.png';
+        const icon512Url = data?.pwa_icon_512_url || '/punch-clock-icon-512.png';
+        try {
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            reg.active?.postMessage({ type: 'SET_ICONS', icon192: icon192Url, icon512: icon512Url });
+          }
+        } catch (e) {
+          console.warn('[useDynamicManifest] SW not ready to receive icons', e);
         }
-        console.log('[useDynamicManifest] Manifest updated', { name: manifest.name, icons: manifest.icons });
 
-        // Remove existing icons to avoid browser choosing stale ones
+        // Replace existing icon links to point to same-origin cached assets
         const oldLinks = document.querySelectorAll(
           'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"], link[rel="shortcut icon"], link[rel="mask-icon"]'
         );
         oldLinks.forEach((el) => el.parentElement?.removeChild(el));
 
-        // Prepare icon URLs and also same-origin blob/data URLs
-        const addCacheBust = (url: string) => {
-          if (!url) return url;
-          const sep = url.includes('?') ? '&' : '?';
-          return `${url}${sep}v=${Date.now()}`;
+        const addLink = (rel: string, href: string, sizes?: string, type = 'image/png') => {
+          const link = document.createElement('link');
+          link.rel = rel;
+          link.href = href + `?v=${Date.now()}`;
+          if (sizes) link.sizes = sizes;
+          if (rel === 'icon' || rel === 'shortcut icon') link.type = type;
+          document.head.appendChild(link);
         };
 
-        const icon192Source = data?.pwa_icon_192_url || '/punch-clock-icon-192.png';
-        const icon512Source = data?.pwa_icon_512_url || '/punch-clock-icon-512.png';
+        addLink('apple-touch-icon', '/assets/company-icon-192.png', '180x180');
+        addLink('shortcut icon', '/assets/company-icon-192.png');
+        addLink('icon', '/assets/company-icon-192.png', '192x192');
+        addLink('icon', '/assets/company-icon-512.png', '512x512');
+        const mask = document.createElement('link');
+        mask.rel = 'mask-icon';
+        mask.setAttribute('href', '/assets/company-icon-192.png');
+        mask.setAttribute('color', '#000000');
+        document.head.appendChild(mask);
 
-        const toDataUrl = async (url: string) => {
-          try {
-            const res = await fetch(addCacheBust(url));
-            const blob = await res.blob();
-            const reader = new FileReader();
-            const dataPromise: Promise<string> = new Promise((resolve, reject) => {
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-            });
-            reader.readAsDataURL(blob);
-            return { blob, dataUrl: await dataPromise };
-          } catch (e) {
-            console.warn('[useDynamicManifest] Failed to fetch icon', url, e);
-            return { blob: undefined, dataUrl: undefined } as { blob: Blob | undefined; dataUrl: string | undefined };
-          }
-        };
-
-        const [i192, i512] = await Promise.all([
-          toDataUrl(icon192Source),
-          toDataUrl(icon512Source)
-        ]);
-
-        const icon192Proxy = `/icon-proxy?u=${encodeURIComponent(addCacheBust(icon192Source))}&v=${Date.now()}`;
-        const icon512Proxy = `/icon-proxy?u=${encodeURIComponent(addCacheBust(icon512Source))}&v=${Date.now()}`;
-
-        // Persist data URLs for early manifest on Android Chrome
-        try {
-          if (i192.dataUrl) localStorage.setItem('pwa_icon_192_data', i192.dataUrl);
-          if (i512.dataUrl) localStorage.setItem('pwa_icon_512_data', i512.dataUrl);
-        } catch {}
-
-        // Apple Touch Icon (iOS uses 180x180 commonly)
-        const appleTouchIcon = document.createElement('link');
-        appleTouchIcon.rel = 'apple-touch-icon';
-        appleTouchIcon.href = icon192Proxy;
-        appleTouchIcon.sizes = '180x180';
-        document.head.appendChild(appleTouchIcon);
-
-        // Precomposed variant for older iOS
-        const applePrecomposed = document.createElement('link');
-        applePrecomposed.rel = 'apple-touch-icon-precomposed';
-        applePrecomposed.href = icon192Proxy;
-        applePrecomposed.sizes = '180x180';
-        document.head.appendChild(applePrecomposed);
-
-        // Generic favicon (most browsers) - PNG no sizes so browsers pick best
-        const genericFavicon = document.createElement('link');
-        genericFavicon.rel = 'icon';
-        genericFavicon.type = 'image/png';
-        genericFavicon.href = icon192Proxy;
-        document.head.appendChild(genericFavicon);
-
-        // Shortcut icon fallback for legacy
-        const shortcutIcon = document.createElement('link');
-        shortcutIcon.rel = 'shortcut icon';
-        shortcutIcon.type = 'image/png';
-        shortcutIcon.href = icon192Proxy;
-        document.head.appendChild(shortcutIcon);
-
-        // Sized favicons
-        const fav192 = document.createElement('link');
-        fav192.rel = 'icon';
-        fav192.type = 'image/png';
-        fav192.sizes = '192x192';
-        fav192.href = icon192Proxy;
-        document.head.appendChild(fav192);
-
-        const fav512 = document.createElement('link');
-        fav512.rel = 'icon';
-        fav512.type = 'image/png';
-        fav512.sizes = '512x512';
-        fav512.href = icon512Proxy;
-        document.head.appendChild(fav512);
-
-        // Pinned tab (desktop Safari)
-        const maskIcon = document.createElement('link');
-        maskIcon.rel = 'mask-icon';
-        maskIcon.setAttribute('href', icon192Proxy);
-        maskIcon.setAttribute('color', '#000000');
-        document.head.appendChild(maskIcon);
-
-        console.log('[useDynamicManifest] Icons updated', { icon192Proxy, icon512Proxy });
+        console.log('[useDynamicManifest] Requested SW to set icons and updated links');
 
       } catch (error) {
         console.error('Error updating manifest:', error);
