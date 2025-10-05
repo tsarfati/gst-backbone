@@ -140,10 +140,10 @@ export default function AddEmployee() {
           return;
         }
 
-        if (!currentCompany?.id || !profile?.user_id) {
+        if (!profile?.user_id) {
           toast({
             title: 'Error',
-            description: 'Company or user information is missing',
+            description: 'User information is missing',
             variant: 'destructive',
           });
           setLoading(false);
@@ -163,7 +163,6 @@ export default function AddEmployee() {
             email: null, // PIN employees don't have email
             notes: formData.notes?.trim() || null,
             group_id: formData.groupId || null,
-            company_id: currentCompany.id,
             created_by: profile.user_id,
             is_active: true
           });
