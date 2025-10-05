@@ -4004,6 +4004,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      auto_logout_visitors: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          job_id: string
+          logged_out_count: number
+        }[]
+      }
       generate_qr_code: {
         Args: Record<PropertyKey, never>
         Returns: string
