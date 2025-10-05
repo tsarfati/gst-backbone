@@ -607,10 +607,9 @@ export default function EmployeeDashboard() {
   const handleUpdateProfile = async () => {
     try {
       const userId = (user as any).user_id || (user as any).id;
-      const isPinUserCheck = (user as any).is_pin_employee;
       
-      // Update the appropriate table based on user type
-      if (isPinUserCheck) {
+      // Update the appropriate table based on user type - use isPinAuthenticated from context
+      if (isPinAuthenticated) {
         const { error } = await supabase
           .from('pin_employees')
           .update({
