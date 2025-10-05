@@ -1166,7 +1166,7 @@ function PunchClockApp() {
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={getAvatarUrl()} />
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(profile?.display_name || profile?.first_name)}
+                    <User className="h-5 w-5" />
                   </AvatarFallback>
                 </Avatar>
                 <div>
