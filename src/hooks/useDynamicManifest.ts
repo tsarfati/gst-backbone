@@ -106,8 +106,8 @@ export const useDynamicManifest = () => {
           toDataUrl(icon512Source)
         ]);
 
-        const icon192BlobUrl = i192.blob ? URL.createObjectURL(i192.blob) : addCacheBust(icon192Source);
-        const icon512BlobUrl = i512.blob ? URL.createObjectURL(i512.blob) : addCacheBust(icon512Source);
+        const icon192Proxy = `/icon-proxy?u=${encodeURIComponent(addCacheBust(icon192Source))}&v=${Date.now()}`;
+        const icon512Proxy = `/icon-proxy?u=${encodeURIComponent(addCacheBust(icon512Source))}&v=${Date.now()}`;
 
         // Persist data URLs for early manifest on Android Chrome
         try {
@@ -118,14 +118,14 @@ export const useDynamicManifest = () => {
         // Apple Touch Icon (iOS uses 180x180 commonly)
         const appleTouchIcon = document.createElement('link');
         appleTouchIcon.rel = 'apple-touch-icon';
-        appleTouchIcon.href = icon192BlobUrl;
+        appleTouchIcon.href = icon192Proxy;
         appleTouchIcon.sizes = '180x180';
         document.head.appendChild(appleTouchIcon);
 
         // Precomposed variant for older iOS
         const applePrecomposed = document.createElement('link');
         applePrecomposed.rel = 'apple-touch-icon-precomposed';
-        applePrecomposed.href = icon192BlobUrl;
+        applePrecomposed.href = icon192Proxy;
         applePrecomposed.sizes = '180x180';
         document.head.appendChild(applePrecomposed);
 
@@ -133,14 +133,14 @@ export const useDynamicManifest = () => {
         const genericFavicon = document.createElement('link');
         genericFavicon.rel = 'icon';
         genericFavicon.type = 'image/png';
-        genericFavicon.href = icon192BlobUrl;
+        genericFavicon.href = icon192Proxy;
         document.head.appendChild(genericFavicon);
 
         // Shortcut icon fallback for legacy
         const shortcutIcon = document.createElement('link');
         shortcutIcon.rel = 'shortcut icon';
         shortcutIcon.type = 'image/png';
-        shortcutIcon.href = icon192BlobUrl;
+        shortcutIcon.href = icon192Proxy;
         document.head.appendChild(shortcutIcon);
 
         // Sized favicons
@@ -148,24 +148,24 @@ export const useDynamicManifest = () => {
         fav192.rel = 'icon';
         fav192.type = 'image/png';
         fav192.sizes = '192x192';
-        fav192.href = icon192BlobUrl;
+        fav192.href = icon192Proxy;
         document.head.appendChild(fav192);
 
         const fav512 = document.createElement('link');
         fav512.rel = 'icon';
         fav512.type = 'image/png';
         fav512.sizes = '512x512';
-        fav512.href = icon512BlobUrl;
+        fav512.href = icon512Proxy;
         document.head.appendChild(fav512);
 
         // Pinned tab (desktop Safari)
         const maskIcon = document.createElement('link');
         maskIcon.rel = 'mask-icon';
-        maskIcon.setAttribute('href', icon192BlobUrl);
+        maskIcon.setAttribute('href', icon192Proxy);
         maskIcon.setAttribute('color', '#000000');
         document.head.appendChild(maskIcon);
 
-        console.log('[useDynamicManifest] Icons updated', { icon192BlobUrl, icon512BlobUrl });
+        console.log('[useDynamicManifest] Icons updated', { icon192Proxy, icon512Proxy });
 
       } catch (error) {
         console.error('Error updating manifest:', error);
