@@ -1276,15 +1276,15 @@ function PunchClockApp() {
         {/* Current Time */}
         <Card>
           <CardContent className="p-6 text-center">
-            <Clock className="h-8 w-8 mx-auto mb-2 text-primary" />
+            <Clock className={`h-8 w-8 mx-auto mb-2 ${currentPunch ? 'text-success' : 'text-destructive'}`} />
             <div className="text-lg font-semibold mb-2">
               {currentPunch ? (
-                <Badge variant="default" className="text-sm">
+                <Badge variant="success" className="text-sm">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Working
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="text-sm">
+                <Badge variant="destructive" className="text-sm">
                   <AlertCircle className="h-3 w-3 mr-1" />
                   Not Working
                 </Badge>
