@@ -106,7 +106,7 @@ export default function PunchClockLogin() {
         user_id: profiles.user_id,
         name: `${profiles.first_name} ${profiles.last_name}`,
         role: profiles.role,
-        current_company_id: profiles.current_company_id,
+        current_company_id: (profiles as any)?.current_company_id ?? null,
         pin_authenticated: true,
         pin
       }));

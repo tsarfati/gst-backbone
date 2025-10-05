@@ -7,6 +7,7 @@ interface PunchClockUser {
   user_id: string;
   name: string;
   role: string;
+  current_company_id?: string;
   pin_authenticated?: boolean;
   pin?: string;
 }
@@ -45,6 +46,25 @@ export function PunchClockAuthProvider({ children }: { children: React.ReactNode
         
         // Fetch profile data for PIN user
         fetchPinUserProfile(punchUser.user_id);
+
+        // If company id missing, fetch via RPC and upgrade the stored PIN user
+        if (!punchUser.current_company_id && punchUser.pin) {
+          setTimeout(async () => {
+            try {
+              const { data: pinRows } = await supabase.rpc('validate_pin_for_login', { p_pin: punchUser.pin });
+              const profileRow = pinRows?.[0];
+              if (profileRow?.current_company_id) {
+                const updatedUser = { ...punchUser, current_company_id: profileRow.current_company_id };
+                localStorage.setItem('punch_clock_user', JSON.stringify(updatedUser));
+                setUser(updatedUser);
+                setProfile((prev: any) => ({ ...(prev || {}), current_company_id: profileRow.current_company_id }));
+              }
+            } catch (e) {
+              console.error('Error upgrading PIN user with company id:', e);
+            }
+          }, 0);
+        }
+        
         setLoading(false);
         return;
       } catch (error) {
