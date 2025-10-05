@@ -100,12 +100,12 @@ export default function PunchClockSettings() {
       setLoading(true);
       
       // Load punch clock settings from database for current company
-      // Note: Using placeholder job_id for company-wide settings
+      // Use null job_id for company-wide settings
       const { data, error } = await supabase
         .from('job_punch_clock_settings')
         .select('*')
         .eq('company_id', currentCompany.id)
-        .eq('job_id', '00000000-0000-0000-0000-000000000000')
+        .is('job_id', null)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = not found
@@ -162,11 +162,11 @@ export default function PunchClockSettings() {
       setSaving(true);
       
       // Upsert punch clock settings for current company
-      // Note: Using a placeholder job_id since this is company-wide settings
+      // Use null job_id for company-wide settings
       const { error } = await supabase
         .from('job_punch_clock_settings')
         .upsert({
-          job_id: '00000000-0000-0000-0000-000000000000', // Placeholder for company-wide settings
+          job_id: null, // null for company-wide settings
           company_id: currentCompany.id,
           require_location: settings.require_location,
           require_photo: settings.require_photo,
