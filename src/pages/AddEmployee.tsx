@@ -151,7 +151,7 @@ export default function AddEmployee() {
         }
 
         // Create PIN-only employee in pin_employees table
-        const { error } = await supabase
+        const { data: newEmployee, error: insertError } = await supabase
           .from('pin_employees')
           .insert({
             first_name: formData.firstName.trim(),
@@ -165,11 +165,31 @@ export default function AddEmployee() {
             group_id: formData.groupId || null,
             created_by: profile.user_id,
             is_active: true
-          });
+          })
+          .select()
+          .single();
 
-        if (error) {
-          console.error('Supabase error:', error);
-          throw error;
+        if (insertError) {
+          console.error('Supabase error:', insertError);
+          throw insertError;
+        }
+
+        // Grant company access for the PIN employee
+        if (newEmployee && currentCompany?.id) {
+          const { error: accessError } = await supabase
+            .from('user_company_access')
+            .insert({
+              user_id: newEmployee.id,
+              company_id: currentCompany.id,
+              role: 'employee',
+              granted_by: profile.user_id,
+              is_active: true
+            });
+
+          if (accessError) {
+            console.error('Error granting company access:', accessError);
+            // Don't throw - employee is created, just log the error
+          }
         }
 
         toast({
