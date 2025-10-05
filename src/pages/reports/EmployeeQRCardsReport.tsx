@@ -44,6 +44,7 @@ export default function EmployeeQRCardsReport() {
   const [loading, setLoading] = useState(true);
   const [selectedEmployee, setSelectedEmployee] = useState<PinEmployee | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const [previewQrCode, setPreviewQrCode] = useState<string>("");
   
   const [customization, setCustomization] = useState<CardCustomization>({
     baseUrl: window.location.origin,
@@ -54,6 +55,17 @@ export default function EmployeeQRCardsReport() {
     logoUrl: currentCompany?.logo_url || "",
     footerText: currentCompany?.name || "Company",
   });
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCustomization({ ...customization, logoUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   useEffect(() => {
     if (currentCompany) {
@@ -66,6 +78,18 @@ export default function EmployeeQRCardsReport() {
       }));
     }
   }, [currentCompany]);
+
+  useEffect(() => {
+    const generatePreviewQR = async () => {
+      const punchClockUrl = `${customization.baseUrl}/punch-clock-login`;
+      const qrDataUrl = await QRCodeGenerator.toDataURL(punchClockUrl, {
+        width: 200,
+        margin: 2,
+      });
+      setPreviewQrCode(qrDataUrl);
+    };
+    generatePreviewQR();
+  }, [customization.baseUrl]);
 
   const fetchEmployees = async () => {
     if (!currentCompany) return;
@@ -323,13 +347,18 @@ export default function EmployeeQRCardsReport() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="logoUrl">Logo URL</Label>
+              <Label htmlFor="logoUpload">Company Logo</Label>
               <Input
-                id="logoUrl"
-                value={customization.logoUrl}
-                onChange={(e) => setCustomization({ ...customization, logoUrl: e.target.value })}
-                placeholder="https://example.com/logo.png"
+                id="logoUpload"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
               />
+              {customization.logoUrl && (
+                <div className="mt-2">
+                  <img src={customization.logoUrl} alt="Logo preview" className="h-12 object-contain" />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -339,6 +368,46 @@ export default function EmployeeQRCardsReport() {
                 value={customization.footerText}
                 onChange={(e) => setCustomization({ ...customization, footerText: e.target.value })}
               />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Card Preview</CardTitle>
+          <CardDescription>
+            Preview of how the QR punch cards will appear
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center">
+            <div className="border-2 border-border rounded-lg p-8 bg-background shadow-lg" style={{ width: '400px' }}>
+              {customization.logoUrl && (
+                <div className="flex justify-center mb-4">
+                  <img src={customization.logoUrl} alt="Company Logo" className="h-16 object-contain" />
+                </div>
+              )}
+              <h2 className="text-xl font-bold text-center mb-3" style={{ fontFamily: customization.font }}>
+                {customization.headerText}
+              </h2>
+              <div className="text-center mb-2">
+                <p className="text-sm font-medium">John Doe</p>
+                <p className="text-xs text-muted-foreground">Display Name: John D.</p>
+                <p className="text-xs text-muted-foreground font-mono">PIN: 1234</p>
+              </div>
+              {previewQrCode && (
+                <div className="flex justify-center my-4">
+                  <img src={previewQrCode} alt="QR Code Preview" className="w-48 h-48" />
+                </div>
+              )}
+              <div className="text-center space-y-1">
+                <p className="text-xs text-muted-foreground">{customization.instructionsLine1}</p>
+                <p className="text-xs text-muted-foreground">{customization.instructionsLine2}</p>
+              </div>
+              <p className="text-xs text-center text-muted-foreground mt-4" style={{ fontFamily: customization.font }}>
+                {customization.footerText}
+              </p>
             </div>
           </div>
         </CardContent>
