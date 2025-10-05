@@ -467,14 +467,11 @@ serve(async (req) => {
         const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
-        // Check photo requirement
-        if (photoRequired && !photo_url) {
-          return errorResponse("Photo is required for this job", 400);
-        }
-
-        // Check location requirement
+        // Check location requirement (warn but do not block)
+        let locationWarning: string | null = null;
         if (locationRequired && (!latitude || !longitude)) {
-          return errorResponse("Location is required for this job", 400);
+          console.log("Location required by settings but missing; proceeding without location for punch in");
+          locationWarning = "Location missing (required by settings)";
         }
 
         // Check if user is already punched in
@@ -615,7 +612,7 @@ serve(async (req) => {
           JSON.stringify({ 
             ok: true, 
             current_punch: updatedPunch,
-            warning: earlyPunchWarning 
+            warning: [earlyPunchWarning, locationWarning].filter(Boolean).join(' | ') || null 
           }), 
           { headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
@@ -711,9 +708,11 @@ serve(async (req) => {
           return errorResponse("Photo is required for punch out on this job", 400);
         }
 
-        // Check location requirement for punch out
+        // Check location requirement for punch out (warn but do not block)
+        let locationWarningOut: string | null = null;
         if (locationRequired && (!latitude || !longitude)) {
-          return errorResponse("Location is required for punch out on this job", 400);
+          console.log("Location required by settings but missing; proceeding without location for punch out");
+          locationWarningOut = "Location missing (required by settings)";
         }
 
         // Capture device and network information
