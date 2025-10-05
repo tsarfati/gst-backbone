@@ -426,14 +426,19 @@ export default function EmployeeDashboard() {
           }
         }
       } else {
-        // Direct database query for regular users
-        const { data: requestsData } = await supabase
-          .from('time_card_change_requests')
-          .select('*')
-          .eq('user_id', userId)
-          .order('requested_at', { ascending: false });
+        // Direct database query for regular users - use profile's current company
+        const currentCompanyId = profile?.current_company_id;
         
-        setChangeRequests(requestsData || []);
+        if (currentCompanyId && userId) {
+          const result = await (supabase as any)
+            .from('time_card_change_requests')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('company_id', currentCompanyId)
+            .order('requested_at', { ascending: false });
+          
+          setChangeRequests(result?.data || []);
+        }
       }
       
       // Load profile/avatar
