@@ -1344,8 +1344,8 @@ function PunchClockApp() {
                 </Select>
               </div>
 
-              {/* Show cost code selector at punch in if setting is punch_in */}
-              {punchSettings.cost_code_selection_timing === 'punch_in' && (
+              {/* Show cost code selector at punch in ONLY if setting is punch_in */}
+              {punchSettings.cost_code_selection_timing === 'punch_in' && selectedJob && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Select Cost Code</label>
                   <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
@@ -1400,8 +1400,10 @@ function PunchClockApp() {
             disabled={
               isLoading || 
               (!currentPunch && !selectedJob) || 
-              ((!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
-               (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode))
+              // Punch in: only require cost code if setting is 'punch_in'
+              (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
+              // Punch out: only require cost code if setting is 'punch_out'
+              (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode)
             }
             className={`w-full h-16 text-lg font-semibold ${
               currentPunch 
