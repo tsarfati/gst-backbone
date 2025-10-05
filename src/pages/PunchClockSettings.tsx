@@ -43,6 +43,7 @@ interface PunchClockSettings {
   pwa_icon_192_url: string;
   pwa_icon_512_url: string;
   enable_install_prompt: boolean;
+  show_install_button: boolean;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -70,7 +71,8 @@ const defaultSettings: PunchClockSettings = {
   max_distance_from_job_meters: 200,
   pwa_icon_192_url: '',
   pwa_icon_512_url: '',
-  enable_install_prompt: true
+  enable_install_prompt: true,
+  show_install_button: true
 };
 
 export default function PunchClockSettings() {
@@ -138,7 +140,8 @@ export default function PunchClockSettings() {
           max_distance_from_job_meters: 200, // Default value since not in DB
           pwa_icon_192_url: data.pwa_icon_192_url || '',
           pwa_icon_512_url: data.pwa_icon_512_url || '',
-          enable_install_prompt: data.enable_install_prompt !== false
+          enable_install_prompt: data.enable_install_prompt !== false,
+          show_install_button: data.show_install_button !== false
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
@@ -188,6 +191,7 @@ export default function PunchClockSettings() {
           pwa_icon_192_url: settings.pwa_icon_192_url,
           pwa_icon_512_url: settings.pwa_icon_512_url,
           enable_install_prompt: settings.enable_install_prompt,
+          show_install_button: settings.show_install_button,
           created_by: user?.id
         });
 
@@ -719,12 +723,25 @@ export default function PunchClockSettings() {
                 <div className="space-y-0.5">
                   <Label>Enable Install Prompt</Label>
                   <p className="text-sm text-muted-foreground">
-                    Show prompt to install app on mobile devices
+                    Automatically show prompt to install app after login
                   </p>
                 </div>
                 <Switch
                   checked={settings.enable_install_prompt}
                   onCheckedChange={(checked) => updateSetting('enable_install_prompt', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Show Install Button on Login Page</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Display "Install App" button on the login page
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.show_install_button}
+                  onCheckedChange={(checked) => updateSetting('show_install_button', checked)}
                 />
               </div>
 
