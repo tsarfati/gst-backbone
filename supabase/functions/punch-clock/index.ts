@@ -244,6 +244,7 @@ serve(async (req) => {
         .from('time_card_change_requests')
         .select('*')
         .eq('user_id', userRow.user_id)
+        .eq('status', 'pending')
         .order('requested_at', { ascending: false });
       
       if (error) return errorResponse(error.message, 500);
@@ -269,6 +270,38 @@ serve(async (req) => {
           proposed_cost_code_id: proposed_cost_code_id || null
         });
       if (error) return errorResponse(error.message, 500);
+
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } else if (req.method === "POST" && url.pathname.endsWith("/update-profile")) {
+      const body = await req.json().catch(() => null) as any;
+      const { pin, email, phone, avatar_url } = body || {};
+      if (!pin) return errorResponse("Missing pin", 400);
+      const userRow = await validatePin(supabaseAdmin, pin);
+      if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      if (userRow.is_pin_employee) {
+        const { error: updErr } = await supabaseAdmin
+          .from('pin_employees')
+          .update({
+            email: email ?? null,
+            phone: phone ?? null,
+            avatar_url: avatar_url ?? null,
+          })
+          .eq('id', userRow.user_id);
+        if (updErr) return errorResponse(updErr.message, 500);
+      } else {
+        // Regular users: allow updating profile avatar/phone via profiles table
+        const updates: Record<string, any> = {};
+        if (avatar_url !== undefined) updates.avatar_url = avatar_url ?? null;
+        if (phone !== undefined) updates.phone = phone ?? null;
+        if (Object.keys(updates).length > 0) {
+          const { error: profErr } = await supabaseAdmin
+            .from('profiles')
+            .update(updates)
+            .eq('user_id', userRow.user_id);
+          if (profErr) return errorResponse(profErr.message, 500);
+        }
+      }
 
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     }

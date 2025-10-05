@@ -610,16 +610,28 @@ export default function EmployeeDashboard() {
       
       // Update the appropriate table based on user type - use isPinAuthenticated from context
       if (isPinAuthenticated) {
-        const { error } = await supabase
-          .from('pin_employees')
-          .update({
+        const pinObj = localStorage.getItem('punch_clock_user');
+        const pin = pinObj ? JSON.parse(pinObj).pin : null;
+        if (!pin) throw new Error('Missing PIN session');
+
+        const resp = await fetch(`${FUNCTION_BASE}/update-profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': ANON_KEY,
+            'Authorization': `Bearer ${ANON_KEY}`
+          },
+          body: JSON.stringify({
+            pin,
             email: profileData.email || null,
             phone: profileData.phone || null,
             avatar_url: profileData.avatar_url || null
           })
-          .eq('id', userId);
-
-        if (error) throw error;
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to update profile');
+        }
       } else {
         // Update profile avatar only
         const { error: profileError } = await supabase
