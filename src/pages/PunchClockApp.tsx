@@ -172,6 +172,7 @@ function PunchClockApp() {
     try {
       // Get company_id from profile
       const companyId = (profile as any)?.current_company_id;
+      console.log('Loading punch settings for company:', companyId);
       if (!companyId) {
         console.log('No company ID found in profile');
         return;
@@ -189,12 +190,17 @@ function PunchClockApp() {
         return;
       }
 
+      console.log('Punch settings query result:', data);
+      
       if (data) {
-        setPunchSettings({
+        const newSettings = {
           manual_photo_capture: data.manual_photo_capture !== false,
           cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_in'
-        });
-        console.log('Loaded punch settings:', data);
+        };
+        console.log('Setting punch settings to:', newSettings);
+        setPunchSettings(newSettings);
+      } else {
+        console.log('No punch settings found, using defaults');
       }
     } catch (error) {
       console.error('Error loading punch settings:', error);
