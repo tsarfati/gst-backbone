@@ -108,6 +108,9 @@ export default function PunchClockSettings() {
         .select('*')
         .eq('company_id', currentCompany.id)
         .is('job_id', null)
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') { // PGRST116 = not found
@@ -138,8 +141,8 @@ export default function PunchClockSettings() {
           calculate_overtime: data.calculate_overtime !== false,
           enable_distance_warnings: true, // Default value since not in DB
           max_distance_from_job_meters: 200, // Default value since not in DB
-          pwa_icon_192_url: data.pwa_icon_192_url || '',
-          pwa_icon_512_url: data.pwa_icon_512_url || '',
+          pwa_icon_192_url: data.pwa_icon_192_url ? `${data.pwa_icon_192_url}?t=${Date.now()}` : '',
+          pwa_icon_512_url: data.pwa_icon_512_url ? `${data.pwa_icon_512_url}?t=${Date.now()}` : '',
           enable_install_prompt: data.enable_install_prompt !== false,
           show_install_button: (data as any).show_install_button !== false
         });

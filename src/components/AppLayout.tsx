@@ -123,8 +123,8 @@ const navigationCategories = [
     items: [
       { name: "General", href: "/settings", menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", menuKey: "settings" },
-      { name: "Punch Clock Settings", href: "/punch-clock/settings", menuKey: "punch-clock-settings" },
-      { name: "Theme & Customization", href: "/theme-settings", menuKey: "theme-settings" },
+      
+      
       { name: "Company Management", href: "/settings/company-management", menuKey: "settings" },
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "settings" },
