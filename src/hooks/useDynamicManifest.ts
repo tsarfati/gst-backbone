@@ -5,11 +5,20 @@ export function useDynamicManifest() {
   useEffect(() => {
     const updateManifest = async () => {
       try {
-        // Load PWA settings
+        // Resolve company context (fallback to first active company)
+        const { data: company } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+
+        // Load PWA settings (company-wide: job_id is null)
         const { data } = await supabase
           .from('job_punch_clock_settings')
           .select('pwa_icon_192_url, pwa_icon_512_url')
-          .eq('job_id', '00000000-0000-0000-0000-000000000000')
+          .eq('company_id', company?.id)
+          .is('job_id', null)
           .maybeSingle();
 
         if (data && (data.pwa_icon_192_url || data.pwa_icon_512_url)) {
@@ -36,9 +45,9 @@ export function useDynamicManifest() {
                 purpose: 'any maskable'
               }] : [])
             ]
-          };
+          } as const;
 
-          const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+          const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
           const manifestURL = URL.createObjectURL(manifestBlob);
           
           // Update or create manifest link
