@@ -2291,6 +2291,7 @@ export type Database = {
       pin_employees: {
         Row: {
           avatar_url: string | null
+          company_id: string | null
           created_at: string
           created_by: string
           department: string | null
@@ -2308,6 +2309,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           created_by: string
           department?: string | null
@@ -2325,6 +2327,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          company_id?: string | null
           created_at?: string
           created_by?: string
           department?: string | null
@@ -2341,6 +2344,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pin_employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pin_employees_group_id_fkey"
             columns: ["group_id"]
@@ -4074,6 +4084,7 @@ export type Database = {
       validate_pin_for_login: {
         Args: { p_pin: string }
         Returns: {
+          current_company_id: string
           first_name: string
           is_pin_employee: boolean
           last_name: string
