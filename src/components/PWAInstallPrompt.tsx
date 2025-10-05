@@ -58,21 +58,23 @@ export default function PWAInstallPrompt({ showButton = false }: PWAInstallPromp
 
       const { data } = await supabase
         .from('job_punch_clock_settings')
-        .select('enable_install_prompt, show_install_button')
+        .select('*')
         .eq('company_id', companies.id)
         .is('job_id', null)
         .maybeSingle();
       
       console.log('PWA install prompt settings:', data);
       
+      if (!data) return;
+      
       // For button mode, check show_install_button
-      if (showButton && data && (data as any).show_install_button === false) {
+      if (showButton && (data as any).show_install_button === false) {
         setIsEnabled(false);
         return;
       }
       
       // For auto-prompt mode, check enable_install_prompt
-      if (!showButton && data && (data as any).enable_install_prompt === false) {
+      if (!showButton && (data as any).enable_install_prompt === false) {
         setIsEnabled(false);
         return;
       }
