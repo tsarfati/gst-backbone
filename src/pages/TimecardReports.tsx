@@ -664,16 +664,16 @@ export default function TimecardReports() {
 
         {/* Report Views */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'timecards' | 'punches')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger 
               value="timecards"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-primary/10 transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
             >
               Time Cards
             </TabsTrigger>
             <TabsTrigger 
               value="punches"
-              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-primary/10 transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
             >
               Punch Tracking
             </TabsTrigger>

@@ -217,10 +217,10 @@ export default function AccountingDashboard() {
       </div>
 
       <Tabs defaultValue="job-costs" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="job-costs">Job Costs</TabsTrigger>
-          <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger value="job-costs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Job Costs</TabsTrigger>
+          <TabsTrigger value="trial-balance" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Trial Balance</TabsTrigger>
+          <TabsTrigger value="reports" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Reports</TabsTrigger>
         </TabsList>
 
         <TabsContent value="job-costs">

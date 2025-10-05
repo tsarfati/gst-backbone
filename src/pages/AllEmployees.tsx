@@ -215,11 +215,11 @@ export default function AllEmployees() {
       </div>
 
       <Tabs defaultValue="employees" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="employees">All Employees</TabsTrigger>
-          <TabsTrigger value="groups">Groups</TabsTrigger>
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">All Employees</TabsTrigger>
+          <TabsTrigger value="groups" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Groups</TabsTrigger>
           {canManageEmployees && (
-            <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
+            <TabsTrigger value="permissions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Role Permissions</TabsTrigger>
           )}
         </TabsList>
 

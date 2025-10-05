@@ -60,11 +60,11 @@ export default function SecuritySettings() {
         </div>
 
         <Tabs defaultValue="security" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="data">Data & Privacy</TabsTrigger>
-            <TabsTrigger value="audit">Audit Log</TabsTrigger>
-            <TabsTrigger value="development">Development Freeze</TabsTrigger>
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+            <TabsTrigger value="security" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Security</TabsTrigger>
+            <TabsTrigger value="data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Data & Privacy</TabsTrigger>
+            <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Audit Log</TabsTrigger>
+            <TabsTrigger value="development" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Development Freeze</TabsTrigger>
           </TabsList>
 
           <TabsContent value="security" className="space-y-6">

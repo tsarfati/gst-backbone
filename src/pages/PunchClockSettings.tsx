@@ -232,10 +232,10 @@ export default function PunchClockSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="general">General Settings</TabsTrigger>
-          <TabsTrigger value="employees">Employee Settings</TabsTrigger>
-          <TabsTrigger value="jobs">Job Settings</TabsTrigger>
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">General Settings</TabsTrigger>
+          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Employee Settings</TabsTrigger>
+          <TabsTrigger value="jobs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Job Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">

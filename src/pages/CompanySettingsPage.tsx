@@ -45,45 +45,45 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger 
               value="company" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <Building className="h-4 w-4" />
               Company Info
             </TabsTrigger>
             <TabsTrigger 
               value="payables" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <CreditCard className="h-4 w-4" />
               Payables Settings
             </TabsTrigger>
             <TabsTrigger 
               value="credit-cards" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <Banknote className="h-4 w-4" />
               Credit Cards
             </TabsTrigger>
             <TabsTrigger 
               value="jobs" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <Briefcase className="h-4 w-4" />
               Job Settings
             </TabsTrigger>
             <TabsTrigger 
               value="punch-clock" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <Clock className="h-4 w-4" />
               Punch Clock
             </TabsTrigger>
             <TabsTrigger 
               value="banking" 
-              className="flex items-center gap-2 hover:text-primary transition-colors"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <DollarSign className="h-4 w-4" />
               Banking Settings

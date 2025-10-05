@@ -219,23 +219,38 @@ export default function UserSettings() {
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="users">
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger 
+            value="users" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
             <Users className="h-4 w-4 mr-2" />
             Users
           </TabsTrigger>
-          <TabsTrigger value="access-requests">
+          <TabsTrigger 
+            value="access-requests" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
             <UserPlus className="h-4 w-4 mr-2" />
             Access Requests
           </TabsTrigger>
-          <TabsTrigger value="roles">
+          <TabsTrigger 
+            value="roles" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
             <UserCheck className="h-4 w-4 mr-2" />
             Role Definitions
           </TabsTrigger>
-          <TabsTrigger value="menu-access">
+          <TabsTrigger 
+            value="menu-access" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
             Menu Access
           </TabsTrigger>
-          <TabsTrigger value="job-access">
+          <TabsTrigger 
+            value="job-access" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
             Job Access
           </TabsTrigger>
         </TabsList>
