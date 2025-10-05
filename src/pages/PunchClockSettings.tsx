@@ -785,10 +785,6 @@ export default function PunchClockSettings() {
                               .from('company-logos')
                               .getPublicUrl(filePath);
                             
-                            // Add cache-busting timestamp to force preview update
-                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
-                            updateSetting('pwa_icon_192_url', urlWithTimestamp);
-                            
                             // Save URL without timestamp to database
                             await supabase
                               .from('job_punch_clock_settings')
@@ -798,6 +794,10 @@ export default function PunchClockSettings() {
                                 pwa_icon_192_url: publicUrl,
                                 created_by: user?.id
                               });
+                            
+                            // Add cache-busting timestamp for preview only
+                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
+                            updateSetting('pwa_icon_192_url', urlWithTimestamp);
                             
                             toast({
                               title: "Success",
@@ -846,10 +846,6 @@ export default function PunchClockSettings() {
                               .from('company-logos')
                               .getPublicUrl(filePath);
                             
-                            // Add cache-busting timestamp to force preview update
-                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
-                            updateSetting('pwa_icon_512_url', urlWithTimestamp);
-                            
                             // Save URL without timestamp to database
                             await supabase
                               .from('job_punch_clock_settings')
@@ -859,6 +855,10 @@ export default function PunchClockSettings() {
                                 pwa_icon_512_url: publicUrl,
                                 created_by: user?.id
                               });
+                            
+                            // Add cache-busting timestamp for preview only
+                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
+                            updateSetting('pwa_icon_512_url', urlWithTimestamp);
                             
                             toast({
                               title: "Success",
