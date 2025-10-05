@@ -3,13 +3,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { Download, Users, UserCircle, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+
+// Create untyped client to avoid deep type instantiation errors
+const SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
+const untypedSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 interface PinEmployee {
   id: string;
@@ -49,39 +54,45 @@ export default function EmployeeReports() {
   const fetchEmployees = async () => {
     if (!currentCompany) return;
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      // Fetch PIN employees
-      const { data: pinData, error: pinError } = await supabase
+    try {
+      // Fetch PIN employees using untyped client
+      const { data: pinData, error: pinError } = await untypedSupabase
         .from("pin_employees")
         .select("id, first_name, last_name, display_name, pin_code, email, phone, is_active")
         .eq("company_id", currentCompany.id)
         .eq("is_active", true)
-        .order("last_name")
-        .returns<PinEmployee[]>();
+        .order("last_name");
 
-      if (pinError) throw pinError;
+      if (pinError) {
+        console.error("Error fetching PIN employees:", pinError);
+        toast({
+          title: "Error",
+          description: "Failed to fetch PIN employee data",
+          variant: "destructive",
+        });
+      } else {
+        setPinEmployees((pinData as PinEmployee[]) || []);
+      }
 
       // Fetch regular employees with PINs
-      const { data: regularData, error: regularError } = await supabase
+      const { data: regularData, error: regularError } = await untypedSupabase
         .from("profiles")
         .select("user_id, first_name, last_name, display_name, pin_code, role")
         .not("pin_code", "is", null)
-        .order("last_name")
-        .returns<RegularEmployee[]>();
+        .order("last_name");
 
-      if (regularError) throw regularError;
-
-      setPinEmployees(pinData || []);
-      setRegularEmployees(regularData || []);
-    } catch (error) {
-      console.error("Error fetching employees:", error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch employee data",
-        variant: "destructive",
-      });
+      if (regularError) {
+        console.error("Error fetching regular employees:", regularError);
+        toast({
+          title: "Error",
+          description: "Failed to fetch regular employee data",
+          variant: "destructive",
+        });
+      } else {
+        setRegularEmployees((regularData as RegularEmployee[]) || []);
+      }
     } finally {
       setLoading(false);
     }
