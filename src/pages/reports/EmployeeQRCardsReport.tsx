@@ -24,10 +24,10 @@ interface PinEmployee {
 interface CardCustomization {
   baseUrl: string;
   headerText: string;
-  instructionsLine1: string;
-  instructionsLine2: string;
+  instructions: string;
   font: string;
   logoUrl: string;
+  logoScale: number;
   footerText: string;
 }
 
@@ -44,10 +44,10 @@ export default function EmployeeQRCardsReport() {
   const [customization, setCustomization] = useState<CardCustomization>({
     baseUrl: window.location.origin,
     headerText: "Employee Punch Clock Card",
-    instructionsLine1: "Scan this QR code to access the Punch Clock",
-    instructionsLine2: "Then enter your PIN to clock in/out",
+    instructions: "Scan this QR code to access the Punch Clock<br>Then enter your PIN to clock in/out",
     font: "helvetica",
     logoUrl: currentCompany?.logo_url || "",
+    logoScale: 1.0,
     footerText: currentCompany?.name || "Company",
   });
   
@@ -137,10 +137,10 @@ export default function EmployeeQRCardsReport() {
       setCustomization({
         baseUrl: data.base_url,
         headerText: data.header_text,
-        instructionsLine1: data.instructions_line1,
-        instructionsLine2: data.instructions_line2,
+        instructions: data.instructions || "Scan this QR code to access the Punch Clock<br>Then enter your PIN to clock in/out",
         font: data.font,
         logoUrl: data.logo_url || "",
+        logoScale: data.logo_scale || 1.0,
         footerText: data.footer_text,
       });
     }
@@ -155,10 +155,10 @@ export default function EmployeeQRCardsReport() {
         company_id: currentCompany.id,
         base_url: customization.baseUrl,
         header_text: customization.headerText,
-        instructions_line1: customization.instructionsLine1,
-        instructions_line2: customization.instructionsLine2,
+        instructions: customization.instructions,
         font: customization.font,
         logo_url: customization.logoUrl,
+        logo_scale: customization.logoScale,
         footer_text: customization.footerText,
       }, {
         onConflict: "company_id"
@@ -183,15 +183,16 @@ export default function EmployeeQRCardsReport() {
     const doc = new jsPDF();
     doc.setFont(customization.font);
     
-      // Add logo if provided (40mm width, maintain aspect ratio)
+      // Add logo if provided (40mm base width, scaled by logoScale)
       if (customization.logoUrl) {
         try {
           const img = new Image();
           img.src = customization.logoUrl;
           const aspectRatio = img.height / img.width;
-          const logoWidth = 40;
+          const logoWidth = 40 * customization.logoScale;
           const logoHeight = logoWidth * aspectRatio;
-          doc.addImage(customization.logoUrl, "PNG", 85, 10, logoWidth, logoHeight);
+          const xPos = 105 - (logoWidth / 2); // Center the logo
+          doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
         } catch (e) {
           console.warn("Could not add logo to PDF");
         }
@@ -218,10 +219,17 @@ export default function EmployeeQRCardsReport() {
     // Add QR Code
     doc.addImage(qrCodeDataUrl, "PNG", 55, customization.logoUrl ? 85 : 70, 100, 100);
     
-    // Instructions
+    // Instructions - parse HTML and render as text lines
     doc.setFontSize(10);
-    doc.text(customization.instructionsLine1, 105, customization.logoUrl ? 195 : 180, { align: "center" });
-    doc.text(customization.instructionsLine2, 105, customization.logoUrl ? 203 : 188, { align: "center" });
+    const instructionLines = customization.instructions
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .split('\n');
+    let yPos = customization.logoUrl ? 195 : 180;
+    instructionLines.forEach((line) => {
+      doc.text(line, 105, yPos, { align: "center" });
+      yPos += 8;
+    });
     
     // Footer
     doc.setFontSize(8);
@@ -250,15 +258,16 @@ export default function EmployeeQRCardsReport() {
 
       doc.setFont(customization.font);
       
-    // Add logo if provided (40mm width, maintain aspect ratio)
+    // Add logo if provided (40mm base width, scaled by logoScale)
     if (customization.logoUrl) {
       try {
         const img = new Image();
         img.src = customization.logoUrl;
         const aspectRatio = img.height / img.width;
-        const logoWidth = 40;
+        const logoWidth = 40 * customization.logoScale;
         const logoHeight = logoWidth * aspectRatio;
-        doc.addImage(customization.logoUrl, "PNG", 85, 10, logoWidth, logoHeight);
+        const xPos = 105 - (logoWidth / 2); // Center the logo
+        doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
       } catch (e) {
         console.warn("Could not add logo to PDF");
       }
@@ -284,10 +293,17 @@ export default function EmployeeQRCardsReport() {
       // Add QR Code
       doc.addImage(qrCodeDataUrl, "PNG", 55, customization.logoUrl ? 85 : 70, 100, 100);
       
-      // Instructions
+      // Instructions - parse HTML and render as text lines
       doc.setFontSize(10);
-      doc.text(customization.instructionsLine1, 105, customization.logoUrl ? 195 : 180, { align: "center" });
-      doc.text(customization.instructionsLine2, 105, customization.logoUrl ? 203 : 188, { align: "center" });
+      const instructionLines = customization.instructions
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .split('\n');
+      let yPos = customization.logoUrl ? 195 : 180;
+      instructionLines.forEach((line) => {
+        doc.text(line, 105, yPos, { align: "center" });
+        yPos += 8;
+      });
       
       // Footer
       doc.setFontSize(8);
@@ -383,15 +399,6 @@ export default function EmployeeQRCardsReport() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="instructionsLine1">Instructions Line 1</Label>
-              <Input
-                id="instructionsLine1"
-                value={customization.instructionsLine1}
-                onChange={(e) => setCustomization({ ...customization, instructionsLine1: e.target.value })}
-              />
-            </div>
-
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="baseUrl">Base URL (Production URL)</Label>
               <Input
@@ -405,13 +412,18 @@ export default function EmployeeQRCardsReport() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="instructionsLine2">Instructions Line 2</Label>
-              <Input
-                id="instructionsLine2"
-                value={customization.instructionsLine2}
-                onChange={(e) => setCustomization({ ...customization, instructionsLine2: e.target.value })}
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="instructions">Instructions (HTML supported)</Label>
+              <textarea
+                id="instructions"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={customization.instructions}
+                onChange={(e) => setCustomization({ ...customization, instructions: e.target.value })}
+                placeholder="Scan this QR code<br>to access the Punch Clock"
               />
+              <p className="text-xs text-muted-foreground">
+                Use &lt;br&gt; for line breaks, &lt;b&gt; for bold, &lt;i&gt; for italic
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -424,9 +436,31 @@ export default function EmployeeQRCardsReport() {
               />
               {customization.logoUrl && (
                 <div className="mt-2">
-                  <img src={customization.logoUrl} alt="Logo preview" style={{ width: '40mm', height: 'auto' }} className="object-contain" />
+                  <img 
+                    src={customization.logoUrl} 
+                    alt="Logo preview" 
+                    style={{ width: `${40 * customization.logoScale}mm`, height: 'auto' }} 
+                    className="object-contain" 
+                  />
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="logoScale">Logo Scale: {customization.logoScale.toFixed(1)}x</Label>
+              <input
+                id="logoScale"
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.1"
+                value={customization.logoScale}
+                onChange={(e) => setCustomization({ ...customization, logoScale: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Adjust logo size from 0.5x to 2.0x
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -453,7 +487,12 @@ export default function EmployeeQRCardsReport() {
             <div className="border-2 border-border rounded-lg p-8 bg-background shadow-lg" style={{ width: '400px' }}>
               {customization.logoUrl && (
                 <div className="flex justify-center mb-4">
-                  <img src={customization.logoUrl} alt="Company Logo" style={{ width: '40mm', height: 'auto' }} className="object-contain" />
+                  <img 
+                    src={customization.logoUrl} 
+                    alt="Company Logo" 
+                    style={{ width: `${40 * customization.logoScale}mm`, height: 'auto' }} 
+                    className="object-contain" 
+                  />
                 </div>
               )}
               <h2 className="text-xl font-bold text-center mb-3" style={{ fontFamily: customization.font }}>
@@ -469,10 +508,10 @@ export default function EmployeeQRCardsReport() {
                   <img src={previewQrCode} alt="QR Code Preview" className="w-48 h-48" />
                 </div>
               )}
-              <div className="text-center space-y-1">
-                <p className="text-xs text-muted-foreground">{customization.instructionsLine1}</p>
-                <p className="text-xs text-muted-foreground">{customization.instructionsLine2}</p>
-              </div>
+              <div 
+                className="text-center space-y-1 text-xs text-muted-foreground"
+                dangerouslySetInnerHTML={{ __html: customization.instructions }}
+              />
               <p className="text-xs text-center text-muted-foreground mt-4" style={{ fontFamily: customization.font }}>
                 {customization.footerText}
               </p>
@@ -546,12 +585,10 @@ export default function EmployeeQRCardsReport() {
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
             <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
-            <p className="text-sm text-muted-foreground">
-              {customization.instructionsLine1}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {customization.instructionsLine2}
-            </p>
+            <div 
+              className="text-sm text-muted-foreground text-center"
+              dangerouslySetInnerHTML={{ __html: customization.instructions }}
+            />
           </CardContent>
         </Card>
       )}

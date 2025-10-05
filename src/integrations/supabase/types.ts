@@ -2763,8 +2763,10 @@ export type Database = {
           footer_text: string
           header_text: string
           id: string
+          instructions: string | null
           instructions_line1: string
           instructions_line2: string
+          logo_scale: number | null
           logo_url: string | null
           updated_at: string
         }
@@ -2776,8 +2778,10 @@ export type Database = {
           footer_text?: string
           header_text?: string
           id?: string
+          instructions?: string | null
           instructions_line1?: string
           instructions_line2?: string
+          logo_scale?: number | null
           logo_url?: string | null
           updated_at?: string
         }
@@ -2789,8 +2793,10 @@ export type Database = {
           footer_text?: string
           header_text?: string
           id?: string
+          instructions?: string | null
           instructions_line1?: string
           instructions_line2?: string
+          logo_scale?: number | null
           logo_url?: string | null
           updated_at?: string
         }
