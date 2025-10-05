@@ -17,6 +17,40 @@ import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 
+// Helper to resize any image to square PNG (contain) at desired size
+async function resizeImageToPng(file: File, size: number): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img: HTMLImageElement = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+    ctx.clearRect(0, 0, size, size);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const scale = Math.min(size / img.width, size / img.height);
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const dx = Math.floor((size - w) / 2);
+    const dy = Math.floor((size - h) / 2);
+    ctx.drawImage(img, dx, dy, w, h);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png');
+    });
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+
 interface PunchClockSettings {
   require_location: boolean;
   require_photo: boolean;
@@ -772,47 +806,40 @@ export default function PunchClockSettings() {
                     <Input
                       id="icon-192"
                       type="file"
-                      accept="image/png"
+                      accept="image/png,image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file && currentCompany) {
-                          const fileExt = file.name.split('.').pop();
-                          const fileName = `${currentCompany.id}-192.${fileExt}`;
-                          const filePath = `${fileName}`;
+                          try {
+                            // Force exact 192x192 PNG
+                            const resized = await resizeImageToPng(file, 192);
+                            const fileName = `${currentCompany.id}-192.png`;
 
-                           const { error: uploadError, data } = await supabase.storage
-                            .from('company-logos')
-                            .upload(filePath, file, { upsert: true });
+                            const { error: uploadError } = await supabase.storage
+                              .from('company-logos')
+                              .upload(fileName, resized, { upsert: true, cacheControl: '3600', contentType: 'image/png' });
 
-                          if (uploadError) {
-                            toast({
-                              title: "Error",
-                              description: "Failed to upload icon",
-                              variant: "destructive",
-                            });
-                          } else {
+                            if (uploadError) {
+                              toast({ title: 'Error', description: 'Failed to upload icon', variant: 'destructive' });
+                              return;
+                            }
+
                             const { data: { publicUrl } } = supabase.storage
                               .from('company-logos')
-                              .getPublicUrl(filePath);
-                            
-                            // Save URL without timestamp to database
+                              .getPublicUrl(fileName);
+
                             await supabase
                               .from('job_punch_clock_settings')
-                              .upsert({
-                                job_id: null,
-                                company_id: currentCompany.id,
-                                pwa_icon_192_url: publicUrl,
-                                created_by: user?.id
-                              });
-                            
-                            // Add cache-busting timestamp for preview only
+                              .upsert({ job_id: null, company_id: currentCompany.id, pwa_icon_192_url: publicUrl, created_by: user?.id });
+
                             const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
                             updateSetting('pwa_icon_192_url', urlWithTimestamp);
-                            
-                            toast({
-                              title: "Success",
-                              description: "Icon uploaded and saved successfully",
-                            });
+                            try { localStorage.setItem('pwa_icon_192_url', publicUrl); } catch {}
+
+                            toast({ title: 'Success', description: '192x192 icon resized, uploaded and saved' });
+                          } catch (err) {
+                            console.error(err);
+                            toast({ title: 'Error', description: 'Failed to process icon', variant: 'destructive' });
                           }
                         }
                       }}
@@ -833,47 +860,40 @@ export default function PunchClockSettings() {
                     <Input
                       id="icon-512"
                       type="file"
-                      accept="image/png"
+                      accept="image/png,image/*"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file && currentCompany) {
-                          const fileExt = file.name.split('.').pop();
-                          const fileName = `${currentCompany.id}-512.${fileExt}`;
-                          const filePath = `${fileName}`;
+                          try {
+                            // Force exact 512x512 PNG
+                            const resized = await resizeImageToPng(file, 512);
+                            const fileName = `${currentCompany.id}-512.png`;
 
-                          const { error: uploadError, data } = await supabase.storage
-                            .from('company-logos')
-                            .upload(filePath, file, { upsert: true });
+                            const { error: uploadError } = await supabase.storage
+                              .from('company-logos')
+                              .upload(fileName, resized, { upsert: true, cacheControl: '3600', contentType: 'image/png' });
 
-                          if (uploadError) {
-                            toast({
-                              title: "Error",
-                              description: "Failed to upload icon",
-                              variant: "destructive",
-                            });
-                          } else {
+                            if (uploadError) {
+                              toast({ title: 'Error', description: 'Failed to upload icon', variant: 'destructive' });
+                              return;
+                            }
+
                             const { data: { publicUrl } } = supabase.storage
                               .from('company-logos')
-                              .getPublicUrl(filePath);
-                            
-                            // Save URL without timestamp to database
+                              .getPublicUrl(fileName);
+
                             await supabase
                               .from('job_punch_clock_settings')
-                              .upsert({
-                                job_id: null,
-                                company_id: currentCompany.id,
-                                pwa_icon_512_url: publicUrl,
-                                created_by: user?.id
-                              });
-                            
-                            // Add cache-busting timestamp for preview only
+                              .upsert({ job_id: null, company_id: currentCompany.id, pwa_icon_512_url: publicUrl, created_by: user?.id });
+
                             const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
                             updateSetting('pwa_icon_512_url', urlWithTimestamp);
-                            
-                            toast({
-                              title: "Success",
-                              description: "Icon uploaded and saved successfully",
-                            });
+                            try { localStorage.setItem('pwa_icon_512_url', publicUrl); } catch {}
+
+                            toast({ title: 'Success', description: '512x512 icon resized, uploaded and saved' });
+                          } catch (err) {
+                            console.error(err);
+                            toast({ title: 'Error', description: 'Failed to process icon', variant: 'destructive' });
                           }
                         }
                       }}
