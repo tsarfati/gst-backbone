@@ -9,20 +9,22 @@
     <script>
       (function(){
         try {
-          var icon192 = localStorage.getItem('pwa_icon_192_url');
-          var icon512 = localStorage.getItem('pwa_icon_512_url');
+          var icon192data = localStorage.getItem('pwa_icon_192_data');
+          var icon512data = localStorage.getItem('pwa_icon_512_data');
+          var icon192 = icon192data || localStorage.getItem('pwa_icon_192_url');
+          var icon512 = icon512data || localStorage.getItem('pwa_icon_512_url');
           var appName = localStorage.getItem('pwa_app_name') || 'Punch Clock';
           if (icon192 || icon512) {
             var addBust = function(u){ if(!u) return u; return u + (u.indexOf('?')>-1?'&':'?') + 'v=' + Date.now(); };
-            icon192 = addBust(icon192 || '/punch-clock-icon-192.png');
-            icon512 = addBust(icon512 || '/punch-clock-icon-512.png');
+            if (!/^data:/.test(icon192)) icon192 = addBust(icon192 || '/punch-clock-icon-192.png');
+            if (!/^data:/.test(icon512)) icon512 = addBust(icon512 || '/punch-clock-icon-512.png');
 
             // Remove any existing links so browser doesn't pick stale ones
             document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"],link[rel="apple-touch-icon-precomposed"],link[rel="shortcut icon"],link[rel="mask-icon"],link[rel="manifest"]').forEach(function(n){
               if (n && n.parentNode) n.parentNode.removeChild(n);
             });
 
-            // Create a dynamic manifest with uploaded icons
+            // Create a dynamic manifest with uploaded icons (use data/blob URLs if available)
             var manifest = {
               name: appName,
               short_name: appName,
@@ -53,6 +55,14 @@
       })();
     </script>
     <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Punch Clock">
+    <link rel="apple-touch-icon" href="/punch-clock-icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/punch-clock-icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/punch-clock-icon-512.png">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
