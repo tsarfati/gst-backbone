@@ -48,9 +48,14 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open('pwa-icons-v1');
       const cached = await cache.match(event.request, { ignoreSearch: true });
       if (cached) return cached;
-      // Fallback to bundled defaults
-      const fallback = url.pathname.endsWith('192.png') ? '/punch-clock-icon-192.png' : '/punch-clock-icon-512.png';
-      return fetch(fallback, { cache: 'reload' });
+      try {
+        const resp = await fetch(event.request, { cache: 'reload' });
+        await cache.put(event.request, resp.clone());
+        return resp;
+      } catch {
+        const fallback = url.pathname.endsWith('192.png') ? '/punch-clock-icon-192.png' : '/punch-clock-icon-512.png';
+        return fetch(fallback, { cache: 'reload' });
+      }
     })());
     return;
   }
