@@ -781,9 +781,12 @@ export default function PunchClockSettings() {
                             const { data: { publicUrl } } = supabase.storage
                               .from('company-logos')
                               .getPublicUrl(filePath);
-                            updateSetting('pwa_icon_192_url', publicUrl);
                             
-                            // Save immediately to database
+                            // Add cache-busting timestamp to force preview update
+                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
+                            updateSetting('pwa_icon_192_url', urlWithTimestamp);
+                            
+                            // Save URL without timestamp to database
                             await supabase
                               .from('job_punch_clock_settings')
                               .upsert({
@@ -839,9 +842,12 @@ export default function PunchClockSettings() {
                             const { data: { publicUrl } } = supabase.storage
                               .from('company-logos')
                               .getPublicUrl(filePath);
-                            updateSetting('pwa_icon_512_url', publicUrl);
                             
-                            // Save immediately to database
+                            // Add cache-busting timestamp to force preview update
+                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
+                            updateSetting('pwa_icon_512_url', urlWithTimestamp);
+                            
+                            // Save URL without timestamp to database
                             await supabase
                               .from('job_punch_clock_settings')
                               .upsert({
