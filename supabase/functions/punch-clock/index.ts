@@ -112,18 +112,31 @@ serve(async (req) => {
       }
 
       // Load jobs - filter by assignments only (across all companies)
-      let jobsQuery = supabaseAdmin
-        .from("jobs")
-        .select("id, name, address, status")
-        .in("status", ["active", "planning"])
-        .order("name");
-      
-      if (userRow.is_pin_employee && assignedJobs.length > 0) {
-        jobsQuery = jobsQuery.in("id", assignedJobs);
+      let jobs: any[] = [];
+      if (userRow.is_pin_employee) {
+        if (assignedJobs.length > 0) {
+          const { data: j, error: jobsErr } = await supabaseAdmin
+            .from("jobs")
+            .select("id, name, address, status")
+            .in("status", ["active", "planning"]) 
+            .in("id", assignedJobs)
+            .order("name");
+          if (jobsErr) return errorResponse(jobsErr.message, 500);
+          jobs = j || [];
+        } else {
+          // No assignments for PIN employee -> return no jobs
+          jobs = [];
+        }
+      } else {
+        // Regular users may see all company jobs per RLS; keep existing behavior
+        const { data: j, error: jobsErr } = await supabaseAdmin
+          .from("jobs")
+          .select("id, name, address, status")
+          .in("status", ["active", "planning"]) 
+          .order("name");
+        if (jobsErr) return errorResponse(jobsErr.message, 500);
+        jobs = j || [];
       }
-      
-      const { data: jobs, error: jobsErr } = await jobsQuery;
-      if (jobsErr) return errorResponse(jobsErr.message, 500);
 
       // Load cost codes - filter by assignments and type=labor only
       let costCodesQuery = supabaseAdmin

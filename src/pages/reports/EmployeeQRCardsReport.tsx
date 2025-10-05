@@ -189,11 +189,11 @@ export default function EmployeeQRCardsReport() {
         await new Promise<void>((resolve, reject) => {
           const img = new Image();
           img.onload = () => {
-            const aspectRatio = img.height / img.width;
+            const aspectRatio = img.naturalHeight / img.naturalWidth;
             const logoWidth = 40 * customization.logoScale;
             const logoHeight = logoWidth * aspectRatio;
             const xPos = 105 - (logoWidth / 2); // Center the logo
-            doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
+            doc.addImage(img as HTMLImageElement, "PNG", xPos, 10, logoWidth, logoHeight);
             resolve();
           };
           img.onerror = () => reject(new Error("Failed to load logo"));
@@ -270,11 +270,11 @@ export default function EmployeeQRCardsReport() {
           await new Promise<void>((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-              const aspectRatio = img.height / img.width;
+              const aspectRatio = img.naturalHeight / img.naturalWidth;
               const logoWidth = 40 * customization.logoScale;
               const logoHeight = logoWidth * aspectRatio;
               const xPos = 105 - (logoWidth / 2); // Center the logo
-              doc.addImage(customization.logoUrl, "PNG", xPos, 10, logoWidth, logoHeight);
+              doc.addImage(img as HTMLImageElement, "PNG", xPos, 10, logoWidth, logoHeight);
               resolve();
             };
             img.onerror = () => reject(new Error("Failed to load logo"));
