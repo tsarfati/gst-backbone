@@ -27,6 +27,7 @@ interface PinEmployee {
 }
 
 interface CardCustomization {
+  baseUrl: string;
   headerText: string;
   instructionsLine1: string;
   instructionsLine2: string;
@@ -45,6 +46,7 @@ export default function EmployeeQRCardsReport() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   
   const [customization, setCustomization] = useState<CardCustomization>({
+    baseUrl: window.location.origin,
     headerText: "Employee Punch Clock Card",
     instructionsLine1: "Scan this QR code to access the Punch Clock",
     instructionsLine2: "Then enter your PIN to clock in/out",
@@ -58,6 +60,7 @@ export default function EmployeeQRCardsReport() {
       fetchEmployees();
       setCustomization(prev => ({
         ...prev,
+        baseUrl: window.location.origin,
         logoUrl: currentCompany.logo_url || "",
         footerText: currentCompany.name || "Company",
       }));
@@ -124,8 +127,8 @@ export default function EmployeeQRCardsReport() {
     doc.text(`Display Name: ${employee.display_name}`, 105, customization.logoUrl ? 60 : 45, { align: "center" });
     doc.text(`PIN: ${employee.pin_code}`, 105, customization.logoUrl ? 70 : 55, { align: "center" });
     
-    // Generate QR Code
-    const punchClockUrl = `${window.location.origin}/punch-clock-login`;
+    // Generate QR Code - use configured base URL
+    const punchClockUrl = `${customization.baseUrl}/punch-clock-login`;
     const qrCodeDataUrl = await QRCodeGenerator.toDataURL(punchClockUrl, {
       width: 200,
       margin: 2,
@@ -155,7 +158,7 @@ export default function EmployeeQRCardsReport() {
     if (pinEmployees.length === 0) return;
 
     const doc = new jsPDF();
-    const punchClockUrl = `${window.location.origin}/punch-clock-login`;
+    const punchClockUrl = `${customization.baseUrl}/punch-clock-login`;
 
     for (let i = 0; i < pinEmployees.length; i++) {
       const employee = pinEmployees[i];
@@ -215,7 +218,7 @@ export default function EmployeeQRCardsReport() {
 
   const viewEmployeeQR = async (employee: PinEmployee) => {
     setSelectedEmployee(employee);
-    const punchClockUrl = `${window.location.origin}/punch-clock-login`;
+    const punchClockUrl = `${customization.baseUrl}/punch-clock-login`;
     const qrDataUrl = await QRCodeGenerator.toDataURL(punchClockUrl, {
       width: 300,
       margin: 2,
@@ -255,6 +258,12 @@ export default function EmployeeQRCardsReport() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+            <p className="text-sm font-medium">Important: QR Code URL Configuration</p>
+            <p className="text-sm text-muted-foreground">
+              The Base URL below determines where the QR codes will point. Use your deployed production URL (e.g., https://yourapp.com) for QR codes that employees will scan. The preview URL won't work for scanning.
+            </p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="headerText">Header Text</Label>
@@ -289,6 +298,19 @@ export default function EmployeeQRCardsReport() {
                 value={customization.instructionsLine1}
                 onChange={(e) => setCustomization({ ...customization, instructionsLine1: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="baseUrl">Base URL (Production URL)</Label>
+              <Input
+                id="baseUrl"
+                value={customization.baseUrl}
+                onChange={(e) => setCustomization({ ...customization, baseUrl: e.target.value })}
+                placeholder="https://yourapp.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                This is the URL that will be encoded in the QR codes. Use your deployed production URL.
+              </p>
             </div>
 
             <div className="space-y-2">
