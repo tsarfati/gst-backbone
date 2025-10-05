@@ -95,8 +95,10 @@ function PunchClockApp() {
   // Load login settings for background styling and punch clock settings
   useEffect(() => {
     loadLoginSettings();
-    loadPunchSettings();
-  }, []);
+    if (profile) {
+      loadPunchSettings();
+    }
+  }, [profile]);
 
   // Redirect if not authenticated (after loading completes)
   useEffect(() => {
@@ -168,9 +170,17 @@ function PunchClockApp() {
 
   const loadPunchSettings = async () => {
     try {
+      // Get company_id from profile
+      const companyId = (profile as any)?.current_company_id;
+      if (!companyId) {
+        console.log('No company ID found in profile');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('job_punch_clock_settings')
         .select('manual_photo_capture, cost_code_selection_timing')
+        .eq('company_id', companyId)
         .is('job_id', null)
         .maybeSingle();
 
@@ -184,6 +194,7 @@ function PunchClockApp() {
           manual_photo_capture: data.manual_photo_capture !== false,
           cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_in'
         });
+        console.log('Loaded punch settings:', data);
       }
     } catch (error) {
       console.error('Error loading punch settings:', error);
