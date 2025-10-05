@@ -127,14 +127,21 @@ function PunchClockApp() {
     }
   }, [user, isPinAuthenticated, punchSettingsLoaded]);
 
-  // Reload cost codes when job selection changes
+  // Reload cost codes and punch settings when job selection changes
   useEffect(() => {
     if (selectedJob) {
       loadCostCodes(selectedJob);
+      // Load punch settings based on the selected job's company (especially for PIN mode)
+      if (isPinAuthenticated) {
+        const job = jobs.find(j => j.id === selectedJob);
+        if (job?.company_id) {
+          loadPunchSettings(job.company_id);
+        }
+      }
     } else {
       setCostCodes([]);
     }
-  }, [selectedJob, user, isPinAuthenticated, punchSettingsLoaded]);
+  }, [selectedJob, user, isPinAuthenticated, punchSettingsLoaded, jobs]);
 
   // Ensure selections stay valid when lists change
   useEffect(() => {
@@ -172,13 +179,17 @@ function PunchClockApp() {
     }
   };
 
-  const loadPunchSettings = async () => {
+  const loadPunchSettings = async (companyIdOverride?: string) => {
     try {
-      // Get company_id from profile
-      const companyId = (profile as any)?.current_company_id;
+      // Determine company id: override > profile company > selected job company (PIN mode)
+      let companyId = companyIdOverride || (profile as any)?.current_company_id;
+      if (!companyId && isPinAuthenticated && selectedJob) {
+        const job = jobs.find(j => j.id === selectedJob);
+        companyId = job?.company_id as any;
+      }
       console.log('Loading punch settings for company:', companyId);
       if (!companyId) {
-        console.log('No company ID found in profile');
+        console.log('No company ID available yet for punch settings');
         // Defer until company id is available; don't mark settings as loaded yet
         return;
       }
@@ -200,13 +211,14 @@ function PunchClockApp() {
       if (data) {
         const newSettings = {
           manual_photo_capture: data.manual_photo_capture !== false,
-          cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_in'
+          cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_out'
         };
         console.log('Setting punch settings to:', newSettings);
         setPunchSettings(newSettings);
         setPunchSettingsLoaded(true);
       } else {
-        console.log('No punch settings found, using defaults');
+        console.log('No punch settings found, defaulting to punch_out');
+        setPunchSettings((prev: any) => ({ ...prev, cost_code_selection_timing: 'punch_out' }));
         setPunchSettingsLoaded(true);
       }
     } catch (error) {
@@ -1410,12 +1422,13 @@ function PunchClockApp() {
                 (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in') ||
                 (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out')
               );
-              const isDisabled = isLoading || (!currentPunch && !selectedJob) || (requiresCostCode && !selectedCostCode);
+              const isDisabled = isLoading || !punchSettingsLoaded || (!currentPunch && !selectedJob) || (requiresCostCode && !selectedCostCode);
               console.log('Button disabled?', isDisabled);
-              startCamera();
+              if (!isDisabled) startCamera();
             }}
             disabled={
               isLoading || 
+              !punchSettingsLoaded ||
               (!currentPunch && !selectedJob) || 
               // Punch in: only require cost code if setting is 'punch_in' and settings loaded
               (!currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||

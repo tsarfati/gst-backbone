@@ -117,7 +117,7 @@ serve(async (req) => {
         if (assignedJobs.length > 0) {
           const { data: j, error: jobsErr } = await supabaseAdmin
             .from("jobs")
-            .select("id, name, address, status")
+            .select("id, name, address, status, company_id")
             .in("status", ["active", "planning"]) 
             .in("id", assignedJobs)
             .order("name");
@@ -131,7 +131,7 @@ serve(async (req) => {
         // Regular users may see all company jobs per RLS; keep existing behavior
         const { data: j, error: jobsErr } = await supabaseAdmin
           .from("jobs")
-          .select("id, name, address, status")
+          .select("id, name, address, status, company_id")
           .in("status", ["active", "planning"]) 
           .order("name");
         if (jobsErr) return errorResponse(jobsErr.message, 500);
