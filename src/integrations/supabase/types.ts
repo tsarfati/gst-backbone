@@ -1423,6 +1423,7 @@ export type Database = {
           require_photo: boolean | null
           require_timecard_change_approval: boolean | null
           scheduled_start_time: string | null
+          show_install_button: boolean | null
           updated_at: string
         }
         Insert: {
@@ -1461,6 +1462,7 @@ export type Database = {
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
+          show_install_button?: boolean | null
           updated_at?: string
         }
         Update: {
@@ -1499,6 +1501,7 @@ export type Database = {
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
+          show_install_button?: boolean | null
           updated_at?: string
         }
         Relationships: [

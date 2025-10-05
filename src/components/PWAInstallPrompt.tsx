@@ -66,13 +66,13 @@ export default function PWAInstallPrompt({ showButton = false }: PWAInstallPromp
       console.log('PWA install prompt settings:', data);
       
       // For button mode, check show_install_button
-      if (showButton && data && data.show_install_button === false) {
+      if (showButton && data && (data as any).show_install_button === false) {
         setIsEnabled(false);
         return;
       }
       
       // For auto-prompt mode, check enable_install_prompt
-      if (!showButton && data && data.enable_install_prompt === false) {
+      if (!showButton && data && (data as any).enable_install_prompt === false) {
         setIsEnabled(false);
         return;
       }

@@ -141,7 +141,7 @@ export default function PunchClockSettings() {
           pwa_icon_192_url: data.pwa_icon_192_url || '',
           pwa_icon_512_url: data.pwa_icon_512_url || '',
           enable_install_prompt: data.enable_install_prompt !== false,
-          show_install_button: data.show_install_button !== false
+          show_install_button: (data as any).show_install_button !== false
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
