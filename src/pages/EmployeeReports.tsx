@@ -57,11 +57,20 @@ export default function EmployeeReports() {
     setLoading(true);
 
     try {
+      // Get users with access to current company
+      const { data: accessData } = await untypedSupabase
+        .from("user_company_access")
+        .select("user_id")
+        .eq("company_id", currentCompany.id)
+        .eq("is_active", true);
+
+      const userIds = (accessData || []).map((a: any) => a.user_id);
+
       // Fetch PIN employees using untyped client
       const { data: pinData, error: pinError } = await untypedSupabase
         .from("pin_employees")
         .select("id, first_name, last_name, display_name, pin_code, email, phone, is_active")
-        .eq("company_id", currentCompany.id)
+        .in("id", userIds)
         .eq("is_active", true)
         .order("last_name");
 
