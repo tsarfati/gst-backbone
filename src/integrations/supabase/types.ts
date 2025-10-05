@@ -2754,6 +2754,48 @@ export type Database = {
           },
         ]
       }
+      qr_card_customization: {
+        Row: {
+          base_url: string
+          company_id: string
+          created_at: string
+          font: string
+          footer_text: string
+          header_text: string
+          id: string
+          instructions_line1: string
+          instructions_line2: string
+          logo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_url: string
+          company_id: string
+          created_at?: string
+          font?: string
+          footer_text?: string
+          header_text?: string
+          id?: string
+          instructions_line1?: string
+          instructions_line2?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          company_id?: string
+          created_at?: string
+          font?: string
+          footer_text?: string
+          header_text?: string
+          id?: string
+          instructions_line1?: string
+          instructions_line2?: string
+          logo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       receipt_messages: {
         Row: {
           created_at: string

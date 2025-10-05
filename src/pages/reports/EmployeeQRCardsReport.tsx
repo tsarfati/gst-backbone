@@ -55,6 +55,7 @@ export default function EmployeeQRCardsReport() {
     logoUrl: currentCompany?.logo_url || "",
     footerText: currentCompany?.name || "Company",
   });
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,15 +68,79 @@ export default function EmployeeQRCardsReport() {
     }
   };
 
+  const loadSavedCustomization = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await untypedSupabase
+        .from("qr_card_customization")
+        .select("*")
+        .eq("company_id", currentCompany.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error("Error loading customization:", error);
+        return;
+      }
+
+      if (data) {
+        setCustomization({
+          baseUrl: data.base_url,
+          headerText: data.header_text,
+          instructionsLine1: data.instructions_line1,
+          instructionsLine2: data.instructions_line2,
+          font: data.font,
+          logoUrl: data.logo_url || "",
+          footerText: data.footer_text,
+        });
+      }
+    } catch (err) {
+      console.error("Unexpected error loading customization:", err);
+    }
+  };
+
+  const saveCustomization = async () => {
+    if (!currentCompany) return;
+
+    setIsSaving(true);
+    try {
+      const { error } = await untypedSupabase
+        .from("qr_card_customization")
+        .upsert({
+          company_id: currentCompany.id,
+          base_url: customization.baseUrl,
+          header_text: customization.headerText,
+          instructions_line1: customization.instructionsLine1,
+          instructions_line2: customization.instructionsLine2,
+          font: customization.font,
+          logo_url: customization.logoUrl,
+          footer_text: customization.footerText,
+        }, {
+          onConflict: 'company_id'
+        });
+
+      if (error) {
+        console.error("Error saving customization:", error);
+        toast({
+          title: "Error",
+          description: "Failed to save customization settings",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Customization settings saved",
+        });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (currentCompany) {
       fetchEmployees();
-      setCustomization(prev => ({
-        ...prev,
-        baseUrl: window.location.origin,
-        logoUrl: currentCompany.logo_url || "",
-        footerText: currentCompany.name || "Company",
-      }));
+      loadSavedCustomization();
     }
   }, [currentCompany]);
 
@@ -131,14 +196,19 @@ export default function EmployeeQRCardsReport() {
     const doc = new jsPDF();
     doc.setFont(customization.font);
     
-    // Add logo if provided
-    if (customization.logoUrl) {
-      try {
-        doc.addImage(customization.logoUrl, "PNG", 85, 10, 40, 20);
-      } catch (e) {
-        console.warn("Could not add logo to PDF");
+      // Add logo if provided (40mm width, maintain aspect ratio)
+      if (customization.logoUrl) {
+        try {
+          const img = new Image();
+          img.src = customization.logoUrl;
+          const aspectRatio = img.height / img.width;
+          const logoWidth = 40;
+          const logoHeight = logoWidth * aspectRatio;
+          doc.addImage(customization.logoUrl, "PNG", 85, 10, logoWidth, logoHeight);
+        } catch (e) {
+          console.warn("Could not add logo to PDF");
+        }
       }
-    }
     
     // Header
     doc.setFontSize(20);
@@ -193,14 +263,19 @@ export default function EmployeeQRCardsReport() {
 
       doc.setFont(customization.font);
       
-      // Add logo if provided
-      if (customization.logoUrl) {
-        try {
-          doc.addImage(customization.logoUrl, "PNG", 85, 10, 40, 20);
-        } catch (e) {
-          console.warn("Could not add logo to PDF");
-        }
+    // Add logo if provided (40mm width, maintain aspect ratio)
+    if (customization.logoUrl) {
+      try {
+        const img = new Image();
+        img.src = customization.logoUrl;
+        const aspectRatio = img.height / img.width;
+        const logoWidth = 40;
+        const logoHeight = logoWidth * aspectRatio;
+        doc.addImage(customization.logoUrl, "PNG", 85, 10, logoWidth, logoHeight);
+      } catch (e) {
+        console.warn("Could not add logo to PDF");
       }
+    }
       
       // Header
       doc.setFontSize(20);
@@ -265,10 +340,15 @@ export default function EmployeeQRCardsReport() {
             Generate customized QR code cards for employees
           </p>
         </div>
-        <Button onClick={generateAllEmployeeCards} disabled={loading || pinEmployees.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Download All Cards
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={saveCustomization} disabled={isSaving} variant="outline">
+            {isSaving ? "Saving..." : "Save Settings"}
+          </Button>
+          <Button onClick={generateAllEmployeeCards} disabled={loading || pinEmployees.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Download All Cards
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -356,7 +436,7 @@ export default function EmployeeQRCardsReport() {
               />
               {customization.logoUrl && (
                 <div className="mt-2">
-                  <img src={customization.logoUrl} alt="Logo preview" className="h-12 object-contain" />
+                  <img src={customization.logoUrl} alt="Logo preview" style={{ width: '40mm', height: 'auto' }} className="object-contain" />
                 </div>
               )}
             </div>
@@ -385,7 +465,7 @@ export default function EmployeeQRCardsReport() {
             <div className="border-2 border-border rounded-lg p-8 bg-background shadow-lg" style={{ width: '400px' }}>
               {customization.logoUrl && (
                 <div className="flex justify-center mb-4">
-                  <img src={customization.logoUrl} alt="Company Logo" className="h-16 object-contain" />
+                  <img src={customization.logoUrl} alt="Company Logo" style={{ width: '40mm', height: 'auto' }} className="object-contain" />
                 </div>
               )}
               <h2 className="text-xl font-bold text-center mb-3" style={{ fontFamily: customization.font }}>
