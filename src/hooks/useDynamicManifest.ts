@@ -61,6 +61,12 @@ export const useDynamicManifest = () => {
         }
         console.log('[useDynamicManifest] Manifest updated', { name: manifest.name, icons: manifest.icons });
 
+        // Remove existing icons to avoid browser choosing stale ones
+        const oldLinks = document.querySelectorAll(
+          'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"], link[rel="shortcut icon"], link[rel="mask-icon"]'
+        );
+        oldLinks.forEach((el) => el.parentElement?.removeChild(el));
+
         // Update apple-touch-icon and favicons with cache-busting
         const addCacheBust = (url: string) => {
           if (!url) return url;
@@ -74,74 +80,56 @@ export const useDynamicManifest = () => {
         const icon512 = addCacheBust(icon512Raw);
 
         // Apple Touch Icon (iOS uses 180x180 commonly)
-        let appleTouchIcon = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
-        if (!appleTouchIcon) {
-          appleTouchIcon = document.createElement('link');
-          appleTouchIcon.rel = 'apple-touch-icon';
-          document.head.appendChild(appleTouchIcon);
-        }
+        const appleTouchIcon = document.createElement('link');
+        appleTouchIcon.rel = 'apple-touch-icon';
         appleTouchIcon.href = icon192;
         appleTouchIcon.sizes = '180x180';
+        document.head.appendChild(appleTouchIcon);
+
         // Precomposed variant for older iOS
-        let applePrecomposed = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon-precomposed"]');
-        if (!applePrecomposed) {
-          applePrecomposed = document.createElement('link');
-          applePrecomposed.rel = 'apple-touch-icon-precomposed';
-          document.head.appendChild(applePrecomposed);
-        }
+        const applePrecomposed = document.createElement('link');
+        applePrecomposed.rel = 'apple-touch-icon-precomposed';
         applePrecomposed.href = icon192;
         applePrecomposed.sizes = '180x180';
+        document.head.appendChild(applePrecomposed);
 
-        // Generic favicon (most browsers)
-        let genericFavicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]:not([sizes])');
-        if (!genericFavicon) {
-          genericFavicon = document.createElement('link');
-          genericFavicon.rel = 'icon';
-          genericFavicon.type = 'image/png';
-          document.head.appendChild(genericFavicon);
-        }
+        // Generic favicon (most browsers) - PNG no sizes so browsers pick best
+        const genericFavicon = document.createElement('link');
+        genericFavicon.rel = 'icon';
+        genericFavicon.type = 'image/png';
         genericFavicon.href = icon192;
+        document.head.appendChild(genericFavicon);
 
-        // Shortcut icon fallback
-        let shortcutIcon = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
-        if (!shortcutIcon) {
-          shortcutIcon = document.createElement('link');
-          shortcutIcon.rel = 'shortcut icon';
-          shortcutIcon.type = 'image/png';
-          document.head.appendChild(shortcutIcon);
-        }
+        // Shortcut icon fallback for legacy
+        const shortcutIcon = document.createElement('link');
+        shortcutIcon.rel = 'shortcut icon';
+        shortcutIcon.type = 'image/png';
         shortcutIcon.href = icon192;
+        document.head.appendChild(shortcutIcon);
 
-        // Sized favicons if present in template
-        let favicon192 = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="192x192"]');
-        if (!favicon192) {
-          favicon192 = document.createElement('link');
-          favicon192.rel = 'icon';
-          favicon192.type = 'image/png';
-          favicon192.sizes = '192x192';
-          document.head.appendChild(favicon192);
-        }
-        favicon192.href = icon192;
+        // Sized favicons
+        const fav192 = document.createElement('link');
+        fav192.rel = 'icon';
+        fav192.type = 'image/png';
+        fav192.sizes = '192x192';
+        fav192.href = icon192;
+        document.head.appendChild(fav192);
 
-        let favicon512 = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="512x512"]');
-        if (!favicon512) {
-          favicon512 = document.createElement('link');
-          favicon512.rel = 'icon';
-          favicon512.type = 'image/png';
-          favicon512.sizes = '512x512';
-          document.head.appendChild(favicon512);
-        }
-        favicon512.href = icon512;
+        const fav512 = document.createElement('link');
+        fav512.rel = 'icon';
+        fav512.type = 'image/png';
+        fav512.sizes = '512x512';
+        fav512.href = icon512;
+        document.head.appendChild(fav512);
 
-        // Optional: Safari pinned tab mask icon if needed
-        let maskIcon = document.querySelector<HTMLLinkElement>('link[rel="mask-icon"]');
-        if (!maskIcon) {
-          maskIcon = document.createElement('link');
-          maskIcon.rel = 'mask-icon';
-          document.head.appendChild(maskIcon);
-        }
+        // Pinned tab (desktop Safari)
+        const maskIcon = document.createElement('link');
+        maskIcon.rel = 'mask-icon';
         maskIcon.setAttribute('href', icon192);
         maskIcon.setAttribute('color', '#000000');
+        document.head.appendChild(maskIcon);
+
+        console.log('[useDynamicManifest] Icons updated', { icon192, icon512 });
 
       } catch (error) {
         console.error('Error updating manifest:', error);
