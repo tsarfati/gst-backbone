@@ -200,244 +200,230 @@ export default function EmployeeReports() {
         </div>
       </div>
 
-      <Tabs defaultValue="pin-list" className="space-y-4">
-        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger
-            value="pin-list"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Users className="h-4 w-4 mr-2" />
-            PIN Employee List
-          </TabsTrigger>
-          <TabsTrigger
-            value="qr-cards"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <QrCode className="h-4 w-4 mr-2" />
-            Employee QR Cards
-          </TabsTrigger>
-          <TabsTrigger
-            value="all-employees"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <UserCircle className="h-4 w-4 mr-2" />
-            All Employees with PINs
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pin-list" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>PIN Employee Master List</CardTitle>
-                  <CardDescription>
-                    Complete list of all PIN employees with their credentials
-                  </CardDescription>
-                </div>
-                <Button onClick={generatePinListPDF} disabled={loading || pinEmployees.length === 0}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
+      <div className="grid gap-6">
+        {/* PIN Employee List Report */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  PIN Employee Master List
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Complete list of all PIN employees with their credentials
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-muted-foreground text-center py-8">Loading...</p>
-              ) : pinEmployees.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No PIN employees found</p>
-              ) : (
+              <Button onClick={generatePinListPDF} disabled={loading || pinEmployees.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-muted-foreground text-center py-8">Loading...</p>
+            ) : pinEmployees.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No PIN employees found</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Display Name</TableHead>
+                    <TableHead>PIN Code</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pinEmployees.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-medium">
+                        {employee.last_name}, {employee.first_name}
+                      </TableCell>
+                      <TableCell>{employee.display_name}</TableCell>
+                      <TableCell className="font-mono">{employee.pin_code}</TableCell>
+                      <TableCell>{employee.email || "N/A"}</TableCell>
+                      <TableCell>{employee.phone || "N/A"}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Employee QR Cards Report */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              <div>
+                <CardTitle>Employee QR Punch Cards</CardTitle>
+                <CardDescription className="mt-1">
+                  Generate individual QR code cards for employees to access punch clock
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-muted-foreground text-center py-8">Loading...</p>
+            ) : pinEmployees.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No PIN employees found</p>
+            ) : (
+              <div className="space-y-4">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Display Name</TableHead>
                       <TableHead>PIN Code</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pinEmployees.map((employee) => (
                       <TableRow key={employee.id}>
                         <TableCell className="font-medium">
-                          {employee.last_name}, {employee.first_name}
+                          {employee.display_name}
                         </TableCell>
-                        <TableCell>{employee.display_name}</TableCell>
                         <TableCell className="font-mono">{employee.pin_code}</TableCell>
-                        <TableCell>{employee.email || "N/A"}</TableCell>
-                        <TableCell>{employee.phone || "N/A"}</TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Active
-                          </span>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => viewEmployeeQR(employee)}
+                            >
+                              <QrCode className="h-4 w-4 mr-2" />
+                              View QR
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => generateEmployeeQRCard(employee)}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Download Card
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="qr-cards" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Employee QR Punch Cards</CardTitle>
-              <CardDescription>
-                Generate individual QR code cards for employees to access punch clock
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-muted-foreground text-center py-8">Loading...</p>
-              ) : pinEmployees.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No PIN employees found</p>
-              ) : (
-                <div className="space-y-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>PIN Code</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pinEmployees.map((employee) => (
-                        <TableRow key={employee.id}>
-                          <TableCell className="font-medium">
-                            {employee.display_name}
-                          </TableCell>
-                          <TableCell className="font-mono">{employee.pin_code}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => viewEmployeeQR(employee)}
-                              >
-                                <QrCode className="h-4 w-4 mr-2" />
-                                View QR
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => generateEmployeeQRCard(employee)}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download Card
-                              </Button>
-                            </div>
-                          </TableCell>
+                {selectedEmployee && qrCodeUrl && (
+                  <Card className="mt-6">
+                    <CardHeader>
+                      <CardTitle>QR Code Preview</CardTitle>
+                      <CardDescription>
+                        {selectedEmployee.display_name} - PIN: {selectedEmployee.pin_code}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col items-center space-y-4">
+                      <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
+                      <p className="text-sm text-muted-foreground">
+                        Scan to access Punch Clock Login
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* All Employees with PINs Report */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <UserCircle className="h-5 w-5" />
+              <div>
+                <CardTitle>All Employees with PIN Access</CardTitle>
+                <CardDescription className="mt-1">
+                  Both regular employees and PIN employees with punch clock access
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-muted-foreground text-center py-8">Loading...</p>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Regular Employees</h3>
+                  {regularEmployees.length === 0 ? (
+                    <p className="text-muted-foreground">No regular employees with PINs found</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Display Name</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>PIN Code</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  {selectedEmployee && qrCodeUrl && (
-                    <Card className="mt-6">
-                      <CardHeader>
-                        <CardTitle>QR Code Preview</CardTitle>
-                        <CardDescription>
-                          {selectedEmployee.display_name} - PIN: {selectedEmployee.pin_code}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex flex-col items-center space-y-4">
-                        <img src={qrCodeUrl} alt="QR Code" className="w-64 h-64" />
-                        <p className="text-sm text-muted-foreground">
-                          Scan to access Punch Clock Login
-                        </p>
-                      </CardContent>
-                    </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {regularEmployees.map((employee) => (
+                          <TableRow key={employee.user_id}>
+                            <TableCell className="font-medium">
+                              {employee.last_name}, {employee.first_name}
+                            </TableCell>
+                            <TableCell>{employee.display_name}</TableCell>
+                            <TableCell className="capitalize">{employee.role}</TableCell>
+                            <TableCell className="font-mono">{employee.pin_code}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="all-employees" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Employees with PIN Access</CardTitle>
-              <CardDescription>
-                Both regular employees and PIN employees with punch clock access
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <p className="text-muted-foreground text-center py-8">Loading...</p>
-              ) : (
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Regular Employees</h3>
-                    {regularEmployees.length === 0 ? (
-                      <p className="text-muted-foreground">No regular employees with PINs found</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Display Name</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead>PIN Code</TableHead>
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">PIN Employees</h3>
+                  {pinEmployees.length === 0 ? (
+                    <p className="text-muted-foreground">No PIN employees found</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Display Name</TableHead>
+                          <TableHead>PIN Code</TableHead>
+                          <TableHead>Contact</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pinEmployees.map((employee) => (
+                          <TableRow key={employee.id}>
+                            <TableCell className="font-medium">
+                              {employee.last_name}, {employee.first_name}
+                            </TableCell>
+                            <TableCell>{employee.display_name}</TableCell>
+                            <TableCell className="font-mono">{employee.pin_code}</TableCell>
+                            <TableCell>
+                              {employee.email || employee.phone || "N/A"}
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {regularEmployees.map((employee) => (
-                            <TableRow key={employee.user_id}>
-                              <TableCell className="font-medium">
-                                {employee.last_name}, {employee.first_name}
-                              </TableCell>
-                              <TableCell>{employee.display_name}</TableCell>
-                              <TableCell className="capitalize">{employee.role}</TableCell>
-                              <TableCell className="font-mono">{employee.pin_code}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">PIN Employees</h3>
-                    {pinEmployees.length === 0 ? (
-                      <p className="text-muted-foreground">No PIN employees found</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Display Name</TableHead>
-                            <TableHead>PIN Code</TableHead>
-                            <TableHead>Contact</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {pinEmployees.map((employee) => (
-                            <TableRow key={employee.id}>
-                              <TableCell className="font-medium">
-                                {employee.last_name}, {employee.first_name}
-                              </TableCell>
-                              <TableCell>{employee.display_name}</TableCell>
-                              <TableCell className="font-mono">{employee.pin_code}</TableCell>
-                              <TableCell>
-                                {employee.email || employee.phone || "N/A"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </div>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

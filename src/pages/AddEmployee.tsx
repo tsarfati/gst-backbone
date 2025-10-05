@@ -129,27 +129,53 @@ export default function AddEmployee() {
 
     try {
       if (formData.punchClockOnly) {
+        // Validate required fields for PIN employee
+        if (!formData.firstName || !formData.lastName || !formData.pinCode) {
+          toast({
+            title: 'Validation Error',
+            description: 'First name, last name, and PIN code are required',
+            variant: 'destructive',
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (!currentCompany?.id || !profile?.user_id) {
+          toast({
+            title: 'Error',
+            description: 'Company or user information is missing',
+            variant: 'destructive',
+          });
+          setLoading(false);
+          return;
+        }
+
         // Create PIN-only employee in pin_employees table
         const { error } = await supabase
           .from('pin_employees')
           .insert({
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            display_name: formData.displayName || `${formData.firstName} ${formData.lastName}`,
-            pin_code: formData.pinCode,
-            department: formData.department,
-            phone: formData.phone,
-            notes: formData.notes,
+            first_name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            display_name: formData.displayName?.trim() || `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+            pin_code: formData.pinCode.trim(),
+            department: formData.department?.trim() || null,
+            phone: formData.phone?.trim() || null,
+            email: null, // PIN employees don't have email
+            notes: formData.notes?.trim() || null,
             group_id: formData.groupId || null,
-            company_id: currentCompany?.id || '',
-            created_by: profile?.user_id || ''
+            company_id: currentCompany.id,
+            created_by: profile.user_id,
+            is_active: true
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
 
         toast({
           title: 'PIN Employee Created',
-          description: `${formData.displayName} created with PIN: ${formData.pinCode}`,
+          description: `${formData.displayName || formData.firstName} created with PIN: ${formData.pinCode}`,
         });
       } else {
         // Send invitation for full account access
