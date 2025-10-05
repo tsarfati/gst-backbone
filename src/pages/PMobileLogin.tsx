@@ -6,6 +6,7 @@ import { Loader2, LogIn } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 
 interface LoginSettings {
   header_image_url?: string;
@@ -23,6 +24,9 @@ export default function PMobileLogin() {
   const [loginSettings, setLoginSettings] = useState<LoginSettings>({});
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Load dynamic manifest for PWA icons
+  useDynamicManifest();
 
   useEffect(() => {
     loadLoginSettings();

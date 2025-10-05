@@ -115,7 +115,6 @@ import VisitorLogin from "./pages/VisitorLogin";
 import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
-import { useDynamicManifest } from "@/hooks/useDynamicManifest";
 
 const queryClient = new QueryClient();
 
@@ -135,7 +134,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoutes() {
-  useDynamicManifest();
   return (
     <AuthProvider>
       <PunchClockAuthProvider>
@@ -161,7 +159,6 @@ function PublicRoutes() {
 }
 
 function AuthenticatedRoutes() {
-  useDynamicManifest();
   return (
     <AuthProvider>
       <PunchClockAuthProvider>

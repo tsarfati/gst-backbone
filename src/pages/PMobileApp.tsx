@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { PushNotificationService } from '@/utils/pushNotifications';
+import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 
 function PMobileApp() {
   const { user, profile, signOut } = usePunchClockAuth();
@@ -22,6 +23,9 @@ function PMobileApp() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [receiptCount, setReceiptCount] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
+
+  // Load dynamic manifest for PWA icons
+  useDynamicManifest();
 
   // Update time every second
   useEffect(() => {
