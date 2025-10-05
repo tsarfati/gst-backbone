@@ -403,7 +403,8 @@ serve(async (req) => {
       const now = new Date().toISOString();
 
       if (action === "in") {
-        if (!job_id || !cost_code_id) return errorResponse("Missing job_id or cost_code_id");
+        // Require job_id always; cost code requirement depends on settings
+        if (!job_id) return errorResponse("Missing job_id");
 
         // Get company_id from the job
         const { data: jobData, error: jobError } = await supabaseAdmin
@@ -414,6 +415,17 @@ serve(async (req) => {
 
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
+
+        // Load company-level timing setting to decide when cost code is required
+        const { data: timingSettings } = await supabaseAdmin
+          .from('job_punch_clock_settings')
+          .select('cost_code_selection_timing')
+          .eq('company_id', companyId)
+          .is('job_id', null)
+          .maybeSingle();
+        const timing = timingSettings?.cost_code_selection_timing || 'punch_in';
+
+        if (timing === 'punch_in' && !cost_code_id) return errorResponse("Missing cost_code_id for punch in");
 
         // Load punch clock settings for this job to check photo requirements and early punch in
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
@@ -651,6 +663,25 @@ serve(async (req) => {
         const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
+        // Load timing to determine cost code requirement at punch out
+        const { data: timingSettingsOut } = await supabaseAdmin
+          .from('job_punch_clock_settings')
+          .select('cost_code_selection_timing')
+          .eq('company_id', companyId)
+          .is('job_id', null)
+          .maybeSingle();
+        const timingOut = timingSettingsOut?.cost_code_selection_timing || 'punch_in';
+
+        // Determine cost code to use for punch out
+        let costCodeToUse = currentPunch?.cost_code_id ?? null;
+        if (timingOut === 'punch_out') {
+          // Require cost code at punch out
+          if (!cost_code_id && !currentPunch?.cost_code_id) {
+            return errorResponse("Missing cost_code_id for punch out", 400);
+          }
+          if (cost_code_id) costCodeToUse = cost_code_id;
+        }
+
         // Check photo requirement for punch out
         if (photoRequired && !photo_url) {
           return errorResponse("Photo is required for punch out on this job", 400);
@@ -673,7 +704,7 @@ serve(async (req) => {
           user_id: userRow.user_id,
           company_id: companyId,
           job_id: currentPunch?.job_id ?? null,
-          cost_code_id: currentPunch?.cost_code_id ?? null,
+          cost_code_id: costCodeToUse,
           punch_type: "punched_out",
           punch_time: now,
           latitude,
@@ -719,7 +750,7 @@ serve(async (req) => {
               user_id: userRow.user_id,
               company_id: companyId,
               job_id: currentPunch.job_id,
-              cost_code_id: currentPunch.cost_code_id,
+              cost_code_id: costCodeToUse,
               punch_in_time: currentPunch.punch_in_time,
               punch_out_time: now,
               total_hours: totalHours,
