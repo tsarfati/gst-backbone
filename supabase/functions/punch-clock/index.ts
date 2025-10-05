@@ -416,16 +416,25 @@ serve(async (req) => {
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
 
-        // Load company-level timing setting to decide when cost code is required
-        const { data: timingSettings } = await supabaseAdmin
+        // Resolve timing setting (job overrides company). Default to 'punch_out' so cost code is not required at punch in unless explicitly configured.
+        const { data: jobTiming } = await supabaseAdmin
+          .from('job_punch_clock_settings')
+          .select('cost_code_selection_timing')
+          .eq('company_id', companyId)
+          .eq('job_id', job_id)
+          .maybeSingle();
+
+        const { data: companyTiming } = await supabaseAdmin
           .from('job_punch_clock_settings')
           .select('cost_code_selection_timing')
           .eq('company_id', companyId)
           .is('job_id', null)
           .maybeSingle();
-        const timing = timingSettings?.cost_code_selection_timing || 'punch_in';
 
-        if (timing === 'punch_in' && !cost_code_id) return errorResponse("Missing cost_code_id for punch in");
+        const timing = jobTiming?.cost_code_selection_timing ?? companyTiming?.cost_code_selection_timing ?? 'punch_out';
+        console.log(`Punch IN timing=${timing} company=${companyId} job=${job_id} hasCostCode=${Boolean(cost_code_id)}`);
+
+        if (timing === 'punch_in' && !cost_code_id) return errorResponse("Missing cost_code_id for punch in", 400);
 
         // Load punch clock settings for this job to check photo requirements and early punch in
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
@@ -663,14 +672,23 @@ serve(async (req) => {
         const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
-        // Load timing to determine cost code requirement at punch out
-        const { data: timingSettingsOut } = await supabaseAdmin
+        // Resolve timing to determine cost code requirement at punch out (job overrides company)
+        const { data: jobTimingOut } = await supabaseAdmin
+          .from('job_punch_clock_settings')
+          .select('cost_code_selection_timing')
+          .eq('company_id', companyId)
+          .eq('job_id', currentPunch.job_id)
+          .maybeSingle();
+
+        const { data: companyTimingOut } = await supabaseAdmin
           .from('job_punch_clock_settings')
           .select('cost_code_selection_timing')
           .eq('company_id', companyId)
           .is('job_id', null)
           .maybeSingle();
-        const timingOut = timingSettingsOut?.cost_code_selection_timing || 'punch_in';
+
+        const timingOut = jobTimingOut?.cost_code_selection_timing ?? companyTimingOut?.cost_code_selection_timing ?? 'punch_out';
+        console.log(`Punch OUT timing=${timingOut} company=${companyId} job=${currentPunch.job_id} hasCostCodeInBody=${Boolean(cost_code_id)} hasCostCodeCurrent=${Boolean(currentPunch?.cost_code_id)}`);
 
         // Determine cost code to use for punch out
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
