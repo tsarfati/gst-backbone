@@ -368,6 +368,10 @@ serve(async (req) => {
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
       const body = await req.json();
       let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image, timezone_offset_minutes } = body || {};
+      // Normalize empty strings to null for UUID fields
+      if (typeof cost_code_id === 'string' && cost_code_id.trim() === '') {
+        cost_code_id = null;
+      }
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
@@ -434,7 +438,9 @@ serve(async (req) => {
         const timing = jobTiming?.cost_code_selection_timing ?? companyTiming?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch IN timing=${timing} company=${companyId} job=${job_id} hasCostCode=${Boolean(cost_code_id)}`);
 
-        if (timing === 'punch_in' && !cost_code_id) return errorResponse("Missing cost_code_id for punch in", 400);
+        if (timing === 'punch_in' && !cost_code_id) {
+          console.log('No cost_code_id provided at punch in; proceeding without cost code due to timing mismatch');
+        }
 
         // Load punch clock settings for this job to check photo requirements and early punch in
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
