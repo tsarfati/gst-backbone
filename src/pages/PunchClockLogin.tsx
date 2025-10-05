@@ -250,6 +250,9 @@ export default function PunchClockLogin() {
                 )}
                 {loading ? 'Logging in...' : 'Login'}
               </Button>
+
+              {/* Install App Button */}
+              <PWAInstallPrompt showButton={true} />
             </form>
 
             {/* Customizable bottom text */}
@@ -263,7 +266,6 @@ export default function PunchClockLogin() {
           </CardContent>
         </Card>
       </div>
-      <PWAInstallPrompt />
     </div>
   );
 }

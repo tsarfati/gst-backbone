@@ -9,20 +9,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Download, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Download, X, Smartphone } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-export default function PWAInstallPrompt() {
+interface PWAInstallPromptProps {
+  showButton?: boolean;
+}
+
+export default function PWAInstallPrompt({ showButton = false }: PWAInstallPromptProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isEnabled, setIsEnabled] = useState(true);
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
+    // Detect iOS
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(iOS);
+
     // Check if install prompt is enabled in settings
     const checkSettings = async () => {
       // Get first active company's settings
@@ -63,7 +81,7 @@ export default function PWAInstallPrompt() {
 
     // Check if user has previously dismissed
     const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed === 'true') {
+    if (dismissed === 'true' && !showButton) {
       return;
     }
 
@@ -73,11 +91,13 @@ export default function PWAInstallPrompt() {
       console.log('beforeinstallprompt event fired');
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
-      // Show prompt after a short delay
-      setTimeout(() => {
-        console.log('Showing PWA install prompt');
-        setShowPrompt(true);
-      }, 3000);
+      // Show prompt after a short delay (only if not showing button)
+      if (!showButton) {
+        setTimeout(() => {
+          console.log('Showing PWA install prompt');
+          setShowPrompt(true);
+        }, 3000);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handler);
@@ -92,10 +112,18 @@ export default function PWAInstallPrompt() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
     };
-  }, []);
+  }, [showButton]);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
+    if (isIOS) {
+      setShowIOSInstructions(true);
+      return;
+    }
+
+    if (!deferredPrompt) {
+      setShowIOSInstructions(true);
+      return;
+    }
 
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
@@ -112,7 +140,57 @@ export default function PWAInstallPrompt() {
     localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
-  if (isInstalled || !showPrompt || !isEnabled) {
+  // Don't show if disabled, installed, or not enabled
+  if (!isEnabled || isInstalled) {
+    return null;
+  }
+
+  // Manual install button
+  if (showButton) {
+    return (
+      <>
+        <Button 
+          onClick={handleInstall}
+          variant="outline"
+          className="w-full"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Install App
+        </Button>
+
+        {/* iOS Instructions Dialog */}
+        <AlertDialog open={showIOSInstructions} onOpenChange={setShowIOSInstructions}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                Install on iPhone/iPad
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3 text-left">
+                <p className="font-medium">To install this app on your iOS device:</p>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>Tap the Share button <span className="inline-block">⎙</span> at the bottom of Safari</li>
+                  <li>Scroll down and tap "Add to Home Screen"</li>
+                  <li>Tap "Add" in the top right corner</li>
+                </ol>
+                <p className="text-sm text-muted-foreground mt-4">
+                  Note: This feature only works in Safari browser on iOS devices.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button onClick={() => setShowIOSInstructions(false)}>
+                Got it
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  // Auto-prompt dialog
+  if (!showPrompt) {
     return null;
   }
 
