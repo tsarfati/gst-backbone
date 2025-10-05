@@ -25,11 +25,27 @@ export default function PWAInstallPrompt() {
   useEffect(() => {
     // Check if install prompt is enabled in settings
     const checkSettings = async () => {
+      // Get first active company's settings
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+      
+      if (!companies) {
+        console.log('No active company found for PWA settings');
+        return;
+      }
+
       const { data } = await supabase
         .from('job_punch_clock_settings')
         .select('enable_install_prompt')
-        .eq('job_id', '00000000-0000-0000-0000-000000000000')
+        .eq('company_id', companies.id)
+        .is('job_id', null)
         .maybeSingle();
+      
+      console.log('PWA install prompt settings:', data);
       
       if (data && data.enable_install_prompt === false) {
         setIsEnabled(false);
@@ -54,10 +70,12 @@ export default function PWAInstallPrompt() {
     // Listen for the beforeinstallprompt event
     const handler = (e: Event) => {
       e.preventDefault();
+      console.log('beforeinstallprompt event fired');
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
       // Show prompt after a short delay
       setTimeout(() => {
+        console.log('Showing PWA install prompt');
         setShowPrompt(true);
       }, 3000);
     };
@@ -66,6 +84,7 @@ export default function PWAInstallPrompt() {
 
     // Check if app was installed
     window.addEventListener('appinstalled', () => {
+      console.log('PWA installed');
       setIsInstalled(true);
       setShowPrompt(false);
     });
