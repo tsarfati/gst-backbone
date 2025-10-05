@@ -60,7 +60,6 @@ import JobCostManagement from "./pages/JobCostManagement";
 import JobCostSetup from "./pages/JobCostSetup";
 import JobCostSetupStandalone from "./pages/JobCostSetupStandalone";
 import JobCostBudget from "./pages/JobCostBudget";
-import ThemeSettings from "./pages/ThemeSettings";
 import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
 import ProfileSettings from "./pages/ProfileSettings";
@@ -209,7 +208,6 @@ function AuthenticatedRoutes() {
                 <Route path="vendors/:id" element={<VendorDetails />} />
                 <Route path="vendors/:id/edit" element={<VendorEdit />} />
                 <Route path="settings" element={<AppSettings />} />
-                <Route path="settings/theme" element={<ThemeSettings />} />
                 <Route path="settings/company" element={<CompanySettingsPage />} />
                 <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />

@@ -12,8 +12,7 @@ import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
-import ThemeSettings from '@/pages/ThemeSettings';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock } from 'lucide-react';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -46,34 +45,48 @@ export default function CompanySettingsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="company" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger 
+              value="company" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <Building className="h-4 w-4" />
               Company Info
             </TabsTrigger>
-            <TabsTrigger value="payables" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="payables" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <CreditCard className="h-4 w-4" />
               Payables Settings
             </TabsTrigger>
-            <TabsTrigger value="credit-cards" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="credit-cards" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <Banknote className="h-4 w-4" />
               Credit Cards
             </TabsTrigger>
-            <TabsTrigger value="jobs" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="jobs" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <Briefcase className="h-4 w-4" />
               Job Settings
             </TabsTrigger>
-            <TabsTrigger value="punch-clock" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="punch-clock" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <Clock className="h-4 w-4" />
               Punch Clock
             </TabsTrigger>
-            <TabsTrigger value="banking" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="banking" 
+              className="flex items-center gap-2 hover:text-primary transition-colors"
+            >
               <DollarSign className="h-4 w-4" />
               Banking Settings
-            </TabsTrigger>
-            <TabsTrigger value="theme" className="flex items-center gap-2">
-              <Palette className="h-4 w-4" />
-              Theme & Appearance
             </TabsTrigger>
           </TabsList>
 
@@ -184,10 +197,6 @@ export default function CompanySettingsPage() {
                 </CardContent>
                </Card>
             </div>
-          </TabsContent>
-
-          <TabsContent value="theme">
-            <ThemeSettings embedded />
           </TabsContent>
         </Tabs>
       </div>

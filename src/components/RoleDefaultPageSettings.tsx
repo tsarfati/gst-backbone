@@ -60,7 +60,6 @@ const AVAILABLE_PAGES = [
   { value: '/banking/print-checks', label: 'Print Checks' },
   { value: '/banking/reconcile', label: 'Reconcile' },
   { value: '/settings', label: 'General Settings' },
-  { value: '/settings/theme', label: 'Theme & Appearance' },
   { value: '/settings/company', label: 'Company Settings' },
   { value: '/settings/company-management', label: 'Company Management' },
   { value: '/settings/notifications', label: 'Notifications & Email' },

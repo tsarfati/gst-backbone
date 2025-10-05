@@ -37,8 +37,7 @@ const APP_PAGES = [
   { id: '19', name: 'User Settings', path: '/settings/user' },
   { id: '20', name: 'App Settings', path: '/settings/app' },
   { id: '21', name: 'Company Settings', path: '/settings/company' },
-  { id: '22', name: 'Theme Settings', path: '/settings/theme' },
-  { id: '23', name: 'Security Settings', path: '/settings/security' },
+  { id: '22', name: 'Security Settings', path: '/settings/security' },
   { id: '24', name: 'Notification Settings', path: '/settings/notifications' },
 ];
 

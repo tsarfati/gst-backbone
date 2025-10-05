@@ -122,7 +122,6 @@ const navigationCategories = [
     icon: Settings,
     items: [
       { name: "General", href: "/settings", menuKey: "settings" },
-      { name: "Theme & Appearance", href: "/settings/theme", menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", menuKey: "settings" },
       { name: "Company Management", href: "/settings/company-management", menuKey: "settings" },
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "settings" },
