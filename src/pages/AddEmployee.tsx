@@ -174,21 +174,20 @@ export default function AddEmployee() {
           throw insertError;
         }
 
-        // Grant company access for the PIN employee
+        // Grant company access for the PIN employee using secure function
         if (newEmployee && currentCompany?.id) {
           const { error: accessError } = await supabase
-            .from('user_company_access')
-            .insert({
-              user_id: newEmployee.id,
-              company_id: currentCompany.id,
-              role: 'employee',
-              granted_by: profile.user_id,
-              is_active: true
+            .rpc('admin_grant_company_access', {
+              p_user_id: newEmployee.id,
+              p_company_id: currentCompany.id,
+              p_role: 'employee',
+              p_granted_by: profile.user_id,
+              p_is_active: true
             });
 
           if (accessError) {
             console.error('Error granting company access:', accessError);
-            // Don't throw - employee is created, just log the error
+            throw new Error('Failed to grant company access to employee');
           }
         }
 

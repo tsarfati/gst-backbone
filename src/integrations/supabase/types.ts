@@ -3921,6 +3921,16 @@ export type Database = {
         Args: { _company_id: string }
         Returns: undefined
       }
+      admin_grant_company_access: {
+        Args: {
+          p_company_id: string
+          p_granted_by?: string
+          p_is_active?: boolean
+          p_role?: Database["public"]["Enums"]["user_role"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       generate_qr_code: {
         Args: Record<PropertyKey, never>
         Returns: string
