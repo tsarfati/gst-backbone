@@ -60,29 +60,78 @@ export const useDynamicManifest = () => {
           document.head.appendChild(manifestLink);
         }
 
-        // Update apple-touch-icon
+        // Update apple-touch-icon and favicons with cache-busting
+        const addCacheBust = (url: string) => {
+          if (!url) return url;
+          const sep = url.includes('?') ? '&' : '?';
+          return `${url}${sep}v=${Date.now()}`;
+        };
+
+        const icon192Raw = data?.pwa_icon_192_url || '/punch-clock-icon-192.png';
+        const icon512Raw = data?.pwa_icon_512_url || '/punch-clock-icon-512.png';
+        const icon192 = addCacheBust(icon192Raw);
+        const icon512 = addCacheBust(icon512Raw);
+
+        // Apple Touch Icon (iOS uses 180x180 commonly)
         let appleTouchIcon = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
-        const iconUrl = data?.pwa_icon_192_url || '/punch-clock-icon-192.png';
-        
-        if (appleTouchIcon) {
-          appleTouchIcon.href = iconUrl;
-        } else {
+        if (!appleTouchIcon) {
           appleTouchIcon = document.createElement('link');
           appleTouchIcon.rel = 'apple-touch-icon';
-          appleTouchIcon.href = iconUrl;
           document.head.appendChild(appleTouchIcon);
         }
+        appleTouchIcon.href = icon192;
+        appleTouchIcon.sizes = '180x180';
 
-        // Update favicon
-        let favicon192 = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="192x192"]');
-        if (favicon192) {
-          favicon192.href = iconUrl;
+        // Generic favicon (most browsers)
+        let genericFavicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]:not([sizes])');
+        if (!genericFavicon) {
+          genericFavicon = document.createElement('link');
+          genericFavicon.rel = 'icon';
+          genericFavicon.type = 'image/png';
+          document.head.appendChild(genericFavicon);
         }
+        genericFavicon.href = icon192;
+
+        // Shortcut icon fallback
+        let shortcutIcon = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
+        if (!shortcutIcon) {
+          shortcutIcon = document.createElement('link');
+          shortcutIcon.rel = 'shortcut icon';
+          shortcutIcon.type = 'image/png';
+          document.head.appendChild(shortcutIcon);
+        }
+        shortcutIcon.href = icon192;
+
+        // Sized favicons if present in template
+        let favicon192 = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="192x192"]');
+        if (!favicon192) {
+          favicon192 = document.createElement('link');
+          favicon192.rel = 'icon';
+          favicon192.type = 'image/png';
+          favicon192.sizes = '192x192';
+          document.head.appendChild(favicon192);
+        }
+        favicon192.href = icon192;
 
         let favicon512 = document.querySelector<HTMLLinkElement>('link[rel="icon"][sizes="512x512"]');
-        if (favicon512 && data?.pwa_icon_512_url) {
-          favicon512.href = data.pwa_icon_512_url;
+        if (!favicon512) {
+          favicon512 = document.createElement('link');
+          favicon512.rel = 'icon';
+          favicon512.type = 'image/png';
+          favicon512.sizes = '512x512';
+          document.head.appendChild(favicon512);
         }
+        favicon512.href = icon512;
+
+        // Optional: Safari pinned tab mask icon if needed
+        let maskIcon = document.querySelector<HTMLLinkElement>('link[rel="mask-icon"]');
+        if (!maskIcon) {
+          maskIcon = document.createElement('link');
+          maskIcon.rel = 'mask-icon';
+          document.head.appendChild(maskIcon);
+        }
+        maskIcon.setAttribute('href', icon192);
+        maskIcon.setAttribute('color', '#000000');
 
       } catch (error) {
         console.error('Error updating manifest:', error);
