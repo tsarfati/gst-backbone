@@ -377,8 +377,8 @@ function PunchClockApp() {
       if (error) throw error;
       setCurrentPunch(data);
       
-      // Load latest punch photo for avatar
-      const { data: latestPunch } = await supabase
+      // Load latest punch photo for avatar - check both time_cards and punch_records
+      const { data: latestTimeCard } = await supabase
         .from('time_cards')
         .select('punch_out_photo_url, punch_in_photo_url')
         .eq('user_id', userId)
@@ -386,8 +386,29 @@ function PunchClockApp() {
         .limit(1)
         .maybeSingle();
       
-      if (latestPunch) {
-        setLatestPunchPhoto(latestPunch.punch_out_photo_url || latestPunch.punch_in_photo_url);
+      const { data: latestPunchRecord } = await supabase
+        .from('punch_records')
+        .select('photo_url, punch_time')
+        .eq('user_id', userId)
+        .not('photo_url', 'is', null)
+        .order('punch_time', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      // Use the most recent photo from either source
+      let photoUrl = null;
+      if (latestTimeCard) {
+        photoUrl = latestTimeCard.punch_out_photo_url || latestTimeCard.punch_in_photo_url;
+      }
+      if (latestPunchRecord?.photo_url) {
+        // If we have a punch record photo and either no timecard photo or the punch record is newer
+        if (!photoUrl) {
+          photoUrl = latestPunchRecord.photo_url;
+        }
+      }
+      
+      if (photoUrl) {
+        setLatestPunchPhoto(photoUrl);
       }
     } catch (error) {
       console.error('Error loading punch status:', error);
