@@ -3744,6 +3744,7 @@ export type Database = {
           id: string
           primary_color: string | null
           require_company_name: boolean | null
+          require_photo: boolean | null
           require_purpose_visit: boolean | null
           text_color: string | null
           theme: string
@@ -3763,6 +3764,7 @@ export type Database = {
           id?: string
           primary_color?: string | null
           require_company_name?: boolean | null
+          require_photo?: boolean | null
           require_purpose_visit?: boolean | null
           text_color?: string | null
           theme?: string
@@ -3782,6 +3784,7 @@ export type Database = {
           id?: string
           primary_color?: string | null
           require_company_name?: boolean | null
+          require_photo?: boolean | null
           require_purpose_visit?: boolean | null
           text_color?: string | null
           theme?: string

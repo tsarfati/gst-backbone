@@ -43,6 +43,7 @@ interface VisitorLoginSettings {
   require_purpose_visit: boolean;
   enable_checkout: boolean;
   theme: 'light' | 'dark';
+  require_photo: boolean;
 }
 
 interface VisitorLogSettingsEnhancedProps {
@@ -78,6 +79,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     require_purpose_visit: false,
     enable_checkout: true,
     theme: 'light',
+    require_photo: false,
   });
 
   const [loading, setLoading] = useState(true);
@@ -588,6 +590,21 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                 checked={loginSettings.enable_checkout}
                 onCheckedChange={(checked) => 
                   setLoginSettings(prev => ({ ...prev, enable_checkout: checked }))
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Require Visitor Photo</Label>
+                <p className="text-sm text-muted-foreground">
+                  Require visitors to take a photo before checking in
+                </p>
+              </div>
+              <Switch
+                checked={loginSettings.require_photo}
+                onCheckedChange={(checked) => 
+                  setLoginSettings(prev => ({ ...prev, require_photo: checked }))
                 }
               />
             </div>

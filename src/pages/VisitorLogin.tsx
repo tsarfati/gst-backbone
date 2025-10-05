@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Loader2, Users, MapPin, Phone, Building2 } from 'lucide-react';
+import { Loader2, Users, MapPin, Phone, Building2, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +37,7 @@ interface VisitorSettings {
   require_purpose_visit: boolean;
   enable_checkout: boolean;
   theme?: 'light' | 'dark';
+  require_photo: boolean;
 }
 
 export default function VisitorLogin() {
@@ -51,6 +52,11 @@ export default function VisitorLogin() {
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showCustomCompany, setShowCustomCompany] = useState(false);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -136,6 +142,7 @@ export default function VisitorLogin() {
             require_purpose_visit: false,
             enable_checkout: true,
             theme: 'light',
+            require_photo: false,
           });
         }
       }
@@ -150,6 +157,55 @@ export default function VisitorLogin() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+      }
+      setShowCamera(true);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      toast({
+        title: "Camera Error",
+        description: "Unable to access camera. Please check permissions.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        setPhotoDataUrl(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
+  const retakePhoto = () => {
+    setPhotoDataUrl(null);
+    startCamera();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,9 +231,41 @@ export default function VisitorLogin() {
       return;
     }
 
+    // Check if photo is required
+    if (settings?.require_photo && !photoDataUrl) {
+      toast({
+        title: "Photo Required",
+        description: "Please take a photo before checking in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      let photoUrl: string | null = null;
+
+      // Upload photo if captured
+      if (photoDataUrl) {
+        const blob = await fetch(photoDataUrl).then(r => r.blob());
+        const fileName = `visitor-${Date.now()}.jpg`;
+        const filePath = `${job.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('punch-photos')
+          .upload(filePath, blob);
+
+        if (uploadError) {
+          console.error('Error uploading photo:', uploadError);
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from('punch-photos')
+            .getPublicUrl(filePath);
+          photoUrl = publicUrl;
+        }
+      }
+
       const visitorLogData = {
         job_id: job.id,
         visitor_name: formData.visitor_name.trim(),
@@ -188,7 +276,8 @@ export default function VisitorLogin() {
         vendor_id: formData.vendor_id || null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
-        company_id: (job as any).company_id
+        company_id: (job as any).company_id,
+        ...(photoUrl && { photo_url: photoUrl })
       };
 
       const { data: insertedLog, error } = await supabase
@@ -373,9 +462,9 @@ export default function VisitorLogin() {
                       <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
                         {sub.vendor_name || 'Unknown Vendor'}
                       </SelectItem>
-                    ))}
+                     ))}
                     <SelectItem value="not_listed">
-                      Not Listed
+                      Not Listed - Other
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -423,6 +512,72 @@ export default function VisitorLogin() {
                   rows={3}
                 />
               </div>
+
+              {/* Photo Capture */}
+              {settings?.require_photo && (
+                <div className="space-y-2">
+                  <Label className={`flex items-center space-x-2 ${textClass}`} style={textStyle}>
+                    <Camera className="h-4 w-4" />
+                    <span>Visitor Photo *</span>
+                  </Label>
+                  {!photoDataUrl && !showCamera && (
+                    <Button
+                      type="button"
+                      onClick={startCamera}
+                      className="w-full"
+                      variant="outline"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Take Photo
+                    </Button>
+                  )}
+                  {showCamera && (
+                    <div className="space-y-2">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full rounded-lg"
+                      />
+                      <canvas ref={canvasRef} className="hidden" />
+                      <div className="flex space-x-2">
+                        <Button
+                          type="button"
+                          onClick={capturePhoto}
+                          className="flex-1"
+                        >
+                          Capture
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={stopCamera}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {photoDataUrl && (
+                    <div className="space-y-2">
+                      <img
+                        src={photoDataUrl}
+                        alt="Visitor"
+                        className="w-full rounded-lg"
+                      />
+                      <Button
+                        type="button"
+                        onClick={retakePhoto}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        Retake Photo
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Submit Button */}
               <Button
