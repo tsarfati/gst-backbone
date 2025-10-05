@@ -3,20 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Download, ArrowLeft, QrCode, Settings } from "lucide-react";
+import { Download, ArrowLeft, QrCode, Settings, Save } from "lucide-react";
 import QRCodeGenerator from "qrcode";
 import { jsPDF } from "jspdf";
-
-const SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
-const untypedSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 interface PinEmployee {
   id: string;
@@ -55,7 +50,7 @@ export default function EmployeeQRCardsReport() {
     logoUrl: currentCompany?.logo_url || "",
     footerText: currentCompany?.name || "Company",
   });
-  const [isSaving, setIsSaving] = useState(false);
+  
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,74 +63,6 @@ export default function EmployeeQRCardsReport() {
     }
   };
 
-  const loadSavedCustomization = async () => {
-    if (!currentCompany) return;
-
-    try {
-      const { data, error } = await untypedSupabase
-        .from("qr_card_customization")
-        .select("*")
-        .eq("company_id", currentCompany.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error("Error loading customization:", error);
-        return;
-      }
-
-      if (data) {
-        setCustomization({
-          baseUrl: data.base_url,
-          headerText: data.header_text,
-          instructionsLine1: data.instructions_line1,
-          instructionsLine2: data.instructions_line2,
-          font: data.font,
-          logoUrl: data.logo_url || "",
-          footerText: data.footer_text,
-        });
-      }
-    } catch (err) {
-      console.error("Unexpected error loading customization:", err);
-    }
-  };
-
-  const saveCustomization = async () => {
-    if (!currentCompany) return;
-
-    setIsSaving(true);
-    try {
-      const { error } = await untypedSupabase
-        .from("qr_card_customization")
-        .upsert({
-          company_id: currentCompany.id,
-          base_url: customization.baseUrl,
-          header_text: customization.headerText,
-          instructions_line1: customization.instructionsLine1,
-          instructions_line2: customization.instructionsLine2,
-          font: customization.font,
-          logo_url: customization.logoUrl,
-          footer_text: customization.footerText,
-        }, {
-          onConflict: 'company_id'
-        });
-
-      if (error) {
-        console.error("Error saving customization:", error);
-        toast({
-          title: "Error",
-          description: "Failed to save customization settings",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Customization settings saved",
-        });
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   useEffect(() => {
     if (currentCompany) {
@@ -162,7 +89,7 @@ export default function EmployeeQRCardsReport() {
     setLoading(true);
 
     try {
-      const { data: accessData } = await untypedSupabase
+      const { data: accessData } = await supabase
         .from("user_company_access")
         .select("user_id")
         .eq("company_id", currentCompany.id)
@@ -170,7 +97,7 @@ export default function EmployeeQRCardsReport() {
 
       const userIds = (accessData || []).map((a: any) => a.user_id);
 
-      const { data: pinData, error: pinError } = await untypedSupabase
+      const { data: pinData, error: pinError } = await supabase
         .from("pin_employees")
         .select("id, first_name, last_name, display_name, pin_code")
         .in("id", userIds)
@@ -189,6 +116,66 @@ export default function EmployeeQRCardsReport() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSavedCustomization = async () => {
+    if (!currentCompany) return;
+
+    const { data, error } = await supabase
+      .from("qr_card_customization")
+      .select("*")
+      .eq("company_id", currentCompany.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error loading customization:", error);
+      return;
+    }
+
+    if (data) {
+      setCustomization({
+        baseUrl: data.base_url,
+        headerText: data.header_text,
+        instructionsLine1: data.instructions_line1,
+        instructionsLine2: data.instructions_line2,
+        font: data.font,
+        logoUrl: data.logo_url || "",
+        footerText: data.footer_text,
+      });
+    }
+  };
+
+  const saveCustomization = async () => {
+    if (!currentCompany) return;
+
+    const { error } = await supabase
+      .from("qr_card_customization")
+      .upsert({
+        company_id: currentCompany.id,
+        base_url: customization.baseUrl,
+        header_text: customization.headerText,
+        instructions_line1: customization.instructionsLine1,
+        instructions_line2: customization.instructionsLine2,
+        font: customization.font,
+        logo_url: customization.logoUrl,
+        footer_text: customization.footerText,
+      }, {
+        onConflict: "company_id"
+      });
+
+    if (error) {
+      console.error("Error saving customization:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save customization settings",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Customization settings saved",
+      });
     }
   };
 
@@ -341,8 +328,9 @@ export default function EmployeeQRCardsReport() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={saveCustomization} disabled={isSaving} variant="outline">
-            {isSaving ? "Saving..." : "Save Settings"}
+          <Button onClick={saveCustomization} variant="outline">
+            <Save className="h-4 w-4 mr-2" />
+            Save Settings
           </Button>
           <Button onClick={generateAllEmployeeCards} disabled={loading || pinEmployees.length === 0}>
             <Download className="h-4 w-4 mr-2" />
