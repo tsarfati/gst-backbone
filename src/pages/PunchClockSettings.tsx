@@ -767,7 +767,7 @@ export default function PunchClockSettings() {
                           const fileName = `${currentCompany.id}-192.${fileExt}`;
                           const filePath = `${fileName}`;
 
-                          const { error: uploadError, data } = await supabase.storage
+                           const { error: uploadError, data } = await supabase.storage
                             .from('company-logos')
                             .upload(filePath, file, { upsert: true });
 
@@ -782,9 +782,20 @@ export default function PunchClockSettings() {
                               .from('company-logos')
                               .getPublicUrl(filePath);
                             updateSetting('pwa_icon_192_url', publicUrl);
+                            
+                            // Save immediately to database
+                            await supabase
+                              .from('job_punch_clock_settings')
+                              .upsert({
+                                job_id: null,
+                                company_id: currentCompany.id,
+                                pwa_icon_192_url: publicUrl,
+                                created_by: user?.id
+                              });
+                            
                             toast({
                               title: "Success",
-                              description: "Icon uploaded successfully",
+                              description: "Icon uploaded and saved successfully",
                             });
                           }
                         }
@@ -829,9 +840,20 @@ export default function PunchClockSettings() {
                               .from('company-logos')
                               .getPublicUrl(filePath);
                             updateSetting('pwa_icon_512_url', publicUrl);
+                            
+                            // Save immediately to database
+                            await supabase
+                              .from('job_punch_clock_settings')
+                              .upsert({
+                                job_id: null,
+                                company_id: currentCompany.id,
+                                pwa_icon_512_url: publicUrl,
+                                created_by: user?.id
+                              });
+                            
                             toast({
                               title: "Success",
-                              description: "Icon uploaded successfully",
+                              description: "Icon uploaded and saved successfully",
                             });
                           }
                         }

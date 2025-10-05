@@ -12,7 +12,9 @@ import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock } from 'lucide-react';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette, Smartphone } from 'lucide-react';
+import ThemeSettings from '@/pages/ThemeSettings';
+import PunchClockSettings from '@/pages/PunchClockSettings';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -82,6 +84,13 @@ export default function CompanySettingsPage() {
               Punch Clock
             </TabsTrigger>
             <TabsTrigger 
+              value="theme" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+            >
+              <Palette className="h-4 w-4" />
+              Theme & Appearance
+            </TabsTrigger>
+            <TabsTrigger 
               value="banking" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
@@ -137,19 +146,12 @@ export default function CompanySettingsPage() {
           </TabsContent>
 
           <TabsContent value="punch-clock">
-            <Card>
-              <CardHeader>
-                <CardTitle>Punch Clock Settings</CardTitle>
-                <CardDescription>
-                  Configure time tracking rules, location requirements, and employee punch clock settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PunchClockSettingsComponent />
-              </CardContent>
-            </Card>
+            <PunchClockSettings />
           </TabsContent>
 
+          <TabsContent value="theme">
+            <ThemeSettings embedded />
+          </TabsContent>
 
           <TabsContent value="banking">
             <div className="space-y-6">
