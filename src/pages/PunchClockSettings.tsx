@@ -92,6 +92,16 @@ export default function PunchClockSettings() {
     }
   }, [currentCompany]);
 
+  // Persist PWA icon URLs and app name for early manifest before React loads
+  useEffect(() => {
+    try {
+      if (settings.pwa_icon_192_url) localStorage.setItem('pwa_icon_192_url', settings.pwa_icon_192_url);
+      if (settings.pwa_icon_512_url) localStorage.setItem('pwa_icon_512_url', settings.pwa_icon_512_url);
+      const appName = (currentCompany?.display_name || currentCompany?.name || 'Punch Clock') as string;
+      if (appName) localStorage.setItem('pwa_app_name', appName);
+    } catch {}
+  }, [settings.pwa_icon_192_url, settings.pwa_icon_512_url, currentCompany?.id]);
+
   const loadSettings = async () => {
     if (!currentCompany) {
       setLoading(false);

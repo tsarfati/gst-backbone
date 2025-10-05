@@ -6,6 +6,52 @@
     <title>gst-backbone</title>
     <meta name="description" content="GREENSTARTEAM">
     <meta name="author" content="Lovable" />
+    <script>
+      (function(){
+        try {
+          var icon192 = localStorage.getItem('pwa_icon_192_url');
+          var icon512 = localStorage.getItem('pwa_icon_512_url');
+          var appName = localStorage.getItem('pwa_app_name') || 'Punch Clock';
+          if (icon192 || icon512) {
+            var addBust = function(u){ if(!u) return u; return u + (u.indexOf('?')>-1?'&':'?') + 'v=' + Date.now(); };
+            icon192 = addBust(icon192 || '/punch-clock-icon-192.png');
+            icon512 = addBust(icon512 || '/punch-clock-icon-512.png');
+
+            // Remove any existing links so browser doesn't pick stale ones
+            document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"],link[rel="apple-touch-icon-precomposed"],link[rel="shortcut icon"],link[rel="mask-icon"],link[rel="manifest"]').forEach(function(n){
+              if (n && n.parentNode) n.parentNode.removeChild(n);
+            });
+
+            // Create a dynamic manifest with uploaded icons
+            var manifest = {
+              name: appName,
+              short_name: appName,
+              description: 'Employee Time Tracking',
+              start_url: '/punch-clock-login',
+              display: 'standalone',
+              background_color: '#ffffff',
+              theme_color: '#000000',
+              orientation: 'portrait',
+              icons: [
+                { src: icon192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+                { src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+              ]
+            };
+            var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var m = document.createElement('link'); m.rel = 'manifest'; m.href = url; document.head.appendChild(m);
+
+            // Add icons early so tab favicon updates immediately
+            var a = document.createElement('link'); a.rel='apple-touch-icon'; a.href=icon192; a.sizes='180x180'; document.head.appendChild(a);
+            var s = document.createElement('link'); s.rel='shortcut icon'; s.href=icon192; s.type='image/png'; document.head.appendChild(s);
+            var f1 = document.createElement('link'); f1.rel='icon'; f1.type='image/png'; f1.sizes='192x192'; f1.href=icon192; document.head.appendChild(f1);
+            var f2 = document.createElement('link'); f2.rel='icon'; f2.type='image/png'; f2.sizes='512x512'; f2.href=icon512; document.head.appendChild(f2);
+            document.title = appName;
+            console.log('[early-manifest] applied');
+          }
+        } catch (e) { console.error('[early-manifest] error', e); }
+      })();
+    </script>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
