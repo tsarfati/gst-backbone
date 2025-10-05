@@ -407,17 +407,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const isChildDisabled = (parentId: string, childLine: BudgetLine): boolean => {
     const children = getChildBudgets(parentId);
     
-    // Rule 1: If exactly 2 children, disable both
-    if (children.length === 2) {
+    // Disable children when there are 2 or more
+    if (children.length >= 2) {
       return true;
-    }
-    
-    // Rule 2: If 3+ children and one has a budget set, disable the others
-    if (children.length >= 3) {
-      const anySetChild = children.find(c => (c.budgeted_amount || 0) > 0);
-      if (anySetChild && (childLine.budgeted_amount || 0) === 0) {
-        return true;
-      }
     }
     
     return false;
@@ -504,7 +496,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                               onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
                               className="w-32"
                               placeholder="0.00"
-                              disabled={isChild && parentId ? isChildDisabled(parentId, line) : (line.is_dynamic && getChildBudgets(line.id!).length === 2)}
+                              disabled={isChild && parentId ? isChildDisabled(parentId, line) : false}
                             />
                           </TableCell>
                           <TableCell>
