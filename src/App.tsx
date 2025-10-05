@@ -13,6 +13,8 @@ import { RoleGuard } from "@/components/RoleGuard";
 import Layout from "@/components/AppLayout";
 import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+
 
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -360,6 +362,7 @@ function App() {
         <BrowserRouter>
           <TooltipProvider>
             <Toaster />
+            <PWAInstallPrompt />
             <AppRoutes />
           </TooltipProvider>
         </BrowserRouter>

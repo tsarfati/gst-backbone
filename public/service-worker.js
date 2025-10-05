@@ -1,5 +1,5 @@
 // Minimal service worker to enable PWA install prompt on Android
-// Version: 1.1.0
+// Version: 1.2.0
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
