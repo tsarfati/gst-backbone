@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Clock, MapPin, Camera, Save, Bell, Shield, Users } from 'lucide-react';
+import { Settings, Clock, MapPin, Camera, Save, Bell, Shield, Users, Smartphone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +40,9 @@ interface PunchClockSettings {
   calculate_overtime: boolean;
   enable_distance_warnings: boolean;
   max_distance_from_job_meters: number;
+  pwa_icon_192_url: string;
+  pwa_icon_512_url: string;
+  enable_install_prompt: boolean;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -64,7 +67,10 @@ const defaultSettings: PunchClockSettings = {
   auto_break_wait_hours: 6,
   calculate_overtime: true,
   enable_distance_warnings: true,
-  max_distance_from_job_meters: 200
+  max_distance_from_job_meters: 200,
+  pwa_icon_192_url: '',
+  pwa_icon_512_url: '',
+  enable_install_prompt: true
 };
 
 export default function PunchClockSettings() {
@@ -129,7 +135,10 @@ export default function PunchClockSettings() {
           auto_break_wait_hours: parseFloat((data.auto_break_wait_hours ?? 6).toString()),
           calculate_overtime: data.calculate_overtime !== false,
           enable_distance_warnings: true, // Default value since not in DB
-          max_distance_from_job_meters: 200 // Default value since not in DB
+          max_distance_from_job_meters: 200, // Default value since not in DB
+          pwa_icon_192_url: data.pwa_icon_192_url || '',
+          pwa_icon_512_url: data.pwa_icon_512_url || '',
+          enable_install_prompt: data.enable_install_prompt !== false
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
@@ -176,6 +185,9 @@ export default function PunchClockSettings() {
           punch_rounding_direction: settings.punch_rounding_direction,
           auto_break_wait_hours: settings.auto_break_wait_hours,
           calculate_overtime: settings.calculate_overtime,
+          pwa_icon_192_url: settings.pwa_icon_192_url,
+          pwa_icon_512_url: settings.pwa_icon_512_url,
+          enable_install_prompt: settings.enable_install_prompt,
           created_by: user?.id
         });
 
@@ -236,6 +248,7 @@ export default function PunchClockSettings() {
           <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">General Settings</TabsTrigger>
           <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Employee Settings</TabsTrigger>
           <TabsTrigger value="jobs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Job Settings</TabsTrigger>
+          <TabsTrigger value="pwa" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Mobile App</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -677,6 +690,150 @@ export default function PunchClockSettings() {
         </TabsContent>
         <TabsContent value="jobs" className="space-y-6">
           <JobPunchClockSettings />
+        </TabsContent>
+
+        <TabsContent value="pwa" className="space-y-6">
+          <div className="flex justify-end mb-4">
+            <Button onClick={saveSettings} disabled={saving}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-5 w-5" />
+                Mobile Home Screen Installation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                <p className="text-sm font-medium">Add to Home Screen Feature</p>
+                <p className="text-sm text-muted-foreground">
+                  Enable employees to install the Punch Clock as a native app on their mobile devices. Upload custom icons to brand the app icon on their home screens.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Enable Install Prompt</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show prompt to install app on mobile devices
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.enable_install_prompt}
+                  onCheckedChange={(checked) => updateSetting('enable_install_prompt', checked)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <Label>Home Screen Icons</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload custom icons for the mobile home screen. Icons should be square PNG images.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="icon-192">Small Icon (192x192px)</Label>
+                    <Input
+                      id="icon-192"
+                      type="file"
+                      accept="image/png"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file && currentCompany) {
+                          const fileExt = file.name.split('.').pop();
+                          const fileName = `${currentCompany.id}-192.${fileExt}`;
+                          const filePath = `${fileName}`;
+
+                          const { error: uploadError, data } = await supabase.storage
+                            .from('company-logos')
+                            .upload(filePath, file, { upsert: true });
+
+                          if (uploadError) {
+                            toast({
+                              title: "Error",
+                              description: "Failed to upload icon",
+                              variant: "destructive",
+                            });
+                          } else {
+                            const { data: { publicUrl } } = supabase.storage
+                              .from('company-logos')
+                              .getPublicUrl(filePath);
+                            updateSetting('pwa_icon_192_url', publicUrl);
+                            toast({
+                              title: "Success",
+                              description: "Icon uploaded successfully",
+                            });
+                          }
+                        }
+                      }}
+                    />
+                    {settings.pwa_icon_192_url && (
+                      <div className="mt-2">
+                        <img 
+                          src={settings.pwa_icon_192_url} 
+                          alt="192x192 icon preview" 
+                          className="w-24 h-24 rounded-lg border object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="icon-512">Large Icon (512x512px)</Label>
+                    <Input
+                      id="icon-512"
+                      type="file"
+                      accept="image/png"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file && currentCompany) {
+                          const fileExt = file.name.split('.').pop();
+                          const fileName = `${currentCompany.id}-512.${fileExt}`;
+                          const filePath = `${fileName}`;
+
+                          const { error: uploadError, data } = await supabase.storage
+                            .from('company-logos')
+                            .upload(filePath, file, { upsert: true });
+
+                          if (uploadError) {
+                            toast({
+                              title: "Error",
+                              description: "Failed to upload icon",
+                              variant: "destructive",
+                            });
+                          } else {
+                            const { data: { publicUrl } } = supabase.storage
+                              .from('company-logos')
+                              .getPublicUrl(filePath);
+                            updateSetting('pwa_icon_512_url', publicUrl);
+                            toast({
+                              title: "Success",
+                              description: "Icon uploaded successfully",
+                            });
+                          }
+                        }
+                      }}
+                    />
+                    {settings.pwa_icon_512_url && (
+                      <div className="mt-2">
+                        <img 
+                          src={settings.pwa_icon_512_url} 
+                          alt="512x512 icon preview" 
+                          className="w-24 h-24 rounded-lg border object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

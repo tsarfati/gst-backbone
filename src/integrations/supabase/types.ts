@@ -1400,6 +1400,7 @@ export type Database = {
           earliest_punch_start_time: string | null
           early_punch_in_buffer_minutes: number | null
           enable_distance_warning: boolean | null
+          enable_install_prompt: boolean | null
           enable_punch_rounding: boolean | null
           grace_period_minutes: number | null
           id: string
@@ -1416,6 +1417,8 @@ export type Database = {
           punch_rounding_minutes: number | null
           punch_time_window_end: string | null
           punch_time_window_start: string | null
+          pwa_icon_192_url: string | null
+          pwa_icon_512_url: string | null
           require_location: boolean | null
           require_photo: boolean | null
           require_timecard_change_approval: boolean | null
@@ -1435,6 +1438,7 @@ export type Database = {
           earliest_punch_start_time?: string | null
           early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
+          enable_install_prompt?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
@@ -1451,6 +1455,8 @@ export type Database = {
           punch_rounding_minutes?: number | null
           punch_time_window_end?: string | null
           punch_time_window_start?: string | null
+          pwa_icon_192_url?: string | null
+          pwa_icon_512_url?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
@@ -1470,6 +1476,7 @@ export type Database = {
           earliest_punch_start_time?: string | null
           early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
+          enable_install_prompt?: boolean | null
           enable_punch_rounding?: boolean | null
           grace_period_minutes?: number | null
           id?: string
@@ -1486,6 +1493,8 @@ export type Database = {
           punch_rounding_minutes?: number | null
           punch_time_window_end?: string | null
           punch_time_window_start?: string | null
+          pwa_icon_192_url?: string | null
+          pwa_icon_512_url?: string | null
           require_location?: boolean | null
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
