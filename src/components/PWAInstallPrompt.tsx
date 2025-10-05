@@ -173,17 +173,27 @@ export default function PWAInstallPrompt({ showButton = false }: PWAInstallPromp
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
-                Install on iPhone/iPad
+                Install on your device
               </AlertDialogTitle>
               <AlertDialogDescription className="space-y-3 text-left">
-                <p className="font-medium">To install this app on your iOS device:</p>
-                <ol className="list-decimal list-inside space-y-2">
-                  <li>Tap the Share button <span className="inline-block">⎙</span> at the bottom of Safari</li>
-                  <li>Scroll down and tap "Add to Home Screen"</li>
-                  <li>Tap "Add" in the top right corner</li>
-                </ol>
+                <div className="space-y-2">
+                  <p className="font-medium">On Android (Chrome):</p>
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li>Tap the menu button (⋮) in the top-right</li>
+                    <li>Select "Install app" or "Add to Home screen"</li>
+                    <li>Confirm by tapping "Install"</li>
+                  </ol>
+                </div>
+                <div className="space-y-2 mt-4">
+                  <p className="font-medium">On iPhone/iPad (Safari):</p>
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li>Tap the Share button at the bottom of Safari</li>
+                    <li>Scroll down and tap "Add to Home Screen"</li>
+                    <li>Tap "Add" in the top right corner</li>
+                  </ol>
+                </div>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Note: This feature only works in Safari browser on iOS devices.
+                  Tip: If you don't see the Install option, ensure you're using Chrome (Android) or Safari (iOS), not in Incognito/Private mode.
                 </p>
               </AlertDialogDescription>
             </AlertDialogHeader>
