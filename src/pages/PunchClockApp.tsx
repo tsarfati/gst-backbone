@@ -881,10 +881,34 @@ function PunchClockApp() {
       if (isPinAuthenticated) {
         const pin = getPin();
         const action = currentPunch ? 'out' : 'in';
-        if (action === 'in' && (!selectedJob || !selectedCostCode)) {
+        
+        // Check required fields based on timing setting
+        if (action === 'in' && !selectedJob) {
           toast({
             title: 'Missing Information',
-            description: 'Please select both a job and cost code before punching in.',
+            description: 'Please select a job before punching in.',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          setIsPunching(false);
+          return;
+        }
+        
+        if (action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
+          toast({
+            title: 'Missing Information',
+            description: 'Please select a cost code before punching in.',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          setIsPunching(false);
+          return;
+        }
+
+        if (action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
+          toast({
+            title: 'Missing Information',
+            description: 'Please select your daily task before punching out.',
             variant: 'destructive'
           });
           setIsLoading(false);
@@ -926,7 +950,9 @@ function PunchClockApp() {
             pin,
             action,
             job_id: action === 'in' ? selectedJob : undefined,
-            cost_code_id: action === 'in' ? selectedCostCode : undefined,
+            cost_code_id: punchSettings.cost_code_selection_timing === 'punch_in' 
+              ? (action === 'in' ? selectedCostCode : undefined)
+              : (action === 'out' ? selectedCostCode : undefined),
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: photoUrl,
@@ -1004,8 +1030,15 @@ function PunchClockApp() {
       if (currentPunch) {
         await punchOut(photoUrl);
       } else {
-        if (!selectedJob || !selectedCostCode) {
-          toast({ title: 'Missing Information', description: 'Please select both a job and cost code before punching in.', variant: 'destructive' });
+        const requiresCostCode = punchSettings.cost_code_selection_timing === 'punch_in';
+        if (!selectedJob || (requiresCostCode && !selectedCostCode)) {
+          toast({ 
+            title: 'Missing Information', 
+            description: requiresCostCode 
+              ? 'Please select both a job and cost code before punching in.' 
+              : 'Please select a job before punching in.', 
+            variant: 'destructive' 
+          });
           setIsLoading(false);
           setIsPunching(false);
           return;
@@ -1030,6 +1063,9 @@ function PunchClockApp() {
     if (!user) return;
 
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+    
+    // Use cost code if timing is punch_in, otherwise null
+    const costCodeToUse = punchSettings.cost_code_selection_timing === 'punch_in' ? selectedCostCode : null;
 
     // Create punch record
     const { error: punchError } = await supabase
@@ -1038,7 +1074,7 @@ function PunchClockApp() {
         user_id: userId,
         company_id: (profile as any)?.current_company_id,
         job_id: selectedJob,
-        cost_code_id: selectedCostCode,
+        cost_code_id: costCodeToUse,
         punch_type: 'punched_in',
         punch_time: new Date().toISOString(),
         latitude: location?.lat,
@@ -1054,7 +1090,7 @@ function PunchClockApp() {
       .insert({
         user_id: userId,
         job_id: selectedJob,
-        cost_code_id: selectedCostCode,
+        cost_code_id: costCodeToUse,
         punch_in_time: new Date().toISOString(),
         punch_in_location_lat: location?.lat,
         punch_in_location_lng: location?.lng,
@@ -1068,6 +1104,11 @@ function PunchClockApp() {
     if (!user || !currentPunch) return;
 
     const userId = isPinAuthenticated ? (user as any).user_id : (user as any).id;
+    
+    // Use selected cost code if timing is punch_out, otherwise use the one from punch in
+    const costCodeToUse = punchSettings.cost_code_selection_timing === 'punch_out' 
+      ? selectedCostCode 
+      : currentPunch.cost_code_id;
 
     // Create punch out record
     const { error: punchError } = await supabase
@@ -1076,7 +1117,7 @@ function PunchClockApp() {
         user_id: userId,
         company_id: profile?.company_id,
         job_id: currentPunch.job_id,
-        cost_code_id: currentPunch.cost_code_id,
+        cost_code_id: costCodeToUse,
         punch_type: 'punched_out',
         punch_time: new Date().toISOString(),
         latitude: location?.lat,
@@ -1236,14 +1277,35 @@ function PunchClockApp() {
                 <Building className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">{currentJobData?.name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {currentCostCodeData?.code} - {currentCostCodeData?.description}
-                </Badge>
-              </div>
+              {punchSettings.cost_code_selection_timing === 'punch_in' && currentCostCodeData && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {currentCostCodeData?.code} - {currentCostCodeData?.description}
+                  </Badge>
+                </div>
+              )}
               <div className="text-sm text-muted-foreground">
                 Punched in at {new Date(currentPunch.punch_in_time).toLocaleTimeString()}
               </div>
+
+              {/* Show cost code selector at punch out if setting is punch_out */}
+              {punchSettings.cost_code_selection_timing === 'punch_out' && (
+                <div className="space-y-2 mt-4">
+                  <label className="text-sm font-medium">Select Daily Task</label>
+                  <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a daily task" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {costCodes.filter(code => code.id && code.id.trim()).map((code) => (
+                        <SelectItem key={code.id} value={code.id}>
+                          {code.code} - {code.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -1271,21 +1333,24 @@ function PunchClockApp() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Select Cost Code</label>
-                <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a cost code" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {costCodes.filter(code => code.id && code.id.trim()).map((code) => (
-                      <SelectItem key={code.id} value={code.id}>
-                        {code.code} - {code.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Show cost code selector at punch in if setting is punch_in */}
+              {punchSettings.cost_code_selection_timing === 'punch_in' && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Cost Code</label>
+                  <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a cost code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {costCodes.filter(code => code.id && code.id.trim()).map((code) => (
+                        <SelectItem key={code.id} value={code.id}>
+                          {code.code} - {code.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -1312,10 +1377,21 @@ function PunchClockApp() {
           <Button
             onClick={() => {
               console.log('Punch button clicked');
-              console.log('Button disabled?', isLoading || (!currentPunch && (!selectedJob || !selectedCostCode)));
+              const requiresCostCode = (
+                !currentPunch && punchSettings.cost_code_selection_timing === 'punch_in'
+              ) || (
+                currentPunch && punchSettings.cost_code_selection_timing === 'punch_out'
+              );
+              const isDisabled = isLoading || (!currentPunch && !selectedJob) || (requiresCostCode && !selectedCostCode);
+              console.log('Button disabled?', isDisabled);
               startCamera();
             }}
-            disabled={isLoading || (!currentPunch && (!selectedJob || !selectedCostCode))}
+            disabled={
+              isLoading || 
+              (!currentPunch && !selectedJob) || 
+              ((!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
+               (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode))
+            }
             className={`w-full h-16 text-lg font-semibold ${
               currentPunch 
                 ? 'bg-red-600 hover:bg-red-700' 

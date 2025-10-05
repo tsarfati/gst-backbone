@@ -1395,6 +1395,7 @@ export type Database = {
           calculate_overtime: boolean | null
           company_id: string
           company_policies: string | null
+          cost_code_selection_timing: string | null
           created_at: string
           created_by: string
           earliest_punch_start_time: string | null
@@ -1434,6 +1435,7 @@ export type Database = {
           calculate_overtime?: boolean | null
           company_id: string
           company_policies?: string | null
+          cost_code_selection_timing?: string | null
           created_at?: string
           created_by: string
           earliest_punch_start_time?: string | null
@@ -1473,6 +1475,7 @@ export type Database = {
           calculate_overtime?: boolean | null
           company_id?: string
           company_policies?: string | null
+          cost_code_selection_timing?: string | null
           created_at?: string
           created_by?: string
           earliest_punch_start_time?: string | null
@@ -2526,7 +2529,6 @@ export type Database = {
           break_reminder_minutes: number | null
           calculate_overtime: boolean | null
           company_id: string
-          cost_code_selection_timing: string | null
           created_at: string
           enable_distance_warnings: boolean | null
           enable_punch_rounding: boolean | null
@@ -2553,7 +2555,6 @@ export type Database = {
           break_reminder_minutes?: number | null
           calculate_overtime?: boolean | null
           company_id: string
-          cost_code_selection_timing?: string | null
           created_at?: string
           enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null
@@ -2580,7 +2581,6 @@ export type Database = {
           break_reminder_minutes?: number | null
           calculate_overtime?: boolean | null
           company_id?: string
-          cost_code_selection_timing?: string | null
           created_at?: string
           enable_distance_warnings?: boolean | null
           enable_punch_rounding?: boolean | null
