@@ -95,13 +95,25 @@ export default function SubcontractRequiredFields() {
         ? { subcontract_required_fields: fields }
         : { po_required_fields: fields };
 
-      const { error } = await supabase
-        .from('job_settings')
-        .upsert({
-          ...(existing?.id && { id: existing.id }),
-          company_id: currentCompany?.id,
-          ...updateData,
-        } as any);
+      let error;
+      
+      if (existing?.id) {
+        // Update existing record
+        const result = await supabase
+          .from('job_settings')
+          .update(updateData)
+          .eq('id', existing.id);
+        error = result.error;
+      } else {
+        // Insert new record
+        const result = await supabase
+          .from('job_settings')
+          .insert({
+            company_id: currentCompany?.id,
+            ...updateData,
+          } as any);
+        error = result.error;
+      }
 
       if (error) throw error;
 
