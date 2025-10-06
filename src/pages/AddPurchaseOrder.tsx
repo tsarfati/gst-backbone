@@ -37,9 +37,11 @@ export default function AddPurchaseOrder() {
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedVendorTypes, setAllowedVendorTypes] = useState<string[]>([]);
+  const [requiredFields, setRequiredFields] = useState<string[]>(["po_number", "job_id", "vendor_id", "amount"]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +57,17 @@ export default function AddPurchaseOrder() {
           });
           setLoading(false);
           return;
+        }
+
+        // Fetch job settings for required fields
+        const { data: jobSettingsData } = await supabase
+          .from('job_settings')
+          .select('po_required_fields')
+          .eq('company_id', companyId)
+          .maybeSingle();
+
+        if (jobSettingsData?.po_required_fields && Array.isArray(jobSettingsData.po_required_fields)) {
+          setRequiredFields(jobSettingsData.po_required_fields as string[]);
         }
 
         // Fetch payables settings for allowed vendor types
@@ -103,6 +116,33 @@ export default function AddPurchaseOrder() {
       fetchData();
     }
   }, [user, currentCompany, profile, toast]);
+
+  // Fetch cost codes when job is selected
+  useEffect(() => {
+    const fetchCostCodes = async () => {
+      if (!formData.job_id) {
+        setCostCodes([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('cost_codes')
+          .select('*')
+          .eq('job_id', formData.job_id)
+          .eq('type', 'material')
+          .eq('is_active', true)
+          .order('code');
+
+        if (error) throw error;
+        setCostCodes(data || []);
+      } catch (error) {
+        console.error('Error fetching cost codes:', error);
+      }
+    };
+
+    fetchCostCodes();
+  }, [formData.job_id]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({

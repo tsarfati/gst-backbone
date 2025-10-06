@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import SubcontractRequiredFields from './SubcontractRequiredFields';
 
 const jobSettingsSchema = z.object({
   budget_require_approval: z.boolean(),
@@ -350,6 +351,13 @@ export default function JobSettings() {
             </>
           )}
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Subcontract & PO Required Fields */}
+      <div className="space-y-6">
+        <SubcontractRequiredFields />
       </div>
 
       <Separator />

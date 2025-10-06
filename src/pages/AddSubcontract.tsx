@@ -36,7 +36,7 @@ export default function AddSubcontract() {
     contract_amount: "",
     start_date: "",
     end_date: "",
-    status: "active",
+    status: "planning",
     contract_file_url: "",
     apply_retainage: false,
     retainage_percentage: ""
@@ -46,6 +46,7 @@ export default function AddSubcontract() {
 
   const [jobs, setJobs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
+  const [costCodes, setCostCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allowedVendorTypes, setAllowedVendorTypes] = useState<string[]>([]);
@@ -55,6 +56,7 @@ export default function AddSubcontract() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<File | null>(null);
+  const [requiredFields, setRequiredFields] = useState<string[]>(["name", "job_id", "vendor_id", "contract_amount"]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,6 +72,17 @@ export default function AddSubcontract() {
           });
           setLoading(false);
           return;
+        }
+
+        // Fetch job settings for required fields
+        const { data: jobSettingsData } = await supabase
+          .from('job_settings')
+          .select('subcontract_required_fields')
+          .eq('company_id', companyId)
+          .maybeSingle();
+
+        if (jobSettingsData?.subcontract_required_fields && Array.isArray(jobSettingsData.subcontract_required_fields)) {
+          setRequiredFields(jobSettingsData.subcontract_required_fields as string[]);
         }
 
         // Fetch payables settings for allowed vendor types
@@ -121,11 +134,56 @@ export default function AddSubcontract() {
     }
   }, [user, currentCompany, profile, toast]);
 
+  // Fetch cost codes when job is selected
+  useEffect(() => {
+    const fetchCostCodes = async () => {
+      if (!formData.job_id) {
+        setCostCodes([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('cost_codes')
+          .select('*')
+          .eq('job_id', formData.job_id)
+          .eq('type', 'sub' as any)
+          .eq('is_active', true)
+          .order('code');
+
+        if (error) throw error;
+        setCostCodes(data || []);
+      } catch (error) {
+        console.error('Error fetching cost codes:', error);
+      }
+    };
+
+    fetchCostCodes();
+  }, [formData.job_id]);
+
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  // Check if all required fields are filled
+  const areRequiredFieldsFilled = () => {
+    return requiredFields.every(field => {
+      const value = formData[field as keyof typeof formData];
+      if (typeof value === 'string') return value.trim() !== '';
+      if (typeof value === 'number') return value > 0;
+      return !!value;
+    });
+  };
+
+  // Determine available statuses based on required fields
+  const getAvailableStatuses = () => {
+    if (!areRequiredFieldsFilled()) {
+      return ['planning'];
+    }
+    return ['planning', 'active', 'completed', 'cancelled'];
   };
 
   const handleFileUpload = (files: File[]) => {
@@ -429,11 +487,18 @@ export default function AddSubcontract() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      {getAvailableStatuses().map(status => (
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {!areRequiredFieldsFilled() && formData.status !== 'planning' && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Status will be set to Planning until all required fields are filled
+                    </p>
+                  )}
                 </div>
               </div>
 

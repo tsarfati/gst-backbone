@@ -1541,6 +1541,7 @@ export type Database = {
           id: string
           overtime_approval_required: boolean
           overtime_approval_threshold: number | null
+          po_required_fields: Json | null
           require_budget: boolean
           require_completion_approval: boolean
           require_cost_codes: boolean
@@ -1548,6 +1549,7 @@ export type Database = {
           require_project_manager: boolean
           require_start_date: boolean
           require_timecard_approval: boolean
+          subcontract_required_fields: Json | null
           timecard_approval_roles: string[]
           updated_at: string
         }
@@ -1567,6 +1569,7 @@ export type Database = {
           id?: string
           overtime_approval_required?: boolean
           overtime_approval_threshold?: number | null
+          po_required_fields?: Json | null
           require_budget?: boolean
           require_completion_approval?: boolean
           require_cost_codes?: boolean
@@ -1574,6 +1577,7 @@ export type Database = {
           require_project_manager?: boolean
           require_start_date?: boolean
           require_timecard_approval?: boolean
+          subcontract_required_fields?: Json | null
           timecard_approval_roles?: string[]
           updated_at?: string
         }
@@ -1593,6 +1597,7 @@ export type Database = {
           id?: string
           overtime_approval_required?: boolean
           overtime_approval_threshold?: number | null
+          po_required_fields?: Json | null
           require_budget?: boolean
           require_completion_approval?: boolean
           require_cost_codes?: boolean
@@ -1600,6 +1605,7 @@ export type Database = {
           require_project_manager?: boolean
           require_start_date?: boolean
           require_timecard_approval?: boolean
+          subcontract_required_fields?: Json | null
           timecard_approval_roles?: string[]
           updated_at?: string
         }
