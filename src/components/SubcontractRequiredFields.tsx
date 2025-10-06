@@ -15,7 +15,7 @@ const availableSubcontractFields = [
   { value: 'description', label: 'Description', alwaysRequired: false },
   { value: 'start_date', label: 'Start Date', alwaysRequired: false },
   { value: 'end_date', label: 'End Date', alwaysRequired: false },
-  { value: 'contract_file_url', label: 'Contract File', alwaysRequired: false },
+  { value: 'contract_file_url', label: 'Uploaded Contract Document', alwaysRequired: false },
   { value: 'cost_distribution', label: 'Cost Distribution', alwaysRequired: false },
 ];
 
@@ -27,7 +27,8 @@ const availablePOFields = [
   { value: 'description', label: 'Description', alwaysRequired: false },
   { value: 'order_date', label: 'Order Date', alwaysRequired: false },
   { value: 'expected_delivery', label: 'Expected Delivery', alwaysRequired: false },
-  { value: 'po_file_url', label: 'PO File', alwaysRequired: false },
+  { value: 'po_file_url', label: 'Uploaded Document', alwaysRequired: false },
+  { value: 'cost_distribution', label: 'Cost Distribution', alwaysRequired: false },
 ];
 
 export default function SubcontractRequiredFields() {
@@ -83,6 +84,13 @@ export default function SubcontractRequiredFields() {
 
   const saveSettings = async (type: 'subcontract' | 'po', fields: string[]) => {
     try {
+      // First check if settings exist
+      const { data: existing } = await supabase
+        .from('job_settings')
+        .select('id')
+        .eq('company_id', currentCompany?.id)
+        .maybeSingle();
+
       const updateData = type === 'subcontract' 
         ? { subcontract_required_fields: fields }
         : { po_required_fields: fields };
@@ -90,6 +98,7 @@ export default function SubcontractRequiredFields() {
       const { error } = await supabase
         .from('job_settings')
         .upsert({
+          ...(existing?.id && { id: existing.id }),
           company_id: currentCompany?.id,
           ...updateData,
         } as any);
