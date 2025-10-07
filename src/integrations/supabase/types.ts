@@ -1412,6 +1412,7 @@ export type Database = {
           manual_photo_capture: boolean | null
           max_distance_from_job_meters: number | null
           notification_enabled: boolean | null
+          overtime_grace_period_minutes: number | null
           overtime_past_window_threshold_minutes: number | null
           overtime_threshold: number | null
           punch_rounding_direction: string | null
@@ -1424,7 +1425,11 @@ export type Database = {
           require_photo: boolean | null
           require_timecard_change_approval: boolean | null
           scheduled_start_time: string | null
+          shift_end_time: string | null
+          shift_hours: number | null
+          shift_start_time: string | null
           show_install_button: boolean | null
+          time_display_format: string | null
           updated_at: string
         }
         Insert: {
@@ -1452,6 +1457,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          overtime_grace_period_minutes?: number | null
           overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
@@ -1464,7 +1470,11 @@ export type Database = {
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
+          shift_end_time?: string | null
+          shift_hours?: number | null
+          shift_start_time?: string | null
           show_install_button?: boolean | null
+          time_display_format?: string | null
           updated_at?: string
         }
         Update: {
@@ -1492,6 +1502,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          overtime_grace_period_minutes?: number | null
           overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
           punch_rounding_direction?: string | null
@@ -1504,7 +1515,11 @@ export type Database = {
           require_photo?: boolean | null
           require_timecard_change_approval?: boolean | null
           scheduled_start_time?: string | null
+          shift_end_time?: string | null
+          shift_hours?: number | null
+          shift_start_time?: string | null
           show_install_button?: boolean | null
+          time_display_format?: string | null
           updated_at?: string
         }
         Relationships: [

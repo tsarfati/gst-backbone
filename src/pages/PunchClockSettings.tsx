@@ -113,7 +113,12 @@ const defaultSettings: PunchClockSettings = {
   pwa_icon_512_url: '',
   enable_install_prompt: true,
   show_install_button: true,
-  cost_code_selection_timing: 'punch_in'
+  cost_code_selection_timing: 'punch_in',
+  time_display_format: 'hours_minutes',
+  shift_start_time: '07:00',
+  shift_end_time: '15:30',
+  shift_hours: 8,
+  overtime_grace_period_minutes: 30,
 };
 
 export default function PunchClockSettings() {
@@ -179,10 +184,10 @@ export default function PunchClockSettings() {
           location_accuracy_meters: data.location_accuracy_meters ?? 100,
           photo_required_for_corrections: true,
           time_display_format: (data.time_display_format as 'hours_minutes' | 'decimal') ?? 'hours_minutes',
-          shift_start_time: data.shift_start_time ?? '07:00',
-          shift_end_time: data.shift_end_time ?? '15:30',
+          shift_start_time: data.shift_start_time?.toString() ?? '07:00',
+          shift_end_time: data.shift_end_time?.toString() ?? '15:30',
           shift_hours: data.shift_hours ?? 8,
-          overtime_grace_period_minutes: data.overtime_grace_period_minutes ?? 30,
+          overtime_grace_period_minutes: data.grace_period_minutes ?? 30,
           notification_enabled: data.notification_enabled !== false,
           manager_approval_required: data.manager_approval_required === true,
           grace_period_minutes: data.grace_period_minutes ?? 5,
@@ -253,6 +258,11 @@ export default function PunchClockSettings() {
           enable_install_prompt: settings.enable_install_prompt,
           show_install_button: settings.show_install_button,
           cost_code_selection_timing: settings.cost_code_selection_timing,
+          time_display_format: settings.time_display_format,
+          shift_start_time: settings.shift_start_time,
+          shift_end_time: settings.shift_end_time,
+          shift_hours: settings.shift_hours,
+          overtime_grace_period_minutes: settings.overtime_grace_period_minutes,
           created_by: user?.id
         } as any);
 
@@ -709,7 +719,107 @@ export default function PunchClockSettings() {
             </CardContent>
           </Card>
 
-          {/* Notification Settings */}
+          {/* Shift Time Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Shift Time Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Time Display Format</Label>
+                <Select
+                  value={settings.time_display_format}
+                  onValueChange={(value) => updateSetting('time_display_format', value as 'hours_minutes' | 'decimal')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hours_minutes">Hours and Minutes (e.g., 1h 15m)</SelectItem>
+                    <SelectItem value="decimal">Decimal Hours (e.g., 1.25)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose how time is displayed throughout the app
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Shift Start Time</Label>
+                  <Input
+                    type="time"
+                    value={settings.shift_start_time}
+                    onChange={(e) => updateSetting('shift_start_time', e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When hours begin counting
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Shift End Time</Label>
+                  <Input
+                    type="time"
+                    value={settings.shift_end_time}
+                    onChange={(e) => updateSetting('shift_end_time', e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Official end of shift
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Standard Shift Hours</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  min="1"
+                  max="16"
+                  value={settings.shift_hours}
+                  onChange={(e) => updateSetting('shift_hours', parseFloat(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Full shift duration (e.g., 8 hours). Employees punching in early will have hours capped at this value.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label>Overtime Grace Period (minutes)</Label>
+                <Input
+                  type="number"
+                  step="5"
+                  min="0"
+                  max="60"
+                  value={settings.overtime_grace_period_minutes}
+                  onChange={(e) => updateSetting('overtime_grace_period_minutes', parseInt(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Grace period before overtime starts counting after shift end time
+                </p>
+              </div>
+
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Example Calculation</h4>
+                <p className="text-sm text-muted-foreground">
+                  Shift: {settings.shift_start_time} - {settings.shift_end_time} ({settings.shift_hours} hours, automatic 30 min lunch)
+                  <br />
+                  If employee punches at 6:55 AM and out at 3:30 PM, they get {settings.shift_hours} hours (not including early arrival)
+                  <br />
+                  Overtime starts at {settings.overtime_grace_period_minutes} min after {settings.shift_end_time}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
