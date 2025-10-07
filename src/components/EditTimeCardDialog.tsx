@@ -56,6 +56,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [jobCostCodes, setJobCostCodes] = useState<Array<{ id: string; code: string; description: string }>>([]);
 
   const canEdit = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager' || timeCard?.user_id === user?.id;
+  const isAdminOrController = profile?.role === 'admin' || profile?.role === 'controller';
 
   useEffect(() => {
     if (open && timeCardId) {
@@ -160,7 +161,8 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const handleSave = async () => {
     if (!timeCard || !canEdit) return;
 
-    if (!correctionReason.trim()) {
+    // Only require correction reason for non-admin/controller users
+    if (!isAdminOrController && !correctionReason.trim()) {
       toast({
         title: 'Correction Reason Required',
         description: 'Please provide a reason for this correction.',
@@ -187,6 +189,9 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
 
       const { totalHours, overtimeHours } = calculateHours(punchInTime, punchOutTime, breakMins);
 
+      // Admin/controller edits are auto-approved, others go to submitted
+      const newStatus = isAdminOrController ? 'approved' : 'submitted';
+      
       const { error } = await supabase
         .from('time_cards')
         .update({
@@ -196,9 +201,11 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           overtime_hours: overtimeHours,
           break_minutes: breakMins,
           notes: notes.trim() || null,
-          correction_reason: correctionReason.trim(),
+          correction_reason: correctionReason.trim() || null,
           cost_code_id: selectedCostCodeId || null,
-          status: 'submitted', // Reset status to submitted after edit
+          status: newStatus,
+          approved_by: isAdminOrController ? user?.id : null,
+          approved_at: isAdminOrController ? new Date().toISOString() : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', timeCardId);
@@ -387,17 +394,26 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
             />
           </div>
 
-          {/* Correction Reason (Required) */}
+          {/* Correction Reason (Optional for admins/controllers) */}
           <div>
-            <Label htmlFor="correction-reason">Correction Reason *</Label>
+            <Label htmlFor="correction-reason">
+              Correction Reason {!isAdminOrController && '*'}
+            </Label>
             <Textarea
               id="correction-reason"
               value={correctionReason}
               onChange={(e) => setCorrectionReason(e.target.value)}
-              placeholder="Please explain why this time card is being corrected..."
+              placeholder={isAdminOrController 
+                ? "Optional: Explain why this time card is being corrected..." 
+                : "Please explain why this time card is being corrected..."}
               rows={3}
-              required
+              required={!isAdminOrController}
             />
+            {isAdminOrController && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Your changes will be automatically approved
+              </p>
+            )}
           </div>
         </div>
 
