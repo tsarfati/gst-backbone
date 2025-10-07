@@ -91,7 +91,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
     const resolveCostCode = async () => {
       try {
         let codeId: string | undefined = punch.cost_code_id;
-        console.log('[PunchDetailView] Resolving cost code. Initial cost_code_id:', codeId);
+        console.log('[PunchDetailView] Resolving cost code. Initial cost_code_id:', { _type: typeof codeId, value: String(codeId) });
 
         // If no cost_code_id on the punch, try to find a matching time card for this punch time
         if (!codeId && punch.user_id && punch.punch_time) {
@@ -107,6 +107,24 @@ const mapContainer = useRef<HTMLDivElement>(null);
           if (tcErr) console.warn('[PunchDetailView] time_cards lookup warning:', tcErr);
           console.log('[PunchDetailView] Matched time card for punch time:', tc);
           codeId = (tc?.cost_code_id as string | null) || undefined;
+        }
+
+        // Fallback: use nearest prior punch with a cost_code_id
+        if (!codeId && punch.user_id && punch.punch_time) {
+          const { data: priorPunch, error: priorErr } = await supabase
+            .from('punch_records')
+            .select('cost_code_id, punch_type, punch_time')
+            .eq('user_id', punch.user_id)
+            .lte('punch_time', punch.punch_time)
+            .not('cost_code_id', 'is', null)
+            .order('punch_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (priorErr) console.warn('[PunchDetailView] prior punch lookup warning:', priorErr);
+          if (priorPunch?.cost_code_id) {
+            console.log('[PunchDetailView] Using prior punch cost_code_id:', priorPunch);
+            codeId = priorPunch.cost_code_id as string;
+          }
         }
 
         if (codeId) {
