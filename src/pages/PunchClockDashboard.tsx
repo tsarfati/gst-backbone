@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCompany } from "@/contexts/CompanyContext";
 import PunchDetailView from '@/components/PunchDetailView';
 import TimeCardDetailModal from '@/components/TimeCardDetailModal';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 
 interface CurrentStatus {
   id: string;
@@ -67,11 +68,15 @@ export default function PunchClockDashboard() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<any>(null);
-  const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
+const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const [employeeToPunchOut, setEmployeeToPunchOut] = useState<CurrentStatus | null>(null);
   const [timeCardModalOpen, setTimeCardModalOpen] = useState(false);
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
   const [pendingChangeRequests, setPendingChangeRequests] = useState<any[]>([]);
+  // Punch-out cost code requirements
+  const [costCodeTiming, setCostCodeTiming] = useState<'punch_in' | 'punch_out'>('punch_in');
+  const [adminSelectedCostCode, setAdminSelectedCostCode] = useState<string | null>(null);
+  const [adminCostCodeOptions, setAdminCostCodeOptions] = useState<Array<{ id: string; code: string; description: string }>>([]);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -273,6 +278,22 @@ export default function PunchClockDashboard() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
+}, [currentCompany?.id]);
+
+  // Load company-level cost code timing (punch_in or punch_out)
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('job_punch_clock_settings')
+        .select('cost_code_selection_timing')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setCostCodeTiming((data?.cost_code_selection_timing as 'punch_in' | 'punch_out') ?? 'punch_in');
+    })();
   }, [currentCompany?.id]);
 
   const openDetailForActive = (row: CurrentStatus) => {
@@ -386,7 +407,7 @@ export default function PunchClockDashboard() {
         user_id: employeeToPunchOut.user_id,
         company_id: currentCompany?.id,
         job_id: employeeToPunchOut.job_id,
-        cost_code_id: employeeToPunchOut.cost_code_id,
+        cost_code_id: employeeToPunchOut.cost_code_id ?? null,
         punch_in_time: employeeToPunchOut.punch_in_time,
         punch_out_time: punchOutTime.toISOString(),
         total_hours: totalHours,
@@ -777,13 +798,38 @@ export default function PunchClockDashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Punch Out</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to punch out {employeeToPunchOut ? profiles[employeeToPunchOut.user_id]?.display_name || 'this employee' : 'this employee'}? 
-              This action will create a time card entry and cannot be undone.
+              Are you sure you want to punch out {employeeToPunchOut ? profiles[employeeToPunchOut.user_id]?.display_name || 'this employee' : 'this employee'}?
+              This action will create a time card entry.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-3">
+            {costCodeTiming === 'punch_out' && (
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground">Daily Task (optional)</label>
+                <Select value={adminSelectedCostCode || ''} onValueChange={(v) => setAdminSelectedCostCode(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a cost code (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(costCodes).map(([id, cc]) => (
+                      <SelectItem key={id} value={id}>{cc.code} - {cc.description}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAdminPunchOut}>
+            <AlertDialogAction onClick={() => {
+              if (employeeToPunchOut) {
+                // temporarily set selectedDetail to pass optional cost code to PunchDetailView if needed
+                if (adminSelectedCostCode) {
+                  employeeToPunchOut.cost_code_id = adminSelectedCostCode as any;
+                }
+                confirmAdminPunchOut();
+              }
+            }}>
               Punch Out
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -964,16 +964,8 @@ function PunchClockApp() {
           return;
         }
 
-        if (punchSettingsLoaded && action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
-          toast({
-            title: 'Missing Information',
-            description: 'Please select your daily task before punching out.',
-            variant: 'destructive'
-          });
-          setIsLoading(false);
-          setIsPunching(false);
-          return;
-        }
+        // If timing is punch_out and no cost code selected, we allow punch out.
+
 
         // Add admin alert if photo failed to upload
         const photoUploadNote = photoBlob && !photoUrl ? 'ADMIN ALERT: Photo upload failed for this punch' : undefined;
@@ -1439,10 +1431,7 @@ function PunchClockApp() {
           <Button
             onClick={() => {
               console.log('Punch button clicked');
-              const requiresCostCode = punchSettingsLoaded && (
-                (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in') ||
-                (currentPunch && punchSettings.cost_code_selection_timing === 'punch_out')
-              );
+              const requiresCostCode = punchSettingsLoaded && (!currentPunch && punchSettings.cost_code_selection_timing === 'punch_in');
               const isDisabled = isLoading || !punchSettingsLoaded || (!currentPunch && !selectedJob) || (requiresCostCode && !selectedCostCode);
               console.log('Button disabled?', isDisabled);
               if (!isDisabled) startCamera();
@@ -1452,9 +1441,7 @@ function PunchClockApp() {
               !punchSettingsLoaded ||
               (!currentPunch && !selectedJob) || 
               // Punch in: only require cost code if setting is 'punch_in' and settings loaded
-              (!currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) ||
-              // Punch out: only require cost code if setting is 'punch_out' and settings loaded
-              (currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode)
+              (!currentPunch && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode)
             }
             className={`w-full h-16 text-lg font-semibold ${
               currentPunch 
