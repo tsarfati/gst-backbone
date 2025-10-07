@@ -257,15 +257,19 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
                     // Don't trigger if clicking checkbox
                     if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
                     setSelectedPunch({
+                      id: record.id,
                       punch_time: record.punch_time,
                       punch_type: record.punch_type,
                       employee_name: record.employee_name,
                       job_name: record.job_name,
                       cost_code: record.cost_code,
-                      latitude: record.latitude,
-                      longitude: record.longitude,
-                      photo_url: record.photo_url,
-                      notes: record.notes
+                      latitude: record.latitude ?? undefined,
+                      longitude: record.longitude ?? undefined,
+                      photo_url: record.photo_url ?? undefined,
+                      notes: record.notes ?? undefined,
+                      user_id: record.user_id ?? undefined,
+                      job_id: record.job_id ?? undefined,
+                      cost_code_id: record.cost_code_id ?? undefined,
                     });
                     setShowPunchDetail(true);
                   }}

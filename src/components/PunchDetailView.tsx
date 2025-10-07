@@ -49,6 +49,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
   const [mapReady, setMapReady] = useState(false);
   const [mapToken, setMapToken] = useState<string | null>(null);
+  const [displayCostCode, setDisplayCostCode] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!open || !punch) return;
@@ -77,6 +78,50 @@ const mapContainer = useRef<HTMLDivElement>(null);
     };
     
     loadPhotoUrl();
+  }, [open, punch]);
+
+  // Resolve and display an accurate cost code if missing or unknown
+  useEffect(() => {
+    if (!open || !punch) return;
+    setDisplayCostCode(punch.cost_code);
+
+    const needsResolve = !punch.cost_code || punch.cost_code === 'Unknown Code' || punch.cost_code === 'No Cost Code';
+    if (!needsResolve) return;
+
+    const resolveCostCode = async () => {
+      try {
+        let codeId: string | undefined = punch.cost_code_id;
+
+        // If no cost_code_id on the punch, try to find a matching time card for this punch time
+        if (!codeId && punch.user_id && punch.punch_time) {
+          const { data: tc } = await supabase
+            .from('time_cards')
+            .select('cost_code_id')
+            .eq('user_id', punch.user_id)
+            .lte('punch_in_time', punch.punch_time)
+            .gte('punch_out_time', punch.punch_time)
+            .order('punch_in_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          codeId = (tc?.cost_code_id as string | null) || undefined;
+        }
+
+        if (codeId) {
+          const { data: code } = await supabase
+            .from('cost_codes')
+            .select('code, description')
+            .eq('id', codeId)
+            .maybeSingle();
+          if (code) {
+            setDisplayCostCode(`${code.code} - ${code.description}`);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to resolve cost code for punch detail:', e);
+      }
+    };
+
+    resolveCostCode();
   }, [open, punch]);
 
   useEffect(() => {
@@ -172,7 +217,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
               .setHTML(`
                 <div>
                   <strong>${punch.employee_name}</strong><br/>
-                  <strong>Cost Code:</strong> ${punch.cost_code || 'N/A'}<br/>
+                  <strong>Cost Code:</strong> ${displayCostCode || punch.cost_code || 'N/A'}<br/>
                   ${punch.punch_type === 'punched_in' ? 'Punched In' : 'Punched Out'}<br/>
                   ${format(new Date(punch.punch_time), 'PPpp')}
                 </div>
@@ -349,7 +394,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Cost Code</span>
-                <p className="font-medium">{punch.cost_code || 'No Cost Code'}</p>
+                <p className="font-medium">{displayCostCode || punch.cost_code || 'No Cost Code'}</p>
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">IP Address</span>

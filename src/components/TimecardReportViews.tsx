@@ -76,14 +76,14 @@ export default function TimecardReportViews({
       const [{ data: punchRecords, error }, { data: timeCard, error: tcError }] = await Promise.all([
         supabase
           .from('punch_records')
-          .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes')
+          .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes, cost_code_id')
           .eq('user_id', record.user_id)
           .gte('punch_time', record.punch_in_time)
           .lte('punch_time', record.punch_out_time)
           .order('punch_time', { ascending: true }),
         supabase
           .from('time_cards')
-          .select('job_id, punch_in_photo_url, punch_out_photo_url')
+          .select('job_id, cost_code_id, punch_in_photo_url, punch_out_photo_url')
           .eq('id', record.id)
           .maybeSingle()
       ]);
@@ -133,6 +133,9 @@ export default function TimecardReportViews({
           job_latitude,
           job_longitude,
           job_address,
+          user_id: record.user_id,
+          job_id: timeCard?.job_id,
+          cost_code_id: (timeCard?.cost_code_id as string | undefined) || (selected.cost_code_id as string | undefined),
         };
 
         setSelectedPunch(punchData);
