@@ -79,6 +79,11 @@ interface PunchClockSettings {
   enable_install_prompt: boolean;
   show_install_button: boolean;
   cost_code_selection_timing: 'punch_in' | 'punch_out';
+  time_display_format: 'hours_minutes' | 'decimal';
+  shift_start_time: string;
+  shift_end_time: string;
+  shift_hours: number;
+  overtime_grace_period_minutes: number;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -172,7 +177,12 @@ export default function PunchClockSettings() {
           auto_break_duration: data.auto_break_duration ?? 30,
           overtime_threshold: parseFloat((data.overtime_threshold ?? 8).toString()),
           location_accuracy_meters: data.location_accuracy_meters ?? 100,
-          photo_required_for_corrections: true, // Default value since not in DB
+          photo_required_for_corrections: true,
+          time_display_format: (data.time_display_format as 'hours_minutes' | 'decimal') ?? 'hours_minutes',
+          shift_start_time: data.shift_start_time ?? '07:00',
+          shift_end_time: data.shift_end_time ?? '15:30',
+          shift_hours: data.shift_hours ?? 8,
+          overtime_grace_period_minutes: data.overtime_grace_period_minutes ?? 30,
           notification_enabled: data.notification_enabled !== false,
           manager_approval_required: data.manager_approval_required === true,
           grace_period_minutes: data.grace_period_minutes ?? 5,
