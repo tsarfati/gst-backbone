@@ -91,27 +91,32 @@ const mapContainer = useRef<HTMLDivElement>(null);
     const resolveCostCode = async () => {
       try {
         let codeId: string | undefined = punch.cost_code_id;
+        console.log('[PunchDetailView] Resolving cost code. Initial cost_code_id:', codeId);
 
         // If no cost_code_id on the punch, try to find a matching time card for this punch time
         if (!codeId && punch.user_id && punch.punch_time) {
-          const { data: tc } = await supabase
+          const { data: tc, error: tcErr } = await supabase
             .from('time_cards')
-            .select('cost_code_id')
+            .select('id, cost_code_id, punch_in_time, punch_out_time')
             .eq('user_id', punch.user_id)
             .lte('punch_in_time', punch.punch_time)
             .gte('punch_out_time', punch.punch_time)
             .order('punch_in_time', { ascending: false })
             .limit(1)
             .maybeSingle();
+          if (tcErr) console.warn('[PunchDetailView] time_cards lookup warning:', tcErr);
+          console.log('[PunchDetailView] Matched time card for punch time:', tc);
           codeId = (tc?.cost_code_id as string | null) || undefined;
         }
 
         if (codeId) {
-          const { data: code } = await supabase
+          const { data: code, error: codeErr } = await supabase
             .from('cost_codes')
             .select('code, description')
             .eq('id', codeId)
             .maybeSingle();
+          if (codeErr) console.warn('[PunchDetailView] cost_codes lookup warning:', codeErr);
+          console.log('[PunchDetailView] Resolved cost code row:', code);
           if (code) {
             setDisplayCostCode(`${code.code} - ${code.description}`);
           }
