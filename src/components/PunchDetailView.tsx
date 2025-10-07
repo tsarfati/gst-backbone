@@ -127,6 +127,54 @@ const mapContainer = useRef<HTMLDivElement>(null);
           }
         }
 
+        // Fallback: read current punch status (often holds selected job/cost code while active)
+        if (!codeId && punch.user_id) {
+          const { data: cps, error: cpsErr } = await supabase
+            .from('current_punch_status')
+            .select('id, cost_code_id, punch_in_time')
+            .eq('user_id', punch.user_id)
+            .eq('is_active', true)
+            .order('punch_in_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (cpsErr) console.warn('[PunchDetailView] current_punch_status lookup warning:', cpsErr);
+          if (cps?.cost_code_id) {
+            console.log('[PunchDetailView] Using current_punch_status cost_code_id:', cps);
+            codeId = cps.cost_code_id as string;
+          }
+        }
+
+        // Fallback: latest time card started before this punch time (even if it ended earlier/later)
+        if (!codeId && punch.user_id && punch.punch_time) {
+          const { data: lastTc, error: lastTcErr } = await supabase
+            .from('time_cards')
+            .select('id, cost_code_id, punch_in_time, punch_out_time')
+            .eq('user_id', punch.user_id)
+            .lte('punch_in_time', punch.punch_time)
+            .order('punch_in_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastTcErr) console.warn('[PunchDetailView] latest-before time_cards lookup warning:', lastTcErr);
+          if (lastTc?.cost_code_id) {
+            console.log('[PunchDetailView] Using latest-before time card cost_code_id:', lastTc);
+            codeId = lastTc.cost_code_id as string;
+          }
+        }
+
+        // Fallback: employee default timecard settings
+        if (!codeId && punch.user_id) {
+          const { data: settings, error: settingsErr } = await supabase
+            .from('employee_timecard_settings')
+            .select('default_cost_code_id')
+            .eq('user_id', punch.user_id)
+            .maybeSingle();
+          if (settingsErr) console.warn('[PunchDetailView] employee_timecard_settings lookup warning:', settingsErr);
+          if (settings?.default_cost_code_id) {
+            console.log('[PunchDetailView] Using default_cost_code_id from settings:', settings);
+            codeId = settings.default_cost_code_id as string;
+          }
+        }
+
         if (codeId) {
           const { data: code, error: codeErr } = await supabase
             .from('cost_codes')
