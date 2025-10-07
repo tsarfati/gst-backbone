@@ -262,18 +262,30 @@ export default function JobPunchClockSettings() {
                   <div className="space-y-2">
                     <Label>Earliest Punch Start</Label>
                     <Input type="time" value={settings.earliest_punch_start_time} onChange={(e) => setSettings(s => ({...s, earliest_punch_start_time: e.target.value}))} />
+                    <p className="text-xs text-muted-foreground">
+                      Earliest time allowed for the first punch-in of the day
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Latest Punch In</Label>
                     <Input type="time" value={settings.latest_punch_in_time} onChange={(e) => setSettings(s => ({...s, latest_punch_in_time: e.target.value}))} />
+                    <p className="text-xs text-muted-foreground">
+                      Latest time allowed to punch in without being marked late
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Punch Window Start</Label>
                     <Input type="time" value={settings.punch_time_window_start} onChange={(e) => setSettings(s => ({...s, punch_time_window_start: e.target.value}))} />
+                    <p className="text-xs text-muted-foreground">
+                      Earliest time employees can punch in each day (blocks punches before this time)
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Punch Window End</Label>
                     <Input type="time" value={settings.punch_time_window_end} onChange={(e) => setSettings(s => ({...s, punch_time_window_end: e.target.value}))} />
+                    <p className="text-xs text-muted-foreground">
+                      Latest time employees can punch out each day (blocks punches after this time)
+                    </p>
                   </div>
                 </div>
 
