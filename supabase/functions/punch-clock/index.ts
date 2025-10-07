@@ -693,20 +693,14 @@ serve(async (req) => {
         const timingOut = jobTimingOut?.cost_code_selection_timing ?? companyTimingOut?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch OUT timing=${timingOut} company=${companyId} job=${currentPunch.job_id} hasCostCodeInBody=${Boolean(cost_code_id)} hasCostCodeCurrent=${Boolean(currentPunch?.cost_code_id)}`);
 
-        // Determine cost code to use for punch out (do not block if missing)
+        // Determine cost code to use for punch out (require when timing is punch_out)
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
         if (timingOut === 'punch_out') {
-          if (cost_code_id) {
-            costCodeToUse = cost_code_id;
-          } else if (!costCodeToUse) {
-            // Fallback to employee default if configured
-            const { data: empSettings } = await supabaseAdmin
-              .from('employee_timecard_settings')
-              .select('default_cost_code_id')
-              .eq('user_id', userRow.user_id)
-              .maybeSingle();
-            costCodeToUse = empSettings?.default_cost_code_id ?? null;
+          // Require cost code at punch out
+          if (!cost_code_id && !currentPunch?.cost_code_id) {
+            return errorResponse("Missing cost_code_id for punch out", 400);
           }
+          if (cost_code_id) costCodeToUse = cost_code_id;
         }
 
         // Check photo requirement for punch out
