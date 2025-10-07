@@ -321,11 +321,15 @@ export default function TimecardReports() {
       const userIds = [...new Set((data || []).map(r => r.user_id))];
 
       const [jobsData, costCodesData, profilesData, pinEmployeesData] = await Promise.all([
-        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [] },
-        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
-        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
-        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [] }
+        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
+        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [], error: null },
+        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
+        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [], error: null }
       ]);
+
+      console.log('Cost Code IDs:', costCodeIds);
+      console.log('Cost Codes Data:', costCodesData.data);
+      if (costCodesData.error) console.error('Cost Codes Error:', costCodesData.error);
 
       const jobsMap = new Map((jobsData.data || []).map(job => [job.id, job]));
       const costCodesMap = new Map((costCodesData.data || []).map(code => [code.id, code]));
@@ -519,11 +523,15 @@ export default function TimecardReports() {
       const costCodeIds = [...new Set((punchData || []).map((r: any) => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
-        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [] },
-        allPossiblePinIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', allPossiblePinIds) : { data: [] },
-        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [] },
-        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [] },
+        userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
+        allPossiblePinIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', allPossiblePinIds) : { data: [], error: null },
+        jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
+        costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds) : { data: [], error: null },
       ]);
+
+      console.log('Punch Cost Code IDs:', costCodeIds);
+      console.log('Punch Cost Codes Data:', costCodesData.data);
+      if (costCodesData.error) console.error('Punch Cost Codes Error:', costCodesData.error);
 
       const profilesMap = new Map((profilesData.data || []).map((p: any) => [p.user_id, p]));
       const pinMap = new Map((pinEmployeesData.data || []).map((p: any) => [p.id, p]));
