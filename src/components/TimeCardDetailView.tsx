@@ -150,7 +150,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .select('code, description, type')
           .eq('id', timeCardData.cost_code_id)
           .single() : Promise.resolve({ data: null }),
-        // Fetch punch records with buffer time to capture actual punch records
+        // Fetch punch records with buffer time to capture actual punch records (include cost_code_id)
         (() => {
           const punchInBuffer = new Date(new Date(timeCardData.punch_in_time).getTime() - 30000).toISOString();
           const punchOutBuffer = timeCardData.punch_out_time 
@@ -159,7 +159,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           
           return supabase
             .from('punch_records')
-            .select('punch_type, latitude, longitude, photo_url, punch_time')
+            .select('punch_type, latitude, longitude, photo_url, punch_time, cost_code_id')
             .eq('user_id', timeCardData.user_id)
             .gte('punch_time', punchInBuffer)
             .lte('punch_time', punchOutBuffer)
@@ -170,13 +170,31 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       console.log('Time card data:', timeCardData);
       console.log('Punch records found:', punchData.data);
 
-      // Backfill missing location and photo data from punch records
+      // Backfill missing location, photo and cost code data from punch records
       const punchRecords = punchData.data || [];
       const punchIn = punchRecords.find(p => p.punch_type === 'punched_in');
       const punchOut = punchRecords.find(p => p.punch_type === 'punched_out');
 
       console.log('Punch in record:', punchIn);
       console.log('Punch out record:', punchOut);
+
+      // If cost code missing on time card, try to backfill from punch_out record first
+      let resolvedCostCode = costCodeData.data as any;
+      let resolvedCostCodeId: string | null = (timeCardData.cost_code_id as string | null) ?? null;
+      if (!resolvedCostCode && (!resolvedCostCodeId || resolvedCostCodeId === null)) {
+        const fallbackCodeId = punchOut?.cost_code_id || punchIn?.cost_code_id || null;
+        if (fallbackCodeId) {
+          const { data: fallbackCode } = await supabase
+            .from('cost_codes')
+            .select('code, description, type')
+            .eq('id', fallbackCodeId)
+            .maybeSingle();
+          if (fallbackCode) {
+            resolvedCostCode = fallbackCode;
+            resolvedCostCodeId = fallbackCodeId as string;
+          }
+        }
+      }
 
       const normalizePhotoUrl = (url?: string | null) => {
         if (!url) return null;
@@ -193,7 +211,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         ...timeCardData,
         profiles: employeeProfile,
         jobs: jobData.data,
-        cost_codes: costCodeData.data,
+        cost_codes: resolvedCostCode,
+        cost_code_id: resolvedCostCodeId,
         // Ensure coordinates are numbers and backfill from punch records
         punch_in_location_lat: Number(timeCardData.punch_in_location_lat) || Number(punchIn?.latitude) || null,
         punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,

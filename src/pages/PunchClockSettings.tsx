@@ -84,6 +84,9 @@ interface PunchClockSettings {
   shift_end_time: string;
   shift_hours: number;
   overtime_grace_period_minutes: number;
+  count_early_punch_time: boolean;
+  count_late_punch_in: boolean;
+  late_grace_period_minutes: number;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -119,6 +122,9 @@ const defaultSettings: PunchClockSettings = {
   shift_end_time: '15:30',
   shift_hours: 8,
   overtime_grace_period_minutes: 30,
+  count_early_punch_time: false,
+  count_late_punch_in: true,
+  late_grace_period_minutes: 5,
 };
 
 export default function PunchClockSettings() {
@@ -188,6 +194,9 @@ export default function PunchClockSettings() {
           shift_end_time: data.shift_end_time?.toString() ?? '15:30',
           shift_hours: data.shift_hours ?? 8,
           overtime_grace_period_minutes: data.grace_period_minutes ?? 30,
+          count_early_punch_time: (data as any).count_early_punch_time ?? false,
+          count_late_punch_in: (data as any).count_late_punch_in ?? true,
+          late_grace_period_minutes: (data as any).late_grace_period_minutes ?? 5,
           notification_enabled: data.notification_enabled !== false,
           manager_approval_required: data.manager_approval_required === true,
           grace_period_minutes: data.grace_period_minutes ?? 5,
@@ -263,6 +272,9 @@ export default function PunchClockSettings() {
           shift_end_time: settings.shift_end_time,
           shift_hours: settings.shift_hours,
           overtime_grace_period_minutes: settings.overtime_grace_period_minutes,
+          count_early_punch_time: settings.count_early_punch_time,
+          count_late_punch_in: settings.count_late_punch_in,
+          late_grace_period_minutes: settings.late_grace_period_minutes,
           created_by: user?.id
         } as any);
 
@@ -807,14 +819,63 @@ export default function PunchClockSettings() {
                 </p>
               </div>
 
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Count Early Punch-In as Paid Time</Label>
+                  <p className="text-sm text-muted-foreground">
+                    If enabled, time before shift start counts as paid time
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.count_early_punch_time}
+                  onCheckedChange={(checked) => updateSetting('count_early_punch_time', checked)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Count Late Punch-In as Paid Time</Label>
+                  <p className="text-sm text-muted-foreground">
+                    If enabled, late arrivals count as paid from actual punch time
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.count_late_punch_in}
+                  onCheckedChange={(checked) => updateSetting('count_late_punch_in', checked)}
+                />
+              </div>
+
+              {!settings.count_late_punch_in && (
+                <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
+                  <Label>Late Arrival Grace Period (minutes)</Label>
+                  <Input
+                    type="number"
+                    step="5"
+                    min="0"
+                    max="60"
+                    value={settings.late_grace_period_minutes}
+                    onChange={(e) => updateSetting('late_grace_period_minutes', parseInt(e.target.value))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Employees arriving within this grace period won't be penalized
+                  </p>
+                </div>
+              )}
+
               <div className="bg-muted/50 p-4 rounded-lg">
                 <h4 className="font-medium mb-2">Example Calculation</h4>
                 <p className="text-sm text-muted-foreground">
                   Shift: {settings.shift_start_time} - {settings.shift_end_time} ({settings.shift_hours} hours, automatic 30 min lunch)
                   <br />
-                  If employee punches at 6:55 AM and out at 3:30 PM, they get {settings.shift_hours} hours (not including early arrival)
+                  • Early arrival: If employee punches at 6:55 AM, they get {settings.count_early_punch_time ? 'paid from 6:55 AM' : `${settings.shift_hours} hours (starts at ${settings.shift_start_time})`}
                   <br />
-                  Overtime starts at {settings.overtime_grace_period_minutes} min after {settings.shift_end_time}
+                  • Late arrival: If employee arrives at 7:10 AM, they {settings.count_late_punch_in ? 'get paid from 7:10 AM' : `have ${settings.late_grace_period_minutes} min grace period`}
+                  <br />
+                  • Overtime: Starts at {settings.overtime_grace_period_minutes} min after {settings.shift_end_time}
                 </p>
               </div>
             </CardContent>

@@ -1396,6 +1396,8 @@ export type Database = {
           company_id: string
           company_policies: string | null
           cost_code_selection_timing: string | null
+          count_early_punch_time: boolean | null
+          count_late_punch_in: boolean | null
           created_at: string
           created_by: string
           earliest_punch_start_time: string | null
@@ -1406,6 +1408,7 @@ export type Database = {
           grace_period_minutes: number | null
           id: string
           job_id: string | null
+          late_grace_period_minutes: number | null
           latest_punch_in_time: string | null
           location_accuracy_meters: number | null
           manager_approval_required: boolean | null
@@ -1441,6 +1444,8 @@ export type Database = {
           company_id: string
           company_policies?: string | null
           cost_code_selection_timing?: string | null
+          count_early_punch_time?: boolean | null
+          count_late_punch_in?: boolean | null
           created_at?: string
           created_by: string
           earliest_punch_start_time?: string | null
@@ -1451,6 +1456,7 @@ export type Database = {
           grace_period_minutes?: number | null
           id?: string
           job_id?: string | null
+          late_grace_period_minutes?: number | null
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
@@ -1486,6 +1492,8 @@ export type Database = {
           company_id?: string
           company_policies?: string | null
           cost_code_selection_timing?: string | null
+          count_early_punch_time?: boolean | null
+          count_late_punch_in?: boolean | null
           created_at?: string
           created_by?: string
           earliest_punch_start_time?: string | null
@@ -1496,6 +1504,7 @@ export type Database = {
           grace_period_minutes?: number | null
           id?: string
           job_id?: string | null
+          late_grace_period_minutes?: number | null
           latest_punch_in_time?: string | null
           location_accuracy_meters?: number | null
           manager_approval_required?: boolean | null
