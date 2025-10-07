@@ -119,7 +119,7 @@ export default function AddBill() {
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
       const [vendorsRes, jobsRes, expenseAccountsRes] = await Promise.all([
-        supabase.from('vendors').select('id, name, logo_url, is_active').eq('is_active', true),
+        supabase.from('vendors').select('id, name, logo_url, is_active, company_id').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type')

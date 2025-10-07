@@ -879,7 +879,6 @@ export default function TimeSheets() {
                         <SortableHeader field="status">Status</SortableHeader>
                         <TableHead>Photos</TableHead>
                         <TableHead>Location</TableHead>
-                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -890,11 +889,11 @@ export default function TimeSheets() {
                               {getEmployeeName(timeCard)}
                             </TableCell>
                           )}
-                          <TableCell>
+                           <TableCell>
                             <div>
                               <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
                               <div className="text-sm text-muted-foreground">
-                                {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                                {timeCard.cost_codes ? `${timeCard.cost_codes.code} - ${timeCard.cost_codes.description}` : 'N/A'}
                               </div>
                             </div>
                           </TableCell>
@@ -984,36 +983,6 @@ export default function TimeSheets() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              {(isManager || timeCard.user_id === user?.id) && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {isManager && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-700"
-                                  onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1071,10 +1040,10 @@ export default function TimeSheets() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div className="space-y-2">
                         <h4 className="text-sm font-medium text-muted-foreground">Job Details</h4>
-                        <div className="bg-muted/50 rounded-lg p-3">
+                         <div className="bg-muted/50 rounded-lg p-3">
                           <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
                           <div className="text-sm text-muted-foreground">
-                            {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                            {timeCard.cost_codes ? `${timeCard.cost_codes.code} - ${timeCard.cost_codes.description}` : 'N/A'}
                           </div>
                         </div>
                       </div>
