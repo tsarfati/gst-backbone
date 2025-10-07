@@ -424,25 +424,29 @@ export default function PunchClockSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="time-window-start">Punch Time Window Start</Label>
+                  <Label htmlFor="time-window-start">Punch Window Start</Label>
                   <Input
                     id="time-window-start"
                     type="time"
                     value={settings.punch_time_window_start}
                     onChange={(e) => updateSetting('punch_time_window_start', e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">Earliest time employees can punch in</p>
+                  <p className="text-xs text-muted-foreground">
+                    Earliest time employees can punch in each day (blocks punches before this time)
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="time-window-end">Punch Time Window End</Label>
+                  <Label htmlFor="time-window-end">Punch Window End</Label>
                   <Input
                     id="time-window-end"
                     type="time"
                     value={settings.punch_time_window_end}
                     onChange={(e) => updateSetting('punch_time_window_end', e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">Latest time employees can punch out</p>
+                  <p className="text-xs text-muted-foreground">
+                    Latest time employees can punch out each day (blocks punches after this time)
+                  </p>
                 </div>
               </div>
 
