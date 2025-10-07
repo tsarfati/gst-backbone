@@ -52,6 +52,9 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
 
+  const [selectedCostCodeId, setSelectedCostCodeId] = useState<string>('');
+  const [jobCostCodes, setJobCostCodes] = useState<Array<{ id: string; code: string; description: string }>>([]);
+
   const canEdit = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager' || timeCard?.user_id === user?.id;
 
   useEffect(() => {
@@ -59,6 +62,18 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       loadTimeCard();
     }
   }, [open, timeCardId]);
+
+  useEffect(() => {
+    if (timeCard?.job_id) {
+      supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('job_id', timeCard.job_id)
+        .eq('is_active', true)
+        .then(({ data }) => setJobCostCodes(data || []));
+    }
+    setSelectedCostCodeId(timeCard?.cost_code_id || '');
+  }, [timeCard?.job_id, timeCard?.cost_code_id]);
 
   const loadTimeCard = async () => {
     if (!timeCardId) return;
@@ -182,6 +197,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           break_minutes: breakMins,
           notes: notes.trim() || null,
           correction_reason: correctionReason.trim(),
+          cost_code_id: selectedCostCodeId || null,
           status: 'submitted', // Reset status to submitted after edit
           updated_at: new Date().toISOString()
         })
@@ -278,10 +294,25 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Cost Code</Label>
-                <div className="font-medium">
-                  {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
-                  {timeCard.cost_codes?.type && ` (${timeCard.cost_codes.type})`}
-                </div>
+                {canEdit ? (
+                  <Select value={selectedCostCodeId || ''} onValueChange={setSelectedCostCodeId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select cost code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobCostCodes.map((cc) => (
+                        <SelectItem key={cc.id} value={cc.id}>
+                          {cc.code} - {cc.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="font-medium">
+                    {timeCard.cost_codes?.code} - {timeCard.cost_codes?.description}
+                    {timeCard.cost_codes?.type && ` (${timeCard.cost_codes.type})`}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
