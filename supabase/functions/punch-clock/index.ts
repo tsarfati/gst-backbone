@@ -703,6 +703,29 @@ serve(async (req) => {
           if (cost_code_id) costCodeToUse = cost_code_id;
         }
 
+        // If cost code was provided at punch out and we're using punch_out timing,
+        // update the punch in record to have this cost code too
+        if (cost_code_id && timingOut === 'punch_out' && !currentPunch?.cost_code_id) {
+          console.log(`Updating punch in record with cost_code_id: ${cost_code_id}`);
+          
+          // Update the current_punch_status with the cost code
+          await supabaseAdmin
+            .from('current_punch_status')
+            .update({ cost_code_id: cost_code_id })
+            .eq('user_id', userRow.user_id)
+            .eq('is_active', true);
+          
+          // Also update the punch in record in punch_records
+          await supabaseAdmin
+            .from('punch_records')
+            .update({ cost_code_id: cost_code_id })
+            .eq('user_id', userRow.user_id)
+            .eq('job_id', currentPunch.job_id)
+            .eq('punch_type', 'punched_in')
+            .gte('punch_time', new Date(new Date(currentPunch.punch_in_time).getTime() - 60000).toISOString())
+            .lte('punch_time', new Date(new Date(currentPunch.punch_in_time).getTime() + 60000).toISOString());
+        }
+
         // Check photo requirement for punch out
         if (photoRequired && !photo_url) {
           return errorResponse("Photo is required for punch out on this job", 400);
