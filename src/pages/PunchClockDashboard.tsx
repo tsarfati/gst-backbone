@@ -325,6 +325,10 @@ export default function PunchClockDashboard() {
       job_latitude: job?.latitude,
       job_longitude: job?.longitude,
       job_address: job?.address,
+      // Ensure PunchDetailView can resolve cost code
+      user_id: row.user_id,
+      job_id: row.job_id || undefined,
+      cost_code_id: row.cost_code_id || undefined,
     });
     setDetailOpen(true);
   };
