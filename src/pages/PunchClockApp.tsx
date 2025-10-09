@@ -957,8 +957,20 @@ function PunchClockApp() {
           return;
         }
 
+        // Block punch if settings haven't loaded yet
+        if (!punchSettingsLoaded) {
+          toast({
+            title: 'Loading Settings',
+            description: 'Please wait while punch clock settings load...',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          setIsPunching(false);
+          return;
+        }
+
         // Validate location requirement for punch in
-        if (punchSettingsLoaded && action === 'in' && punchSettings.require_location && !location) {
+        if (action === 'in' && punchSettings.require_location && !location) {
           toast({
             title: 'Location Required',
             description: 'Please enable location access to punch in. This job requires location tracking.',
@@ -969,8 +981,8 @@ function PunchClockApp() {
           return;
         }
         
-        // Only validate cost code if settings have loaded
-        if (punchSettingsLoaded && action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
+        // Validate cost code for punch in
+        if (action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
           toast({
             title: 'Missing Information',
             description: 'Please select a cost code before punching in.',
@@ -981,7 +993,8 @@ function PunchClockApp() {
           return;
         }
 
-        if (punchSettingsLoaded && action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
+        // Validate cost code for punch out
+        if (action === 'out' && punchSettings.cost_code_selection_timing === 'punch_out' && !selectedCostCode) {
           toast({
             title: 'Missing Information',
             description: 'Please select your daily task before punching out.',
