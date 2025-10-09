@@ -101,14 +101,30 @@ export default function UserEdit() {
     if (!userId) return;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      const [profileData, accessData] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single(),
+        supabase
+          .from('user_company_access')
+          .select('role')
+          .eq('user_id', userId)
+          .eq('company_id', currentCompany?.id || '')
+          .eq('is_active', true)
+          .maybeSingle()
+      ]);
 
-      if (error) throw error;
-      setUser(data);
+      if (profileData.error) throw profileData.error;
+      
+      // Use company-specific role if available, otherwise use profile role
+      const companyRole = accessData.data?.role || profileData.data.role;
+      
+      setUser({
+        ...profileData.data,
+        role: companyRole
+      });
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({

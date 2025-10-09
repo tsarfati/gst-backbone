@@ -78,21 +78,22 @@ export default function UserSettings() {
     }
 
     try {
-      // Get users that have access to the current company
+      // Get users that have access to the current company WITH their roles
       const { data: companyUsers, error: companyError } = await supabase
         .from('user_company_access')
-        .select('user_id')
+        .select('user_id, role')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
 
       if (companyError) throw companyError;
 
       const userIds = companyUsers?.map(u => u.user_id) || [];
+      const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
 
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, role, created_at, pin_code, has_global_job_access')
+        .select('id, user_id, first_name, last_name, display_name, created_at, pin_code, has_global_job_access')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
@@ -126,7 +127,7 @@ export default function UserSettings() {
       // Fetch jobs for regular users
       const regularUsersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
         if (user.has_global_job_access) {
-          return { ...user, jobs: [], is_pin_employee: false };
+          return { ...user, role: roleMap.get(user.user_id) || 'employee', jobs: [], is_pin_employee: false };
         }
         
         const { data: userJobs } = await supabase
@@ -135,7 +136,7 @@ export default function UserSettings() {
           .eq('user_id', user.user_id);
         
         const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
-        return { ...user, jobs, is_pin_employee: false };
+        return { ...user, role: roleMap.get(user.user_id) || 'employee', jobs, is_pin_employee: false };
       }));
 
       // Combine regular users and PIN employees
@@ -163,10 +164,12 @@ export default function UserSettings() {
 
   const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin') => {
     try {
+      // Update the role in user_company_access for this specific company
       const { error } = await supabase
-        .from('profiles')
+        .from('user_company_access')
         .update({ role: newRole })
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id);
 
       if (error) throw error;
 

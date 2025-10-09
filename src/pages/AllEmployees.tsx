@@ -69,13 +69,14 @@ export default function AllEmployees() {
       // Get user IDs for this company (includes both regular users and PIN employees)
       const { data: accessData, error: accessError } = await supabase
         .from('user_company_access')
-        .select('user_id')
+        .select('user_id, role')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
 
       if (accessError) throw accessError;
 
       let userIds = (accessData || []).map(a => a.user_id);
+      const roleMap = new Map((accessData || []).map((a: any) => [a.user_id, a.role]));
 
       // Auto-grant logic removed to prevent cross-company leakage of PIN employees
 
@@ -141,7 +142,7 @@ export default function AllEmployees() {
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
           display_name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`,
-          role: profile.role || 'employee',
+          role: roleMap.get(profile.user_id) || 'employee',
           avatar_url: profile.avatar_url || undefined,
           created_at: profile.created_at,
           is_pin_employee: false,

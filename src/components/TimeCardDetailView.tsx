@@ -149,6 +149,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .from('cost_codes')
           .select('code, description, type')
           .eq('id', timeCardData.cost_code_id)
+          .eq('company_id', currentCompany?.id || '')
           .single() : Promise.resolve({ data: null }),
         // Fetch punch records with buffer time to capture actual punch records (include cost_code_id)
         (() => {
@@ -188,6 +189,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             .from('cost_codes')
             .select('code, description, type')
             .eq('id', fallbackCodeId)
+            .eq('company_id', currentCompany?.id || '')
             .maybeSingle();
           if (fallbackCode) {
             resolvedCostCode = fallbackCode;
