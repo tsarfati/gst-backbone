@@ -181,11 +181,18 @@ export default function VisitorLogin() {
 
       const attachStream = async (stream: MediaStream) => {
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          // Ensure iOS Safari inline playback
-          videoRef.current.setAttribute('playsinline', 'true');
+          const video = videoRef.current;
+          video.srcObject = stream;
+          // Ensure iOS Safari inline playback and autoplay
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('autoplay', 'true');
+          video.muted = true;
           streamRef.current = stream;
-          await videoRef.current.play();
+          await new Promise<void>((resolve) => {
+            if (video.readyState >= 2) return resolve();
+            video.onloadedmetadata = () => resolve();
+          });
+          try { await video.play(); } catch (_) { /* ignore */ }
         }
       };
 
@@ -212,7 +219,26 @@ export default function VisitorLogin() {
         return;
       } catch (_) { /* ignore and fallback */ }
 
-      // 3) Generic stream, then pick a front-facing device by label if possible
+      // 3) Try environment (rear) as a fallback
+      try {
+        const stream = await tryGet({
+          video: { facingMode: { exact: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        await attachStream(stream);
+        return;
+      } catch (_) { /* ignore and fallback */ }
+
+      try {
+        const stream = await tryGet({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        await attachStream(stream);
+        return;
+      } catch (_) { /* ignore and fallback */ }
+
+      // 4) Generic stream, then pick a front-facing device by label if possible
       let genericStream: MediaStream | null = null;
       try {
         genericStream = await tryGet({ video: true, audio: false });
@@ -662,7 +688,7 @@ export default function VisitorLogin() {
               autoPlay
               playsInline
               muted
-              className="w-full rounded-lg border-2 border-primary"
+              className="w-full rounded-lg border-2 border-primary aspect-video object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
             <Button
