@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronRight, Building2, Users, MapPin, Clock, Phone, FileText, Settings } from 'lucide-react';
+import { ChevronRight, Building2, Users, MapPin, Clock, Phone, FileText, Settings, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -113,19 +113,21 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
       const userIds = (employeeData || []).map(e => e.user_id);
       let profilesMap: Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }> = {};
 
-      if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name, avatar_url')
-          .in('user_id', userIds);
-
-        if (profilesData) {
-          profilesMap = profilesData.reduce((acc, profile) => {
-            acc[profile.user_id] = profile;
-            return acc;
-          }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
-        }
-      }
+       if (userIds.length > 0) {
+         try {
+           const { data: profRes } = await supabase.functions.invoke('get-employee-profiles', {
+             body: { user_ids: userIds },
+           });
+           if (profRes?.profiles) {
+             profilesMap = (profRes.profiles as any[]).reduce((acc, profile: any) => {
+               acc[profile.user_id] = profile;
+               return acc;
+             }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
+           }
+         } catch (e) {
+           console.error('Profiles fetch failed', e);
+         }
+       }
 
       const employeesList = (employeeData || []).map(emp => {
         const profile = profilesMap[emp.user_id];
@@ -162,19 +164,34 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
     return acc;
   }, {} as Record<string, VisitorOnSite[]>);
 
-  const calculateDuration = (checkInTime: string) => {
-    const start = parseISO(checkInTime);
-    const now = new Date();
-    const minutes = Math.round((now.getTime() - start.getTime()) / (1000 * 60));
-    
-    if (minutes < 60) {
-      return `${minutes}m`;
-    } else {
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      return `${hours}h ${remainingMinutes}m`;
-    }
-  };
+   const calculateDuration = (checkInTime: string) => {
+     const start = parseISO(checkInTime);
+     const now = new Date();
+     const minutes = Math.round((now.getTime() - start.getTime()) / (1000 * 60));
+     
+     if (minutes < 60) {
+       return `${minutes}m`;
+     } else {
+       const hours = Math.floor(minutes / 60);
+       const remainingMinutes = minutes % 60;
+       return `${hours}h ${remainingMinutes}m`;
+     }
+   };
+
+   const handleVisitorCheckOut = async (visitorId: string) => {
+     try {
+       const { error } = await supabase
+         .from('visitor_logs')
+         .update({ check_out_time: new Date().toISOString() })
+         .eq('id', visitorId);
+       if (error) throw error;
+       toast({ title: 'Checked out', description: 'Visitor has been checked out.' });
+       loadOnSiteData();
+     } catch (err) {
+       console.error('Manual checkout failed:', err);
+       toast({ title: 'Checkout failed', description: 'Could not check out visitor.', variant: 'destructive' });
+     }
+   };
 
   if (loading) {
     return (
@@ -395,6 +412,10 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
                             <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                               <Clock className="h-3 w-3" />
                               <span>{calculateDuration(visitor.check_in_time)}</span>
+                              <Button size="sm" variant="outline" onClick={() => handleVisitorCheckOut(visitor.id)}>
+                                <LogOut className="h-4 w-4 mr-1" />
+                                Check Out
+                              </Button>
                             </div>
                           </div>
                         ))}

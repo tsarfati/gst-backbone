@@ -108,35 +108,18 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
       let profilesMap: Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }> = {};
 
       if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name, avatar_url')
-          .in('user_id', userIds);
-
-        if (profilesData) {
-          profilesMap = profilesData.reduce((acc, profile) => {
-            acc[profile.user_id] = profile;
-            return acc;
-          }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
-        }
-
-        // Fallback: try pin_employees for any missing IDs
-        const missingIds = userIds.filter(id => !profilesMap[id]);
-        if (missingIds.length > 0) {
-          const { data: pinProfiles } = await supabase
-            .from('pin_employees')
-            .select('id, first_name, last_name, display_name')
-            .in('id', missingIds);
-          if (pinProfiles) {
-            for (const p of pinProfiles as any[]) {
-              profilesMap[p.id] = {
-                first_name: p.first_name || 'Unknown',
-                last_name: p.last_name || 'Employee',
-                display_name: p.display_name,
-                avatar_url: undefined,
-              } as any;
-            }
+        try {
+          const { data: profRes } = await supabase.functions.invoke('get-employee-profiles', {
+            body: { user_ids: userIds },
+          });
+          if (profRes?.profiles) {
+            profilesMap = (profRes.profiles as any[]).reduce((acc, profile: any) => {
+              acc[profile.user_id] = profile;
+              return acc;
+            }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
           }
+        } catch (e) {
+          console.error('Profiles fetch failed', e);
         }
       }
 
