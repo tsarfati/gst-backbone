@@ -61,6 +61,7 @@ export default function PMVisitorLogs({ companyId }: PMVisitorLogsProps) {
           visitor_name,
           check_in_time,
           check_out_time,
+          job_id,
           jobs:job_id (
             name,
             address,
@@ -68,13 +69,15 @@ export default function PMVisitorLogs({ companyId }: PMVisitorLogsProps) {
           )
         `)
         .gte('check_in_time', today.toISOString())
-        .eq('jobs.company_id', companyId)
         .order('check_in_time', { ascending: false });
 
       if (error) throw error;
 
+      // Filter by company after fetching
+      const companyLogs = logs?.filter((log: any) => log.jobs?.company_id === companyId) || [];
+
       // Group visitors by job
-      const grouped = logs?.reduce((acc, log: any) => {
+      const grouped = companyLogs.reduce((acc, log: any) => {
         const jobName = log.jobs?.name || 'Unknown Location';
         const jobAddress = log.jobs?.address;
         
