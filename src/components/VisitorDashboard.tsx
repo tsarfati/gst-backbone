@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronRight, Building2, Users, MapPin, Clock } from 'lucide-react';
+import { ChevronRight, Building2, Users, MapPin, Clock, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -118,15 +119,36 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
             return acc;
           }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
         }
+
+        // Fallback: try pin_employees for any missing IDs
+        const missingIds = userIds.filter(id => !profilesMap[id]);
+        if (missingIds.length > 0) {
+          const { data: pinProfiles } = await supabase
+            .from('pin_employees')
+            .select('id, first_name, last_name, display_name')
+            .in('id', missingIds);
+          if (pinProfiles) {
+            for (const p of pinProfiles as any[]) {
+              profilesMap[p.id] = {
+                first_name: p.first_name || 'Unknown',
+                last_name: p.last_name || 'Employee',
+                display_name: p.display_name,
+                avatar_url: undefined,
+              } as any;
+            }
+          }
+        }
       }
 
       const employeesList = (employeeData || []).map(emp => {
         const profile = profilesMap[emp.user_id];
+        const first = profile?.first_name || 'Unknown';
+        const last = profile?.last_name || 'Employee';
         return {
           id: emp.id,
-          first_name: profile?.first_name || 'Unknown',
-          last_name: profile?.last_name || 'Employee',
-          display_name: profile?.display_name,
+          first_name: first,
+          last_name: last,
+          display_name: profile?.display_name || `${first} ${last}`,
           avatar_url: profile?.avatar_url,
           check_in_time: emp.punch_in_time
         };
@@ -145,6 +167,21 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
     }
   };
 
+  const handleVisitorCheckOut = async (visitorId: string) => {
+    try {
+      const { error } = await supabase
+        .from('visitor_logs')
+        .update({ check_out_time: new Date().toISOString() })
+        .eq('id', visitorId);
+
+      if (error) throw error;
+      toast({ title: 'Checked out', description: 'Visitor has been checked out.' });
+      loadOnSiteData();
+    } catch (err) {
+      console.error('Manual checkout failed:', err);
+      toast({ title: 'Checkout failed', description: 'Could not check out visitor.', variant: 'destructive' });
+    }
+  };
   // Group visitors by company
   const visitorsByCompany = visitors.reduce((acc, visitor) => {
     const company = visitor.company_name || visitor.subcontractor?.company_name || 'Unknown Company';
@@ -318,9 +355,13 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{calculateDuration(visitor.check_in_time)}</span>
+                        <Button size="sm" variant="outline" onClick={() => handleVisitorCheckOut(visitor.id)}>
+                          <LogOut className="h-4 w-4 mr-1" />
+                          Check Out
+                        </Button>
                       </div>
                     </div>
                   ))}

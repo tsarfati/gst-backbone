@@ -74,6 +74,19 @@ export default function VisitorLogin() {
     }
   }, [qrCode]);
 
+  useEffect(() => {
+    if (settings?.require_photo && !photoDataUrl && !showCamera) {
+      // Auto-open camera when a photo is required
+      startCamera();
+    }
+    return () => {
+      // Ensure camera is stopped when leaving page
+      if (showCamera) {
+        try { stopCamera(); } catch {}
+      }
+    };
+  }, [settings?.require_photo]);
+
   const resolveColor = (value?: string) => {
     if (!value) return undefined;
     const v = value.trim();
