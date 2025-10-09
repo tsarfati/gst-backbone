@@ -57,6 +57,7 @@ export default function VisitorLogin() {
   const [autoSubmitAfterPhoto, setAutoSubmitAfterPhoto] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
+  const [currentVisitorLogId, setCurrentVisitorLogId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -385,6 +386,7 @@ export default function VisitorLogin() {
         }
       }
 
+      setCurrentVisitorLogId(insertedLog.id);
       setShowConfirmation(true);
 
     } catch (error: any) {
@@ -738,19 +740,43 @@ export default function VisitorLogin() {
               You have successfully checked in to {job.name}
             </p>
             <Button
-              onClick={() => {
-                setShowConfirmation(false);
-                // Reset form
-                setFormData({
-                  visitor_name: '',
-                  visitor_phone: '',
-                  company_name: '',
-                  vendor_id: '',
-                  purpose_of_visit: '',
-                  notes: ''
-                });
-                setPhotoDataUrl(null);
-                setShowCustomCompany(false);
+              onClick={async () => {
+                if (!currentVisitorLogId) return;
+                
+                try {
+                  const { error } = await supabase
+                    .from('visitor_logs')
+                    .update({ check_out_time: new Date().toISOString() })
+                    .eq('id', currentVisitorLogId);
+
+                  if (error) throw error;
+
+                  toast({
+                    title: "Checked Out",
+                    description: "You have been successfully checked out. Have a safe trip!",
+                  });
+
+                  setShowConfirmation(false);
+                  // Reset form
+                  setFormData({
+                    visitor_name: '',
+                    visitor_phone: '',
+                    company_name: '',
+                    vendor_id: '',
+                    purpose_of_visit: '',
+                    notes: ''
+                  });
+                  setPhotoDataUrl(null);
+                  setShowCustomCompany(false);
+                  setCurrentVisitorLogId(null);
+                } catch (error) {
+                  console.error('Error checking out:', error);
+                  toast({
+                    title: "Checkout Failed",
+                    description: "Failed to check out. Please try again.",
+                    variant: "destructive",
+                  });
+                }
               }}
               className="w-full"
               style={{ 
@@ -758,7 +784,7 @@ export default function VisitorLogin() {
                 borderColor: resolveColor(settings?.button_color) 
               }}
             >
-              Check In Another Visitor
+              Don't Forget to Sign Out When You Leave
             </Button>
           </div>
         </AlertDialogContent>
