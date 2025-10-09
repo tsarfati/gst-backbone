@@ -469,6 +469,53 @@ export type Database = {
         }
         Relationships: []
       }
+      company_sms_settings: {
+        Row: {
+          account_sid: string | null
+          auth_token: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          phone_number: string | null
+          provider: string
+          sms_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          account_sid?: string | null
+          auth_token?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          phone_number?: string | null
+          provider?: string
+          sms_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          account_sid?: string | null
+          auth_token?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          phone_number?: string | null
+          provider?: string
+          sms_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_sms_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_ui_settings: {
         Row: {
           company_id: string
