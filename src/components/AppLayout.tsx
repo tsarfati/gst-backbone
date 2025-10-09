@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
+import { supabase } from '@/integrations/supabase/client';
 
 const navigationCategories = [
   {
@@ -144,6 +145,28 @@ export function AppSidebar() {
   const { currentCompany } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
+  const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchFallback = async () => {
+      try {
+        if (!profile?.avatar_url && profile?.user_id) {
+          const { data } = await supabase
+            .from('current_punch_status')
+            .select('punch_in_photo_url, punch_in_time')
+            .eq('user_id', profile.user_id)
+            .eq('is_active', true)
+            .order('punch_in_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          setFallbackAvatar(data?.punch_in_photo_url || null);
+        }
+      } catch (e) {
+        console.error('Failed to load fallback avatar:', e);
+      }
+    };
+    fetchFallback();
+  }, [profile?.avatar_url, profile?.user_id]);
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
@@ -360,9 +383,9 @@ export function AppSidebar() {
               onClick={() => navigate('/profile-settings')}
             >
               <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                {profile?.avatar_url ? (
+                {(profile?.avatar_url || fallbackAvatar) ? (
                   <img 
-                    src={profile.avatar_url} 
+                    src={(profile?.avatar_url || fallbackAvatar) as string}
                     alt="Profile" 
                     className="h-full w-full object-cover"
                   />

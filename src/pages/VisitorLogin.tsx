@@ -54,6 +54,7 @@ export default function VisitorLogin() {
   const [showCustomCompany, setShowCustomCompany] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [autoSubmitAfterPhoto, setAutoSubmitAfterPhoto] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -75,17 +76,13 @@ export default function VisitorLogin() {
   }, [qrCode]);
 
   useEffect(() => {
-    if (settings?.require_photo && !photoDataUrl) {
-      // Auto-open camera when a photo is required and no photo has been taken
-      startCamera();
-    }
     return () => {
       // Ensure camera is stopped when leaving page
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [settings, photoDataUrl]);
+  }, []);
 
   const resolveColor = (value?: string) => {
     if (!value) return undefined;
@@ -218,6 +215,11 @@ export default function VisitorLogin() {
         const dataUrl = canvas.toDataURL('image/jpeg');
         setPhotoDataUrl(dataUrl);
         stopCamera();
+        if (autoSubmitAfterPhoto) {
+          setAutoSubmitAfterPhoto(false);
+          // Proceed to submit immediately after capturing the photo
+          performCheckIn(dataUrl);
+        }
       }
     }
   };
@@ -227,49 +229,17 @@ export default function VisitorLogin() {
     startCamera();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!job) return;
-
-    // Validate required fields
-    if (!formData.visitor_name.trim() || !formData.visitor_phone.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter your name and phone number.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (settings?.require_company_name && !formData.company_name.trim() && !formData.vendor_id) {
-      toast({
-        title: "Missing Company",
-        description: "Please select a vendor or enter your company name.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if photo is required
-    if (settings?.require_photo && !photoDataUrl) {
-      toast({
-        title: "Photo Required",
-        description: "Please take a photo before checking in.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const performCheckIn = async (overridePhotoData?: string) => {
     setSubmitting(true);
-
     try {
       let photoUrl: string | null = null;
+      const photoToUse = overridePhotoData ?? photoDataUrl;
 
       // Upload photo if captured
-      if (photoDataUrl) {
-        const blob = await fetch(photoDataUrl).then(r => r.blob());
+      if (photoToUse) {
+        const blob = await fetch(photoToUse).then(r => r.blob());
         const fileName = `visitor-${Date.now()}.jpg`;
-        const filePath = `${job.id}/${fileName}`;
+        const filePath = `${job!.id}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('punch-photos')
@@ -287,7 +257,7 @@ export default function VisitorLogin() {
 
       const selectedSub = formData.vendor_id ? subcontractors.find(s => s.vendor_id === formData.vendor_id) : undefined;
       const visitorLogData = {
-        job_id: job.id,
+        job_id: job!.id,
         visitor_name: formData.visitor_name.trim(),
         visitor_phone: formData.visitor_phone.trim(),
         company_name: selectedSub ? selectedSub.vendor_name : formData.company_name.trim(),
@@ -315,7 +285,8 @@ export default function VisitorLogin() {
             body: {
               visitor_log_id: insertedLog.id,
               phone_number: formData.visitor_phone.trim(),
-              job_id: job.id,
+              job_id: job!.id,
+              base_url: window.location.origin,
             }
           });
         } catch (smsError) {
@@ -342,6 +313,39 @@ export default function VisitorLogin() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!job) return;
+
+    // Validate required fields
+    if (!formData.visitor_name.trim() || !formData.visitor_phone.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your name and phone number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (settings?.require_company_name && !formData.company_name.trim() && !formData.vendor_id) {
+      toast({
+        title: "Missing Company",
+        description: "Please select a vendor or enter your company name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If photo is required and not yet taken, open the camera and auto-submit after capture
+    if (settings?.require_photo && !photoDataUrl) {
+      setAutoSubmitAfterPhoto(true);
+      await startCamera();
+      return;
+    }
+
+    await performCheckIn();
   };
 
   if (loading) {

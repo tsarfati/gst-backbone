@@ -10,6 +10,7 @@ interface SMSRequest {
   visitor_log_id: string;
   phone_number: string;
   job_id: string;
+  base_url?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -23,7 +24,7 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { visitor_log_id, phone_number, job_id }: SMSRequest = await req.json();
+    const { visitor_log_id, phone_number, job_id, base_url }: SMSRequest = await req.json();
 
     console.log("Processing SMS request for visitor:", visitor_log_id);
 
@@ -98,8 +99,9 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate checkout URL using the checkout token
-    const checkoutUrl = `${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '')}.lovableproject.com/visitor/checkout/${visitorLog.checkout_token}`;
+    // Generate checkout URL using provided base URL (from client origin) or request origin
+    const baseUrl = (base_url || req.headers.get('Origin') || '').replace(/\/$/, '');
+    const checkoutUrl = `${baseUrl}/visitor/checkout/${visitorLog.checkout_token}`;
 
     // Format the message with placeholders replaced
     const jobName = job?.name || "the job site";
