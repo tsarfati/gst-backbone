@@ -266,14 +266,13 @@ export default function VisitorLogin() {
         }
       }
 
+      const selectedSub = formData.vendor_id ? subcontractors.find(s => s.vendor_id === formData.vendor_id) : undefined;
       const visitorLogData = {
         job_id: job.id,
         visitor_name: formData.visitor_name.trim(),
         visitor_phone: formData.visitor_phone.trim(),
-        company_name: formData.vendor_id ? 
-          subcontractors.find(s => s.vendor_id === formData.vendor_id)?.vendor_name : 
-          formData.company_name.trim(),
-        subcontractor_id: formData.vendor_id || null,
+        company_name: selectedSub ? selectedSub.vendor_name : formData.company_name.trim(),
+        subcontractor_id: selectedSub ? selectedSub.id : null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
         company_id: (job as any).company_id,
