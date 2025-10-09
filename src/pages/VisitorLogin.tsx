@@ -75,17 +75,17 @@ export default function VisitorLogin() {
   }, [qrCode]);
 
   useEffect(() => {
-    if (settings?.require_photo && !photoDataUrl && !showCamera) {
-      // Auto-open camera when a photo is required
+    if (settings?.require_photo && !photoDataUrl) {
+      // Auto-open camera when a photo is required and no photo has been taken
       startCamera();
     }
     return () => {
       // Ensure camera is stopped when leaving page
-      if (showCamera) {
-        try { stopCamera(); } catch {}
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [settings?.require_photo]);
+  }, [settings, photoDataUrl]);
 
   const resolveColor = (value?: string) => {
     if (!value) return undefined;
@@ -175,18 +175,24 @@ export default function VisitorLogin() {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        await videoRef.current.play();
       }
       setShowCamera(true);
     } catch (error) {
       console.error('Error accessing camera:', error);
       toast({
-        title: "Camera Error",
-        description: "Unable to access camera. Please check permissions.",
+        title: "Camera Access Required",
+        description: "Please allow camera access to take your photo for check-in.",
         variant: "destructive",
       });
     }
@@ -531,69 +537,28 @@ export default function VisitorLogin() {
                 />
               </div>
 
-              {/* Photo Capture */}
-              {settings?.require_photo && (
+              {/* Photo will be captured via modal if required */}
+              {photoDataUrl && (
                 <div className="space-y-2">
                   <Label className={`flex items-center space-x-2 ${textClass}`} style={textStyle}>
                     <Camera className="h-4 w-4" />
-                    <span>Visitor Photo *</span>
+                    <span>Your Photo</span>
                   </Label>
-                  {!photoDataUrl && !showCamera && (
+                  <div className="space-y-2">
+                    <img
+                      src={photoDataUrl}
+                      alt="Visitor"
+                      className="w-full rounded-lg"
+                    />
                     <Button
                       type="button"
-                      onClick={startCamera}
-                      className="w-full"
+                      onClick={retakePhoto}
                       variant="outline"
+                      className="w-full"
                     >
-                      <Camera className="mr-2 h-4 w-4" />
-                      Take Photo
+                      Retake Photo
                     </Button>
-                  )}
-                  {showCamera && (
-                    <div className="space-y-2">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full rounded-lg"
-                      />
-                      <canvas ref={canvasRef} className="hidden" />
-                      <div className="flex space-x-2">
-                        <Button
-                          type="button"
-                          onClick={capturePhoto}
-                          className="flex-1"
-                        >
-                          Capture
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={stopCamera}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {photoDataUrl && (
-                    <div className="space-y-2">
-                      <img
-                        src={photoDataUrl}
-                        alt="Visitor"
-                        className="w-full rounded-lg"
-                      />
-                      <Button
-                        type="button"
-                        onClick={retakePhoto}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        Retake Photo
-                      </Button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -620,6 +585,39 @@ export default function VisitorLogin() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Camera Modal - Auto-opens when photo required */}
+      <AlertDialog open={showCamera} onOpenChange={(open) => !open && stopCamera()}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader className="text-center">
+            <AlertDialogTitle className="text-xl">
+              Take Your Photo
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              Please take a selfie for visitor identification
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col items-center space-y-4">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full rounded-lg border-2 border-primary"
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            <Button
+              type="button"
+              onClick={capturePhoto}
+              className="w-full"
+              size="lg"
+            >
+              <Camera className="mr-2 h-5 w-5" />
+              Capture Photo
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
@@ -649,6 +647,7 @@ export default function VisitorLogin() {
                   purpose_of_visit: '',
                   notes: ''
                 });
+                setPhotoDataUrl(null);
                 setShowCustomCompany(false);
               }}
               className="w-full"
