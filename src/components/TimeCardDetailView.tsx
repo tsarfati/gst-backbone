@@ -129,7 +129,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       if (error) throw error;
 
       // Fetch related data separately - check both profiles and pin_employees
-      const [profileData, pinEmployeeData, jobData, costCodeData, punchData] = await Promise.all([
+      const [profileData, pinEmployeeData, jobData, costCodeData, punchData, roleData] = await Promise.all([
         supabase
           .from('profiles')
           .select('first_name, last_name, display_name')
@@ -149,7 +149,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .from('cost_codes')
           .select('code, description, type')
           .eq('id', timeCardData.cost_code_id)
-          .eq('company_id', currentCompany?.id || '')
           .single() : Promise.resolve({ data: null }),
         // Fetch punch records with buffer time to capture actual punch records (include cost_code_id)
         (() => {
@@ -165,7 +164,14 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             .gte('punch_time', punchInBuffer)
             .lte('punch_time', punchOutBuffer)
             .order('punch_time', { ascending: true });
-        })()
+        })(),
+        // Fetch the user's role for this company
+        supabase
+          .from('user_company_access')
+          .select('role')
+          .eq('user_id', timeCardData.user_id)
+          .eq('company_id', timeCardData.company_id)
+          .single()
       ]);
 
       console.log('Time card data:', timeCardData);
@@ -189,11 +195,16 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             .from('cost_codes')
             .select('code, description, type')
             .eq('id', fallbackCodeId)
-            .eq('company_id', currentCompany?.id || '')
             .maybeSingle();
           if (fallbackCode) {
             resolvedCostCode = fallbackCode;
             resolvedCostCodeId = fallbackCodeId as string;
+            
+            // Update the time card with the backfilled cost code
+            await supabase
+              .from('time_cards')
+              .update({ cost_code_id: fallbackCodeId })
+              .eq('id', timeCardId);
           }
         }
       }
@@ -209,15 +220,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       // Use profile data from either profiles or pin_employees
       const employeeProfile = profileData.data || pinEmployeeData.data;
 
-      // Get company-specific role for the employee
-      const { data: ucaRole } = await supabase
-        .from('user_company_access')
-        .select('role')
-        .eq('user_id', timeCardData.user_id)
-        .eq('company_id', timeCardData.company_id)
-        .eq('is_active', true)
-        .maybeSingle();
-      const employeeRole = ucaRole?.role || 'employee';
+      // Use company-specific role from the parallel fetch
+      const employeeRole = roleData.data?.role || 'employee';
 
       const data = {
         ...timeCardData,
