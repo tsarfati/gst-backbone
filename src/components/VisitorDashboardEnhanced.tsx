@@ -436,6 +436,16 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
           </DialogHeader>
           {selectedVisitor && (
             <div className="space-y-4">
+              {selectedVisitor.visitor_photo_url && (
+                <div className="flex justify-center">
+                  <Avatar className="h-32 w-32">
+                    <AvatarImage src={selectedVisitor.visitor_photo_url} alt={selectedVisitor.visitor_name} />
+                    <AvatarFallback className="text-2xl">
+                      {selectedVisitor.visitor_name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Name</p>
