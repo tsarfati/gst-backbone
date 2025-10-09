@@ -317,7 +317,7 @@ export default function TimeSheets() {
           .from('cost_codes')
           .select('id, code, description')
           .in('id', costCodeIds)
-          .eq('company_id', currentCompany.id) : Promise.resolve({ data: [] })
+          : Promise.resolve({ data: [] })
       ]);
 
       // Create lookup maps
@@ -385,7 +385,6 @@ export default function TimeSheets() {
               .from('cost_codes')
               .select('id, code, description')
               .eq('id', resolvedCostCodeId)
-              .eq('company_id', currentCompany.id)
               .maybeSingle();
             if (ccData) {
               resolvedCost = { code: ccData.code, description: ccData.description };

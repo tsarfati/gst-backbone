@@ -439,7 +439,7 @@ serve(async (req) => {
         console.log(`Punch IN timing=${timing} company=${companyId} job=${job_id} hasCostCode=${Boolean(cost_code_id)}`);
 
         if (timing === 'punch_in' && !cost_code_id) {
-          console.log('No cost_code_id provided at punch in; proceeding without cost code due to timing mismatch');
+          return errorResponse("Missing cost_code_id for punch in", 400);
         }
 
         // Load punch clock settings for this job to check photo requirements and early punch in
@@ -693,19 +693,19 @@ serve(async (req) => {
         const timingOut = jobTimingOut?.cost_code_selection_timing ?? companyTimingOut?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch OUT timing=${timingOut} company=${companyId} job=${currentPunch.job_id} hasCostCodeInBody=${Boolean(cost_code_id)} hasCostCodeCurrent=${Boolean(currentPunch?.cost_code_id)}`);
 
-        // Determine cost code to use for punch out (require when timing is punch_out)
+        // Determine cost code to use for punch out
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
-        if (timingOut === 'punch_out') {
-          // Require cost code at punch out
-          if (!cost_code_id && !currentPunch?.cost_code_id) {
-            return errorResponse("Missing cost_code_id for punch out", 400);
-          }
-          if (cost_code_id) costCodeToUse = cost_code_id;
+        // If a cost code is provided at punch out, prefer it regardless of timing
+        if (cost_code_id) {
+          costCodeToUse = cost_code_id;
+        }
+        // Enforce requirement when timing is punch_out
+        if (timingOut === 'punch_out' && !costCodeToUse) {
+          return errorResponse("Missing cost_code_id for punch out", 400);
         }
 
-        // If cost code was provided at punch out and we're using punch_out timing,
-        // update the punch in record to have this cost code too
-        if (cost_code_id && timingOut === 'punch_out' && !currentPunch?.cost_code_id) {
+        // If cost code was provided and the punch in had none, backfill it on the punch-in record
+        if (cost_code_id && !currentPunch?.cost_code_id) {
           console.log(`Updating punch in record with cost_code_id: ${cost_code_id}`);
           
           // Update the current_punch_status with the cost code
