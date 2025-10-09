@@ -91,12 +91,14 @@ export default function EmployeeTimecardSettings({
       // Find users with active access to this company
       const { data: accessData, error: accessError } = await supabase
         .from('user_company_access')
-        .select('user_id')
+        .select('user_id, role')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
 
       if (accessError) throw accessError;
       const userIds = (accessData || []).map(a => a.user_id);
+      const roleMap = new Map((accessData || []).map((a: any) => [a.user_id, a.role]));
+
       const filterIds = userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'];
 
       // Load both standard profiles and PIN employees who have access
@@ -105,7 +107,6 @@ export default function EmployeeTimecardSettings({
           .from('profiles')
           .select('id, user_id, display_name, first_name, last_name, role')
           .in('user_id', filterIds)
-          .eq('role', 'employee')
           .order('display_name'),
         supabase
           .from('pin_employees')
@@ -124,7 +125,7 @@ export default function EmployeeTimecardSettings({
         display_name: p.display_name,
         first_name: p.first_name,
         last_name: p.last_name,
-        role: p.role || 'employee'
+        role: roleMap.get(p.user_id) || 'employee'
       } as Employee));
 
       const pinEmployees = (pinsRes.data || []).map((pe: any) => ({

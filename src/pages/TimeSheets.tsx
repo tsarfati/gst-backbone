@@ -81,14 +81,15 @@ export default function TimeSheets() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const { profile, user } = useAuth();
-  const { currentCompany } = useCompany();
+  const { currentCompany, userCompanies } = useCompany();
   const navigate = useNavigate();
   
   // Use view preference hook with local storage
   const viewPreference = useTimeSheetsViewPreference('timesheet-view', 'list');
   const currentView = viewPreference.currentView;
 
-  const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
+  const companyRole = userCompanies.find(c => c.company_id === currentCompany?.id)?.role;
+  const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes((companyRole || '') as string);
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -310,11 +311,13 @@ export default function TimeSheets() {
         jobIds.length > 0 ? supabase
           .from('jobs')
           .select('id, name')
-          .in('id', jobIds) : Promise.resolve({ data: [] }),
+          .in('id', jobIds)
+          .eq('company_id', currentCompany.id) : Promise.resolve({ data: [] }),
         costCodeIds.length > 0 ? supabase
           .from('cost_codes')
           .select('id, code, description')
-          .in('id', costCodeIds) : Promise.resolve({ data: [] })
+          .in('id', costCodeIds)
+          .eq('company_id', currentCompany.id) : Promise.resolve({ data: [] })
       ]);
 
       // Create lookup maps
@@ -353,14 +356,15 @@ export default function TimeSheets() {
         const needsOutPhoto = !tc.punch_out_photo_url && tc.punch_out_time;
         const needsInLoc = (!tc.punch_in_location_lat || !tc.punch_in_location_lng);
         const needsOutLoc = tc.punch_out_time && (!tc.punch_out_location_lat || !tc.punch_out_location_lng);
+        const needsCostCode = !tc.cost_code_id;
         
-        if (!needsInPhoto && !needsOutPhoto && !needsInLoc && !needsOutLoc) return tc;
+        if (!needsInPhoto && !needsOutPhoto && !needsInLoc && !needsOutLoc && !needsCostCode) return tc;
 
         const from = new Date(new Date(tc.punch_in_time).getTime() - 60_000).toISOString();
         const to = new Date(new Date(tc.punch_out_time || tc.punch_in_time).getTime() + 60_000).toISOString();
         const { data: punches } = await supabase
           .from('punch_records')
-          .select('punch_type, photo_url, latitude, longitude, punch_time')
+          .select('punch_type, photo_url, latitude, longitude, punch_time, cost_code_id')
           .eq('user_id', tc.user_id)
           .gte('punch_time', from)
           .lte('punch_time', to)
@@ -368,6 +372,26 @@ export default function TimeSheets() {
 
         const punchIn = (punches || []).find(p => p.punch_type === 'punched_in');
         const punchOut = (punches || []).find(p => p.punch_type === 'punched_out');
+
+        let resolvedCostCodeId: string | null = tc.cost_code_id || punchOut?.cost_code_id || punchIn?.cost_code_id || null;
+        let resolvedCost: { code: string; description: string } | null = tc.cost_codes || null;
+        if (resolvedCostCodeId && !resolvedCost) {
+          // try from local map first
+          const cc = costCodesMap.get(resolvedCostCodeId);
+          if (cc) {
+            resolvedCost = { code: cc.code, description: cc.description };
+          } else {
+            const { data: ccData } = await supabase
+              .from('cost_codes')
+              .select('id, code, description')
+              .eq('id', resolvedCostCodeId)
+              .eq('company_id', currentCompany.id)
+              .maybeSingle();
+            if (ccData) {
+              resolvedCost = { code: ccData.code, description: ccData.description };
+            }
+          }
+        }
 
         const updated: TimeCard = {
           ...tc,
@@ -377,14 +401,17 @@ export default function TimeSheets() {
           punch_in_location_lng: tc.punch_in_location_lng ?? (punchIn?.longitude ?? null),
           punch_out_location_lat: tc.punch_out_location_lat ?? (punchOut?.latitude ?? null),
           punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
-        };
+          cost_code_id: resolvedCostCodeId as any,
+          cost_codes: resolvedCost as any,
+        } as any;
 
-        // Persist backfilled fields so photos/maps stay linked next load
+        // Persist backfilled fields so photos/maps/cost codes stay linked next load
         if (
           (needsInPhoto && updated.punch_in_photo_url) ||
           (needsOutPhoto && updated.punch_out_photo_url) ||
           (needsInLoc && (updated.punch_in_location_lat || updated.punch_in_location_lng)) ||
-          (needsOutLoc && (updated.punch_out_location_lat || updated.punch_out_location_lng))
+          (needsOutLoc && (updated.punch_out_location_lat || updated.punch_out_location_lng)) ||
+          (needsCostCode && updated.cost_code_id)
         ) {
           await supabase
             .from('time_cards')
@@ -395,6 +422,7 @@ export default function TimeSheets() {
               punch_in_location_lng: updated.punch_in_location_lng,
               punch_out_location_lat: updated.punch_out_location_lat,
               punch_out_location_lng: updated.punch_out_location_lng,
+              cost_code_id: updated.cost_code_id,
             })
             .eq('id', tc.id);
         }
