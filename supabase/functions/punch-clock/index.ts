@@ -713,11 +713,6 @@ serve(async (req) => {
         // If cost code was provided and the punch in had none, backfill it on the punch-in record
         if (cost_code_id && !currentPunch?.cost_code_id) {
           console.log(`Backfilling punch in record with cost_code_id: ${cost_code_id}`);
-        console.log(`Final costCodeToUse for punch out:`, costCodeToUse);
-
-        // If cost code was provided and the punch in had none, backfill it on the punch-in record
-        if (cost_code_id && !currentPunch?.cost_code_id) {
-          console.log(`Backfilling punch in record with cost_code_id: ${cost_code_id}`);
           
           // Update the current_punch_status with the cost code
           const { error: statusUpdateErr } = await supabaseAdmin
