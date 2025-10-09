@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Bell, Mail, Eye, Edit } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Bell, Mail, Eye, Edit, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import CompanySmsSettings from "@/components/CompanySmsSettings";
 
 interface NotificationSettings {
   id?: string;
@@ -164,161 +166,193 @@ export default function NotificationSettings() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications & Email Templates</h1>
+          <h1 className="text-2xl font-bold text-foreground">Notifications & Email Settings</h1>
           <p className="text-muted-foreground">
-            Configure your notification preferences and manage email templates
+            Configure notification preferences, email templates, and messaging settings
           </p>
         </div>
       </div>
 
-      {/* Notification Preferences */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notification Preferences
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* General Settings */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">General</h3>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="email-enabled">Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-              </div>
-              <Switch
-                id="email-enabled"
-                checked={settings.email_enabled}
-                onCheckedChange={(checked) => updateSetting("email_enabled", checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="in-app-enabled">In-App Notifications</Label>
-                <p className="text-sm text-muted-foreground">Show notifications in the application</p>
-              </div>
-              <Switch
-                id="in-app-enabled"
-                checked={settings.in_app_enabled}
-                onCheckedChange={(checked) => updateSetting("in_app_enabled", checked)}
-              />
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Specific Notifications */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Notification Types</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="overdue-bills">Overdue Bills</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
-                </div>
-                <Switch
-                  id="overdue-bills"
-                  checked={settings.overdue_bills}
-                  onCheckedChange={(checked) => updateSetting("overdue_bills", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="bills-paid">Bill Payments</Label>
-                  <p className="text-sm text-muted-foreground">Get notified when bills are paid</p>
-                </div>
-                <Switch
-                  id="bills-paid"
-                  checked={settings.bills_paid}
-                  onCheckedChange={(checked) => updateSetting("bills_paid", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="vendor-invitations">Vendor Invitations</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about vendor invitations</p>
-                </div>
-                <Switch
-                  id="vendor-invitations"
-                  checked={settings.vendor_invitations}
-                  onCheckedChange={(checked) => updateSetting("vendor_invitations", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="job-assignments">Job Assignments</Label>
-                  <p className="text-sm text-muted-foreground">Get notified about new job assignments</p>
-                </div>
-                <Switch
-                  id="job-assignments"
-                  checked={settings.job_assignments}
-                  onCheckedChange={(checked) => updateSetting("job_assignments", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="receipt-uploaded">Receipt Uploads</Label>
-                  <p className="text-sm text-muted-foreground">Get notified when receipts are uploaded</p>
-                </div>
-                <Switch
-                  id="receipt-uploaded"
-                  checked={settings.receipt_uploaded}
-                  onCheckedChange={(checked) => updateSetting("receipt_uploaded", checked)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button onClick={saveSettings}>
-              Save Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Email Templates */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
+      <Tabs defaultValue="notifications" className="space-y-6">
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger 
+            value="notifications" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+          >
+            <Bell className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger 
+            value="email-templates" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+          >
+            <Mail className="h-4 w-4" />
             Email Templates
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {templates.map((template) => (
-              <div key={template.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-medium">{template.name}</h4>
-                  <p className="text-sm text-muted-foreground">{template.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Subject: {template.subject}</p>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="text-messaging" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Text Messaging
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notification Preferences
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* General Settings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">General</h3>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="email-enabled">Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+                  </div>
+                  <Switch
+                    id="email-enabled"
+                    checked={settings.email_enabled}
+                    onCheckedChange={(checked) => updateSetting("email_enabled", checked)}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/settings/email-templates/${template.id}/preview`)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/settings/email-templates/${template.id}/edit`)}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="in-app-enabled">In-App Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Show notifications in the application</p>
+                  </div>
+                  <Switch
+                    id="in-app-enabled"
+                    checked={settings.in_app_enabled}
+                    onCheckedChange={(checked) => updateSetting("in_app_enabled", checked)}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
+              <Separator />
+
+              {/* Specific Notifications */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Notification Types</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="overdue-bills">Overdue Bills</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                    </div>
+                    <Switch
+                      id="overdue-bills"
+                      checked={settings.overdue_bills}
+                      onCheckedChange={(checked) => updateSetting("overdue_bills", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="bills-paid">Bill Payments</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when bills are paid</p>
+                    </div>
+                    <Switch
+                      id="bills-paid"
+                      checked={settings.bills_paid}
+                      onCheckedChange={(checked) => updateSetting("bills_paid", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="vendor-invitations">Vendor Invitations</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about vendor invitations</p>
+                    </div>
+                    <Switch
+                      id="vendor-invitations"
+                      checked={settings.vendor_invitations}
+                      onCheckedChange={(checked) => updateSetting("vendor_invitations", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="job-assignments">Job Assignments</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about new job assignments</p>
+                    </div>
+                    <Switch
+                      id="job-assignments"
+                      checked={settings.job_assignments}
+                      onCheckedChange={(checked) => updateSetting("job_assignments", checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="receipt-uploaded">Receipt Uploads</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when receipts are uploaded</p>
+                    </div>
+                    <Switch
+                      id="receipt-uploaded"
+                      checked={settings.receipt_uploaded}
+                      onCheckedChange={(checked) => updateSetting("receipt_uploaded", checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={saveSettings}>
+                  Save Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email-templates">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Email Templates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {templates.map((template) => (
+                  <div key={template.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium">{template.name}</h4>
+                      <p className="text-sm text-muted-foreground">{template.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Subject: {template.subject}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/settings/email-templates/${template.id}/preview`)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/settings/email-templates/${template.id}/edit`)}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="text-messaging">
+          <CompanySmsSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

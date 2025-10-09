@@ -12,8 +12,7 @@ import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette, Smartphone, MessageSquare } from 'lucide-react';
-import CompanySmsSettings from '@/components/CompanySmsSettings';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
 import ThemeSettings from '@/pages/ThemeSettings';
 import PunchClockSettings from '@/pages/PunchClockSettings';
 
@@ -97,13 +96,6 @@ export default function CompanySettingsPage() {
             >
               <DollarSign className="h-4 w-4" />
               Banking Settings
-            </TabsTrigger>
-            <TabsTrigger 
-              value="sms" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Text Messaging
             </TabsTrigger>
           </TabsList>
 
@@ -207,10 +199,6 @@ export default function CompanySettingsPage() {
                 </CardContent>
                </Card>
             </div>
-          </TabsContent>
-
-          <TabsContent value="sms">
-            <CompanySmsSettings />
           </TabsContent>
         </Tabs>
       </div>
