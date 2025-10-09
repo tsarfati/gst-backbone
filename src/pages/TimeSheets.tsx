@@ -1163,70 +1163,38 @@ export default function TimeSheets() {
                            )}
                          </div>
                        </div>
-                     )}
+                      )}
 
-                      <div className="flex gap-3">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="rounded-lg"
-                           onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View Details
-                        </Button>
-                        {(isManager || timeCard.user_id === user?.id) && (
+                      {/* Approval buttons for managers */}
+                      {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
+                        <div className="flex gap-3 pt-2">
                           <Button 
-                            variant="outline" 
                             size="sm" 
+                            onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, true); }}
                             className="rounded-lg"
-                             onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
                           >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
+                            Approve
                           </Button>
-                        )}
-                        {isManager && (
                           <Button 
-                            variant="outline" 
                             size="sm" 
-                            className="rounded-lg text-red-600 hover:text-red-700"
-                             onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
+                            variant="destructive"
+                            onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, false); }}
+                            className="rounded-lg"
                           >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete
+                            Reject
                           </Button>
-                        )}
-                       {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
-                         <>
-                           <Button 
-                             size="sm" 
-                             onClick={() => handleApproval(timeCard.id, true)}
-                             className="rounded-lg"
-                           >
-                             Approve
-                           </Button>
-                           <Button 
-                             size="sm" 
-                             variant="destructive"
-                             onClick={() => handleApproval(timeCard.id, false)}
-                             className="rounded-lg"
-                           >
-                             Reject
-                           </Button>
-                         </>
-                       )}
-                       <Button variant="outline" size="sm" className="rounded-lg">
-                         <Download className="h-4 w-4 mr-1" />
-                         PDF
-                       </Button>
-                     </div>
-                  </div>
-                ))}
+                        </div>
+                      )}
+                   </div>
+                 ))}
 
                 {/* Compact View */}
                 {currentView === 'compact' && timeCards.map((timeCard) => (
-                  <div key={timeCard.id} className="border rounded-lg p-4 hover-card">
+                  <div 
+                    key={timeCard.id} 
+                    className="border rounded-lg p-4 hover-card cursor-pointer"
+                    onClick={() => handleViewDetails(timeCard.id)}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         {isManager && (
@@ -1258,34 +1226,6 @@ export default function TimeSheets() {
                             <div className="text-xs text-warning">+{timeCard.overtime_hours.toFixed(1)} OT</div>
                           )}
                         </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                             onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {(isManager || timeCard.user_id === user?.id) && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                               onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {isManager && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                               onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -1295,7 +1235,11 @@ export default function TimeSheets() {
                 {currentView === 'super-compact' && (
                   <div className="space-y-1">
                     {timeCards.map((timeCard) => (
-                      <div key={timeCard.id} className="flex items-center justify-between p-2 hover:bg-muted/50 rounded">
+                      <div 
+                        key={timeCard.id} 
+                        className="flex items-center justify-between p-2 hover:bg-muted/50 rounded cursor-pointer"
+                        onClick={() => handleViewDetails(timeCard.id)}
+                      >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           {isManager && (
                             <div className="min-w-0 w-32">
@@ -1314,36 +1258,6 @@ export default function TimeSheets() {
                            <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
                              {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                            </Badge>
-                        </div>
-                        <div className="flex gap-1 ml-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                             onClick={(e) => { e.stopPropagation(); handleViewDetails(timeCard.id); }}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          {(isManager || timeCard.user_id === user?.id) && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => { e.stopPropagation(); handleEditTimeCard(timeCard.id); }}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {isManager && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTimeCardId(timeCard.id); }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
                         </div>
                       </div>
                     ))}

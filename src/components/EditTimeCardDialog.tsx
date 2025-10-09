@@ -7,11 +7,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Clock, Save, X, AlertTriangle } from 'lucide-react';
+import { Clock, Save, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface TimeCardData {
   id: string;
@@ -44,6 +45,8 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [timeCard, setTimeCard] = useState<TimeCardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   // Form fields
   const [punchInTime, setPunchInTime] = useState('');
@@ -228,6 +231,39 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!timeCardId) return;
+
+    try {
+      setDeleting(true);
+      
+      const { error } = await supabase
+        .from('time_cards')
+        .update({ status: 'deleted' })
+        .eq('id', timeCardId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Time card deleted successfully.',
+      });
+
+      setShowDeleteDialog(false);
+      onSave();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting time card:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete time card.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -417,17 +453,50 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            <X className="h-4 w-4 mr-2" />
-            Cancel
+        <div className="flex justify-between gap-2 pt-4 border-t">
+          <Button 
+            variant="destructive" 
+            onClick={() => setShowDeleteDialog(true)} 
+            disabled={saving || deleting}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Time Card
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || deleting}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Time Card</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this time card? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
