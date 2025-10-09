@@ -27,10 +27,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Processing SMS request for visitor:", visitor_log_id);
 
-    // Get visitor log details including checkout token and company_id
+    // Get visitor log details (no embedded selects to avoid FK dependency)
     const { data: visitorLog, error: logError } = await supabase
       .from("visitor_logs")
-      .select("*, jobs(name, company_id)")
+      .select("id, job_id, checkout_token")
       .eq("id", visitor_log_id)
       .single();
 
@@ -39,7 +39,18 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to fetch visitor log");
     }
 
-    const companyId = visitorLog.jobs?.company_id;
+    // Fetch job for name and company
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .select("id, name, company_id")
+      .eq("id", visitorLog.job_id)
+      .maybeSingle();
+
+    if (jobError) {
+      console.error("Error fetching job:", jobError);
+    }
+
+    const companyId = job?.company_id;
     if (!companyId) {
       throw new Error("Company ID not found for job");
     }
@@ -91,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
     const checkoutUrl = `${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '')}.lovableproject.com/visitor/checkout/${visitorLog.checkout_token}`;
 
     // Format the message with placeholders replaced
-    const jobName = visitorLog.jobs?.name || "the job site";
+    const jobName = job?.name || "the job site";
     const dateTime = new Date().toLocaleString();
     
     let message = autoLogoutSettings.sms_message_template || 
