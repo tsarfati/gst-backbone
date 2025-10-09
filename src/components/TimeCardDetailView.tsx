@@ -209,9 +209,19 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       // Use profile data from either profiles or pin_employees
       const employeeProfile = profileData.data || pinEmployeeData.data;
 
+      // Get company-specific role for the employee
+      const { data: ucaRole } = await supabase
+        .from('user_company_access')
+        .select('role')
+        .eq('user_id', timeCardData.user_id)
+        .eq('company_id', timeCardData.company_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      const employeeRole = ucaRole?.role || 'employee';
+
       const data = {
         ...timeCardData,
-        profiles: employeeProfile,
+        profiles: { ...(employeeProfile || {}), role: employeeRole },
         jobs: jobData.data,
         cost_codes: resolvedCostCode,
         cost_code_id: resolvedCostCodeId,
@@ -223,6 +233,14 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         punch_in_photo_url: normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
         punch_out_photo_url: normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
       };
+
+      // Persist backfilled cost code if we resolved it and it was missing
+      if (!timeCardData.cost_code_id && resolvedCostCodeId) {
+        await supabase
+          .from('time_cards')
+          .update({ cost_code_id: resolvedCostCodeId })
+          .eq('id', timeCardId);
+      }
 
       console.log('Final time card data:', data);
       setTimeCard(data as any);
@@ -677,10 +695,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       </div>
                     )}
                     
-                    {profile?.role && (
+                    {employeeProfile?.role && (
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Role:</span>
-                        <span className="text-sm font-medium capitalize">{profile.role}</span>
+                        <span className="text-sm font-medium capitalize">{employeeProfile.role}</span>
                       </div>
                     )}
 
