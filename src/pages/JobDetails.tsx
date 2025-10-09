@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ import JobCostBudgetView from "@/components/JobCostBudgetView";
 import JobDeliveryTicketsView from "@/components/JobDeliveryTicketsView";
 import JobVisitorLogsView from "@/components/JobVisitorLogsView";
 import JobForecastingView from "@/components/JobForecastingView";
+import JobPhotoAlbum from "@/components/JobPhotoAlbum";
 
 
 interface Job {
@@ -205,6 +206,13 @@ export default function JobDetails() {
               <Users className="h-4 w-4 mr-2" />
               Visitor Logs
             </TabsTrigger>
+            <TabsTrigger 
+              value="photo-album"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Photo Album
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="details" className="p-6">
@@ -306,6 +314,10 @@ export default function JobDetails() {
 
           <TabsContent value="visitor-logs" className="p-6">
             <JobVisitorLogsView />
+          </TabsContent>
+
+          <TabsContent value="photo-album" className="p-6">
+            <JobPhotoAlbum jobId={id!} />
           </TabsContent>
         </Tabs>
       </Card>

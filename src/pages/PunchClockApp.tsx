@@ -11,6 +11,7 @@ import { Clock, Camera, MapPin, User, Building, CheckCircle, AlertCircle, LogOut
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import PunchClockPhotoUpload from '@/components/PunchClockPhotoUpload';
 // transformers will be dynamically imported when needed
 
 interface Job {
@@ -1436,6 +1437,16 @@ Este trabajo requiere seguimiento de ubicación. Para habilitar, vaya a la confi
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Job Photo Upload when punched in */}
+              {currentPunch?.job_id && user && (
+                <div className="pt-4 border-t">
+                  <PunchClockPhotoUpload 
+                    jobId={currentPunch.job_id} 
+                    userId={isPinAuthenticated ? (user as any).user_id : (user as any).id}
+                  />
                 </div>
               )}
             </CardContent>

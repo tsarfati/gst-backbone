@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { PushNotificationService } from '@/utils/pushNotifications';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
+import PMVisitorLogs from '@/components/PMVisitorLogs';
 
 function PMobileApp() {
   const { user, profile, signOut } = usePunchClockAuth();
@@ -23,6 +24,7 @@ function PMobileApp() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [receiptCount, setReceiptCount] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
+  const companyId = (profile as any)?.current_company_id;
 
   // Load dynamic manifest for PWA icons
   useDynamicManifest();
@@ -267,6 +269,9 @@ function PMobileApp() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Visitor Logs */}
+        {companyId && <PMVisitorLogs companyId={companyId} />}
 
         {/* Quick Access */}
         <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">

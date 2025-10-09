@@ -1433,6 +1433,51 @@ export type Database = {
           },
         ]
       }
+      job_photos: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          note: string | null
+          photo_url: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          note?: string | null
+          photo_url: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          note?: string | null
+          photo_url?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_photos_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_photos_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_punch_clock_settings: {
         Row: {
           allow_early_punch_in: boolean | null
