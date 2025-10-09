@@ -477,47 +477,81 @@ function PunchClockApp() {
             lng: position.coords.longitude
           });
         },
-        (error) => {
-          console.error('Error getting location:', error);
-          // Only show error toast if explicitly requested (e.g., during punch in/out)
-          if (showError) {
-            let errorMessage = 'Could not get your location. ';
-            
-            switch(error.code) {
-              case error.PERMISSION_DENIED:
-                errorMessage += 'Please allow location access in your browser settings.';
-                break;
-              case error.POSITION_UNAVAILABLE:
-                errorMessage += 'Location information is unavailable.';
-                break;
-              case error.TIMEOUT:
-                errorMessage += 'Location request timed out. Please try again.';
-                break;
-              default:
-                errorMessage += 'Please enable location services.';
-            }
-            
-            toast({
-              title: 'Location Error',
-              description: errorMessage,
-              variant: 'destructive'
-            });
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    } else if (showError) {
-      toast({
-        title: 'Location Not Supported',
-        description: 'Your browser does not support location services.',
-        variant: 'destructive'
-      });
-    }
-  };
+         (error) => {
+           console.error('Error getting location:', error);
+           // Only show error toast if explicitly requested (e.g., during punch in/out)
+           if (showError) {
+             let errorMessage = 'Could not get your location. ';
+             let instructions = '';
+             
+             switch(error.code) {
+               case error.PERMISSION_DENIED:
+                 errorMessage = 'Location Access Denied / Acceso a Ubicación Denegado';
+                 instructions = `To enable location access:
+
+iPhone/iPad:
+1. Open Settings app
+2. Tap Safari
+3. Tap Location
+4. Select "Allow"
+
+Android Chrome:
+1. Open Chrome Settings
+2. Tap Site Settings
+3. Tap Location
+4. Find this site and select "Allow"
+
+Desktop Chrome:
+1. Click the lock icon (🔒) in the address bar
+2. Click "Site Settings"
+3. Find Location and select "Allow"
+
+Desktop Safari:
+1. Safari menu > Settings for This Website
+2. Find Location and select "Allow"
+
+Then refresh this page.
+
+Para habilitar el acceso a la ubicación, vaya a la configuración de su navegador/dispositivo y permita el acceso a la ubicación para este sitio.`;
+                 break;
+               case error.POSITION_UNAVAILABLE:
+                 errorMessage += 'Location information is unavailable.';
+                 instructions = 'Please make sure location services are enabled on your device and try again.';
+                 break;
+               case error.TIMEOUT:
+                 errorMessage += 'Location request timed out.';
+                 instructions = 'Please try again. If the problem persists, check your internet connection.';
+                 break;
+               default:
+                 errorMessage += 'Please enable location services.';
+                 instructions = 'Make sure location services are enabled on your device and this website has permission to access your location.';
+             }
+             
+             toast({
+               title: errorMessage,
+               description: instructions,
+               variant: 'destructive',
+               duration: error.code === error.PERMISSION_DENIED ? 15000 : 5000
+             });
+           }
+         },
+         {
+           enableHighAccuracy: true,
+           timeout: 10000,
+           maximumAge: 300000
+         }
+       );
+     } else {
+       if (showError) {
+         toast({
+           title: 'Location Not Supported / Ubicación No Soportada',
+           description: 'Your browser does not support location services. Please use a modern browser like Chrome, Safari, or Firefox. / Su navegador no admite servicios de ubicación. Utilice un navegador moderno como Chrome, Safari o Firefox.',
+           variant: 'destructive',
+           duration: 10000
+         });
+       }
+     }
+   };
 
   const startCamera = async () => {
     console.log('startCamera called - checking conditions');
@@ -972,9 +1006,19 @@ function PunchClockApp() {
         // Validate location requirement for punch in
         if (action === 'in' && punchSettings.require_location && !location) {
           toast({
-            title: 'Location Required',
-            description: 'Please enable location access to punch in. This job requires location tracking.',
-            variant: 'destructive'
+            title: 'Location Required / Ubicación Requerida',
+            description: `This job requires location tracking. To enable:
+
+iPhone/iPad: Settings > Safari > Location > Allow
+Android Chrome: Settings > Site Settings > Location > Allow
+Desktop Chrome: Click the lock icon (🔒) in address bar > Site Settings > Location > Allow
+Desktop Safari: Safari menu > Settings for This Website > Location > Allow
+
+Then refresh this page and try again.
+
+Este trabajo requiere seguimiento de ubicación. Para habilitar, vaya a la configuración de su navegador y permita el acceso a la ubicación para este sitio.`,
+            variant: 'destructive',
+            duration: 10000
           });
           setIsLoading(false);
           setIsPunching(false);
