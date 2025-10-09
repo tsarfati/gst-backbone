@@ -171,27 +171,82 @@ export default function VisitorLogin() {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        await videoRef.current.play();
+      // Stop any existing stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       }
+
       setShowCamera(true);
+
+      const attachStream = async (stream: MediaStream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Ensure iOS Safari inline playback
+          videoRef.current.setAttribute('playsinline', 'true');
+          streamRef.current = stream;
+          await videoRef.current.play();
+        }
+      };
+
+      const tryGet = (constraints: MediaStreamConstraints) =>
+        navigator.mediaDevices.getUserMedia(constraints);
+
+      // 1) Try to force front camera
+      try {
+        const stream = await tryGet({
+          video: { facingMode: { exact: 'user' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        await attachStream(stream);
+        return;
+      } catch (_) { /* ignore and fallback */ }
+
+      // 2) Prefer front camera (not exact)
+      try {
+        const stream = await tryGet({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        await attachStream(stream);
+        return;
+      } catch (_) { /* ignore and fallback */ }
+
+      // 3) Generic stream, then pick a front-facing device by label if possible
+      let genericStream: MediaStream | null = null;
+      try {
+        genericStream = await tryGet({ video: true, audio: false });
+        await attachStream(genericStream);
+      } catch (e) {
+        throw e;
+      }
+
+      // Now enumerate devices to find a front-facing camera
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      const frontDevice =
+        videoInputs.find((d) => /front|user|face/i.test(d.label)) || videoInputs[0];
+
+      if (frontDevice?.deviceId) {
+        // Replace stream with selected device
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop());
+        }
+        const stream = await tryGet({
+          video: { deviceId: { exact: frontDevice.deviceId } },
+          audio: false,
+        });
+        await attachStream(stream);
+      }
     } catch (error) {
       console.error('Error accessing camera:', error);
       toast({
-        title: "Camera Access Required",
-        description: "Please allow camera access to take your photo for check-in.",
-        variant: "destructive",
+        title: 'Camera Access Required',
+        description:
+          'We could not access the camera. Please allow camera permissions, then try again. If inside an embedded view, open this page in a new tab.',
+        variant: 'destructive',
       });
+      setShowCamera(false);
     }
   };
 
