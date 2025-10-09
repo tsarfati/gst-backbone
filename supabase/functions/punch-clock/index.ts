@@ -692,38 +692,63 @@ serve(async (req) => {
 
         const timingOut = jobTimingOut?.cost_code_selection_timing ?? companyTimingOut?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch OUT timing=${timingOut} company=${companyId} job=${currentPunch.job_id} hasCostCodeInBody=${Boolean(cost_code_id)} hasCostCodeCurrent=${Boolean(currentPunch?.cost_code_id)}`);
+        console.log(`Received cost_code_id from client:`, cost_code_id);
+        console.log(`Current punch cost_code_id:`, currentPunch?.cost_code_id);
 
         // Determine cost code to use for punch out
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
         // If a cost code is provided at punch out, prefer it regardless of timing
         if (cost_code_id) {
           costCodeToUse = cost_code_id;
+          console.log(`Using cost code from client:`, costCodeToUse);
         }
         // Enforce requirement when timing is punch_out
         if (timingOut === 'punch_out' && !costCodeToUse) {
+          console.log(`ERROR: Cost code required but not provided for punch out`);
           return errorResponse("Missing cost_code_id for punch out", 400);
         }
 
+        console.log(`Final costCodeToUse for punch out:`, costCodeToUse);
+
         // If cost code was provided and the punch in had none, backfill it on the punch-in record
         if (cost_code_id && !currentPunch?.cost_code_id) {
-          console.log(`Updating punch in record with cost_code_id: ${cost_code_id}`);
+          console.log(`Backfilling punch in record with cost_code_id: ${cost_code_id}`);
+        console.log(`Final costCodeToUse for punch out:`, costCodeToUse);
+
+        // If cost code was provided and the punch in had none, backfill it on the punch-in record
+        if (cost_code_id && !currentPunch?.cost_code_id) {
+          console.log(`Backfilling punch in record with cost_code_id: ${cost_code_id}`);
           
           // Update the current_punch_status with the cost code
-          await supabaseAdmin
+          const { error: statusUpdateErr } = await supabaseAdmin
             .from('current_punch_status')
             .update({ cost_code_id: cost_code_id })
             .eq('user_id', userRow.user_id)
             .eq('is_active', true);
           
+          if (statusUpdateErr) {
+            console.error('Error updating current_punch_status:', statusUpdateErr);
+          } else {
+            console.log('Successfully updated current_punch_status with cost code');
+          }
+          
           // Also update the punch in record in punch_records
-          await supabaseAdmin
+          const punchInUpdateStart = new Date(new Date(currentPunch.punch_in_time).getTime() - 60000).toISOString();
+          const punchInUpdateEnd = new Date(new Date(currentPunch.punch_in_time).getTime() + 60000).toISOString();
+          const { error: punchUpdateErr } = await supabaseAdmin
             .from('punch_records')
             .update({ cost_code_id: cost_code_id })
             .eq('user_id', userRow.user_id)
             .eq('job_id', currentPunch.job_id)
             .eq('punch_type', 'punched_in')
-            .gte('punch_time', new Date(new Date(currentPunch.punch_in_time).getTime() - 60000).toISOString())
-            .lte('punch_time', new Date(new Date(currentPunch.punch_in_time).getTime() + 60000).toISOString());
+            .gte('punch_time', punchInUpdateStart)
+            .lte('punch_time', punchInUpdateEnd);
+          
+          if (punchUpdateErr) {
+            console.error('Error updating punch_in record:', punchUpdateErr);
+          } else {
+            console.log('Successfully updated punch_in record with cost code');
+          }
         }
 
         // Check photo requirement for punch out
@@ -745,6 +770,8 @@ serve(async (req) => {
                          req.headers.get('cf-connecting-ip') || 
                          null;
 
+        console.log(`Creating punch_out record with cost_code_id:`, costCodeToUse);
+        
         // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
@@ -765,7 +792,7 @@ serve(async (req) => {
           return errorResponse(punchErr.message, 500);
         }
 
-        console.log(`Punch out record created for user ${userRow.user_id}`);
+        console.log(`Punch out record created successfully with cost_code_id: ${costCodeToUse}`);
 
         // Update current status to inactive
         const { error: statusErr } = await supabaseAdmin
@@ -789,6 +816,8 @@ serve(async (req) => {
           const breakMinutes = totalHours > 6 ? 30 : 0; // auto 30-min break if over 6 hours
           totalHours = totalHours - breakMinutes / 60;
           const overtimeHours = Math.max(0, totalHours - 8);
+
+          console.log(`Creating time card with cost_code_id: ${costCodeToUse}`);
 
           const { error: tcErr } = await supabaseAdmin
             .from('time_cards')
@@ -817,6 +846,8 @@ serve(async (req) => {
 
           if (tcErr) {
             console.error('Error creating time card:', tcErr);
+          } else {
+            console.log('Time card created successfully with cost_code_id:', costCodeToUse);
           }
         } catch (tcCatchErr) {
           console.error('Exception while creating time card:', tcCatchErr);

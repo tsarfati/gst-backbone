@@ -196,7 +196,7 @@ function PunchClockApp() {
 
       const { data, error } = await supabase
         .from('job_punch_clock_settings')
-        .select('manual_photo_capture, cost_code_selection_timing')
+        .select('manual_photo_capture, cost_code_selection_timing, require_location')
         .eq('company_id', companyId)
         .is('job_id', null)
         .maybeSingle();
@@ -211,14 +211,19 @@ function PunchClockApp() {
       if (data) {
         const newSettings = {
           manual_photo_capture: data.manual_photo_capture !== false,
-          cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_out'
+          cost_code_selection_timing: (data as any).cost_code_selection_timing || 'punch_out',
+          require_location: (data as any).require_location !== false
         };
         console.log('Setting punch settings to:', newSettings);
         setPunchSettings(newSettings);
         setPunchSettingsLoaded(true);
       } else {
         console.log('No punch settings found, defaulting to punch_out');
-        setPunchSettings((prev: any) => ({ ...prev, cost_code_selection_timing: 'punch_out' }));
+        setPunchSettings((prev: any) => ({ 
+          ...prev, 
+          cost_code_selection_timing: 'punch_out',
+          require_location: true
+        }));
         setPunchSettingsLoaded(true);
       }
     } catch (error) {
@@ -951,6 +956,18 @@ function PunchClockApp() {
           setIsPunching(false);
           return;
         }
+
+        // Validate location requirement for punch in
+        if (punchSettingsLoaded && action === 'in' && punchSettings.require_location && !location) {
+          toast({
+            title: 'Location Required',
+            description: 'Please enable location access to punch in. This job requires location tracking.',
+            variant: 'destructive'
+          });
+          setIsLoading(false);
+          setIsPunching(false);
+          return;
+        }
         
         // Only validate cost code if settings have loaded
         if (punchSettingsLoaded && action === 'in' && punchSettings.cost_code_selection_timing === 'punch_in' && !selectedCostCode) {
@@ -1009,11 +1026,7 @@ function PunchClockApp() {
             pin,
             action,
             job_id: action === 'in' ? selectedJob : undefined,
-            cost_code_id: punchSettingsLoaded 
-              ? (punchSettings.cost_code_selection_timing === 'punch_in' 
-                  ? (action === 'in' ? selectedCostCode : undefined)
-                  : (action === 'out' ? selectedCostCode : undefined))
-              : undefined,
+            cost_code_id: action === 'out' ? selectedCostCode : (action === 'in' && punchSettingsLoaded && punchSettings.cost_code_selection_timing === 'punch_in' ? selectedCostCode : undefined),
             latitude: location?.lat,
             longitude: location?.lng,
             photo_url: photoUrl,

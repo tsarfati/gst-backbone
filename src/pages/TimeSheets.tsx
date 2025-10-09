@@ -222,20 +222,9 @@ export default function TimeSheets() {
   };
 
   const maybeBackfillCostCodes = async () => {
-    try {
-      if (!isManager || !currentCompany?.id) return;
-      const key = `cc_backfill_ran_${currentCompany.id}_${new Date().toISOString().slice(0,10)}`;
-      if (localStorage.getItem(key)) return;
-      const { data, error } = await supabase.functions.invoke('backfill-timecard-costcodes', {
-        body: { company_id: currentCompany.id, days: 60 }
-      });
-      if (!error && data && data.updated_time_cards > 0) {
-        toast({ title: 'Backfilled cost codes', description: `${data.updated_time_cards} time cards updated` });
-      }
-      localStorage.setItem(key, '1');
-    } catch (e) {
-      // ignore
-    }
+    // Backfill disabled - historical punch records don't have cost codes
+    // Future punches will have cost codes saved correctly
+    return;
   };
 
   const loadTimeCards = async () => {
