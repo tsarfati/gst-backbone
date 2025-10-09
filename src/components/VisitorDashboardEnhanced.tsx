@@ -18,6 +18,7 @@ interface VisitorOnSite {
   check_in_time: string;
   purpose_of_visit?: string;
   notes?: string;
+  visitor_photo_url?: string | null;
   subcontractor?: {
     company_name: string;
   };
@@ -373,22 +374,30 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="space-y-2">
-                      {companyVisitors.map((visitor) => (
-                        <div 
-                          key={visitor.id}
-                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                          onClick={() => setSelectedVisitor(visitor)}
-                        >
-                          <div>
-                            <p className="font-medium">{visitor.visitor_name}</p>
-                            <p className="text-xs text-muted-foreground">{visitor.visitor_phone}</p>
+                        {companyVisitors.map((visitor) => (
+                          <div 
+                            key={visitor.id}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                            onClick={() => setSelectedVisitor(visitor)}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={visitor.visitor_photo_url} alt={visitor.visitor_name} />
+                                <AvatarFallback>
+                                  {visitor.visitor_name.split(' ').map(n => n[0]).join('')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{visitor.visitor_name}</p>
+                                <p className="text-xs text-muted-foreground">{visitor.visitor_phone}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>{calculateDuration(visitor.check_in_time)}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>{calculateDuration(visitor.check_in_time)}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </CardContent>
                   </CollapsibleContent>
                 </Collapsible>
