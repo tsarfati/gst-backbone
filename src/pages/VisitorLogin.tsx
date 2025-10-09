@@ -273,7 +273,7 @@ export default function VisitorLogin() {
         company_name: formData.vendor_id ? 
           subcontractors.find(s => s.vendor_id === formData.vendor_id)?.vendor_name : 
           formData.company_name.trim(),
-        vendor_id: formData.vendor_id || null,
+        subcontractor_id: formData.vendor_id || null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
         company_id: (job as any).company_id,
