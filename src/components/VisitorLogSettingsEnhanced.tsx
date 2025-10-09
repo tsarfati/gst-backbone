@@ -39,6 +39,9 @@ interface VisitorLoginSettings {
   text_color?: string;
   confirmation_title: string;
   confirmation_message: string;
+  checkout_title: string;
+  checkout_message: string;
+  checkout_show_duration: boolean;
   require_company_name: boolean;
   require_purpose_visit: boolean;
   enable_checkout: boolean;
@@ -75,6 +78,9 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     text_color: '#000000',
     confirmation_title: 'Welcome to the Job Site!',
     confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
+    checkout_title: 'Successfully Checked Out',
+    checkout_message: 'Thank you for visiting. Have a safe trip!',
+    checkout_show_duration: true,
     require_company_name: true,
     require_purpose_visit: false,
     enable_checkout: true,
@@ -282,14 +288,18 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
       </div>
 
       <Tabs defaultValue="qr-code" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="qr-code" className="flex items-center gap-2">
             <QrCode className="h-4 w-4" />
             QR Code
           </TabsTrigger>
           <TabsTrigger value="appearance" className="flex items-center gap-2">
             <ImageIcon2 className="h-4 w-4" />
-            Appearance
+            Check-In
+          </TabsTrigger>
+          <TabsTrigger value="checkout" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Check-Out
           </TabsTrigger>
           <TabsTrigger value="auto-logout" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
@@ -639,6 +649,85 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Checkout Template Tab */}
+        <TabsContent value="checkout" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageSquare className="h-5 w-5" />
+                <span>Checkout Confirmation Template</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Customize the confirmation page visitors see when they click the checkout link from their text message.
+              </p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="checkout-title">Checkout Title</Label>
+                  <Input
+                    id="checkout-title"
+                    value={loginSettings.checkout_title}
+                    onChange={(e) => setLoginSettings(prev => ({ ...prev, checkout_title: e.target.value }))}
+                    placeholder="Successfully Checked Out"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This appears at the top of the checkout confirmation page
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="checkout-message">Checkout Message</Label>
+                  <Textarea
+                    id="checkout-message"
+                    value={loginSettings.checkout_message}
+                    onChange={(e) => setLoginSettings(prev => ({ ...prev, checkout_message: e.target.value }))}
+                    placeholder="Thank you for visiting. Have a safe trip!"
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This message is shown to visitors after they successfully check out
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Show Visit Duration</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display how long the visitor was on site
+                    </p>
+                  </div>
+                  <Switch
+                    checked={loginSettings.checkout_show_duration}
+                    onCheckedChange={(checked) => 
+                      setLoginSettings(prev => ({ ...prev, checkout_show_duration: checked }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                <p className="text-sm font-medium">Preview</p>
+                <div className="bg-background rounded-lg p-4 border">
+                  <div className="text-center space-y-3">
+                    <div className="text-green-600 text-2xl">✓</div>
+                    <h3 className="font-semibold text-lg">{loginSettings.checkout_title}</h3>
+                    <p className="text-muted-foreground">{loginSettings.checkout_message}</p>
+                    {loginSettings.checkout_show_duration && (
+                      <p className="text-sm text-muted-foreground">
+                        Time on site: <span className="font-medium">2 hours 34 minutes</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Auto Logout Tab */}

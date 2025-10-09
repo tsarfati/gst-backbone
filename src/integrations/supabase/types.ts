@@ -3884,6 +3884,9 @@ export type Database = {
           background_color: string | null
           background_image_url: string | null
           button_color: string | null
+          checkout_message: string | null
+          checkout_show_duration: boolean | null
+          checkout_title: string | null
           company_id: string
           confirmation_message: string | null
           confirmation_title: string | null
@@ -3904,6 +3907,9 @@ export type Database = {
           background_color?: string | null
           background_image_url?: string | null
           button_color?: string | null
+          checkout_message?: string | null
+          checkout_show_duration?: boolean | null
+          checkout_title?: string | null
           company_id: string
           confirmation_message?: string | null
           confirmation_title?: string | null
@@ -3924,6 +3930,9 @@ export type Database = {
           background_color?: string | null
           background_image_url?: string | null
           button_color?: string | null
+          checkout_message?: string | null
+          checkout_show_duration?: boolean | null
+          checkout_title?: string | null
           company_id?: string
           confirmation_message?: string | null
           confirmation_title?: string | null

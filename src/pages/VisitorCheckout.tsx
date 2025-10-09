@@ -6,6 +6,12 @@ import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+interface CheckoutSettings {
+  checkout_title: string;
+  checkout_message: string;
+  checkout_show_duration: boolean;
+}
+
 export default function VisitorCheckout() {
   const { token } = useParams();
   const { toast } = useToast();
@@ -14,6 +20,11 @@ export default function VisitorCheckout() {
   const [visitorLog, setVisitorLog] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkedOut, setCheckedOut] = useState(false);
+  const [checkoutSettings, setCheckoutSettings] = useState<CheckoutSettings>({
+    checkout_title: 'Successfully Checked Out',
+    checkout_message: 'Thank you for visiting. Have a safe trip!',
+    checkout_show_duration: true,
+  });
 
   useEffect(() => {
     if (token) {
@@ -25,7 +36,7 @@ export default function VisitorCheckout() {
     try {
       const { data, error } = await supabase
         .from('visitor_logs')
-        .select('*, jobs(name, address)')
+        .select('*')
         .eq('checkout_token', token)
         .single();
 
@@ -34,11 +45,31 @@ export default function VisitorCheckout() {
         return;
       }
 
-      if (data.checked_out_at) {
+      if (data.check_out_time) {
         setCheckedOut(true);
       }
 
-      setVisitorLog(data);
+      // Load job details
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select('name, address, company_id')
+        .eq('id', data.job_id)
+        .single();
+
+      setVisitorLog({ ...data, jobs: jobData });
+
+      // Load checkout settings from company
+      if (jobData?.company_id) {
+        const { data: settings } = await supabase
+          .from('visitor_login_settings')
+          .select('checkout_title, checkout_message, checkout_show_duration')
+          .eq('company_id', jobData.company_id)
+          .maybeSingle();
+
+        if (settings) {
+          setCheckoutSettings(settings);
+        }
+      }
     } catch (err) {
       console.error('Error loading visitor log:', err);
       setError('Failed to load visitor information.');
@@ -55,7 +86,7 @@ export default function VisitorCheckout() {
       const { error } = await supabase
         .from('visitor_logs')
         .update({ 
-          checked_out_at: new Date().toISOString(),
+          check_out_time: new Date().toISOString(),
         })
         .eq('id', visitorLog.id);
 
@@ -64,9 +95,10 @@ export default function VisitorCheckout() {
       }
 
       setCheckedOut(true);
+      setVisitorLog(prev => ({ ...prev, check_out_time: new Date().toISOString() }));
       toast({
-        title: "Checked Out Successfully",
-        description: "Thank you for visiting. Have a safe trip!",
+        title: checkoutSettings.checkout_title,
+        description: checkoutSettings.checkout_message,
       });
     } catch (err) {
       console.error('Error checking out:', err);
@@ -78,6 +110,22 @@ export default function VisitorCheckout() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const calculateDuration = () => {
+    if (!visitorLog?.check_in_time || !visitorLog?.check_out_time) return null;
+    
+    const checkIn = new Date(visitorLog.check_in_time);
+    const checkOut = new Date(visitorLog.check_out_time);
+    const diff = checkOut.getTime() - checkIn.getTime();
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    }
+    return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
   };
 
   if (loading) {
@@ -106,18 +154,29 @@ export default function VisitorCheckout() {
   }
 
   if (checkedOut) {
+    const duration = calculateDuration();
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
-            <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Already Checked Out</h2>
+            <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
+            <h2 className="text-2xl font-semibold mb-3">{checkoutSettings.checkout_title}</h2>
             <p className="text-muted-foreground mb-4">
-              You have already checked out from {visitorLog?.jobs?.name}.
+              {checkoutSettings.checkout_message}
             </p>
-            <p className="text-sm text-muted-foreground">
-              Checked out at: {new Date(visitorLog.checked_out_at).toLocaleString()}
-            </p>
+            {checkoutSettings.checkout_show_duration && duration && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Time on site: <span className="font-medium text-foreground">{duration}</span>
+                </p>
+              </div>
+            )}
+            <div className="mt-6 pt-4 border-t">
+              <p className="text-xs text-muted-foreground">
+                Checked out at: {new Date(visitorLog.check_out_time).toLocaleString()}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
