@@ -91,7 +91,7 @@ export default function VisitorLogin() {
         .from('jobs')
         .select('id, name, address, client, company_id')
         .eq('visitor_qr_code', qrCode)
-        .single();
+        .maybeSingle();
 
       if (jobError || !jobData) {
         toast({
