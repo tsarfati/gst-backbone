@@ -628,11 +628,13 @@ export default function AddSubcontract() {
               </div>
 
               {/* Job Costing Distribution - Integrated */}
-              {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && (
+              {formData.contract_amount && parseFloat(formData.contract_amount) > 0 && formData.job_id && (
                 <div className="space-y-4 pt-4 border-t">
                   <h4 className="text-base font-semibold">Job Costing Distribution</h4>
                   <JobCostingDistribution
                     contractAmount={parseFloat(formData.contract_amount)}
+                    jobId={formData.job_id}
+                    costCodeType="sub"
                     initialDistribution={costDistribution}
                     onChange={setCostDistribution}
                     disabled={isSubmitting}

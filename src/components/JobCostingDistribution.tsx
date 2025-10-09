@@ -13,88 +13,72 @@ import { useCompany } from "@/contexts/CompanyContext";
 
 interface CostDistribution {
   id?: string;
-  job_id: string;
   cost_code_id: string;
   amount: number;
   percentage: number;
-  job_name?: string;
   cost_code_description?: string;
 }
 
 interface JobCostingDistributionProps {
   contractAmount: number;
+  jobId: string;
+  costCodeType?: 'material' | 'sub';
   initialDistribution?: CostDistribution[];
   onChange: (distribution: CostDistribution[]) => void;
   disabled?: boolean;
-}
-
-interface Job {
-  id: string;
-  name: string;
-  client?: string;
 }
 
 interface CostCode {
   id: string;
   code: string;
   description: string;
-  job_id?: string;
+  type: string;
 }
 
 export default function JobCostingDistribution({ 
   contractAmount, 
+  jobId,
+  costCodeType = 'material',
   initialDistribution = [], 
   onChange, 
   disabled = false 
 }: JobCostingDistributionProps) {
   const { toast } = useToast();
-  const { currentCompany } = useCompany();
   const [distribution, setDistribution] = useState<CostDistribution[]>(initialDistribution);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [allCostCodes, setAllCostCodes] = useState<CostCode[]>([]);
+  const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
-  }, [currentCompany]);
+  }, [jobId]);
 
   useEffect(() => {
     onChange(distribution);
   }, [distribution, onChange]);
 
   const loadData = async () => {
-    if (!currentCompany) return;
+    if (!jobId) return;
 
     try {
       setLoading(true);
 
-      // Load jobs
-      const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select('id, name, client')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .order('name');
-
-      if (jobsError) throw jobsError;
-      setJobs(jobsData || []);
-
-      // Load all cost codes
+      // Load cost codes for this job filtered by type
       const { data: costCodesData, error: costCodesError } = await supabase
         .from('cost_codes')
-        .select('id, code, description, job_id')
-        .eq('company_id', currentCompany.id)
+        .select('id, code, description, type')
+        .eq('job_id', jobId)
+        .eq('type', costCodeType)
         .eq('is_active', true)
         .order('code');
 
       if (costCodesError) throw costCodesError;
-      setAllCostCodes(costCodesData || []);
+      setCostCodes(costCodesData || []);
 
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
         title: "Error",
-        description: "Failed to load jobs and cost codes",
+        description: "Failed to load cost codes",
         variant: "destructive",
       });
     } finally {
@@ -102,15 +86,10 @@ export default function JobCostingDistribution({
     }
   };
 
-  const getAvailableCostCodes = (jobId: string) => {
-    return allCostCodes.filter(cc => cc.job_id === jobId || !cc.job_id);
-  };
-
   const addDistribution = () => {
     const newId = `temp-${Date.now()}`;
     const newDistribution: CostDistribution = {
       id: newId,
-      job_id: '',
       cost_code_id: '',
       amount: 0,
       percentage: 0
@@ -136,11 +115,6 @@ export default function JobCostingDistribution({
       // If percentage changes, recalculate amount
       if (field === 'percentage' && contractAmount > 0) {
         updated.amount = (contractAmount * parseFloat(value)) / 100;
-      }
-
-      // Clear cost code if job changes
-      if (field === 'job_id') {
-        updated.cost_code_id = '';
       }
 
       return updated;
@@ -226,46 +200,24 @@ export default function JobCostingDistribution({
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Job</Label>
-                    <Select
-                      value={dist.job_id}
-                      onValueChange={(value) => updateDistribution(dist.id!, 'job_id', value)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a job" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {jobs.map((job) => (
-                          <SelectItem key={job.id} value={job.id}>
-                            {job.name} {job.client && `(${job.client})`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label>Cost Code</Label>
-                    <Select
-                      value={dist.cost_code_id}
-                      onValueChange={(value) => updateDistribution(dist.id!, 'cost_code_id', value)}
-                      disabled={disabled || !dist.job_id}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a cost code" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getAvailableCostCodes(dist.job_id).map((costCode) => (
-                          <SelectItem key={costCode.id} value={costCode.id}>
-                            {costCode.code} - {costCode.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div>
+                  <Label>Cost Code</Label>
+                  <Select
+                    value={dist.cost_code_id}
+                    onValueChange={(value) => updateDistribution(dist.id!, 'cost_code_id', value)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a cost code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {costCodes.map((costCode) => (
+                        <SelectItem key={costCode.id} value={costCode.id}>
+                          {costCode.code} - {costCode.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
