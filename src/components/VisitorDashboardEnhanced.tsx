@@ -103,7 +103,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
       // Load employees currently on site (from current_punch_status)
       const { data: employeeData, error: employeeError } = await supabase
         .from('current_punch_status')
-        .select('id, user_id, punch_in_time')
+        .select('id, user_id, punch_in_time, punch_in_photo_url')
         .eq('job_id', jobId)
         .eq('is_active', true);
 
@@ -136,7 +136,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
           first_name: profile?.first_name || '',
           last_name: profile?.last_name || '',
           display_name: profile?.display_name,
-          avatar_url: profile?.avatar_url,
+          avatar_url: profile?.avatar_url || (emp as any).punch_in_photo_url,
           check_in_time: emp.punch_in_time
         };
       });
