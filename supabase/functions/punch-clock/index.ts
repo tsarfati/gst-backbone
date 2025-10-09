@@ -438,8 +438,9 @@ serve(async (req) => {
         const timing = jobTiming?.cost_code_selection_timing ?? companyTiming?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch IN timing=${timing} company=${companyId} job=${job_id} hasCostCode=${Boolean(cost_code_id)}`);
 
+        // Do not hard-fail on missing cost code at punch in; UI may enforce when required
         if (timing === 'punch_in' && !cost_code_id) {
-          return errorResponse("Missing cost_code_id for punch in", 400);
+          console.log('Punch IN without cost code (timing=punch_in). Proceeding; will require at punch out.');
         }
 
         // Load punch clock settings for this job to check photo requirements and early punch in
