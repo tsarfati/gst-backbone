@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Download, FileText, Calendar } from 'lucide-react';
+import { Download, FileText, Calendar, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
@@ -196,6 +196,31 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
     window.URL.revokeObjectURL(url);
   };
 
+  const handleCheckOut = async (visitorId: string) => {
+    try {
+      const { error } = await supabase
+        .from('visitor_logs')
+        .update({ check_out_time: new Date().toISOString() })
+        .eq('id', visitorId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Visitor checked out successfully.",
+      });
+      
+      loadVisitorLogs();
+    } catch (error) {
+      console.error('Error checking out visitor:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check out visitor.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const calculateDuration = (checkIn: string, checkOut?: string) => {
     const start = parseISO(checkIn);
     const end = checkOut ? parseISO(checkOut) : new Date();
@@ -365,12 +390,13 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
                 <TableHead>Check Out</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredVisitors.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No visitors found matching your filters
                   </TableCell>
                 </TableRow>
@@ -401,6 +427,18 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
                       <Badge variant={visitor.check_out_time ? 'secondary' : 'default'}>
                         {visitor.check_out_time ? 'Checked Out' : 'On Site'}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {!visitor.check_out_time && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCheckOut(visitor.id)}
+                        >
+                          <LogOut className="h-4 w-4 mr-1" />
+                          Check Out
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
