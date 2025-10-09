@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronRight, Building2, Users, MapPin, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +15,7 @@ interface VisitorOnSite {
   company_name?: string;
   check_in_time: string;
   purpose_of_visit?: string;
+  visitor_photo_url?: string;
   subcontractor?: {
     company_name: string;
   };
@@ -24,6 +26,7 @@ interface EmployeeOnSite {
   first_name: string;
   last_name: string;
   display_name?: string;
+  avatar_url?: string;
   check_in_time: string;
 }
 
@@ -101,19 +104,19 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
 
       // Fetch profile data separately
       const userIds = (employeeData || []).map(e => e.user_id);
-      let profilesMap: Record<string, { first_name: string; last_name: string; display_name?: string }> = {};
+      let profilesMap: Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }> = {};
 
       if (userIds.length > 0) {
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('user_id, first_name, last_name, display_name')
+          .select('user_id, first_name, last_name, display_name, avatar_url')
           .in('user_id', userIds);
 
         if (profilesData) {
           profilesMap = profilesData.reduce((acc, profile) => {
             acc[profile.user_id] = profile;
             return acc;
-          }, {} as Record<string, { first_name: string; last_name: string; display_name?: string }>);
+          }, {} as Record<string, { first_name: string; last_name: string; display_name?: string; avatar_url?: string }>);
         }
       }
 
@@ -121,9 +124,10 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
         const profile = profilesMap[emp.user_id];
         return {
           id: emp.id,
-          first_name: profile?.first_name || '',
-          last_name: profile?.last_name || '',
+          first_name: profile?.first_name || 'Unknown',
+          last_name: profile?.last_name || 'Employee',
           display_name: profile?.display_name,
+          avatar_url: profile?.avatar_url,
           check_in_time: emp.punch_in_time
         };
       });
@@ -240,11 +244,12 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center space-x-3">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-medium text-primary">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={employee.avatar_url} alt={employee.display_name || `${employee.first_name} ${employee.last_name}`} />
+                        <AvatarFallback>
                           {employee.first_name[0]}{employee.last_name[0]}
-                        </span>
-                      </div>
+                        </AvatarFallback>
+                      </Avatar>
                       <div>
                         <p className="font-medium">
                           {employee.display_name || `${employee.first_name} ${employee.last_name}`}
@@ -296,14 +301,22 @@ export function VisitorDashboard({ jobId, companyName }: VisitorDashboardProps) 
                       key={visitor.id}
                       className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                     >
-                      <div>
-                        <p className="font-medium">{visitor.visitor_name}</p>
-                        <p className="text-xs text-muted-foreground">{visitor.visitor_phone}</p>
-                        {visitor.purpose_of_visit && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Purpose: {visitor.purpose_of_visit}
-                          </p>
-                        )}
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={visitor.visitor_photo_url} alt={visitor.visitor_name} />
+                          <AvatarFallback>
+                            {visitor.visitor_name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{visitor.visitor_name}</p>
+                          <p className="text-xs text-muted-foreground">{visitor.visitor_phone}</p>
+                          {visitor.purpose_of_visit && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Purpose: {visitor.purpose_of_visit}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                         <Clock className="h-3 w-3" />
