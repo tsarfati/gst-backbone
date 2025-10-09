@@ -308,11 +308,17 @@ export default function VisitorLogin() {
 
       setShowConfirmation(true);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting visitor log:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
       toast({
         title: "Check-in Failed",
-        description: "Failed to check in. Please try again.",
+        description: error?.message || "Failed to check in. Please try again.",
         variant: "destructive",
       });
     } finally {
