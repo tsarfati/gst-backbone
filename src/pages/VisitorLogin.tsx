@@ -55,6 +55,8 @@ export default function VisitorLogin() {
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [autoSubmitAfterPhoto, setAutoSubmitAfterPhoto] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [isSecure, setIsSecure] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -74,6 +76,13 @@ export default function VisitorLogin() {
       loadJobAndSettings();
     }
   }, [qrCode]);
+
+  useEffect(() => {
+    try {
+      setIsInIframe(window.self !== window.top);
+      setIsSecure(window.isSecureContext);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -691,6 +700,14 @@ export default function VisitorLogin() {
               className="w-full rounded-lg border-2 border-primary aspect-video object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
+            {(isInIframe || !isSecure) && (
+              <div className="w-full text-xs text-muted-foreground space-y-2">
+                <p>Camera might be blocked in the embedded preview. Open in a new tab to enable camera access.</p>
+                <Button type="button" variant="outline" className="w-full" onClick={() => window.open(window.location.href, '_blank', 'noopener')}>
+                  Open camera in new tab
+                </Button>
+              </div>
+            )}
             <Button
               type="button"
               onClick={capturePhoto}
