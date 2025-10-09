@@ -3959,6 +3959,7 @@ export type Database = {
           updated_at: string
           visitor_name: string
           visitor_phone: string
+          visitor_photo_url: string | null
         }
         Insert: {
           check_in_time?: string
@@ -3976,6 +3977,7 @@ export type Database = {
           updated_at?: string
           visitor_name: string
           visitor_phone: string
+          visitor_photo_url?: string | null
         }
         Update: {
           check_in_time?: string
@@ -3993,6 +3995,7 @@ export type Database = {
           updated_at?: string
           visitor_name?: string
           visitor_phone?: string
+          visitor_photo_url?: string | null
         }
         Relationships: [
           {

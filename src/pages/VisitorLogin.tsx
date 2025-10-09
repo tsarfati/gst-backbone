@@ -277,7 +277,7 @@ export default function VisitorLogin() {
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
         notes: formData.notes.trim() || null,
         company_id: (job as any).company_id,
-        ...(photoUrl && { photo_url: photoUrl })
+        ...(photoUrl && { visitor_photo_url: photoUrl })
       };
 
       const { data: insertedLog, error } = await supabase
