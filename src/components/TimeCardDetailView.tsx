@@ -776,10 +776,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <span className="text-sm text-muted-foreground">Total Hours:</span>
                         <span className="text-sm font-medium">{timeCard.total_hours?.toFixed(2) || 'N/A'}</span>
                       </div>
-                      {timeCard.break_duration_minutes && timeCard.break_duration_minutes > 0 && (
+                      {(timeCard.break_minutes > 0 || (timeCard.break_duration_minutes && timeCard.break_duration_minutes > 0)) && (
                         <div className="flex justify-between">
                           <span className="text-sm text-muted-foreground">Break Time:</span>
-                          <span className="text-sm font-medium">{timeCard.break_duration_minutes} minutes</span>
+                          <span className="text-sm font-medium">
+                            {timeCard.break_minutes || timeCard.break_duration_minutes} minutes
+                          </span>
                         </div>
                       )}
                       {timeCard.overtime_hours && timeCard.overtime_hours > 0 && (
