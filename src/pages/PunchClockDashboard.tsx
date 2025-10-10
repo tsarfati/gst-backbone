@@ -101,12 +101,21 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         companyUserIds.push('00000000-0000-0000-0000-000000000000');
       }
       
-      // Load active punches for users in this company
+      // First get jobs for this company
+      const { data: companyJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+      
+      const companyJobIds = (companyJobs || []).map(j => j.id);
+      
+      // Load active punches for users in this company AND jobs in this company
       const { data: activeData } = await supabase
         .from('current_punch_status')
         .select('*')
         .eq('is_active', true)
         .in('user_id', companyUserIds)
+        .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
         .order('punch_in_time', { ascending: false });
 
       setActive(activeData || []);
