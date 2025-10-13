@@ -707,24 +707,23 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                            <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                          </Avatar>
                            <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> {format(new Date(row.punch_in_time), 'MMM d, h:mm a')}
+                            <div className="font-semibold truncate">{prof?.display_name || 'Employee'}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span className="truncate">{job?.name || 'Job'}</span>
+                              <span className="inline-flex items-center gap-1 shrink-0">
+                                <Clock className="h-3 w-3" /> {format(new Date(row.punch_in_time), 'h:mm a')}
                               </span>
                               {row.punch_in_location_lat && row.punch_in_location_lng && (
-                                <span className="inline-flex items-center gap-1">
+                                <span className="inline-flex items-center gap-1 shrink-0">
                                   <MapPin className="h-3 w-3" />
-                                  Location
+                                </span>
+                              )}
+                              {costCodeTiming === 'punch_in' && row.cost_code_id && costCodes[row.cost_code_id] && (
+                                <span className="font-medium text-primary truncate">
+                                  {costCodes[row.cost_code_id].code}
                                 </span>
                               )}
                             </div>
-                            <div className="font-semibold truncate">{prof?.display_name || 'Employee'}</div>
-                            <div className="text-xs text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                            {costCodeTiming === 'punch_in' && row.cost_code_id && costCodes[row.cost_code_id] && (
-                              <div className="text-xs font-medium text-primary">
-                                {costCodes[row.cost_code_id].code} - {costCodes[row.cost_code_id].description}
-                              </div>
-                            )}
                           </div>
                        </div>
                      </div>
@@ -766,11 +765,13 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                             <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                          <div className="min-w-0 flex-1">
-                           <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                             <Clock className="h-3 w-3" /> {format(new Date(row.punch_time), 'MMM d, h:mm a')}
-                           </div>
                            <div className="font-semibold truncate">{prof?.display_name || 'Employee'}</div>
-                           <div className="text-xs text-muted-foreground truncate">{job?.name || 'Unknown Job'}</div>
+                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                             <span className="truncate">{job?.name || 'Unknown Job'}</span>
+                             <span className="inline-flex items-center gap-1 shrink-0">
+                               <Clock className="h-3 w-3" /> {format(new Date(row.punch_time), 'h:mm a')}
+                             </span>
+                           </div>
                          </div>
                        </div>
                      </div>
