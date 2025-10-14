@@ -355,6 +355,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       parentId?: string;
       isOverBudget?: boolean;
       remaining?: number;
+      childCount?: number;
     }> = [];
 
     // First, collect all dynamic parents
@@ -380,17 +381,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
           line,
           isChild: false,
           isOverBudget,
-          remaining
+          remaining,
+          childCount: children.length
         });
 
-        // Add children after parent
-        children.forEach(child => {
-          unified.push({
-            line: child,
-            isChild: true,
-            parentId: line.id
+        // Only add children if count is exactly 2, or if more than 2 and expanded
+        if (children.length === 2) {
+          // Don't show children for exactly 2
+        } else if (children.length > 2 && expandedGroups.has(line.cost_code?.code || '')) {
+          // Show children when expanded
+          children.forEach(child => {
+            unified.push({
+              line: child,
+              isChild: true,
+              parentId: line.id
+            });
           });
-        });
+        }
       } else {
         // Regular budget line (not a parent, not a child)
         unified.push({
@@ -458,8 +465,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                   </TableHeader>
                   <TableBody>
                     {buildUnifiedBudgetList().map((item, index) => {
-                      const { line, isChild, parentId, isOverBudget, remaining } = item;
+                      const { line, isChild, parentId, isOverBudget, remaining, childCount } = item;
                       const variance = line.budgeted_amount - (line.actual_amount + line.committed_amount);
+                      const isExpanded = expandedGroups.has(line.cost_code?.code || '');
                       
                       return (
                         <TableRow 
@@ -470,6 +478,18 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                         >
                           <TableCell className={isChild ? "pl-12" : ""}>
                             <div className="flex items-center gap-2">
+                              {line.is_dynamic && childCount && childCount > 2 && (
+                                <button
+                                  onClick={() => toggleGroup(line.cost_code?.code || '')}
+                                  className="hover:bg-muted p-0.5 rounded"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
                               <span className="font-mono text-sm">{line.cost_code?.code}</span>
                               {line.is_dynamic && (
                                 <>
