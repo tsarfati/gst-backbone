@@ -39,6 +39,7 @@ export default function JobDetails() {
   const { profile } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [budgetTotal, setBudgetTotal] = useState<number>(0);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'details';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
@@ -66,6 +67,15 @@ export default function JobDetails() {
           });
         } else {
           setJob(data);
+          
+          // Fetch budget total from job_budgets table
+          const { data: budgetData } = await supabase
+            .from('job_budgets')
+            .select('budgeted_amount')
+            .eq('job_id', id);
+          
+          const total = budgetData?.reduce((sum, item) => sum + Number(item.budgeted_amount || 0), 0) || 0;
+          setBudgetTotal(total);
         }
       } catch (err) {
         console.error('Error:', err);
@@ -254,7 +264,7 @@ export default function JobDetails() {
 
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Budget</label>
-                    <p className="text-foreground">${Number(job.budget_total || 0).toLocaleString()}</p>
+                    <p className="text-foreground">${budgetTotal.toLocaleString()}</p>
                   </div>
 
                   {(job.start_date || job.end_date) && (
