@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import QuickAddVendor from "@/components/QuickAddVendor";
 
 export default function AddPurchaseOrder() {
   const navigate = useNavigate();
@@ -324,18 +325,39 @@ export default function AddPurchaseOrder() {
 
                 <div>
                   <Label htmlFor="vendor">Vendor *</Label>
-                  <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a vendor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.id}>
-                          {vendor.name} {vendor.vendor_type && `(${vendor.vendor_type})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a vendor" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          {vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              {vendor.name} {vendor.vendor_type && `(${vendor.vendor_type})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <QuickAddVendor 
+                      allowedTypes={allowedVendorTypes}
+                      onVendorAdded={(vendorId) => {
+                        handleInputChange("vendor_id", vendorId);
+                        // Refresh vendors list
+                        const fetchVendors = async () => {
+                          const { data } = await supabase
+                            .from('vendors')
+                            .select('id, name, vendor_type')
+                            .eq('is_active', true)
+                            .in('vendor_type', allowedVendorTypes)
+                            .order('name');
+                          if (data) setVendors(data);
+                        };
+                        fetchVendors();
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -21,6 +21,7 @@ import ReceiptLinkButton from "@/components/ReceiptLinkButton";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
+import QuickAddVendor from "@/components/QuickAddVendor";
 
 interface DistributionLineItem {
   id: string;
@@ -734,18 +735,38 @@ export default function AddBill() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vendor">Vendor *</Label>
-                    <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a vendor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a vendor" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background z-50">
+                            {vendors.map((vendor) => (
+                              <SelectItem key={vendor.id} value={vendor.id}>
+                                {vendor.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <QuickAddVendor 
+                        onVendorAdded={(vendorId) => {
+                          handleInputChange("vendor_id", vendorId);
+                          // Refresh vendors list
+                          const fetchVendors = async () => {
+                            const { data } = await supabase
+                              .from('vendors')
+                              .select('*')
+                              .eq('company_id', currentCompany?.id)
+                              .eq('is_active', true)
+                              .order('name');
+                            if (data) setVendors(data);
+                          };
+                          fetchVendors();
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="amount">Amount *</Label>
@@ -1030,25 +1051,45 @@ export default function AddBill() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="vendor">Vendor *</Label>
-                      <Select value={formData.vendor_id} onValueChange={(value) => {
-                        handleInputChange("vendor_id", value);
-                        // Reset commitment selections when vendor changes
-                        handleInputChange("subcontract_id", "");
-                        handleInputChange("purchase_order_id", "");
-                        setCommitmentDistribution([]);
-                        setPreviouslyBilled(0);
-                      }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a vendor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {getFilteredVendors().map((vendor) => (
-                            <SelectItem key={vendor.id} value={vendor.id}>
-                              {vendor.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Select value={formData.vendor_id} onValueChange={(value) => {
+                            handleInputChange("vendor_id", value);
+                            // Reset commitment selections when vendor changes
+                            handleInputChange("subcontract_id", "");
+                            handleInputChange("purchase_order_id", "");
+                            setCommitmentDistribution([]);
+                            setPreviouslyBilled(0);
+                          }}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a vendor" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              {getFilteredVendors().map((vendor) => (
+                                <SelectItem key={vendor.id} value={vendor.id}>
+                                  {vendor.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <QuickAddVendor 
+                          onVendorAdded={(vendorId) => {
+                            handleInputChange("vendor_id", vendorId);
+                            // Refresh vendors list
+                            const fetchVendors = async () => {
+                              const { data } = await supabase
+                                .from('vendors')
+                                .select('*')
+                                .eq('company_id', currentCompany?.id)
+                                .eq('is_active', true)
+                                .order('name');
+                              if (data) setVendors(data);
+                            };
+                            fetchVendors();
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="job">Job *</Label>
