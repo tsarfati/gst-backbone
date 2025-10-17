@@ -21,7 +21,8 @@ import { Label } from "@/components/ui/label";
   AlertTriangle,
   Loader2,
   ExternalLink,
-  XCircle
+  XCircle,
+  History
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +32,7 @@ import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import PdfPreview from "@/components/PdfPreview";
+import BillInternalNotes from "@/components/BillInternalNotes";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -78,6 +80,7 @@ export default function BillDetails() {
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
   const [payNumber, setPayNumber] = useState<number>(0);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [auditTrailOpen, setAuditTrailOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -350,6 +353,24 @@ export default function BillDetails() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Dialog open={auditTrailOpen} onOpenChange={setAuditTrailOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <History className="h-4 w-4 mr-2" />
+                Audit Trail
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Bill Audit Trail</DialogTitle>
+                <DialogDescription>
+                  Complete history of all changes made to this bill
+                </DialogDescription>
+              </DialogHeader>
+              <BillAuditTrail billId={bill?.id || ''} />
+            </DialogContent>
+          </Dialog>
+
           <Button onClick={() => navigate(`/bills/${id}/edit`)} variant="secondary">
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
@@ -608,6 +629,12 @@ export default function BillDetails() {
         />
       )}
 
+      {/* Internal Notes */}
+      <BillInternalNotes 
+        billId={bill?.id || ''}
+        existingNotes={bill?.internal_notes}
+      />
+
       {/* File Preview Section */}
       <Card className="mb-6">
         <CardHeader>
@@ -689,10 +716,6 @@ export default function BillDetails() {
         </CardContent>
       </Card>
 
-      {/* Audit Trail Section */}
-      <div className="mt-6">
-        <BillAuditTrail billId={bill?.id || ''} />
-      </div>
     </div>
   );
 }

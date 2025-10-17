@@ -1316,7 +1316,7 @@ export type Database = {
           due_date: string | null
           file_url: string | null
           id: string
-          internal_notes: string | null
+          internal_notes: Json | null
           invoice_number: string | null
           is_reimbursement: boolean
           is_subcontract_invoice: boolean
@@ -1343,7 +1343,7 @@ export type Database = {
           due_date?: string | null
           file_url?: string | null
           id?: string
-          internal_notes?: string | null
+          internal_notes?: Json | null
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
@@ -1370,7 +1370,7 @@ export type Database = {
           due_date?: string | null
           file_url?: string | null
           id?: string
-          internal_notes?: string | null
+          internal_notes?: Json | null
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
