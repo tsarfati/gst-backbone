@@ -42,7 +42,7 @@ export default function CreditCardSettings() {
   };
 
   const handleAddCreditCard = () => {
-    navigate('/banking/credit-cards/add');
+    navigate('/payables/credit-cards/add');
   };
 
   return (

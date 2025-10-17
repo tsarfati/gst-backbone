@@ -55,6 +55,7 @@ const navigationCategories = [
       { name: "Payables Dashboard", href: "/payables-dashboard", menuKey: "payables-dashboard" },
       { name: "Vendors", href: "/vendors", menuKey: "vendors" },
       { name: "Bills", href: "/invoices", menuKey: "vendors" },
+      { name: "Credit Cards", href: "/payables/credit-cards", menuKey: "settings" },
       { name: "Make Payment", href: "/payables/make-payment", menuKey: "make-payment" },
       { name: "Payment History", href: "/bills/payments", menuKey: "reports" },
       { name: "Bill Reports", href: "/bills/payment-reports", menuKey: "reports" },

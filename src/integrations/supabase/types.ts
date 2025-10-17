@@ -634,6 +634,94 @@ export type Database = {
           },
         ]
       }
+      credit_card_transactions: {
+        Row: {
+          amount: number
+          category: string | null
+          company_id: string
+          created_at: string | null
+          created_by: string
+          credit_card_id: string
+          description: string
+          id: string
+          imported_from_csv: boolean | null
+          invoice_id: string | null
+          is_reconciled: boolean | null
+          merchant_name: string | null
+          notes: string | null
+          post_date: string | null
+          receipt_id: string | null
+          reference_number: string | null
+          transaction_date: string
+          transaction_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          category?: string | null
+          company_id: string
+          created_at?: string | null
+          created_by: string
+          credit_card_id: string
+          description: string
+          id?: string
+          imported_from_csv?: boolean | null
+          invoice_id?: string | null
+          is_reconciled?: boolean | null
+          merchant_name?: string | null
+          notes?: string | null
+          post_date?: string | null
+          receipt_id?: string | null
+          reference_number?: string | null
+          transaction_date: string
+          transaction_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          company_id?: string
+          created_at?: string | null
+          created_by?: string
+          credit_card_id?: string
+          description?: string
+          id?: string
+          imported_from_csv?: boolean | null
+          invoice_id?: string | null
+          is_reconciled?: boolean | null
+          merchant_name?: string | null
+          notes?: string | null
+          post_date?: string | null
+          receipt_id?: string | null
+          reference_number?: string | null
+          transaction_date?: string
+          transaction_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_cards: {
         Row: {
           card_name: string
@@ -644,6 +732,7 @@ export type Database = {
           created_at: string
           created_by: string
           credit_limit: number | null
+          csv_import_count: number | null
           current_balance: number | null
           description: string | null
           due_date: string | null
@@ -651,6 +740,8 @@ export type Database = {
           interest_rate: number | null
           is_active: boolean
           issuer: string
+          last_csv_import_by: string | null
+          last_csv_import_date: string | null
           liability_account_id: string | null
           updated_at: string
         }
@@ -663,6 +754,7 @@ export type Database = {
           created_at?: string
           created_by: string
           credit_limit?: number | null
+          csv_import_count?: number | null
           current_balance?: number | null
           description?: string | null
           due_date?: string | null
@@ -670,6 +762,8 @@ export type Database = {
           interest_rate?: number | null
           is_active?: boolean
           issuer: string
+          last_csv_import_by?: string | null
+          last_csv_import_date?: string | null
           liability_account_id?: string | null
           updated_at?: string
         }
@@ -682,6 +776,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           credit_limit?: number | null
+          csv_import_count?: number | null
           current_balance?: number | null
           description?: string | null
           due_date?: string | null
@@ -689,6 +784,8 @@ export type Database = {
           interest_rate?: number | null
           is_active?: boolean
           issuer?: string
+          last_csv_import_by?: string | null
+          last_csv_import_date?: string | null
           liability_account_id?: string | null
           updated_at?: string
         }

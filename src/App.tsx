@@ -310,9 +310,9 @@ function AuthenticatedRoutes() {
                 <Route path="banking/accounts" element={<BankAccounts />} />
                 <Route path="banking/accounts/:id" element={<BankAccountDetails />} />
                 <Route path="banking/accounts/add" element={<AddBankAccount />} />
-                <Route path="banking/credit-cards" element={<CreditCards />} />
-                <Route path="banking/credit-cards/add" element={<AddCreditCard />} />
                 <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
+                <Route path="payables/credit-cards" element={<CreditCards />} />
+                <Route path="payables/credit-cards/add" element={<AddCreditCard />} />
                 <Route path="banking/reports" element={<BankingReports />} />
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
