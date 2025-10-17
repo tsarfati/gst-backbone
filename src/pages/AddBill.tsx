@@ -896,7 +896,7 @@ export default function AddBill() {
                             <SelectTrigger>
                               <SelectValue placeholder="Select job or expense" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-background z-50">
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
                               {jobs.map((job) => (
                                 <SelectItem key={job.id} value={job.id}>
@@ -904,11 +904,15 @@ export default function AddBill() {
                                 </SelectItem>
                               ))}
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
-                              {expenseAccounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.account_number} - {account.account_name}
-                                </SelectItem>
-                              ))}
+                              {expenseAccounts.length === 0 ? (
+                                <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts found for this company</div>
+                              ) : (
+                                expenseAccounts.map((account) => (
+                                  <SelectItem key={account.id} value={account.id}>
+                                    {account.account_number} - {account.account_name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                         </div>
