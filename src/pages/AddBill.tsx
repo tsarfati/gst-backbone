@@ -22,6 +22,7 @@ import PdfInlinePreview from "@/components/PdfInlinePreview";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
 import QuickAddVendor from "@/components/QuickAddVendor";
+import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 
 interface DistributionLineItem {
   id: string;
@@ -50,6 +51,7 @@ export default function AddBill() {
     issueDate: "",
     payment_terms: "",
     description: "",
+    internal_notes: "", // For approval and job costing notes
     is_subcontract_invoice: false,
     is_commitment: false,
     commitment_type: "",
@@ -609,6 +611,7 @@ export default function AddBill() {
           due_date: dueDate,
           payment_terms: formData.use_terms ? formData.payment_terms : null,
           description: formData.description,
+          internal_notes: formData.internal_notes || null,
           is_subcontract_invoice: false,
           is_reimbursement: formData.is_reimbursement,
           file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null,
@@ -652,6 +655,7 @@ export default function AddBill() {
             due_date: dueDate,
             payment_terms: formData.use_terms ? formData.payment_terms : null,
             description: formData.description,
+            internal_notes: formData.internal_notes || null,
             is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
             is_reimbursement: formData.is_reimbursement,
             created_by: user.data.user.id,
@@ -1022,6 +1026,17 @@ export default function AddBill() {
                     rows={3}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="internal_notes">Internal Notes</Label>
+                  <Textarea
+                    id="internal_notes"
+                    value={formData.internal_notes}
+                    onChange={(e) => handleInputChange("internal_notes", e.target.value)}
+                    placeholder="Enter internal notes for approval and job costing (not visible to vendor)"
+                    rows={3}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="commitment" className="space-y-4 mt-4">
@@ -1366,10 +1381,36 @@ export default function AddBill() {
                     rows={3}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="internal_notes_commitment">Internal Notes</Label>
+                  <Textarea
+                    id="internal_notes_commitment"
+                    value={formData.internal_notes}
+                    onChange={(e) => handleInputChange("internal_notes", e.target.value)}
+                    placeholder="Enter internal notes for approval and job costing (not visible to vendor)"
+                    rows={3}
+                  />
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Receipt Suggestions */}
+        {formData.vendor_id && formData.amount && (
+          <BillReceiptSuggestions
+            billVendorId={formData.vendor_id}
+            billVendorName={selectedVendor?.name}
+            billAmount={parseFloat(formData.amount) || 0}
+            onReceiptAttached={() => {
+              toast({
+                title: "Receipt attached",
+                description: "The receipt has been linked to this bill"
+              });
+            }}
+          />
+        )}
 
         {/* File Upload Section - Moved to Bottom */}
         <Card>

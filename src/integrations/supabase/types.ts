@@ -1305,6 +1305,8 @@ export type Database = {
       invoices: {
         Row: {
           amount: number
+          approved_at: string | null
+          approved_by: string | null
           assigned_to_pm: string | null
           bill_category: string | null
           cost_code_id: string | null
@@ -1314,6 +1316,7 @@ export type Database = {
           due_date: string | null
           file_url: string | null
           id: string
+          internal_notes: string | null
           invoice_number: string | null
           is_reimbursement: boolean
           is_subcontract_invoice: boolean
@@ -1329,6 +1332,8 @@ export type Database = {
         }
         Insert: {
           amount: number
+          approved_at?: string | null
+          approved_by?: string | null
           assigned_to_pm?: string | null
           bill_category?: string | null
           cost_code_id?: string | null
@@ -1338,6 +1343,7 @@ export type Database = {
           due_date?: string | null
           file_url?: string | null
           id?: string
+          internal_notes?: string | null
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
@@ -1353,6 +1359,8 @@ export type Database = {
         }
         Update: {
           amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
           assigned_to_pm?: string | null
           bill_category?: string | null
           cost_code_id?: string | null
@@ -1362,6 +1370,7 @@ export type Database = {
           due_date?: string | null
           file_url?: string | null
           id?: string
+          internal_notes?: string | null
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
@@ -1885,6 +1894,7 @@ export type Database = {
           longitude: number | null
           name: string
           project_manager_user_id: string | null
+          require_pm_bill_approval: boolean | null
           revenue_account_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["job_status"] | null
@@ -1909,6 +1919,7 @@ export type Database = {
           longitude?: number | null
           name: string
           project_manager_user_id?: string | null
+          require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
@@ -1933,6 +1944,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           project_manager_user_id?: string | null
+          require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null

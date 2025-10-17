@@ -63,6 +63,7 @@ export default function BillEdit() {
     issue_date: '',
     due_date: '',
     description: '',
+    internal_notes: '',
     payment_terms: '',
     is_subcontract_invoice: false,
     is_reimbursement: false
@@ -203,6 +204,7 @@ export default function BillEdit() {
         issue_date: typedBillData.issue_date || '',
         due_date: typedBillData.due_date || '',
         description: typedBillData.description || '',
+        internal_notes: (typedBillData as any).internal_notes || '',
         payment_terms: typedBillData.payment_terms || '',
         is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
         is_reimbursement: typedBillData.is_reimbursement || false
@@ -370,6 +372,7 @@ export default function BillEdit() {
         issue_date: formData.issue_date,
         due_date: formData.due_date,
         description: formData.description,
+        internal_notes: formData.internal_notes || null,
         payment_terms: formData.payment_terms,
         is_subcontract_invoice: formData.is_subcontract_invoice,
         is_reimbursement: formData.is_reimbursement
@@ -640,15 +643,29 @@ export default function BillEdit() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Description</CardTitle>
+            <CardTitle>Description & Notes</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              value={formData.description}
-              onChange={(e) => handleInputChange("description", e.target.value)}
-              placeholder="Enter bill description"
-              rows={4}
-            />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange("description", e.target.value)}
+                placeholder="Enter bill description"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="internal_notes">Internal Notes</Label>
+              <Textarea
+                id="internal_notes"
+                value={formData.internal_notes}
+                onChange={(e) => handleInputChange("internal_notes", e.target.value)}
+                placeholder="Enter internal notes for approval and job costing (not visible to vendor)"
+                rows={3}
+              />
+            </div>
           </CardContent>
         </Card>
 

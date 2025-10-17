@@ -466,6 +466,27 @@ export default function JobSettings() {
 
       <Separator />
 
+      {/* Bill Approval Settings */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-amber-600" />
+          <h3 className="text-lg font-semibold">Bill Approval Settings</h3>
+        </div>
+        
+        <div className="grid gap-4">
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Note: Bill approval settings are configured per job in the Job Details page. This allows you to require project manager approval for bills on specific jobs.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              When enabled on a job, bills must be approved by the project manager before payment. Admins can always override approvals.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Cost Code Settings */}
       <div className="space-y-6">
         <div className="flex items-center gap-2">

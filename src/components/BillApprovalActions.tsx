@@ -7,17 +7,42 @@ import { useToast } from "@/hooks/use-toast";
 interface BillApprovalActionsProps {
   billId: string;
   currentStatus: string;
+  jobRequiresPmApproval?: boolean;
+  currentUserRole?: string;
+  currentUserId?: string;
+  jobPmUserId?: string;
   onStatusUpdate: () => void;
 }
 
-export default function BillApprovalActions({ billId, currentStatus, onStatusUpdate }: BillApprovalActionsProps) {
+export default function BillApprovalActions({ 
+  billId, 
+  currentStatus, 
+  jobRequiresPmApproval = false,
+  currentUserRole,
+  currentUserId,
+  jobPmUserId,
+  onStatusUpdate 
+}: BillApprovalActionsProps) {
   const { toast } = useToast();
+
+  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'controller';
+  const isPm = currentUserId === jobPmUserId;
+  const canApprove = isAdmin || (isPm && jobRequiresPmApproval);
 
   const updateBillStatus = async (newStatus: string, statusText: string) => {
     try {
+      const user = await supabase.auth.getUser();
+      const updateData: any = { status: newStatus };
+      
+      // Add approved_by and approved_at if approving
+      if (newStatus === 'pending_payment') {
+        updateData.approved_by = user.data.user?.id;
+        updateData.approved_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
         .from('invoices')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', billId);
 
       if (error) throw error;
@@ -69,25 +94,34 @@ export default function BillApprovalActions({ billId, currentStatus, onStatusUpd
       </div>
 
       {currentStatus === 'pending_approval' && (
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => updateBillStatus('pending_payment', 'Approved')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <CheckCircle className="h-4 w-4" />
-            Approve Bill
-          </Button>
-          <Button 
-            onClick={() => updateBillStatus('rejected', 'Rejected')}
-            variant="destructive"
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <XCircle className="h-4 w-4" />
-            Reject Bill
-          </Button>
-        </div>
+        <>
+          {jobRequiresPmApproval && !canApprove && (
+            <div className="bg-muted p-3 rounded-md text-sm text-muted-foreground">
+              This bill requires project manager approval. Only the PM or admin can approve.
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => updateBillStatus('pending_payment', 'Approved')}
+              className="flex items-center gap-2"
+              size="sm"
+              disabled={jobRequiresPmApproval && !canApprove}
+            >
+              <CheckCircle className="h-4 w-4" />
+              Approve Bill
+            </Button>
+            <Button 
+              onClick={() => updateBillStatus('rejected', 'Rejected')}
+              variant="destructive"
+              className="flex items-center gap-2"
+              size="sm"
+              disabled={jobRequiresPmApproval && !canApprove}
+            >
+              <XCircle className="h-4 w-4" />
+              Reject Bill
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );
