@@ -13,6 +13,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 
 interface Notification {
   id: string;
@@ -497,6 +498,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Bills Needing Coding - Show for Project Managers */}
+      {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
+        <div className="mb-8">
+          <BillsNeedingCoding limit={5} />
         </div>
       )}
 

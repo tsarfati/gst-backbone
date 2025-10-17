@@ -1208,6 +1208,7 @@ export type Database = {
       invoices: {
         Row: {
           amount: number
+          assigned_to_pm: string | null
           bill_category: string | null
           cost_code_id: string | null
           created_at: string
@@ -1222,6 +1223,7 @@ export type Database = {
           issue_date: string
           job_id: string
           payment_terms: string | null
+          pending_coding: boolean | null
           purchase_order_id: string | null
           status: string
           subcontract_id: string | null
@@ -1230,6 +1232,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          assigned_to_pm?: string | null
           bill_category?: string | null
           cost_code_id?: string | null
           created_at?: string
@@ -1244,6 +1247,7 @@ export type Database = {
           issue_date: string
           job_id: string
           payment_terms?: string | null
+          pending_coding?: boolean | null
           purchase_order_id?: string | null
           status?: string
           subcontract_id?: string | null
@@ -1252,6 +1256,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          assigned_to_pm?: string | null
           bill_category?: string | null
           cost_code_id?: string | null
           created_at?: string
@@ -1266,6 +1271,7 @@ export type Database = {
           issue_date?: string
           job_id?: string
           payment_terms?: string | null
+          pending_coding?: boolean | null
           purchase_order_id?: string | null
           status?: string
           subcontract_id?: string | null

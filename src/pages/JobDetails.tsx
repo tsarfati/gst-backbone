@@ -15,6 +15,7 @@ import JobDeliveryTicketsView from "@/components/JobDeliveryTicketsView";
 import JobVisitorLogsView from "@/components/JobVisitorLogsView";
 import JobForecastingView from "@/components/JobForecastingView";
 import JobPhotoAlbum from "@/components/JobPhotoAlbum";
+import BillsNeedingCoding from "@/components/BillsNeedingCoding";
 
 
 interface Job {
@@ -226,6 +227,13 @@ export default function JobDetails() {
           </TabsList>
           
           <TabsContent value="details" className="p-6">
+            {/* Bills Needing Coding for this Job */}
+            {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
+              <div className="mb-6">
+                <BillsNeedingCoding jobId={id!} limit={3} />
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
               <Card>
                 <CardHeader>

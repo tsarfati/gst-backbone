@@ -53,7 +53,8 @@ export default function AddBill() {
     is_commitment: false,
     commitment_type: "",
     is_reimbursement: false,
-    use_terms: true // toggle between due date and terms
+    use_terms: true, // toggle between due date and terms
+    pending_coding: false // Mark bill as needing coding by PM
   });
   
   const [billType, setBillType] = useState<"non_commitment" | "commitment">("non_commitment");
@@ -583,12 +584,24 @@ export default function AddBill() {
         }
       }
 
+      // Get project manager for the job if pending_coding
+      let assignedToPm = null;
+      if (formData.pending_coding && formData.job_id) {
+        const { data: jobData } = await supabase
+          .from('jobs')
+          .select('project_manager_user_id')
+          .eq('id', formData.job_id)
+          .single();
+        
+        assignedToPm = jobData?.project_manager_user_id || null;
+      }
+
       if (billType === "non_commitment") {
         // For non-commitment bills with distribution, create multiple invoice records
         const invoicesToInsert = distributionItems.map(item => ({
           vendor_id: formData.vendor_id,
           job_id: item.job_id || null,
-          cost_code_id: item.cost_code_id || null,
+          cost_code_id: formData.pending_coding ? null : (item.cost_code_id || null),
           amount: parseFloat(item.amount),
           invoice_number: formData.invoice_number || null,
           issue_date: formData.issueDate,
@@ -598,7 +611,9 @@ export default function AddBill() {
           is_subcontract_invoice: false,
           is_reimbursement: formData.is_reimbursement,
           file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null,
-          created_by: user.data.user.id
+          created_by: user.data.user.id,
+          pending_coding: formData.pending_coding,
+          assigned_to_pm: assignedToPm
         }));
 
         const { data: inserted, error } = await supabase
@@ -627,7 +642,7 @@ export default function AddBill() {
           .insert({
             vendor_id: formData.vendor_id,
             job_id: formData.job_id,
-            cost_code_id: formData.cost_code_id || null,
+            cost_code_id: formData.pending_coding ? null : (formData.cost_code_id || null),
             subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
             purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
             amount: parseFloat(formData.amount),
@@ -638,7 +653,9 @@ export default function AddBill() {
             description: formData.description,
             is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
             is_reimbursement: formData.is_reimbursement,
-            created_by: user.data.user.id
+            created_by: user.data.user.id,
+            pending_coding: formData.pending_coding,
+            assigned_to_pm: assignedToPm
           });
 
         if (error) throw error;
@@ -646,9 +663,11 @@ export default function AddBill() {
 
       toast({
         title: "Bill created",
-        description: billType === "non_commitment" 
-          ? `Bill created with ${distributionItems.length} distribution line item(s)`
-          : "Bill has been successfully created",
+        description: formData.pending_coding 
+          ? "Bill sent to project manager for coding"
+          : (billType === "non_commitment" 
+            ? `Bill created with ${distributionItems.length} distribution line item(s)`
+            : "Bill has been successfully created"),
       });
       
       navigate("/invoices");
@@ -664,9 +683,11 @@ export default function AddBill() {
 
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
-      formData.issueDate && billFiles.length > 0 && (formData.use_terms ? formData.payment_terms : formData.dueDate)
+      formData.issueDate && billFiles.length > 0 && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
+      (formData.pending_coding || formData.cost_code_id) // Either pending coding or has cost code
     : formData.vendor_id && formData.amount && formData.issueDate && (billFiles.length > 0 || attachedReceipt) && 
-      (formData.use_terms ? formData.payment_terms : formData.dueDate) && isDistributionValid();
+      (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
+      (formData.pending_coding || isDistributionValid()); // Either pending coding or valid distribution
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
@@ -932,6 +953,38 @@ export default function AddBill() {
                     />
                     <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
                   </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="pending_coding"
+                      checked={formData.pending_coding}
+                      onCheckedChange={(checked) => {
+                        handleInputChange("pending_coding", checked);
+                        // Clear cost codes if marking as pending
+                        if (checked) {
+                          setDistributionItems(items => 
+                            items.map(item => ({ ...item, cost_code_id: "" }))
+                          );
+                        }
+                      }}
+                    />
+                    <Label htmlFor="pending_coding" className="flex items-center gap-2">
+                      Send to Project Manager for Coding
+                      <Badge variant="outline" className="text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        No cost code needed
+                      </Badge>
+                    </Label>
+                  </div>
+                  
+                  {formData.pending_coding && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        This bill will be sent to the project manager for cost code assignment
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -1211,6 +1264,39 @@ export default function AddBill() {
                 </div>
 
                 {/* Reimbursement checkbox removed from commitment tab */}
+                
+                {/* Pending Coding Checkbox */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="pending_coding_commitment"
+                      checked={formData.pending_coding}
+                      onCheckedChange={(checked) => {
+                        handleInputChange("pending_coding", checked);
+                        // Clear cost code if marking as pending
+                        if (checked) {
+                          handleInputChange("cost_code_id", "");
+                        }
+                      }}
+                    />
+                    <Label htmlFor="pending_coding_commitment" className="flex items-center gap-2">
+                      Send to Project Manager for Coding
+                      <Badge variant="outline" className="text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        No cost code needed
+                      </Badge>
+                    </Label>
+                  </div>
+                  
+                  {formData.pending_coding && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        This bill will be sent to the project manager for cost code assignment
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
 
                 {/* Commitment Information Display */}
                 {commitmentTotals && (formData.subcontract_id || formData.purchase_order_id) && (
