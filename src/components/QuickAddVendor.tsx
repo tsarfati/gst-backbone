@@ -64,8 +64,7 @@ export default function QuickAddVendor({
           phone: formData.phone || null,
           vendor_type: formData.vendor_type || null,
           address: formData.address || null,
-          company_id: currentCompany.id,
-          created_by: user.id
+          company_id: currentCompany.id
         })
         .select('id')
         .single();
