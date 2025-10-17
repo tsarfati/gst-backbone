@@ -44,10 +44,14 @@ export default function PdfInlinePreview({ file, className, height = 384 }: PdfI
         const page = await pdf.getPage(1);
         if (cancelled) return;
 
-        const containerWidth = containerRef.current?.clientWidth ?? 600;
+        // Wait for container to be rendered and get its width
+        await new Promise(resolve => setTimeout(resolve, 0));
+        const containerWidth = containerRef.current?.clientWidth || 800;
         const viewport = page.getViewport({ scale: 1 });
-        const scale = Math.min(containerWidth / viewport.width, height / viewport.height);
-        const scaledViewport = page.getViewport({ scale: scale || 1 });
+        
+        // Scale to fit full width of container
+        const scale = containerWidth / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
 
         const canvas = canvasRef.current;
         if (!canvas) throw new Error('Canvas not available');
