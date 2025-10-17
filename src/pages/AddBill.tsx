@@ -1466,7 +1466,7 @@ export default function AddBill() {
                         </Button>
                       </div>
                       {file.type === 'application/pdf' ? (
-                        <PdfInlinePreview file={file} height={384} />
+                        <PdfInlinePreview file={file} height={720} className="w-full" />
                       ) : (
                         <img
                           src={URL.createObjectURL(file)}
