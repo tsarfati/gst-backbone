@@ -126,7 +126,7 @@ export default function AddBill() {
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type')
           .eq('company_id', companyId)
-          .eq('account_type', 'expense')
+          .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
           .eq('is_active', true)
           .order('account_number')
       ]);
