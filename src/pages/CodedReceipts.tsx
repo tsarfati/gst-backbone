@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,15 +32,50 @@ export default function CodedReceipts() {
   const [sortBy, setSortBy] = useState("date");
   const { currentView, setCurrentView, setDefaultView, isDefault } = useCodedReceiptViewPreference('coded-receipts', 'list');
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
+  const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
+  // Fetch receipts that are linked to bills via audit trail
+  React.useEffect(() => {
+    const fetchLinkedReceipts = async () => {
+      const { data, error } = await supabase
+        .from('invoice_audit_trail')
+        .select('new_value')
+        .eq('change_type', 'receipt_attached');
+      
+      if (!error && data) {
+        const linkedIds = new Set(
+          data
+            .map(entry => {
+              try {
+                // Parse the new_value JSON to extract receipt ID
+                const value = JSON.parse(entry.new_value || '{}');
+                return value.receipt_id;
+              } catch {
+                return null;
+              }
+            })
+            .filter(Boolean)
+        );
+        setLinkedReceiptIds(linkedIds);
+      }
+    };
+    
+    fetchLinkedReceipts();
+  }, [codedReceipts]);
+
+  // Filter out receipts that are linked to bills
+  const unlinkedCodedReceipts = useMemo(() => {
+    return codedReceipts.filter(receipt => !linkedReceiptIds.has(receipt.id));
+  }, [codedReceipts, linkedReceiptIds]);
+
   // Create dynamic lists from coded receipts data
-  const jobs = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.jobName).filter(Boolean))) as string[], [codedReceipts]);
-  const costCodes = useMemo(() => Array.from(new Set(codedReceipts.map(r => r.costCodeName).filter(Boolean))) as string[], [codedReceipts]);
+  const jobs = useMemo(() => Array.from(new Set(unlinkedCodedReceipts.map(r => r.jobName).filter(Boolean))) as string[], [unlinkedCodedReceipts]);
+  const costCodes = useMemo(() => Array.from(new Set(unlinkedCodedReceipts.map(r => r.costCodeName).filter(Boolean))) as string[], [unlinkedCodedReceipts]);
 
   // Sort coded receipts
   const allReceipts = useMemo((): CodedReceipt[] => {
-    return codedReceipts.sort((a, b) => {
+    return unlinkedCodedReceipts.sort((a, b) => {
       if (sortBy === 'date') {
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       } else if (sortBy === 'amount') {
@@ -51,7 +87,7 @@ export default function CodedReceipts() {
       }
       return 0;
     });
-  }, [codedReceipts, sortBy]);
+  }, [unlinkedCodedReceipts, sortBy]);
 
   // Filter receipts based on search and filters
   const filteredReceipts = useMemo(() => {

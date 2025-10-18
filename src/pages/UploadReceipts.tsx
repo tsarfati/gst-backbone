@@ -9,6 +9,7 @@ import { Upload, FileText, X } from "lucide-react";
 
 export default function UploadReceipts() {
   const [files, setFiles] = useState<File[]>([]);
+  const [fileAmounts, setFileAmounts] = useState<Record<string, string>>({});
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -71,10 +72,22 @@ export default function UploadReceipts() {
   };
 
   const removeFile = (index: number) => {
+    const fileToRemove = files[index];
+    const fileKey = `${fileToRemove.name}_${fileToRemove.size}`;
     setFiles(prev => prev.filter((_, i) => i !== index));
+    setFileAmounts(prev => {
+      const newAmounts = { ...prev };
+      delete newAmounts[fileKey];
+      return newAmounts;
+    });
   };
 
-  const handleUpload = () => {
+  const updateFileAmount = (file: File, amount: string) => {
+    const fileKey = `${file.name}_${file.size}`;
+    setFileAmounts(prev => ({ ...prev, [fileKey]: amount }));
+  };
+
+  const handleUpload = async () => {
     if (files.length === 0) {
       toast({
         title: "No files selected",
@@ -84,18 +97,40 @@ export default function UploadReceipts() {
       return;
     }
 
-    // Convert File[] to FileList
+    // Validate that all files have amounts
+    const filesWithoutAmounts = files.filter(file => {
+      const fileKey = `${file.name}_${file.size}`;
+      const amount = fileAmounts[fileKey];
+      return !amount || parseFloat(amount) <= 0;
+    });
+
+    if (filesWithoutAmounts.length > 0) {
+      toast({
+        title: "Missing amounts",
+        description: "Please enter a dollar amount for all receipts before uploading.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Convert File[] to FileList and create amounts array
     const fileList = new DataTransfer();
-    files.forEach(file => fileList.items.add(file));
+    const amounts: number[] = [];
+    files.forEach(file => {
+      fileList.items.add(file);
+      const fileKey = `${file.name}_${file.size}`;
+      amounts.push(parseFloat(fileAmounts[fileKey]));
+    });
     
-    // Add receipts to global state
-    addReceipts(fileList.files);
+    // Add receipts to global state with amounts
+    await addReceipts(fileList.files, amounts);
     
     toast({
       title: "Upload successful",
       description: `${files.length} receipt(s) uploaded and ready for coding.`,
     });
     setFiles([]);
+    setFileAmounts({});
   };
 
   return (
@@ -167,30 +202,51 @@ export default function UploadReceipts() {
                 No files selected
               </p>
             ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {files.map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-accent rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </p>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {files.map((file, index) => {
+                  const fileKey = `${file.name}_${file.size}`;
+                  const amount = fileAmounts[fileKey] || '';
+                  return (
+                    <div
+                      key={index}
+                      className="p-3 bg-accent rounded-lg space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(file.size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`amount-${index}`} className="text-xs">
+                          Amount <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id={`amount-${index}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={amount}
+                          onChange={(e) => updateFileAmount(file, e.target.value)}
+                          className="h-8"
+                        />
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeFile(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

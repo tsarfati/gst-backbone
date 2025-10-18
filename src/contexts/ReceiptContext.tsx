@@ -65,7 +65,7 @@ interface ReceiptContextType {
   uncodedReceipts: Receipt[];
   codedReceipts: CodedReceipt[];
   messages: ReceiptMessage[];
-  addReceipts: (files: FileList) => Promise<void>;
+  addReceipts: (files: FileList, amounts?: number[]) => Promise<void>;
   codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string, newAmount?: string) => void;
   uncodeReceipt: (receiptId: string) => void;
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
@@ -181,13 +181,17 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, currentCompany?.id]);
 
-  const addReceipts = useCallback(async (files: FileList) => {
+  const addReceipts = useCallback(async (files: FileList, amounts?: number[]) => {
     if (!user || !currentCompany) {
       console.error('User not authenticated or no company selected');
       return;
     }
 
-    for (const file of Array.from(files)) {
+    const filesArray = Array.from(files);
+    for (let i = 0; i < filesArray.length; i++) {
+      const file = filesArray[i];
+      const amount = amounts?.[i];
+      
       try {
         // Upload to Supabase storage
         const fileExt = file.name.split('.').pop();
@@ -207,7 +211,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           .from('receipts')
           .getPublicUrl(fileName);
 
-        // Insert into database
+        // Insert into database with amount
         const { error: insertError } = await supabase
           .from('receipts')
           .insert({
@@ -216,6 +220,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
             file_name: file.name,
             file_url: publicUrlData.publicUrl,
             file_size: file.size,
+            amount: amount,
             status: 'uncoded'
           });
 
