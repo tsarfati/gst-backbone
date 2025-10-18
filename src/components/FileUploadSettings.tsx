@@ -112,7 +112,9 @@ export default function FileUploadSettings() {
           ftp_username: settings.ftp_username,
           ftp_password: settings.ftp_password,
           ftp_folder_path: settings.ftp_folder_path,
-        } as any);
+        } as any, {
+          onConflict: 'company_id'
+        });
 
       if (error) throw error;
 
