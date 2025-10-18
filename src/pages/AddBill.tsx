@@ -929,6 +929,16 @@ export default function AddBill() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange("description", e.target.value)}
+                    placeholder="Enter invoice description or notes"
+                  />
+                </div>
+
                 {/* Cost Distribution Section */}
                 <div className="border rounded-lg p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -1042,28 +1052,6 @@ export default function AddBill() {
                       <span>Distribution total must match bill amount</span>
                     </div>
                   )}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="is_reimbursement"
-                      checked={formData.is_reimbursement}
-                      onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
-                    />
-                    <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => handleInputChange("description", e.target.value)}
-                    placeholder="Enter invoice description or notes"
-                    rows={3}
-                  />
                 </div>
 
                 <div className="space-y-2">
