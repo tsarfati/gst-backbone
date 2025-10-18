@@ -71,8 +71,8 @@ export default function CodedReceipts() {
         .from('receipts')
         .select(`
           *,
-          job:job_id(id, name),
-          cost_code:cost_code_id(id, code, description)
+          jobs!job_id(id, name),
+          cost_codes!cost_code_id(id, code, description)
         `)
         .eq('id', selectedReceipt.id)
         .single();
@@ -96,6 +96,8 @@ export default function CodedReceipts() {
 
         setReceiptDetails({
           ...data,
+          job: (data as any).jobs || null,
+          cost_code: (data as any).cost_codes || null,
           uploaded_by_profile: uploadedByProfile?.data || null,
           coded_by_profile: codedByProfile?.data || null
         } as any);
