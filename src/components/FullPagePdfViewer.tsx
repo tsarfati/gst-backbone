@@ -4,11 +4,12 @@ import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface FullPagePdfViewerProps {
-  file: File;
+  file: File | { name: string; url: string };
   onBack: () => void;
+  hideBackButton?: boolean;
 }
 
-export default function FullPagePdfViewer({ file, onBack }: FullPagePdfViewerProps) {
+export default function FullPagePdfViewer({ file, onBack, hideBackButton = false }: FullPagePdfViewerProps) {
   const [pages, setPages] = useState<HTMLCanvasElement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,15 @@ export default function FullPagePdfViewer({ file, onBack }: FullPagePdfViewerPro
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-        const arrayBuffer = await file.arrayBuffer();
+        // Handle both File objects and URL objects
+        let arrayBuffer: ArrayBuffer;
+        if (file instanceof File) {
+          arrayBuffer = await file.arrayBuffer();
+        } else {
+          const response = await fetch(file.url);
+          arrayBuffer = await response.arrayBuffer();
+        }
+
         const loadingTask = (pdfjs as any).getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
         
@@ -116,9 +125,9 @@ export default function FullPagePdfViewer({ file, onBack }: FullPagePdfViewerPro
   };
 
   return (
-    <div className="fixed inset-0 bg-background z-30 flex flex-col">
+    <div className={`${hideBackButton ? 'relative' : 'fixed inset-0'} bg-background z-30 flex flex-col ${hideBackButton ? 'h-full' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className={`flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 ${hideBackButton ? 'hidden' : ''}`}>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-2" />

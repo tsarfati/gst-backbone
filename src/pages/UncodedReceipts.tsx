@@ -11,7 +11,7 @@ import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
-import PdfPreview from "@/components/PdfPreview";
+import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import ViewSelector, { ViewType } from "@/components/ViewSelector";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { supabase } from "@/integrations/supabase/client";
@@ -661,15 +661,39 @@ export default function UncodedReceipts() {
                   <div className="flex items-center gap-2">
                     {selectedReceipt.previewUrl && (
                       <>
-                        <Button asChild variant="secondary" size="sm">
-                          <a href={selectedReceipt.previewUrl} target="_blank" rel="noopener noreferrer">
-                            View
-                          </a>
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          onClick={() => window.open(selectedReceipt.previewUrl, '_blank')}
+                        >
+                          View
                         </Button>
-                        <Button asChild variant="default" size="sm">
-                          <a href={selectedReceipt.previewUrl} download={selectedReceipt.filename}>
-                            Download
-                          </a>
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(selectedReceipt.previewUrl);
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = selectedReceipt.filename;
+                              document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              document.body.removeChild(a);
+                            } catch (error) {
+                              console.error('Download failed:', error);
+                              toast({
+                                title: "Download Failed",
+                                description: "Unable to download the receipt",
+                                variant: "destructive"
+                              });
+                            }
+                          }}
+                        >
+                          Download
                         </Button>
                       </>
                     )}
@@ -690,43 +714,46 @@ export default function UncodedReceipts() {
               </div>
 
               {/* Preview Content */}
-              <div className="flex-1 p-6 flex items-center justify-center bg-accent/20">
-                <div className="max-w-full w-full h-full">
-                  {selectedReceipt.type === 'pdf' ? (
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full">
-                      {selectedReceipt.previewUrl ? (
-                        <PdfPreview url={selectedReceipt.previewUrl} height={600} />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-lg font-medium">PDF Receipt</p>
-                            <p className="text-sm text-muted-foreground">{selectedReceipt.filename}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              <div className="flex-1 overflow-auto bg-accent/20">
+                {selectedReceipt.type === 'pdf' ? (
+                  selectedReceipt.previewUrl ? (
+                    <FullPagePdfViewer 
+                      file={{ 
+                        name: selectedReceipt.filename,
+                        url: selectedReceipt.previewUrl 
+                      } as any}
+                      onBack={() => {}}
+                      hideBackButton={true}
+                    />
                   ) : (
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full flex items-center justify-center">
-                      {selectedReceipt.previewUrl ? (
-                        <img
-                          src={selectedReceipt.previewUrl}
-                          alt={`Receipt ${selectedReceipt.filename}`}
-                          className="max-w-full max-h-full object-contain"
-                          onError={(e) => {
-                            e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%236b7280'%3EImage not available%3C/text%3E%3C/svg%3E";
-                          }}
-                        />
-                      ) : (
-                        <div className="text-center">
-                          <FileImage className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-lg font-medium">Image Receipt</p>
-                          <p className="text-sm text-muted-foreground">Preview not available</p>
-                        </div>
-                      )}
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-lg font-medium">PDF Receipt</p>
+                        <p className="text-sm text-muted-foreground">{selectedReceipt.filename}</p>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <div className="bg-white rounded-lg shadow-lg overflow-auto h-full flex items-center justify-center p-6 m-6">
+                    {selectedReceipt.previewUrl ? (
+                      <img
+                        src={selectedReceipt.previewUrl}
+                        alt={`Receipt ${selectedReceipt.filename}`}
+                        className="max-w-full max-h-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%236b7280'%3EImage not available%3C/text%3E%3C/svg%3E";
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <FileImage className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-lg font-medium">Image Receipt</p>
+                        <p className="text-sm text-muted-foreground">Preview not available</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
