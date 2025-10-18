@@ -36,6 +36,13 @@ interface Message {
   };
 }
 
+interface Job {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
 interface DashboardSettings {
   show_stats: boolean;
   show_recent_activity: boolean;
@@ -57,6 +64,100 @@ interface DashboardSettings {
   show_project_progress: boolean;
   show_task_deadlines: boolean;
   show_resource_allocation: boolean;
+}
+
+function ActiveJobsList() {
+  const navigate = useNavigate();
+  const { currentCompany } = useCompany();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (!currentCompany) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('id, name, status, created_at')
+          .eq('company_id', currentCompany.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+        setJobs(data || []);
+      } catch (error) {
+        console.error('Error fetching active jobs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, [currentCompany]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          Active Jobs
+          <Badge variant="secondary">{jobs.length}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">No active jobs</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-4"
+              onClick={() => navigate('/add-job')}
+            >
+              Create Job
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {jobs.map((job) => (
+              <div
+                key={job.id}
+                className="p-3 rounded-lg border bg-card hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
+                onClick={() => navigate(`/jobs/${job.id}`)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{job.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(job.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">
+                    Active
+                  </Badge>
+                </div>
+              </div>
+            ))}
+            {jobs.length >= 10 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full mt-2"
+                onClick={() => navigate('/jobs')}
+              >
+                View All Jobs
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Dashboard() {
@@ -893,36 +994,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {dashboardSettings.show_active_jobs && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Active Jobs
-                  <Badge variant="secondary">{activeJobsCount}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activeJobsCount === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No active jobs</p>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-2xl font-bold text-primary">{activeJobsCount}</p>
-                    <p className="text-sm text-muted-foreground mt-2">Active projects</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-4"
-                      onClick={() => navigate('/jobs')}
-                    >
-                      View All Jobs
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {dashboardSettings.show_active_jobs && <ActiveJobsList />}
         </div>
       )}
     </div>

@@ -273,7 +273,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'mat
                   </SelectTrigger>
                   <SelectContent className="bg-popover border border-border shadow-md z-50">
                     {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
+                      <SelectItem key={job.id} value={job.id} className="hover:bg-primary/10 hover:text-primary">
                         {job.name}
                       </SelectItem>
                     ))}
@@ -315,11 +315,11 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'mat
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
                         <SelectContent className="z-50 bg-popover border border-border">
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="material">Material</SelectItem>
-                          <SelectItem value="equipment">Equipment</SelectItem>
-                          <SelectItem value="sub">Subcontract</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="all" className="hover:bg-primary/10 hover:text-primary">All</SelectItem>
+                          <SelectItem value="material" className="hover:bg-primary/10 hover:text-primary">Material</SelectItem>
+                          <SelectItem value="equipment" className="hover:bg-primary/10 hover:text-primary">Equipment</SelectItem>
+                          <SelectItem value="sub" className="hover:bg-primary/10 hover:text-primary">Subcontract</SelectItem>
+                          <SelectItem value="other" className="hover:bg-primary/10 hover:text-primary">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

@@ -164,7 +164,7 @@ export default function DashboardCustomizer({ onSettingsChange, currentSettings 
       label: 'Bills Overview', 
       description: 'Pending and overdue bill status',
       category: 'financial',
-      enabled: currentSettings.show_bills || false, 
+      enabled: currentSettings.show_bills_overview || false, 
       order: 6,
       icon: FileText
     },
