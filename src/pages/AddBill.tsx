@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle } from "lucide-react";
+import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -572,6 +572,53 @@ export default function AddBill() {
     }
   };
 
+  const handleReceiptAttach = async (receipt: CodedReceipt) => {
+    try {
+      // Set attached receipt for display
+      setAttachedReceipt(receipt);
+      
+      // Fetch the receipt's cost distribution
+      const { data: costDistData, error } = await supabase
+        .from('receipt_cost_distributions')
+        .select('*, jobs(name), cost_codes(code, description)')
+        .eq('receipt_id', receipt.id);
+      
+      if (error) throw error;
+      
+      if (costDistData && costDistData.length > 0) {
+        // Populate distribution items from receipt
+        const newDistItems = costDistData.map(dist => ({
+          id: crypto.randomUUID(),
+          job_id: dist.job_id,
+          expense_account_id: "",
+          cost_code_id: dist.cost_code_id,
+          amount: dist.amount.toString()
+        }));
+        
+        setDistributionItems(newDistItems);
+        
+        // Load cost codes for each job
+        for (const item of newDistItems) {
+          if (item.job_id) {
+            await fetchCostCodesForLineItem(item.job_id, item.id);
+          }
+        }
+        
+        toast({
+          title: "Distribution populated",
+          description: "Cost distribution from receipt has been applied to the bill"
+        });
+      }
+    } catch (error) {
+      console.error('Error attaching receipt:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load receipt distribution data",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -669,6 +716,7 @@ export default function AddBill() {
  
         if (error) throw error;
 
+        // Add audit trail for attached receipt
         if (attachedReceipt && inserted && inserted.length) {
           const auditRows = inserted.map((row: any) => ({
             invoice_id: row.id,
@@ -676,14 +724,14 @@ export default function AddBill() {
             field_name: 'attachment',
             old_value: null,
             new_value: attachedReceipt.id,
-            reason: 'Attached coded receipt',
+            reason: `Attached coded receipt: ${attachedReceipt.filename}`,
             changed_by: user.data.user!.id
           }));
           await supabase.from('invoice_audit_trail').insert(auditRows);
         }
       } else {
         // For commitment bills, use the original single record approach
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('invoices')
           .insert({
             vendor_id: formData.vendor_id,
@@ -702,10 +750,25 @@ export default function AddBill() {
             is_reimbursement: formData.is_reimbursement,
             created_by: user.data.user.id,
             pending_coding: formData.pending_coding,
-            assigned_to_pm: assignedToPm
-          });
+            assigned_to_pm: assignedToPm,
+            file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null
+          })
+          .select('id');
 
         if (error) throw error;
+
+        // Add audit trail for attached receipt
+        if (attachedReceipt && inserted && inserted.length) {
+          await supabase.from('invoice_audit_trail').insert({
+            invoice_id: inserted[0].id,
+            change_type: 'update',
+            field_name: 'attachment',
+            old_value: null,
+            new_value: attachedReceipt.id,
+            reason: `Attached coded receipt: ${attachedReceipt.filename}`,
+            changed_by: user.data.user.id
+          });
+        }
       }
 
       toast({
@@ -1403,19 +1466,14 @@ export default function AddBill() {
         </Card>
 
         {/* Receipt Suggestions */}
-        {Boolean(formData.amount) && (
+        {Boolean(formData.amount) && !attachedReceipt && (
           <BillReceiptSuggestions
             billVendorId={formData.vendor_id || undefined}
             billVendorName={selectedVendor?.name}
             billAmount={parseFloat(formData.amount) || 0}
             billJobId={billType === "commitment" ? formData.job_id : undefined}
             billDate={formData.issueDate}
-            onReceiptAttached={() => {
-              toast({
-                title: "Receipt attached",
-                description: "The receipt has been linked to this bill"
-              });
-            }}
+            onReceiptAttached={handleReceiptAttach}
           />
         )}
         </div>
@@ -1480,9 +1538,58 @@ export default function AddBill() {
             </div>
             
             {/* Bill Preview - Full Width */}
-            {billFiles.length > 0 && (
+            {(billFiles.length > 0 || attachedReceipt) && (
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Document Preview</Label>
+                
+                {/* Attached Receipt Preview */}
+                {attachedReceipt && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between p-3 bg-amber-50 border-b">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-amber-600" />
+                        <span className="font-medium text-sm">Attached Receipt: {attachedReceipt.filename}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          From Receipt System
+                        </Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setAttachedReceipt(null);
+                          toast({
+                            title: "Receipt detached",
+                            description: "Receipt has been removed from this bill"
+                          });
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {attachedReceipt.type === 'pdf' && attachedReceipt.previewUrl ? (
+                      <iframe
+                        src={attachedReceipt.previewUrl}
+                        className="w-full h-[600px]"
+                        title="Receipt preview"
+                      />
+                    ) : attachedReceipt.previewUrl ? (
+                      <img
+                        src={attachedReceipt.previewUrl}
+                        alt="Receipt preview"
+                        className="w-full h-auto"
+                      />
+                    ) : (
+                      <div className="p-8 text-center text-muted-foreground">
+                        <FileText className="h-12 w-12 mx-auto mb-2" />
+                        <p>Receipt preview not available</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Uploaded Bill Files */}
                 {billFiles.map((file, index) => (
                   <div key={index} className="border rounded-lg overflow-hidden">
                     <div className="flex items-center justify-between p-3 bg-muted">

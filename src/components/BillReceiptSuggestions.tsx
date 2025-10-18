@@ -12,7 +12,7 @@ interface BillReceiptSuggestionsProps {
   billAmount?: number;
   billJobId?: string;
   billDate?: string;
-  onReceiptAttached?: () => void;
+  onReceiptAttached?: (receipt: CodedReceipt) => void;
 }
 
 export default function BillReceiptSuggestions({ 
@@ -125,15 +125,12 @@ export default function BillReceiptSuggestions({
 
   const handleAttachReceipt = async (receipt: CodedReceipt) => {
     try {
-      // In a real implementation, you would update the receipt in the database
-      // to mark it as linked to this bill
-      
       toast({
         title: "Receipt Attached",
         description: `Receipt ${receipt.filename} has been attached to this bill`,
       });
 
-      onReceiptAttached?.();
+      onReceiptAttached?.(receipt);
     } catch (error) {
       console.error('Error attaching receipt:', error);
       toast({
