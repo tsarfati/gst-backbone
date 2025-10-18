@@ -19,6 +19,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorCompliance } from "@/hooks/useComplianceWarnings";
 import ReceiptLinkButton from "@/components/ReceiptLinkButton";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
 import QuickAddVendor from "@/components/QuickAddVendor";
@@ -607,6 +608,21 @@ export default function AddBill() {
         toast({
           title: "Distribution populated",
           description: "Cost distribution from receipt has been applied to the bill"
+        });
+      } else {
+        // Fallback: use top-level coded fields on the receipt
+        const singleItem = {
+          id: crypto.randomUUID(),
+          job_id: receipt.job_id || "",
+          expense_account_id: "",
+          cost_code_id: receipt.cost_code_id || "",
+          amount: (receipt.amount ?? "0").toString()
+        } as DistributionLineItem;
+        setDistributionItems([singleItem]);
+        if (singleItem.job_id) await fetchCostCodesForLineItem(singleItem.job_id, singleItem.id);
+        toast({
+          title: "Distribution populated",
+          description: "Used coded job and cost code from receipt",
         });
       }
     } catch (error) {
@@ -1569,11 +1585,9 @@ export default function AddBill() {
                       </Button>
                     </div>
                     {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
-                      <iframe
-                        src={attachedReceipt.file_url}
-                        className="w-full h-[600px]"
-                        title="Receipt preview"
-                      />
+                      <div className="w-full h-[600px]">
+                        <UrlPdfInlinePreview url={attachedReceipt.file_url} className="h-full" />
+                      </div>
                     ) : attachedReceipt.file_url ? (
                       <img
                         src={attachedReceipt.file_url}
