@@ -10,13 +10,17 @@ interface BillReceiptSuggestionsProps {
   billVendorId?: string;
   billVendorName?: string;
   billAmount?: number;
+  billJobId?: string;
+  billDate?: string;
   onReceiptAttached?: () => void;
 }
 
 export default function BillReceiptSuggestions({ 
   billVendorId, 
   billVendorName, 
-  billAmount, 
+  billAmount,
+  billJobId,
+  billDate,
   onReceiptAttached 
 }: BillReceiptSuggestionsProps) {
   const { codedReceipts } = useReceipts();
@@ -27,40 +31,76 @@ export default function BillReceiptSuggestions({
 
     const suggestions = codedReceipts
       .filter(receipt => {
-        // Only suggest receipts that haven't been used yet (this is a simple check, you could add more fields)
-        
-        // Check for vendor match
-        const vendorMatch = billVendorId && receipt.vendorId === billVendorId;
-        
-        // Check for amount match (within $5 tolerance)  
-        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 5;
-
-        return vendorMatch || amountMatch;
+        // Primary filter: amount must match (within $10 tolerance) - this is the main match point
+        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 10;
+        return amountMatch;
       })
       .map(receipt => {
-        const vendorMatch = billVendorId && receipt.vendorId === billVendorId;
-        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 5;
-        
         let score = 0;
         let reasons: string[] = [];
+        let matchPercentage = 0;
 
-        if (vendorMatch) {
-          score += 10;
+        // Amount matching is the main factor (50% weight)
+        if (billAmount) {
+          const amountDiff = Math.abs(Number(receipt.amount) - billAmount);
+          const amountMatchScore = Math.max(0, 50 - (amountDiff / billAmount) * 50);
+          score += amountMatchScore;
+          matchPercentage += amountMatchScore;
+          
+          if (amountDiff < 0.01) {
+            reasons.push('Exact amount match');
+          } else if (amountDiff <= 5) {
+            reasons.push('Very close amount');
+          } else {
+            reasons.push('Similar amount');
+          }
+        }
+
+        // Vendor match (25% weight)
+        if (billVendorId && receipt.vendorId === billVendorId) {
+          score += 25;
+          matchPercentage += 25;
           reasons.push('Same vendor');
         }
         
-        if (amountMatch) {
-          score += 5;
-          reasons.push('Similar amount');
+        // Job match (15% weight)
+        if (billJobId && receipt.job_id === billJobId) {
+          score += 15;
+          matchPercentage += 15;
+          reasons.push('Same job');
         }
 
-        return { receipt, score, reasons };
+        // Date proximity (10% weight) - within 30 days
+        if (billDate && receipt.date) {
+          const billDateObj = new Date(billDate);
+          const receiptDateObj = new Date(receipt.date);
+          const daysDiff = Math.abs((billDateObj.getTime() - receiptDateObj.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysDiff <= 30) {
+            const dateScore = Math.max(0, 10 - (daysDiff / 30) * 10);
+            score += dateScore;
+            matchPercentage += dateScore;
+            
+            if (daysDiff <= 7) {
+              reasons.push('Recent date');
+            } else {
+              reasons.push('Similar timeframe');
+            }
+          }
+        }
+
+        return { 
+          receipt, 
+          score, 
+          reasons,
+          matchPercentage: Math.round(matchPercentage)
+        };
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, 5); // Limit to top 5 suggestions
 
     return suggestions;
-  }, [codedReceipts, billVendorId, billAmount]);
+  }, [codedReceipts, billVendorId, billAmount, billJobId, billDate]);
 
   const handleAttachReceipt = async (receipt: CodedReceipt) => {
     try {
@@ -99,7 +139,7 @@ export default function BillReceiptSuggestions({
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {suggestedReceipts.map(({ receipt, reasons }) => (
+        {suggestedReceipts.map(({ receipt, reasons, matchPercentage }) => (
           <div key={receipt.id} className="flex items-center justify-between p-4 border rounded-lg">
             <div className="flex items-center gap-4 flex-1">
               <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
@@ -109,11 +149,14 @@ export default function BillReceiptSuggestions({
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{receipt.filename}</p>
+                  <Badge variant="default" className="text-xs">
+                    {matchPercentage}% Match
+                  </Badge>
                   <div className="flex gap-1">
                     {reasons.map(reason => (
                       <Badge key={reason} variant="secondary" className="text-xs">
                         {reason === 'Same vendor' && <Building2 className="h-3 w-3 mr-1" />}
-                        {reason === 'Similar amount' && <DollarSign className="h-3 w-3 mr-1" />}
+                        {(reason === 'Similar amount' || reason === 'Exact amount match' || reason === 'Very close amount') && <DollarSign className="h-3 w-3 mr-1" />}
                         {reason}
                       </Badge>
                     ))}

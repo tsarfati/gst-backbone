@@ -1408,6 +1408,8 @@ export default function AddBill() {
             billVendorId={formData.vendor_id}
             billVendorName={selectedVendor?.name}
             billAmount={parseFloat(formData.amount) || 0}
+            billJobId={billType === "commitment" ? formData.job_id : undefined}
+            billDate={formData.issueDate}
             onReceiptAttached={() => {
               toast({
                 title: "Receipt attached",
