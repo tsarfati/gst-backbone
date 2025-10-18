@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Upload, Building, Archive, CheckCircle } from "lucide-react";
@@ -41,7 +42,8 @@ export default function VendorEdit() {
     customer_number: "",
     payment_terms: "30",
     notes: "",
-    is_active: true
+    is_active: true,
+    require_invoice_number: true
   });
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -129,7 +131,8 @@ export default function VendorEdit() {
           customer_number: data.customer_number || "",
           payment_terms: data.payment_terms || "30",
           notes: data.notes || "",
-          is_active: data.is_active ?? true
+          is_active: data.is_active ?? true,
+          require_invoice_number: data.require_invoice_number ?? true
         });
         
         if (data.logo_url) {
@@ -173,10 +176,12 @@ export default function VendorEdit() {
     );
   }
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: typeof value === 'string' && field === 'require_invoice_number' 
+        ? value === 'true' 
+        : value
     }));
   };
 
@@ -707,6 +712,24 @@ export default function VendorEdit() {
                 placeholder="Enter vendor notes"
                 rows={3}
               />
+            </div>
+
+            <div className="flex items-center space-x-2 p-4 bg-muted/50 rounded-lg">
+              <Checkbox
+                id="require_invoice_number"
+                checked={formData.require_invoice_number}
+                onCheckedChange={(checked) => 
+                  handleInputChange("require_invoice_number", checked ? "true" : "false")
+                }
+              />
+              <div className="flex-1">
+                <Label htmlFor="require_invoice_number" className="cursor-pointer font-medium">
+                  Require Invoice Numbers
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, bills from this vendor must have an invoice number. Uncheck this for vendors that don't provide invoice numbers.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

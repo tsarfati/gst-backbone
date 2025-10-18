@@ -3914,6 +3914,7 @@ export type Database = {
           notes: string | null
           payment_terms: string | null
           phone: string | null
+          require_invoice_number: boolean
           state: string | null
           tax_id: string | null
           updated_at: string
@@ -3935,6 +3936,7 @@ export type Database = {
           notes?: string | null
           payment_terms?: string | null
           phone?: string | null
+          require_invoice_number?: boolean
           state?: string | null
           tax_id?: string | null
           updated_at?: string
@@ -3956,6 +3958,7 @@ export type Database = {
           notes?: string | null
           payment_terms?: string | null
           phone?: string | null
+          require_invoice_number?: boolean
           state?: string | null
           tax_id?: string | null
           updated_at?: string

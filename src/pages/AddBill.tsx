@@ -82,6 +82,7 @@ export default function AddBill() {
    const [loading, setLoading] = useState(true);
    const [payablesSettings, setPayablesSettings] = useState<any>(null);
    const [attachedReceipt, setAttachedReceipt] = useState<CodedReceipt | null>(null);
+   const [duplicateInvoiceWarning, setDuplicateInvoiceWarning] = useState<string>("");
  
    const { missingCount: vendorComplianceMissing } = useVendorCompliance(formData.vendor_id);
 
@@ -123,7 +124,7 @@ export default function AddBill() {
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
       const [vendorsRes, jobsRes, expenseAccountsRes] = await Promise.all([
-        supabase.from('vendors').select('id, name, logo_url, is_active, company_id').eq('is_active', true).eq('company_id', companyId),
+        supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type')
@@ -483,6 +484,37 @@ export default function AddBill() {
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Check for duplicate invoice number when it changes
+    if (field === 'invoice_number' && typeof value === 'string' && formData.vendor_id) {
+      checkDuplicateInvoice(value, formData.vendor_id);
+    }
+  };
+
+  const checkDuplicateInvoice = async (invoiceNumber: string, vendorId: string) => {
+    if (!invoiceNumber || !vendorId) {
+      setDuplicateInvoiceWarning("");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('id, invoice_number')
+        .eq('vendor_id', vendorId)
+        .ilike('invoice_number', invoiceNumber.trim())
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setDuplicateInvoiceWarning(`Warning: This invoice number already exists for this vendor.`);
+      } else {
+        setDuplicateInvoiceWarning("");
+      }
+    } catch (error) {
+      console.error('Error checking duplicate invoice:', error);
+    }
   };
 
   const handleFileUpload = (files: File[]) => {
@@ -542,6 +574,16 @@ export default function AddBill() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if vendor requires invoice number
+    if (selectedVendor?.require_invoice_number && !formData.invoice_number?.trim()) {
+      toast({
+        title: "Error",
+        description: "Invoice number is required for this vendor",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Check if documents are required by payables settings
     const requireDocuments = payablesSettings?.require_bill_documents ?? false;
@@ -808,15 +850,26 @@ export default function AddBill() {
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="invoice_number">Invoice #</Label>
-                    <Input
-                      id="invoice_number"
-                      value={formData.invoice_number}
-                      onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                      placeholder="Optional"
-                    />
-                  </div>
+                  {selectedVendor?.require_invoice_number !== false && (
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_number">
+                        Invoice # {selectedVendor?.require_invoice_number && <span className="text-destructive">*</span>}
+                      </Label>
+                      <Input
+                        id="invoice_number"
+                        value={formData.invoice_number}
+                        onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                        placeholder={selectedVendor?.require_invoice_number ? "Required" : "Optional"}
+                        required={selectedVendor?.require_invoice_number}
+                      />
+                      {duplicateInvoiceWarning && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          {duplicateInvoiceWarning}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 h-8">
                       <Checkbox
@@ -1220,15 +1273,26 @@ export default function AddBill() {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="invoice_number">Invoice #</Label>
-                    <Input
-                      id="invoice_number"
-                      value={formData.invoice_number}
-                      onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                      placeholder="Enter invoice number (optional)"
-                    />
-                  </div>
+                  {selectedVendor?.require_invoice_number !== false && (
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_number">
+                        Invoice # {selectedVendor?.require_invoice_number && <span className="text-destructive">*</span>}
+                      </Label>
+                      <Input
+                        id="invoice_number"
+                        value={formData.invoice_number}
+                        onChange={(e) => handleInputChange("invoice_number", e.target.value)}
+                        placeholder={selectedVendor?.require_invoice_number ? "Required" : "Optional"}
+                        required={selectedVendor?.require_invoice_number}
+                      />
+                      {duplicateInvoiceWarning && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          {duplicateInvoiceWarning}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Cost Distribution Display */}
