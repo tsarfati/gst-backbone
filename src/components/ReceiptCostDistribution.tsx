@@ -58,7 +58,8 @@ export default function ReceiptCostDistribution({
   );
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
-  const [loading, setLoading] = useState(true);
+const [loading, setLoading] = useState(true);
+const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'material' | 'equipment' | 'sub' | 'other'>>({});
 
   useEffect(() => {
     loadJobs();
@@ -103,6 +104,8 @@ export default function ReceiptCostDistribution({
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false)
+        .neq('type', 'dynamic_group')
+        .neq('type', 'dynamic_parent')
         .order('code');
 
       if (error) throw error;
@@ -238,8 +241,9 @@ export default function ReceiptCostDistribution({
       </CardHeader>
       <CardContent className="space-y-4">
         {distribution.map((dist, index) => {
-          const costCodesForJob = dist.job_id ? (costCodesByJob[dist.job_id] || []) : [];
-          
+          const rawCostCodesForJob = dist.job_id ? (costCodesByJob[dist.job_id] || []) : [];
+          const filterCat = categoryFilter[dist.id] || 'all';
+          const costCodesForJob = rawCostCodesForJob.filter(cc => filterCat === 'all' ? true : ((cc.type || 'other') === filterCat));
           return (
             <div key={dist.id} className="p-4 border rounded-lg space-y-3 bg-accent/10">
               <div className="flex items-center justify-between">
@@ -286,7 +290,7 @@ export default function ReceiptCostDistribution({
                       role="combobox"
                       disabled={disabled || !dist.job_id}
                       className={cn(
-                        "w-full h-8 justify-between text-xs font-normal",
+                        "w-full h-8 justify-between text-xs font-normal transition-colors hover:bg-primary/10 hover:text-primary",
                         !dist.cost_code_id && "text-muted-foreground"
                       )}
                     >
@@ -300,6 +304,25 @@ export default function ReceiptCostDistribution({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[400px] p-0 bg-popover border border-border shadow-md z-50" align="start">
+                    {/* Category Filter */}
+                    <div className="p-2 border-b bg-card flex items-center gap-2">
+                      <Label className="text-xs">Category</Label>
+                      <Select
+                        value={filterCat}
+                        onValueChange={(value) => setCategoryFilter(prev => ({ ...prev, [dist.id]: value as any }))}
+                      >
+                        <SelectTrigger className="h-8 w-40">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent className="z-50 bg-popover border border-border">
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="material">Material</SelectItem>
+                          <SelectItem value="equipment">Equipment</SelectItem>
+                          <SelectItem value="sub">Subcontract</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Command>
                       <CommandInput placeholder="Search cost codes..." className="h-8" />
                       <CommandEmpty>No cost code found.</CommandEmpty>
