@@ -80,6 +80,7 @@ export default function ReceiptPreviewModal({
                     src={receipt.file_url}
                     alt="Receipt preview"
                     className="max-w-full h-auto"
+                    loading="lazy"
                   />
                 </div>
               )}
@@ -93,18 +94,24 @@ export default function ReceiptPreviewModal({
                 <CardTitle className="text-sm">Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div>
-                  <span className="text-xs font-medium text-muted-foreground">Amount</span>
-                  <p className="text-base font-semibold">${Number(receipt.amount || 0).toLocaleString()}</p>
-                </div>
-                <div>
-                  <span className="text-xs font-medium text-muted-foreground">Vendor</span>
-                  <p className="text-sm">{receipt.vendor || receipt.vendor_name || 'Unknown'}</p>
-                </div>
-                <div>
-                  <span className="text-xs font-medium text-muted-foreground">Date</span>
-                  <p className="text-sm">{new Date(receipt.date || receipt.receipt_date || '').toLocaleDateString()}</p>
-                </div>
+                {receipt.amount && (
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground">Amount</span>
+                    <p className="text-base font-semibold">${Number(receipt.amount).toLocaleString()}</p>
+                  </div>
+                )}
+                {(receipt.vendor || receipt.vendor_name) && (
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground">Vendor</span>
+                    <p className="text-sm">{receipt.vendor || receipt.vendor_name}</p>
+                  </div>
+                )}
+                {(receipt.date || receipt.receipt_date) && (
+                  <div>
+                    <span className="text-xs font-medium text-muted-foreground">Date</span>
+                    <p className="text-sm">{new Date((receipt.date || receipt.receipt_date) as any).toLocaleDateString()}</p>
+                  </div>
+                )}
                 <div>
                   <span className="text-xs font-medium text-muted-foreground">Status</span>
                   <Badge variant={receipt.status === 'coded' ? 'default' : 'secondary'} className="text-xs">

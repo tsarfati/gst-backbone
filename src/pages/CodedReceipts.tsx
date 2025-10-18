@@ -69,42 +69,38 @@ export default function CodedReceipts() {
 
       const { data, error } = await supabase
         .from('receipts')
-        .select(`
-          *,
-          jobs!job_id(id, name),
-          cost_codes!cost_code_id(id, code, description)
-        `)
+        .select('*')
         .eq('id', selectedReceipt.id)
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
-        // Fetch user profiles separately to handle nulls better
-        const uploadedById = (data as any).uploaded_by;
-        const codedById = (data as any).coded_by;
-        
-        const uploadedByProfile = uploadedById ? await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('user_id', uploadedById)
-          .single() : null;
-
-        const codedByProfile = codedById ? await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('user_id', codedById)
-          .single() : null;
-
-        setReceiptDetails({
-          ...data,
-          job: (data as any).jobs || null,
-          cost_code: (data as any).cost_codes || null,
-          uploaded_by_profile: uploadedByProfile?.data || null,
-          coded_by_profile: codedByProfile?.data || null
-        } as any);
-      } else {
+      if (error || !data) {
         console.error('Error fetching receipt details:', error);
         setReceiptDetails(null);
+        return;
       }
+
+      // Open modal immediately with base data
+      setReceiptDetails(data);
+
+      const uploadedById = (data as any).uploaded_by;
+      const codedById = (data as any).coded_by;
+      const jobId = (data as any).job_id;
+      const costCodeId = (data as any).cost_code_id;
+
+      const [uploadedByProfile, codedByProfile, jobRes, costCodeRes] = await Promise.all([
+        uploadedById ? supabase.from('profiles').select('first_name, last_name').eq('user_id', uploadedById).maybeSingle() : Promise.resolve({ data: null }),
+        codedById ? supabase.from('profiles').select('first_name, last_name').eq('user_id', codedById).maybeSingle() : Promise.resolve({ data: null }),
+        jobId ? supabase.from('jobs').select('id, name').eq('id', jobId).maybeSingle() : Promise.resolve({ data: null }),
+        costCodeId ? supabase.from('cost_codes').select('id, code, description').eq('id', costCodeId).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+
+      setReceiptDetails({
+        ...data,
+        job: jobRes?.data || null,
+        cost_code: costCodeRes?.data || null,
+        uploaded_by_profile: uploadedByProfile?.data || null,
+        coded_by_profile: codedByProfile?.data || null,
+      } as any);
     };
 
     fetchReceiptDetails();

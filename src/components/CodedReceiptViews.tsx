@@ -87,11 +87,13 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
                     </div>
                     
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-purple-500" />
-                        <span className="font-medium text-sm">Uploaded by:</span>
-                        <span className="text-sm text-muted-foreground">{receipt.uploadedBy}</span>
-                      </div>
+                      {receipt.uploadedBy && (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-purple-500" />
+                          <span className="font-medium text-sm">Uploaded by:</span>
+                          <span className="text-sm text-muted-foreground">{receipt.uploadedBy}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

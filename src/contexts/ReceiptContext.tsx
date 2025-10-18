@@ -129,9 +129,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         vendor: receipt.vendor_name,
         type: receipt.file_name.toLowerCase().includes('.pdf') ? 'pdf' as const : 'image' as const,
         previewUrl: receipt.file_url,
-        uploadedBy: 'User', // This would need to be joined from profiles table
+        uploadedBy: undefined,
         uploadedDate: new Date(receipt.created_at),
-        amount: receipt.amount?.toString() || '$0.00' // Convert to string for legacy compatibility
+        amount: receipt.amount !== null && receipt.amount !== undefined ? receipt.amount.toString() : undefined
       }));
 
       const uncoded = processedReceipts.filter(r => r.status === 'uncoded');
@@ -142,7 +142,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           ...r,
           jobName: job?.name || '',
           costCodeName: costCode ? `${costCode.code} - ${costCode.description}` : '',
-          codedBy: 'User',
+          codedBy: '',
           codedDate: new Date(r.updated_at),
           vendorId: r.vendor_id || r.vendor_name // Use vendor_id if available, fallback to vendor_name
         };
