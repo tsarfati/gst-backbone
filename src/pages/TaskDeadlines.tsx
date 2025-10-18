@@ -260,7 +260,7 @@ export default function TaskDeadlines() {
               {sortedDeadlines.map((deadline) => (
                 <div
                   key={deadline.id}
-                  className={`p-4 border rounded-lg hover:bg-accent/50 transition-colors ${
+                  className={`p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors ${
                     deadline.status === 'overdue' ? 'border-red-200 bg-red-50/50' :
                     deadline.days_until_due === 0 ? 'border-orange-200 bg-orange-50/50' :
                     deadline.days_until_due <= 2 ? 'border-yellow-200 bg-yellow-50/50' : ''

@@ -249,7 +249,7 @@ export default function ProjectTasks() {
               {filteredTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                  className="p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">

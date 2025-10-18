@@ -269,7 +269,7 @@ export default function RolePermissionsManager() {
           >
             <Card className="overflow-hidden">
               <CollapsibleTrigger asChild>
-                <CardHeader className="pb-3 cursor-pointer hover:bg-accent/50 transition-colors">
+                <CardHeader className="pb-3 cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
                   <CardTitle className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <Badge className={`${role.color} border-0`}>{role.label}</Badge>
@@ -302,7 +302,7 @@ export default function RolePermissionsManager() {
                           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                             {categoryItems.map((menuItem) => (
-                              <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-accent/50 transition-colors">
+                              <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
                                 <Switch
                                   id={`${role.key}-${menuItem.key}`}
                                   checked={getPermission(role.key, menuItem.key)}

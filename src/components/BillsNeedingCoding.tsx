@@ -157,7 +157,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
             {bills.map((bill) => (
               <div
                 key={bill.id}
-                className="p-3 rounded-lg border bg-accent/50 hover:bg-accent cursor-pointer transition-colors"
+                className="p-3 rounded-lg border bg-accent/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
                 onClick={() => handleBillClick(bill.id)}
               >
                 <div className="flex items-start justify-between">

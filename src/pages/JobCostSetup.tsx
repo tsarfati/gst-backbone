@@ -568,7 +568,7 @@ export default function JobCostSetup() {
                     </p>
                     <RadioGroup value={csvUploadMode} onValueChange={(value: any) => setCsvUploadMode(value)}>
                       <div className="space-y-3">
-                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
                           <RadioGroupItem value="add" id="mode-add" className="mt-1" />
                           <div className="space-y-1 flex-1">
                             <Label htmlFor="mode-add" className="font-medium cursor-pointer">
@@ -580,7 +580,7 @@ export default function JobCostSetup() {
                           </div>
                         </div>
                         
-                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
                           <RadioGroupItem value="update" id="mode-update" className="mt-1" />
                           <div className="space-y-1 flex-1">
                             <Label htmlFor="mode-update" className="font-medium cursor-pointer">
@@ -592,7 +592,7 @@ export default function JobCostSetup() {
                           </div>
                         </div>
                         
-                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                        <div className="flex items-start space-x-3 space-y-0 p-3 rounded-lg border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
                           <RadioGroupItem value="replace" id="mode-replace" className="mt-1" />
                           <div className="space-y-1 flex-1">
                             <Label htmlFor="mode-replace" className="font-medium cursor-pointer">

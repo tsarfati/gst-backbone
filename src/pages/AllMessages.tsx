@@ -249,7 +249,7 @@ export default function AllMessages() {
               {filteredMessages.map((message) => (
                 <div
                   key={message.id}
-                  className={`p-4 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors ${
+                  className={`p-4 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
                     !message.read && filter !== 'sent' ? 'bg-accent/20 border-primary/20' : ''
                   }`}
                   onClick={() => openThreadView(message)}

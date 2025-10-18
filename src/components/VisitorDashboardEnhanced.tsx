@@ -311,7 +311,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
         <Card>
           <Collapsible defaultOpen>
             <CollapsibleTrigger className="w-full">
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <CardHeader className="cursor-pointer hover:bg-primary/10 transition-colors">
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <ChevronRight className="h-4 w-4 transition-transform ui-state-open:rotate-90" />
@@ -332,7 +332,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
                   employees.map((employee) => (
                     <div 
                       key={employee.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
                       onClick={() => setSelectedEmployee(employee)}
                     >
                       <div className="flex items-center space-x-3">
@@ -378,7 +378,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
               <Card key={company}>
                 <Collapsible defaultOpen>
                   <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <CardHeader className="cursor-pointer hover:bg-primary/10 transition-colors">
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <ChevronRight className="h-4 w-4 transition-transform ui-state-open:rotate-90" />
@@ -394,7 +394,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
                         {companyVisitors.map((visitor) => (
                           <div 
                             key={visitor.id}
-                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
                             onClick={() => setSelectedVisitor(visitor)}
                           >
                             <div className="flex items-center space-x-3">

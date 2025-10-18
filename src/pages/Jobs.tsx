@@ -151,7 +151,7 @@ export default function Jobs() {
             {jobs.map((job) => (
               <div
                 key={job.id}
-                className="p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                className="p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
                 onClick={() => handleJobClick(job)}
               >
                 <div className="flex items-center justify-between">
@@ -174,7 +174,7 @@ export default function Jobs() {
             {jobs.map((job) => (
               <div 
                 key={job.id} 
-                className="flex items-center justify-between p-2 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-2 border rounded hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
                 onClick={() => handleJobClick(job)}
               >
                 <div className="flex items-center gap-2">

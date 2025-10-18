@@ -186,7 +186,7 @@ export default function UploadReceipts() {
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
                 isDragActive 
                   ? "border-primary bg-primary/5 border-solid" 
-                  : "border-border hover:border-primary/50 hover:bg-accent/50"
+                  : "border-border hover:border-primary/50 hover:bg-primary/10"
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}

@@ -690,7 +690,7 @@ export default function UserEdit() {
                     <p className="text-sm text-muted-foreground">Select which jobs this employee can punch in/out from</p>
                     <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
                       {jobs.map((job) => (
-                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-primary/10 hover:border-primary">
                           <div className="flex-1">
                             <div className="font-medium">{job.name}</div>
                             <div className="text-sm text-muted-foreground">{job.client}</div>
@@ -711,7 +711,7 @@ export default function UserEdit() {
                     <p className="text-sm text-muted-foreground">Jobs this employee can view/manage in the system</p>
                     <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
                       {jobs.map((job) => (
-                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                        <div key={job.id} className="flex items-center justify-between p-3 hover:bg-primary/10 hover:border-primary">
                           <div className="flex-1">
                             <div className="font-medium">{job.name}</div>
                             <div className="text-sm text-muted-foreground">{job.client}</div>
@@ -786,7 +786,7 @@ export default function UserEdit() {
                             costCode.description.toLowerCase().includes(costCodeSearch.toLowerCase())
                           )
                           .map((costCode) => (
-                            <div key={costCode.id} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                            <div key={costCode.id} className="flex items-center justify-between p-3 hover:bg-primary/10 hover:border-primary">
                               <div className="flex-1">
                                 <div className="font-mono font-medium">{costCode.code}</div>
                                 <div className="text-sm text-muted-foreground">{costCode.description}</div>

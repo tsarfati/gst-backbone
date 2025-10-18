@@ -152,7 +152,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
         ) : (
           <div className="space-y-2">
             {purchaseOrders.map((po) => (
-              <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer">
+              <div key={po.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">

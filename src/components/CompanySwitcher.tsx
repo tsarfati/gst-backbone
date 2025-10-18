@@ -86,7 +86,7 @@ export function CompanySwitcher() {
       <DropdownMenuTrigger asChild>
         <Button 
           variant="ghost" 
-          className="flex items-center gap-2 px-3 py-2 h-auto hover:bg-muted/50"
+          className="flex items-center gap-2 px-3 py-2 h-auto hover:bg-primary/10"
         >
           <Avatar className="h-6 w-6">
             <AvatarImage src={currentCompany.logo_url || undefined} />

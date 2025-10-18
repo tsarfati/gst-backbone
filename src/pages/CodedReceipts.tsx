@@ -717,7 +717,7 @@ export default function CodedReceipts() {
 
       {/* Receipt Preview Modal */}
       <ReceiptPreviewModal
-        receipt={selectedReceipt && receiptDetails ? {
+        receipt={receiptDetails ? {
           ...receiptDetails,
           id: receiptDetails.id,
           filename: receiptDetails.filename || receiptDetails.file_name,
@@ -739,9 +739,12 @@ export default function CodedReceipts() {
             : 'User',
           codedDate: receiptDetails.coded_at ? new Date(receiptDetails.coded_at) : new Date(),
         } : null}
-        open={!!selectedReceipt}
+        open={!!receiptDetails}
         onOpenChange={(open) => {
-          if (!open) setSelectedReceipt(null);
+          if (!open) {
+            setSelectedReceipt(null);
+            setReceiptDetails(null);
+          }
         }}
       />
     </div>

@@ -409,7 +409,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
             {contractFiles.map((fileData, index) => (
               <div 
                 key={index}
-                className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors"
                 onClick={() => handleViewFile(fileData.path, fileData.name)}
               >
                 <FileText className="h-8 w-8 text-muted-foreground" />
@@ -485,7 +485,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
                 {invoices.map((invoice) => (
                   <TableRow 
                     key={invoice.id}
-                    className="cursor-pointer hover:bg-accent"
+                    className="cursor-pointer hover:bg-primary/10"
                     onClick={() => navigate(`/invoices/${invoice.id}`)}
                   >
                     <TableCell className="font-medium">{invoice.invoice_number || invoice.id.substring(0, 8)}</TableCell>

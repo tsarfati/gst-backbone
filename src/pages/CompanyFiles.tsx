@@ -213,7 +213,7 @@ export default function CompanyFiles() {
           ) : (
             <div className="space-y-4">
               {filteredDocuments.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary">
                   <div className="flex items-center space-x-4">
                     <div className="flex-shrink-0">
                       <FileText className="h-8 w-8 text-primary" />

@@ -627,7 +627,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   return (
                     <div 
                       key={cr.id} 
-                      className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer"
+                      className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer"
                       onClick={() => {
                         setSelectedTimeCardId(tc?.id || null);
                         setTimeCardModalOpen(true);
@@ -690,7 +690,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   return (
                      <div 
                        key={row.id} 
-                       className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer transition-colors"
+                       className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
                        onClick={() => openDetailForActive(row)}
                      >
                        <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -750,7 +750,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   const prof = profiles[row.user_id];
                   const job = row.job_id ? jobs[row.job_id] : undefined;
                   return (
-                     <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-accent cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                     <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={(

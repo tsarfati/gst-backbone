@@ -282,7 +282,7 @@ export function MobileMessages() {
                   {filteredMessages.map((message) => (
                     <div
                       key={message.id}
-                      className={`border rounded-lg p-3 cursor-pointer transition-colors hover:bg-muted/50 ${
+                      className={`border rounded-lg p-3 cursor-pointer transition-colors hover:bg-primary/10 hover:border-primary ${
                         !message.read && message.to_user_id === user?.id 
                           ? 'bg-primary/5 border-primary/20' 
                           : 'bg-background'

@@ -195,7 +195,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
 
       case 'super-compact':
         return (
-          <div key={employee.id} className="flex items-center justify-between p-3 border rounded hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => onEmployeeClick(employee)}>
+          <div key={employee.id} className="flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="flex items-center gap-2">
               <Avatar className="h-6 w-6">
                 <AvatarImage src={employee.avatar_url} />

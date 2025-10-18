@@ -201,7 +201,7 @@ export default function PaymentHistory() {
                 </TableRow>
               ) : (
                 filteredPayments.map((payment) => (
-                  <TableRow key={payment.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableRow key={payment.id} className="cursor-pointer hover:bg-primary/10">
                     <TableCell className="font-medium">{payment.id}</TableCell>
                     <TableCell>
                       <Button variant="link" className="h-auto p-0 font-medium">

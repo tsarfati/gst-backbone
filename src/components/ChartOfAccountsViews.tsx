@@ -40,7 +40,7 @@ export function ChartOfAccountsListView({ accounts, onEdit, formatCurrency, getA
         </thead>
         <tbody>
           {accounts.map((account) => (
-            <tr key={account.id} className="border-t hover:bg-muted/50">
+            <tr key={account.id} className="border-t hover:bg-primary/10">
               <td className="p-3 text-sm font-mono">{account.account_number}</td>
               <td className="p-3">
                 <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ export function ChartOfAccountsCompactView({ accounts, onEdit, formatCurrency, g
   return (
     <div className="space-y-2">
       {accounts.map((account) => (
-        <Card key={account.id} className="p-3 hover:bg-muted/50 transition-colors">
+        <Card key={account.id} className="p-3 hover:bg-primary/10 hover:border-primary transition-colors">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="flex-shrink-0">
@@ -169,7 +169,7 @@ export function ChartOfAccountsSuperCompactView({ accounts, onEdit, formatCurren
         return (
           <div 
             key={account.id} 
-            className="grid grid-cols-[auto_1fr_120px_80px_40px] items-center gap-2 p-2 rounded hover:bg-muted/50 transition-colors border"
+            className="grid grid-cols-[auto_1fr_120px_80px_40px] items-center gap-2 p-2 rounded hover:bg-primary/10 hover:border-primary transition-colors border"
           >
             <div className="flex-shrink-0">
               {getAccountTypeIcon(account.account_type)}

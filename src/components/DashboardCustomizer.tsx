@@ -94,7 +94,7 @@ function SortableItem({ tile, onToggle }: SortableItemProps) {
             size="sm"
             variant="ghost"
             onClick={() => onToggle(tile.id)}
-            className="p-2 hover:bg-accent"
+            className="p-2 hover:bg-primary/10 hover:border-primary"
           >
             {tile.enabled ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
           </Button>

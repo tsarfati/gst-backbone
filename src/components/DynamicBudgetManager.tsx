@@ -282,7 +282,7 @@ export default function DynamicBudgetManager({ jobId }: DynamicBudgetManagerProp
           const isDynamic = !!group.dynamicBudget;
           
           return (
-            <div key={group.baseCode} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+            <div key={group.baseCode} className="flex items-start gap-3 p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors">
               <Checkbox
                 checked={isDynamic}
                 onCheckedChange={(checked) => handleToggleDynamic(group.baseCode, checked as boolean)}

@@ -252,7 +252,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
               {records.map((record) => (
                 <TableRow 
                   key={record.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  className="cursor-pointer hover:bg-primary/10 transition-colors"
                   onClick={(e) => {
                     // Don't trigger if clicking checkbox
                     if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;

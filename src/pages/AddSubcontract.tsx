@@ -744,7 +744,7 @@ export default function AddSubcontract() {
                           className={cn(
                             "flex items-start justify-between p-3 border rounded-lg transition-colors",
                             file.type === 'application/pdf' 
-                              ? "cursor-pointer hover:bg-accent hover:border-primary/50" 
+                              ? "cursor-pointer hover:bg-primary/10 hover:border-primary" 
                               : ""
                           )}
                           onClick={() => {

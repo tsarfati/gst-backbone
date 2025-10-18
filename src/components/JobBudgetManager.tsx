@@ -481,7 +481,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                               {line.is_dynamic && childCount && childCount > 2 && (
                                 <button
                                   onClick={() => toggleGroup(line.cost_code?.code || '')}
-                                  className="hover:bg-muted p-0.5 rounded"
+                                  className="hover:bg-primary/10 p-0.5 rounded"
                                 >
                                   {isExpanded ? (
                                     <ChevronDown className="h-4 w-4" />

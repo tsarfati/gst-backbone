@@ -617,7 +617,7 @@ export default function Dashboard() {
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors ${
+                        className={`p-3 rounded-lg border cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
                           !message.read ? 'bg-accent' : 'bg-background'
                         }`}
                         onClick={() => {

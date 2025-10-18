@@ -712,7 +712,7 @@ export default function CompanyManagement() {
                 users.map((companyUser) => (
                   <TableRow 
                     key={companyUser.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-primary/10"
                     onClick={() => {
                       if (companyUser.is_pin_employee) {
                         navigate(`/pin-employees/${companyUser.user_id}/edit`);

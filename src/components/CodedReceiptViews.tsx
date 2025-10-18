@@ -108,7 +108,7 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
   return (
     <div className="space-y-2">
       {receipts.map((receipt) => (
-        <Card key={receipt.id} className="hover:bg-accent/50 transition-colors">
+        <Card key={receipt.id} className="hover:bg-primary/10 hover:border-primary transition-colors">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Checkbox
@@ -151,7 +151,7 @@ export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSel
   return (
     <div className="space-y-1">
       {receipts.map((receipt) => (
-        <div key={receipt.id} className="flex items-center gap-2 p-2 hover:bg-accent/50 rounded border">
+        <div key={receipt.id} className="flex items-center gap-2 p-2 hover:bg-primary/10 hover:border-primary rounded border">
           <Checkbox
             checked={selectedReceipts.includes(receipt.id)}
             onCheckedChange={() => onSelectReceipt(receipt.id)}

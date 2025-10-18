@@ -626,7 +626,7 @@ export default function TimeSheets() {
 
   const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <TableHead 
-      className="cursor-pointer hover:bg-muted/50 select-none"
+      className="cursor-pointer hover:bg-primary/10 select-none"
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center gap-2">
@@ -918,7 +918,7 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getFilteredAndSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-muted/30">
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-primary/10">
                           {isManager && (
                             <TableCell className="font-medium">
                               {getEmployeeName(timeCard)}
@@ -1244,7 +1244,7 @@ export default function TimeSheets() {
                     {timeCards.map((timeCard) => (
                       <div 
                         key={timeCard.id} 
-                        className="flex items-center justify-between p-2 hover:bg-muted/50 rounded cursor-pointer"
+                        className="flex items-center justify-between p-2 hover:bg-primary/10 hover:border-primary rounded cursor-pointer"
                         onClick={() => handleViewDetails(timeCard.id)}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">

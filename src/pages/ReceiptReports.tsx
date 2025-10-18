@@ -85,7 +85,7 @@ export default function ReceiptReports() {
   const uncodedReceipts = filteredReceipts.filter(r => r.status === 'uncoded').length;
 
   const renderReceiptItem = (receipt: ReceiptReportData) => {
-    const baseClasses = "p-4 border rounded-lg hover:bg-accent/50 transition-colors";
+    const baseClasses = "p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors";
     
     switch (currentView) {
       case 'list':

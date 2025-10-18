@@ -176,7 +176,7 @@ export default function TeamChat() {
                   className={`flex items-center p-2 rounded-lg cursor-pointer transition-colors ${
                     selectedChannel?.id === channel.id
                       ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-accent'
+                      : 'hover:bg-primary/10'
                   }`}
                   onClick={() => setSelectedChannel(channel)}
                 >
@@ -204,7 +204,7 @@ export default function TeamChat() {
             </h3>
             <div className="space-y-2">
               {onlineUsers.map((user) => (
-                <div key={user.id} className="flex items-center p-2 rounded-lg hover:bg-accent cursor-pointer">
+                <div key={user.id} className="flex items-center p-2 rounded-lg hover:bg-primary/10 hover:border-primary cursor-pointer">
                   <div className="relative">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs">
