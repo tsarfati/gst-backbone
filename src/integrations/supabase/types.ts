@@ -873,6 +873,88 @@ export type Database = {
           },
         ]
       }
+      custom_role_permissions: {
+        Row: {
+          can_access: boolean
+          created_at: string
+          custom_role_id: string
+          id: string
+          menu_item: string
+          updated_at: string
+        }
+        Insert: {
+          can_access?: boolean
+          created_at?: string
+          custom_role_id: string
+          id?: string
+          menu_item: string
+          updated_at?: string
+        }
+        Update: {
+          can_access?: boolean
+          created_at?: string
+          custom_role_id?: string
+          id?: string
+          menu_item?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_role_permissions_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_roles: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          role_key: string
+          role_name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          role_key: string
+          role_name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          role_key?: string
+          role_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_settings: {
         Row: {
           company_id: string
@@ -2688,6 +2770,7 @@ export type Database = {
           birthday: string | null
           created_at: string
           current_company_id: string | null
+          custom_role_id: string | null
           display_name: string | null
           first_name: string | null
           group_id: string | null
@@ -2710,6 +2793,7 @@ export type Database = {
           birthday?: string | null
           created_at?: string
           current_company_id?: string | null
+          custom_role_id?: string | null
           display_name?: string | null
           first_name?: string | null
           group_id?: string | null
@@ -2732,6 +2816,7 @@ export type Database = {
           birthday?: string | null
           created_at?: string
           current_company_id?: string | null
+          custom_role_id?: string | null
           display_name?: string | null
           first_name?: string | null
           group_id?: string | null
@@ -2753,6 +2838,13 @@ export type Database = {
             columns: ["current_company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
             referencedColumns: ["id"]
           },
           {

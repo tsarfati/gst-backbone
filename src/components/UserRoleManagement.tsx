@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 import { User, Shield, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -15,12 +16,23 @@ interface UserProfile {
   last_name: string;
   display_name: string;
   role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
+  custom_role_id?: string;
   email?: string;
   avatar_url?: string;
 }
 
+interface CustomRole {
+  id: string;
+  role_key: string;
+  role_name: string;
+  description: string;
+  color: string;
+}
+
 export default function UserRoleManagement() {
+  const { currentCompany } = useCompany();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -29,7 +41,10 @@ export default function UserRoleManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+    if (currentCompany) {
+      fetchCustomRoles();
+    }
+  }, [currentCompany]);
 
   useEffect(() => {
     filterUsers();
@@ -46,6 +61,7 @@ export default function UserRoleManagement() {
           last_name,
           display_name,
           role,
+          custom_role_id,
           avatar_url
         `)
         .order('last_name');
@@ -76,6 +92,24 @@ export default function UserRoleManagement() {
     }
   };
 
+  const fetchCustomRoles = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('id, role_key, role_name, description, color')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('role_name');
+
+      if (error) throw error;
+      setCustomRoles(data || []);
+    } catch (error) {
+      console.error('Error fetching custom roles:', error);
+    }
+  };
+
   const filterUsers = () => {
     let filtered = users;
 
@@ -94,11 +128,25 @@ export default function UserRoleManagement() {
     setFilteredUsers(filtered);
   };
 
-  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin') => {
+  const updateUserRole = async (userId: string, newRole: string, isCustomRole: boolean = false) => {
     try {
+      const updates: any = {};
+      
+      if (isCustomRole) {
+        // Assign custom role
+        updates.custom_role_id = newRole;
+        // Set system role to employee when using custom role
+        updates.role = 'employee';
+      } else {
+        // Assign system role
+        updates.role = newRole;
+        // Clear custom role when using system role
+        updates.custom_role_id = null;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({ role: newRole })
+        .update(updates)
         .eq('user_id', userId);
 
       if (error) throw error;
@@ -137,6 +185,25 @@ export default function UserRoleManagement() {
     return role.split('_').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
+  };
+
+  const getUserRoleDisplay = (user: UserProfile) => {
+    if (user.custom_role_id) {
+      const customRole = customRoles.find(r => r.id === user.custom_role_id);
+      if (customRole) {
+        return {
+          label: customRole.role_name,
+          value: `custom_${customRole.id}`,
+          isCustom: true,
+          color: customRole.color
+        };
+      }
+    }
+    return {
+      label: getRoleLabel(user.role),
+      value: user.role,
+      isCustom: false
+    };
   };
 
   if (loading) {
@@ -237,24 +304,55 @@ export default function UserRoleManagement() {
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {getRoleLabel(user.role)}
-                    </Badge>
-                    
-                    <Select 
-                      value={user.role} 
-                      onValueChange={(newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin') => updateUserRole(user.user_id, newRole)}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="controller">Controller</SelectItem>
-                        <SelectItem value="project_manager">Project Manager</SelectItem>
-                        <SelectItem value="employee">Employee</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {(() => {
+                      const roleDisplay = getUserRoleDisplay(user);
+                      return (
+                        <>
+                          <Badge 
+                            variant={roleDisplay.isCustom ? 'secondary' : getRoleBadgeVariant(user.role)}
+                            className={roleDisplay.isCustom ? roleDisplay.color : ''}
+                          >
+                            {roleDisplay.label}
+                            {roleDisplay.isCustom && (
+                              <span className="ml-1 text-xs opacity-70">(Custom)</span>
+                            )}
+                          </Badge>
+                          
+                          <Select 
+                            value={roleDisplay.value}
+                            onValueChange={(value: string) => {
+                              if (value.startsWith('custom_')) {
+                                updateUserRole(user.user_id, value.replace('custom_', ''), true);
+                              } else {
+                                updateUserRole(user.user_id, value, false);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-[200px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="controller">Controller</SelectItem>
+                              <SelectItem value="project_manager">Project Manager</SelectItem>
+                              <SelectItem value="employee">Employee</SelectItem>
+                              {customRoles.length > 0 && (
+                                <>
+                                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                    Custom Roles
+                                  </div>
+                                  {customRoles.map(role => (
+                                    <SelectItem key={role.id} value={`custom_${role.id}`}>
+                                      {role.role_name}
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
