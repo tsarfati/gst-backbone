@@ -10,6 +10,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import BillApprovalSettings from "@/components/BillApprovalSettings";
 
 interface PickupLocation {
   id: string;
@@ -420,6 +421,15 @@ export default function CompanySettings() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Job & Bill Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BillApprovalSettings />
         </CardContent>
       </Card>
 

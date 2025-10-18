@@ -451,6 +451,7 @@ export type Database = {
           created_at: string
           id: string
           payment_terms_options: string[]
+          require_bill_approval: boolean
           updated_at: string
         }
         Insert: {
@@ -458,6 +459,7 @@ export type Database = {
           created_at?: string
           id?: string
           payment_terms_options?: string[]
+          require_bill_approval?: boolean
           updated_at?: string
         }
         Update: {
@@ -465,6 +467,7 @@ export type Database = {
           created_at?: string
           id?: string
           payment_terms_options?: string[]
+          require_bill_approval?: boolean
           updated_at?: string
         }
         Relationships: []
