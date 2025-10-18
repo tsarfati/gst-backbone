@@ -8,10 +8,9 @@ import { FileText } from "lucide-react";
 interface PdfInlinePreviewProps {
   file: File; // PDF file to render
   className?: string;
-  height?: number; // desired height in px (default 384 = h-96)
 }
 
-export default function PdfInlinePreview({ file, className, height = 384 }: PdfInlinePreviewProps) {
+export default function PdfInlinePreview({ file, className }: PdfInlinePreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,11 +81,11 @@ export default function PdfInlinePreview({ file, className, height = 384 }: PdfI
     return () => {
       cancelled = true;
     };
-  }, [file, height]);
+  }, [file]);
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)} style={{ height }}>
-      <canvas ref={canvasRef} className="w-full h-full object-contain rounded border bg-white" />
+    <div ref={containerRef} className={cn("relative w-full", className)}>
+      <canvas ref={canvasRef} className="w-full h-auto rounded border bg-white" />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/60">
           Rendering preview...

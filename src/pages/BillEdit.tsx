@@ -737,7 +737,7 @@ export default function BillEdit() {
                         </Button>
                       </div>
                       {file.type === 'application/pdf' ? (
-                        <PdfInlinePreview file={file} height={384} />
+                        <PdfInlinePreview file={file} />
                       ) : file.type.startsWith('image/') ? (
                         <img 
                           src={URL.createObjectURL(file)} 
