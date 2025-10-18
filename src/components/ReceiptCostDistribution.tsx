@@ -59,7 +59,7 @@ export default function ReceiptCostDistribution({
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
 const [loading, setLoading] = useState(true);
-const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'material' | 'equipment' | 'sub' | 'other'>>({});
+const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'labor' | 'material' | 'equipment' | 'sub' | 'other'>>({});
 
   useEffect(() => {
     loadJobs();
@@ -316,6 +316,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'mat
                         </SelectTrigger>
                         <SelectContent className="z-50 bg-popover border border-border">
                           <SelectItem value="all" className="hover:bg-primary/10 hover:text-primary">All</SelectItem>
+                          <SelectItem value="labor" className="hover:bg-primary/10 hover:text-primary">Labor</SelectItem>
                           <SelectItem value="material" className="hover:bg-primary/10 hover:text-primary">Material</SelectItem>
                           <SelectItem value="equipment" className="hover:bg-primary/10 hover:text-primary">Equipment</SelectItem>
                           <SelectItem value="sub" className="hover:bg-primary/10 hover:text-primary">Subcontract</SelectItem>
@@ -334,7 +335,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'mat
                           onSelect={() => {
                             updateDistribution(dist.id, 'cost_code_id', cc.id);
                           }}
-                          className="hover:bg-primary/10 hover:text-primary"
+                          className="hover:bg-primary/10 hover:text-primary data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
                         >
                             <Check
                               className={cn(

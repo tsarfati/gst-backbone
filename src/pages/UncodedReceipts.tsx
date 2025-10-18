@@ -625,7 +625,7 @@ export default function UncodedReceipts() {
                   // Compact View
                   <div
                     key={receipt.id}
-                    className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-accent"
+                    className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-primary/10 hover:border-primary"
                     onClick={() => setSelectedReceipt(receipt)}
                   >
                     <div className="flex-shrink-0 mr-3">
