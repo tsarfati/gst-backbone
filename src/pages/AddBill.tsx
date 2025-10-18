@@ -703,7 +703,7 @@ export default function AddBill() {
           internal_notes: formData.internal_notes || null,
           is_subcontract_invoice: false,
           is_reimbursement: formData.is_reimbursement,
-          file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null,
+          file_url: attachedReceipt?.file_url || null,
           created_by: user.data.user.id,
           pending_coding: formData.pending_coding,
           assigned_to_pm: assignedToPm
@@ -751,7 +751,7 @@ export default function AddBill() {
             created_by: user.data.user.id,
             pending_coding: formData.pending_coding,
             assigned_to_pm: assignedToPm,
-            file_url: attachedReceipt?.previewUrl || (attachedReceipt as any)?.file_url || null
+            file_url: attachedReceipt?.file_url || null
           })
           .select('id');
 
@@ -1568,15 +1568,15 @@ export default function AddBill() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    {attachedReceipt.type === 'pdf' && attachedReceipt.previewUrl ? (
+                    {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
                       <iframe
-                        src={attachedReceipt.previewUrl}
+                        src={attachedReceipt.file_url}
                         className="w-full h-[600px]"
                         title="Receipt preview"
                       />
-                    ) : attachedReceipt.previewUrl ? (
+                    ) : attachedReceipt.file_url ? (
                       <img
-                        src={attachedReceipt.previewUrl}
+                        src={attachedReceipt.file_url}
                         alt="Receipt preview"
                         className="w-full h-auto"
                       />

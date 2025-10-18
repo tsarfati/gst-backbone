@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, DollarSign, Building2, FileText, Link } from "lucide-react";
+import { Lightbulb, DollarSign, Building2, FileText, Link, Eye } from "lucide-react";
 import { CodedReceipt, useReceipts } from "@/contexts/ReceiptContext";
 import { useToast } from "@/hooks/use-toast";
+import ReceiptPreviewModal from "./ReceiptPreviewModal";
 
 interface BillReceiptSuggestionsProps {
   billVendorId?: string;
@@ -25,6 +26,8 @@ export default function BillReceiptSuggestions({
 }: BillReceiptSuggestionsProps) {
   const { codedReceipts } = useReceipts();
   const { toast } = useToast();
+  const [previewReceipt, setPreviewReceipt] = useState<CodedReceipt | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const suggestedReceipts = useMemo(() => {
     if (!codedReceipts?.length) return [];
@@ -146,7 +149,15 @@ export default function BillReceiptSuggestions({
   }
 
   return (
-    <Card className="mb-6">
+    <>
+      <ReceiptPreviewModal
+        receipt={previewReceipt}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+        onAttach={handleAttachReceipt}
+      />
+      
+      <Card className="mb-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-amber-600">
           <Lightbulb className="h-5 w-5" />
@@ -202,8 +213,12 @@ export default function BillReceiptSuggestions({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(receipt.previewUrl, '_blank')}
+                onClick={() => {
+                  setPreviewReceipt(receipt);
+                  setIsPreviewOpen(true);
+                }}
               >
+                <Eye className="h-4 w-4 mr-1" />
                 Preview
               </Button>
               <Button
@@ -219,5 +234,6 @@ export default function BillReceiptSuggestions({
         ))}
       </CardContent>
     </Card>
+    </>
   );
 }
