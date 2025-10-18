@@ -236,18 +236,49 @@ export default function UncodedReceipts() {
         });
       }
     } else {
-      // Code the receipt using context (vendor is optional)
-      codeReceipt(selectedReceipt.id, selectedJob, selectedCostCode, userName, selectedVendor || undefined, selectedAmount || undefined);
-      
-      toast({
-        title: "Receipt coded successfully",
-        description: `Receipt assigned to ${selectedJob} - ${selectedCostCode}`,
-      });
+      // Handle receipt coding - convert names to IDs
+      try {
+        const jobObj = jobs.find(j => j.name === selectedJob);
+        const costCodeObj = costCodes.find(c => `${c.code} - ${c.description}` === selectedCostCode);
+        
+        if (!jobObj || !costCodeObj) {
+          toast({
+            title: "Error",
+            description: "Invalid job or cost code selection",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Code the receipt using IDs instead of names
+        await codeReceipt(
+          selectedReceipt.id, 
+          jobObj.id,           // Pass job ID
+          costCodeObj.id,      // Pass cost code ID
+          userName, 
+          selectedVendor || undefined, 
+          selectedAmount || undefined
+        );
+        
+        // Close the receipt view and reset form
+        setSelectedReceipt(null);
+        setSelectedJob("");
+        setSelectedCostCode("");
+        setSelectedVendor("");
+        
+        toast({
+          title: "Receipt coded successfully",
+          description: `Receipt assigned to ${selectedJob} - ${selectedCostCode}`,
+        });
+      } catch (error) {
+        console.error('Error coding receipt:', error);
+        toast({
+          title: "Error",
+          description: "Failed to code receipt",
+          variant: "destructive",
+        });
+      }
     }
-    
-    setSelectedJob("");
-    setSelectedCostCode("");
-    setSelectedVendor("");
   };
 
   const handleAssignUser = (userId: string, userName: string, userRole: string) => {
