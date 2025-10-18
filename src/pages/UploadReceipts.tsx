@@ -6,11 +6,14 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
 import { Upload, FileText, X } from "lucide-react";
+import FilePreviewAmountModal from "@/components/FilePreviewAmountModal";
 
 export default function UploadReceipts() {
   const [files, setFiles] = useState<File[]>([]);
   const [fileAmounts, setFileAmounts] = useState<Record<string, string>>({});
   const [isDragActive, setIsDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { addReceipts } = useReceipts();
@@ -85,6 +88,21 @@ export default function UploadReceipts() {
   const updateFileAmount = (file: File, amount: string) => {
     const fileKey = `${file.name}_${file.size}`;
     setFileAmounts(prev => ({ ...prev, [fileKey]: amount }));
+  };
+
+  const handleFileClick = (file: File) => {
+    setSelectedFile(file);
+    setIsPreviewOpen(true);
+  };
+
+  const handleAmountSave = (amount: string) => {
+    if (selectedFile) {
+      updateFileAmount(selectedFile, amount);
+      toast({
+        title: "Amount saved",
+        description: `Amount $${amount} set for ${selectedFile.name}`,
+      });
+    }
   };
 
   const handleUpload = async () => {
@@ -209,7 +227,8 @@ export default function UploadReceipts() {
                   return (
                     <div
                       key={index}
-                      className="p-3 bg-accent rounded-lg space-y-2"
+                      className="p-3 rounded-lg border transition-colors hover:border-primary cursor-pointer"
+                      onClick={() => handleFileClick(file)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3 flex-1">
@@ -218,31 +237,20 @@ export default function UploadReceipts() {
                             <p className="font-medium text-sm truncate">{file.name}</p>
                             <p className="text-xs text-muted-foreground">
                               {(file.size / 1024).toFixed(1)} KB
+                              {amount && ` • $${amount}`}
                             </p>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => removeFile(index)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile(index);
+                          }}
                         >
                           <X className="h-4 w-4" />
                         </Button>
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`amount-${index}`} className="text-xs">
-                          Amount <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id={`amount-${index}`}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                          value={amount}
-                          onChange={(e) => updateFileAmount(file, e.target.value)}
-                          className="h-8"
-                        />
                       </div>
                     </div>
                   );
@@ -252,6 +260,14 @@ export default function UploadReceipts() {
           </CardContent>
         </Card>
       </div>
+
+      <FilePreviewAmountModal
+        file={selectedFile}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+        onSave={handleAmountSave}
+        initialAmount={selectedFile ? fileAmounts[`${selectedFile.name}_${selectedFile.size}`] || '' : ''}
+      />
     </div>
   );
 }

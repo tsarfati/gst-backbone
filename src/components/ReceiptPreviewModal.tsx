@@ -68,27 +68,44 @@ export default function ReceiptPreviewModal({
           <DialogDescription className="sr-only">Preview the receipt and its coding information. Press Esc to close.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          {/* Coding Information - Top Section (one line) */}
-          <div className="flex flex-wrap items-center gap-4 pb-4 border-b overflow-y-auto max-h-48">
-            <Card className="h-fit">
+        <div className="flex-1 flex gap-4 overflow-hidden">
+          {/* Receipt Preview - 70% */}
+          <div className="flex-[0.7] border rounded-lg overflow-hidden bg-muted/30 min-h-0">
+            <div className="w-full h-full overflow-auto">
+              {isPdf ? (
+                <UrlPdfInlinePreview url={receipt.file_url} className="h-full" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-4">
+                  <img
+                    src={receipt.file_url}
+                    alt="Receipt preview"
+                    className="max-w-full h-auto"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Receipt Data - 30% */}
+          <div className="flex-[0.3] flex flex-col gap-4 overflow-y-auto">
+            <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Details</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
+              <CardContent className="space-y-3 text-sm">
+                <div>
                   <span className="text-xs font-medium text-muted-foreground">Amount</span>
                   <p className="text-base font-semibold">${Number(receipt.amount || 0).toLocaleString()}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div>
                   <span className="text-xs font-medium text-muted-foreground">Vendor</span>
                   <p className="text-sm">{receipt.vendor || receipt.vendor_name || 'Unknown'}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div>
                   <span className="text-xs font-medium text-muted-foreground">Date</span>
                   <p className="text-sm">{new Date(receipt.date || receipt.receipt_date || '').toLocaleDateString()}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div>
                   <span className="text-xs font-medium text-muted-foreground">Status</span>
                   <Badge variant={receipt.status === 'coded' ? 'default' : 'secondary'} className="text-xs">
                     {receipt.status || 'Pending'}
@@ -99,12 +116,12 @@ export default function ReceiptPreviewModal({
 
             {/* Cost Distributions */}
             {costDistributions.length > 0 && (
-              <Card className="h-fit col-span-2 lg:col-span-3">
+              <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm">Cost Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <div className="space-y-3">
                     {costDistributions.map((dist, index) => (
                       <div key={index} className="p-3 bg-muted rounded-lg space-y-2 text-xs">
                         <div>
@@ -132,39 +149,21 @@ export default function ReceiptPreviewModal({
               </Card>
             )}
 
+            {/* Action Button at Bottom */}
+            {onAttach && (
+              <Button 
+                className="w-full mt-auto" 
+                size="lg"
+                onClick={() => {
+                  onAttach(receipt);
+                  onOpenChange(false);
+                }}
+              >
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Attach to Bill
+              </Button>
+            )}
           </div>
-
-          {/* Receipt Preview - Full Width Bottom Section */}
-          <div className="flex-1 border rounded-lg overflow-hidden bg-muted/30 min-h-0">
-            <div className="w-full h-full overflow-auto">
-              {isPdf ? (
-                <UrlPdfInlinePreview url={receipt.file_url} className="h-full" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center p-4">
-                  <img
-                    src={receipt.file_url}
-                    alt="Receipt preview"
-                    className="max-w-full h-auto"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Button at Bottom */}
-          {onAttach && (
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={() => {
-                onAttach(receipt);
-                onOpenChange(false);
-              }}
-            >
-              <LinkIcon className="h-4 w-4 mr-2" />
-              Attach to Bill
-            </Button>
-          )}
         </div>
       </DialogContent>
     </Dialog>
