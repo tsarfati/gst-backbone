@@ -567,7 +567,6 @@ export default function CodedReceipts() {
       selectedReceipts,
       onSelectReceipt: handleSelectReceipt,
       onReceiptClick: setSelectedReceipt,
-      onUncodeReceipt: handleUncodeReceipt,
     };
 
     switch (currentView) {
@@ -740,11 +739,16 @@ export default function CodedReceipts() {
           ...receiptDetails,
           id: receiptDetails.id,
           filename: receiptDetails.filename || receiptDetails.file_name,
+          file_name: receiptDetails.filename || receiptDetails.file_name,
+          file_url: receiptDetails.file_url || receiptDetails.previewUrl,
           previewUrl: receiptDetails.file_url || receiptDetails.previewUrl,
           type: receiptDetails.file_name?.toLowerCase().endsWith('.pdf') ? 'pdf' as const : 'image' as const,
           amount: receiptDetails.amount,
           date: receiptDetails.date || receiptDetails.receipt_date,
+          receipt_date: receiptDetails.date || receiptDetails.receipt_date,
           vendor: receiptDetails.vendor || receiptDetails.vendor_name,
+          vendor_name: receiptDetails.vendor || receiptDetails.vendor_name,
+          status: 'coded',
           jobName: receiptDetails.job?.name,
           costCodeName: receiptDetails.cost_code 
             ? `${receiptDetails.cost_code.code} - ${receiptDetails.cost_code.description}`
@@ -765,6 +769,7 @@ export default function CodedReceipts() {
             setReceiptDetails(null);
           }
         }}
+        onUncode={(receipt) => uncodeReceipt(receipt.id)}
       />
     </div>
   );
