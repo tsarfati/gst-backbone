@@ -706,6 +706,15 @@ export default function AddBill() {
         assignedToPm = jobData?.project_manager_user_id || null;
       }
 
+      // Fetch file naming settings
+      const { data: namingSettings } = await supabase
+        .from('file_upload_settings')
+        .select('bill_naming_pattern')
+        .eq('company_id', currentCompany?.id || profile?.current_company_id)
+        .single();
+
+      let insertedInvoiceIds: string[] = [];
+
       if (billType === "non_commitment") {
         // For non-commitment bills with distribution, create multiple invoice records
         const invoicesToInsert = distributionItems.map(item => ({
@@ -733,6 +742,10 @@ export default function AddBill() {
           .select('id');
  
         if (error) throw error;
+        
+        if (inserted) {
+          insertedInvoiceIds = inserted.map((row: any) => row.id);
+        }
 
         // Add audit trail for attached receipt
         if (attachedReceipt && inserted && inserted.length) {
@@ -774,6 +787,10 @@ export default function AddBill() {
           .select('id');
 
         if (error) throw error;
+        
+        if (inserted && inserted.length) {
+          insertedInvoiceIds = [inserted[0].id];
+        }
 
         // Add audit trail for attached receipt
         if (attachedReceipt && inserted && inserted.length) {
@@ -786,6 +803,58 @@ export default function AddBill() {
             reason: `Attached coded receipt: ${attachedReceipt.filename}`,
             changed_by: user.data.user.id
           });
+        }
+      }
+
+      // Upload bill files and create invoice_documents records
+      if (billFiles.length > 0 && insertedInvoiceIds.length > 0) {
+        for (const file of billFiles) {
+          const fileExt = file.name.split('.').pop();
+          
+          // Apply naming pattern if available
+          let displayName = file.name;
+          if (namingSettings?.bill_naming_pattern) {
+            const vendor = vendors.find(v => v.id === formData.vendor_id);
+            const job = jobs.find(j => j.id === formData.job_id);
+            const dateStr = formData.issueDate || new Date().toISOString().split('T')[0];
+            
+            displayName = namingSettings.bill_naming_pattern
+              .replace('{vendor}', vendor?.name || 'Unknown')
+              .replace('{invoice_number}', formData.invoice_number || 'NoInvoiceNum')
+              .replace('{date}', dateStr)
+              .replace('{amount}', parseFloat(formData.amount || '0').toFixed(2))
+              .replace('{job}', job?.name || 'NoJob')
+              .replace('{original_filename}', file.name.replace(/\.[^/.]+$/, ''))
+              + '.' + fileExt;
+          }
+          
+          const companyId = currentCompany?.id || profile?.current_company_id;
+          const storageFileName = `${companyId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('receipts')
+            .upload(storageFileName, file);
+
+          if (uploadError) {
+            console.error('Error uploading bill file:', uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('receipts')
+            .getPublicUrl(storageFileName);
+
+          // Create document records for each invoice
+          for (const invoiceId of insertedInvoiceIds) {
+            await supabase.from('invoice_documents').insert({
+              invoice_id: invoiceId,
+              file_url: publicUrl,
+              file_name: displayName,
+              file_type: file.type,
+              file_size: file.size,
+              uploaded_by: user.data.user.id
+            });
+          }
         }
       }
 

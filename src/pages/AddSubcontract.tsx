@@ -290,12 +290,37 @@ export default function AddSubcontract() {
     const companyId = currentCompany?.id || profile?.current_company_id;
     if (!companyId) return [];
 
+    // Fetch file naming settings
+    const { data: namingSettings } = await supabase
+      .from('file_upload_settings')
+      .select('subcontract_naming_pattern')
+      .eq('company_id', companyId)
+      .single();
+
     setUploadingFiles(true);
     const uploadedFiles: {path: string, name: string}[] = [];
 
     try {
       for (const file of contractFiles) {
         const fileExt = file.name.split('.').pop();
+        
+        // Apply naming pattern if available
+        let displayName = fileNames[file.name] || file.name;
+        if (namingSettings?.subcontract_naming_pattern) {
+          const vendor = vendors.find(v => v.id === formData.vendor_id);
+          const job = jobs.find(j => j.id === formData.job_id);
+          const dateStr = formData.start_date || new Date().toISOString().split('T')[0];
+          
+          displayName = namingSettings.subcontract_naming_pattern
+            .replace('{vendor}', vendor?.name || 'Unknown')
+            .replace('{contract_number}', formData.name || 'NoContractNum')
+            .replace('{date}', dateStr)
+            .replace('{amount}', parseFloat(formData.contract_amount || '0').toFixed(2))
+            .replace('{job}', job?.name || 'NoJob')
+            .replace('{original_filename}', file.name.replace(/\.[^/.]+$/, ''))
+            + '.' + fileExt;
+        }
+        
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `${companyId}/${fileName}`;
 
@@ -315,7 +340,7 @@ export default function AddSubcontract() {
 
         uploadedFiles.push({
           path: filePath,
-          name: fileNames[file.name] || file.name
+          name: displayName
         });
       }
 
