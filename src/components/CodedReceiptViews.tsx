@@ -106,7 +106,7 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
   );
 }
 
-export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick }: Omit<CodedReceiptViewsProps, 'currentView'>) {
+export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick, onUncodeReceipt }: Omit<CodedReceiptViewsProps, 'currentView'>) {
   return (
     <div className="space-y-2">
       {receipts.map((receipt) => (
@@ -135,10 +135,22 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
                   <Badge variant="outline" className="text-xs">{receipt.costCodeName || 'No cost code'}</Badge>
                 </div>
                 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onClick={() => onReceiptClick(receipt)}>
                     <Eye className="h-4 w-4" />
                   </Button>
+                  {onUncodeReceipt && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUncodeReceipt(receipt);
+                      }}
+                    >
+                      Uncode
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -149,7 +161,7 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
   );
 }
 
-export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick }: Omit<CodedReceiptViewsProps, 'currentView'>) {
+export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick, onUncodeReceipt }: Omit<CodedReceiptViewsProps, 'currentView'>) {
   return (
     <div className="space-y-1">
       {receipts.map((receipt) => (
@@ -166,10 +178,23 @@ export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSel
             <div className="truncate text-muted-foreground">{receipt.vendor || '-'}</div>
             <div className="truncate">{receipt.jobName || 'No job'}</div>
             <div className="truncate">{receipt.costCodeName || 'No cost code'}</div>
-            <div className="text-right">
+            <div className="text-right flex gap-1 justify-end">
               <Button size="sm" variant="ghost" onClick={() => onReceiptClick(receipt)} className="h-6 w-6 p-0">
                 <Eye className="h-3 w-3" />
               </Button>
+              {onUncodeReceipt && (
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUncodeReceipt(receipt);
+                  }}
+                  className="h-6 px-2 text-xs"
+                >
+                  Uncode
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -178,7 +203,7 @@ export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSel
   );
 }
 
-export function CodedReceiptIconView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick }: Omit<CodedReceiptViewsProps, 'currentView'>) {
+export function CodedReceiptIconView({ receipts, selectedReceipts, onSelectReceipt, onReceiptClick, onUncodeReceipt }: Omit<CodedReceiptViewsProps, 'currentView'>) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
       {receipts.map((receipt) => (
@@ -213,6 +238,19 @@ export function CodedReceiptIconView({ receipts, selectedReceipts, onSelectRecei
               <Badge variant="outline" className="text-xs w-full truncate">
                 {receipt.costCodeName || 'No cost code'}
               </Badge>
+              {onUncodeReceipt && (
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUncodeReceipt(receipt);
+                  }}
+                  className="w-full h-6 text-xs mt-2"
+                >
+                  Uncode
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

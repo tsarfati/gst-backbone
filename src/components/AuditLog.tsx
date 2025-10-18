@@ -104,10 +104,26 @@ export default function AuditLog() {
             created_at
           `)
           .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false }),
+        
+        // User login audit
+        supabase
+          .from('user_login_audit')
+          .select(`
+            id,
+            user_id,
+            login_time,
+            ip_address,
+            user_agent,
+            login_method,
+            success,
+            created_at
+          `)
+          .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: false })
       ];
 
-      const [timeCardAudit, invoiceAudit, deliveryTicketAudit] = await Promise.all(auditQueries);
+      const [timeCardAudit, invoiceAudit, deliveryTicketAudit, loginAudit] = await Promise.all(auditQueries);
 
       // Get user profiles for user names
       const allUserIds = new Set<string>();
@@ -121,7 +137,11 @@ export default function AuditLog() {
       if (deliveryTicketAudit.data) {
         deliveryTicketAudit.data.forEach(entry => entry.changed_by && allUserIds.add(entry.changed_by));
       }
+      if (loginAudit.data) {
+        loginAudit.data.forEach(entry => entry.user_id && allUserIds.add(entry.user_id));
+      }
 
+      // Fetch profiles for all user IDs
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, display_name')
@@ -129,9 +149,18 @@ export default function AuditLog() {
 
       const userMap = new Map();
       profiles?.forEach(profile => {
+        const displayName = profile.display_name || 
+          `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
         userMap.set(profile.user_id, {
-          name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown User'
+          name: displayName || 'Unknown User'
         });
+      });
+      
+      // Add entries for users without profiles
+      allUserIds.forEach(userId => {
+        if (!userMap.has(userId)) {
+          userMap.set(userId, { name: 'Unknown User' });
+        }
       });
 
       // Combine and format all audit entries
@@ -181,6 +210,26 @@ export default function AuditLog() {
           created_at: entry.created_at
         });
       });
+      
+      // Process login audit entries
+      loginAudit.data?.forEach(entry => {
+        combinedEntries.push({
+          id: entry.id,
+          table_name: 'user_logins',
+          record_id: entry.user_id,
+          action: entry.success ? 'login_success' : 'login_failed',
+          old_values: undefined,
+          new_values: { 
+            login_method: entry.login_method,
+            ip_address: entry.ip_address
+          },
+          user_id: entry.user_id,
+          user_name: userMap.get(entry.user_id)?.name || 'Unknown User',
+          created_at: entry.created_at,
+          ip_address: entry.ip_address,
+          user_agent: entry.user_agent
+        });
+      });
 
       // Sort by date descending
       combinedEntries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -210,6 +259,10 @@ export default function AuditLog() {
         return 'default';
       case 'reject':
         return 'destructive';
+      case 'login_success':
+        return 'default';
+      case 'login_failed':
+        return 'destructive';
       default:
         return 'outline';
     }
@@ -223,6 +276,8 @@ export default function AuditLog() {
         return 'Bills/Invoices';
       case 'delivery_tickets':
         return 'Delivery Tickets';
+      case 'user_logins':
+        return 'User Logins';
       case 'jobs':
         return 'Jobs';
       case 'vendors':
@@ -345,6 +400,7 @@ export default function AuditLog() {
                   <SelectItem value="time_cards">Time Cards</SelectItem>
                   <SelectItem value="invoices">Bills/Invoices</SelectItem>
                   <SelectItem value="delivery_tickets">Delivery Tickets</SelectItem>
+                  <SelectItem value="user_logins">User Logins</SelectItem>
                   <SelectItem value="jobs">Jobs</SelectItem>
                   <SelectItem value="vendors">Vendors</SelectItem>
                 </SelectContent>
