@@ -6,9 +6,12 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Plus, Trash2, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface CostDistribution {
   id: string;
@@ -275,29 +278,59 @@ export default function ReceiptCostDistribution({
 
               <div>
                 <Label className="text-xs">Cost Code</Label>
-                <Select
-                  value={dist.cost_code_id}
-                  onValueChange={(value) => updateDistribution(dist.id, 'cost_code_id', value)}
-                  disabled={disabled || !dist.job_id}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder={dist.job_id ? "Select cost code" : "Select job first"} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border border-border shadow-md z-50">
-                    {costCodesForJob.map((cc) => (
-                      <SelectItem key={cc.id} value={cc.id}>
-                        <span>
-                          {cc.code} - {cc.description}
-                          {cc.type && (
-                            <span className="text-muted-foreground ml-1">
-                              ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      disabled={disabled || !dist.job_id}
+                      className={cn(
+                        "w-full h-8 justify-between text-xs font-normal",
+                        !dist.cost_code_id && "text-muted-foreground"
+                      )}
+                    >
+                      {dist.cost_code_id
+                        ? (() => {
+                            const selected = costCodesForJob.find((cc) => cc.id === dist.cost_code_id);
+                            return selected ? `${selected.code} - ${selected.description}` : "Select cost code";
+                          })()
+                        : dist.job_id ? "Select cost code" : "Select job first"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search cost codes..." className="h-8" />
+                      <CommandEmpty>No cost code found.</CommandEmpty>
+                      <CommandGroup className="max-h-[300px] overflow-auto">
+                        {costCodesForJob.map((cc) => (
+                          <CommandItem
+                            key={cc.id}
+                            value={`${cc.code} ${cc.description}`}
+                            onSelect={() => {
+                              updateDistribution(dist.id, 'cost_code_id', cc.id);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                dist.cost_code_id === cc.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <span className="text-xs">
+                              {cc.code} - {cc.description}
+                              {cc.type && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

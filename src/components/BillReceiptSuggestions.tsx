@@ -28,11 +28,32 @@ export default function BillReceiptSuggestions({
 
   const suggestedReceipts = useMemo(() => {
     if (!codedReceipts?.length) return [];
+    
+    console.log('BillReceiptSuggestions - Checking receipts:', {
+      totalReceipts: codedReceipts.length,
+      billAmount,
+      billVendorId,
+      billJobId,
+      billDate,
+      sampleReceipt: codedReceipts[0]
+    });
 
     const suggestions = codedReceipts
       .filter(receipt => {
         // Primary filter: amount must match (within $10 tolerance) - this is the main match point
-        const amountMatch = billAmount && Math.abs(Number(receipt.amount) - billAmount) <= 10;
+        const receiptAmount = typeof receipt.amount === 'string' 
+          ? parseFloat(receipt.amount.replace(/[^0-9.\-]/g, '')) 
+          : Number(receipt.amount || 0);
+        const amountMatch = billAmount && Math.abs(receiptAmount - billAmount) <= 10;
+        
+        console.log('Receipt amount check:', {
+          filename: receipt.filename,
+          receiptAmount,
+          billAmount,
+          diff: Math.abs(receiptAmount - billAmount),
+          matches: amountMatch
+        });
+        
         return amountMatch;
       })
       .map(receipt => {
