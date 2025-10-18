@@ -62,6 +62,7 @@ export default function PayablesDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("this_month");
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
   const [userDefaultJob, setUserDefaultJob] = useState<string>("all");
+  const [jobs, setJobs] = useState<any[]>([]);
 
   useEffect(() => {
     if (user && (currentCompany?.id || profile?.current_company_id)) {
@@ -144,6 +145,16 @@ export default function PayablesDashboard() {
     
     try {
       setLoading(true);
+      
+      // Load jobs for filter
+      const { data: jobsData } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', currentCompany?.id || profile?.current_company_id)
+        .eq('is_active', true)
+        .order('name');
+      
+      setJobs(jobsData || []);
       
       // Load vendors count
       const { data: vendorsData } = await supabase
