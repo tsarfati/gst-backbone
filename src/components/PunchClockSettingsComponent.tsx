@@ -68,6 +68,8 @@ interface PunchClockSettings {
   max_distance_from_job_meters: number;
   company_policies: string;
   overtime_past_window_threshold_minutes: number;
+  sms_punchout_reminder_enabled?: boolean;
+  sms_punchout_reminder_minutes?: number;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -94,7 +96,9 @@ const defaultSettings: PunchClockSettings = {
   enable_distance_warnings: true,
   max_distance_from_job_meters: 200,
   company_policies: '',
-  overtime_past_window_threshold_minutes: 30
+  overtime_past_window_threshold_minutes: 30,
+  sms_punchout_reminder_enabled: false,
+  sms_punchout_reminder_minutes: 30,
 };
 
 export default function PunchClockSettingsComponent() {
@@ -160,7 +164,9 @@ export default function PunchClockSettingsComponent() {
           enable_distance_warnings: true,
           max_distance_from_job_meters: 200,
           company_policies: data.company_policies || '',
-          overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30
+          overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30,
+          sms_punchout_reminder_enabled: data.sms_punchout_reminder_enabled ?? false,
+          sms_punchout_reminder_minutes: data.sms_punchout_reminder_minutes ?? 30,
         });
       }
       
@@ -206,6 +212,8 @@ export default function PunchClockSettingsComponent() {
           calculate_overtime: settings.calculate_overtime,
           company_policies: settings.company_policies,
           overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
+          sms_punchout_reminder_enabled: settings.sms_punchout_reminder_enabled,
+          sms_punchout_reminder_minutes: settings.sms_punchout_reminder_minutes,
           created_by: user?.id
         }, { onConflict: 'job_id,company_id' });
 
@@ -593,6 +601,41 @@ export default function PunchClockSettingsComponent() {
                   checked={settings.notification_enabled}
                   onCheckedChange={(checked) => updateSetting('notification_enabled', checked)}
                 />
+              </div>
+
+              <Separator />
+
+              {/* SMS Punch Out Reminder */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Enable SMS Punch Out Reminder</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Text employees still punched in after punch window ends
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.sms_punchout_reminder_enabled || false}
+                    onCheckedChange={(checked) => updateSetting('sms_punchout_reminder_enabled', checked)}
+                  />
+                </div>
+
+                {settings.sms_punchout_reminder_enabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="punchout-reminder-minutes">Send Reminder After Punch Window Ends (minutes)</Label>
+                    <Input
+                      id="punchout-reminder-minutes"
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={settings.sms_punchout_reminder_minutes || 30}
+                      onChange={(e) => updateSetting('sms_punchout_reminder_minutes', parseInt(e.target.value) || 30)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Minutes after punch window ends to send reminder to users still punched in
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

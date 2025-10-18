@@ -15,6 +15,7 @@ import CodedReceiptViewSelector from "@/components/CodedReceiptViewSelector";
 import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompactView, CodedReceiptIconView } from "@/components/CodedReceiptViews";
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
 import { useSettings } from "@/contexts/SettingsContext";
+import ReceiptPreviewModal from "@/components/ReceiptPreviewModal";
 import jsPDF from 'jspdf';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
@@ -714,81 +715,35 @@ export default function CodedReceipts() {
         renderReceiptView()
       )}
 
-      {/* Receipt Details Dialog */}
-      {selectedReceipt && receiptDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedReceipt(null)}>
-          <div className="bg-card p-6 rounded-lg max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold">Receipt Details</h2>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleUncodeReceipt(selectedReceipt)}>
-                  Uncode Receipt
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedReceipt(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Filename</Label>
-                <p className="font-medium">{receiptDetails.filename || receiptDetails.file_name}</p>
-              </div>
-              <div>
-                <Label>Amount</Label>
-                <p className="font-medium">${Number(receiptDetails.amount || 0).toLocaleString()}</p>
-              </div>
-              <div>
-                <Label>Date</Label>
-                <p className="font-medium">{new Date(receiptDetails.date || receiptDetails.receipt_date).toLocaleDateString()}</p>
-              </div>
-              <div>
-                <Label>Vendor</Label>
-                <p className="font-medium">{receiptDetails.vendor || receiptDetails.vendor_name || 'Not specified'}</p>
-              </div>
-              <div>
-                <Label>Job</Label>
-                <Badge variant="secondary">{receiptDetails.job?.name || 'Not specified'}</Badge>
-              </div>
-              <div>
-                <Label>Cost Code</Label>
-                <Badge variant="outline">
-                  {receiptDetails.cost_code 
-                    ? `${receiptDetails.cost_code.code} - ${receiptDetails.cost_code.description}`
-                    : 'Not specified'}
-                </Badge>
-              </div>
-              <div>
-                <Label>Uploaded By</Label>
-                <p className="font-medium">
-                  {receiptDetails.uploaded_by_profile 
-                    ? `${receiptDetails.uploaded_by_profile.first_name || ''} ${receiptDetails.uploaded_by_profile.last_name || ''}`.trim() || 'User'
-                    : 'User'}
-                </p>
-                {receiptDetails.created_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(receiptDetails.created_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label>Coded By</Label>
-                <p className="font-medium">
-                  {receiptDetails.coded_by_profile 
-                    ? `${receiptDetails.coded_by_profile.first_name || ''} ${receiptDetails.coded_by_profile.last_name || ''}`.trim() || 'User'
-                    : 'User'}
-                </p>
-                {receiptDetails.coded_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(receiptDetails.coded_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Receipt Preview Modal */}
+      <ReceiptPreviewModal
+        receipt={selectedReceipt && receiptDetails ? {
+          ...receiptDetails,
+          id: receiptDetails.id,
+          filename: receiptDetails.filename || receiptDetails.file_name,
+          previewUrl: receiptDetails.file_url || receiptDetails.previewUrl,
+          type: receiptDetails.file_name?.toLowerCase().endsWith('.pdf') ? 'pdf' as const : 'image' as const,
+          amount: receiptDetails.amount,
+          date: receiptDetails.date || receiptDetails.receipt_date,
+          vendor: receiptDetails.vendor || receiptDetails.vendor_name,
+          jobName: receiptDetails.job?.name,
+          costCodeName: receiptDetails.cost_code 
+            ? `${receiptDetails.cost_code.code} - ${receiptDetails.cost_code.description}`
+            : undefined,
+          uploadedBy: receiptDetails.uploaded_by_profile 
+            ? `${receiptDetails.uploaded_by_profile.first_name || ''} ${receiptDetails.uploaded_by_profile.last_name || ''}`.trim() || 'User'
+            : 'User',
+          uploadedDate: new Date(receiptDetails.created_at),
+          codedBy: receiptDetails.coded_by_profile 
+            ? `${receiptDetails.coded_by_profile.first_name || ''} ${receiptDetails.coded_by_profile.last_name || ''}`.trim() || 'User'
+            : 'User',
+          codedDate: receiptDetails.coded_at ? new Date(receiptDetails.coded_at) : new Date(),
+        } : null}
+        open={!!selectedReceipt}
+        onOpenChange={(open) => {
+          if (!open) setSelectedReceipt(null);
+        }}
+      />
     </div>
   );
 }

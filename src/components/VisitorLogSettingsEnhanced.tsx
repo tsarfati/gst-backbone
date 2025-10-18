@@ -26,6 +26,9 @@ interface AutoLogoutSettings {
   sms_check_interval_hours: number;
   send_sms_on_checkin: boolean;
   sms_message_template: string;
+  sms_reminder_enabled?: boolean;
+  sms_reminder_hours?: number;
+  sms_reminder_message?: string;
 }
 
 interface VisitorLoginSettings {
@@ -68,6 +71,9 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     sms_check_interval_hours: 4,
     send_sms_on_checkin: false,
     sms_message_template: 'Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}',
+    sms_reminder_enabled: false,
+    sms_reminder_hours: 4,
+    sms_reminder_message: 'You are still checked in at {{job_name}}. If you have left, please check out here: {{checkout_link}}',
   });
 
   const [loginSettings, setLoginSettings] = useState<VisitorLoginSettings>({
@@ -884,7 +890,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label className="text-base">Enable SMS Reminders</Label>
+                    <Label className="text-base">Enable SMS Check Reminders</Label>
                     <p className="text-sm text-muted-foreground">
                       Send text messages asking if visitor is still on site
                     </p>
@@ -924,6 +930,65 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                     automatically check them out.
                   </p>
                 </div>
+              </div>
+
+              <Separator />
+
+              {/* Still Logged In SMS Reminder */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Enable Still Logged In SMS Reminder</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Send reminder to visitors still logged in after specific hours
+                    </p>
+                  </div>
+                  <Switch
+                    checked={autoLogoutSettings.sms_reminder_enabled || false}
+                    onCheckedChange={(checked) => 
+                      setAutoLogoutSettings(prev => ({ ...prev, sms_reminder_enabled: checked }))
+                    }
+                  />
+                </div>
+
+                {autoLogoutSettings.sms_reminder_enabled && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="reminder-hours">Send Reminder After (hours)</Label>
+                      <Input
+                        id="reminder-hours"
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={autoLogoutSettings.sms_reminder_hours || 4}
+                        onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                          ...prev, 
+                          sms_reminder_hours: parseInt(e.target.value) || 4 
+                        }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Hours after check-in before sending reminder
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="reminder-message">Reminder Message</Label>
+                      <Textarea
+                        id="reminder-message"
+                        value={autoLogoutSettings.sms_reminder_message || ''}
+                        onChange={(e) => setAutoLogoutSettings(prev => ({ 
+                          ...prev, 
+                          sms_reminder_message: e.target.value 
+                        }))}
+                        rows={3}
+                        placeholder="You are still checked in at {{job_name}}. If you have left, please check out here: {{checkout_link}}"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Available placeholders: <code>{'{{job_name}}'}</code>, <code>{'{{checkout_link}}'}</code>
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>

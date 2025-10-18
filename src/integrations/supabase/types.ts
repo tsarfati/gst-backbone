@@ -1639,6 +1639,8 @@ export type Database = {
           shift_hours: number | null
           shift_start_time: string | null
           show_install_button: boolean | null
+          sms_punchout_reminder_enabled: boolean | null
+          sms_punchout_reminder_minutes: number | null
           time_display_format: string | null
           updated_at: string
         }
@@ -1687,6 +1689,8 @@ export type Database = {
           shift_hours?: number | null
           shift_start_time?: string | null
           show_install_button?: boolean | null
+          sms_punchout_reminder_enabled?: boolean | null
+          sms_punchout_reminder_minutes?: number | null
           time_display_format?: string | null
           updated_at?: string
         }
@@ -1735,6 +1739,8 @@ export type Database = {
           shift_hours?: number | null
           shift_start_time?: string | null
           show_install_button?: boolean | null
+          sms_punchout_reminder_enabled?: boolean | null
+          sms_punchout_reminder_minutes?: number | null
           time_display_format?: string | null
           updated_at?: string
         }
@@ -4072,6 +4078,9 @@ export type Database = {
           sms_check_enabled: boolean
           sms_check_interval_hours: number
           sms_message_template: string | null
+          sms_reminder_enabled: boolean | null
+          sms_reminder_hours: number | null
+          sms_reminder_message: string | null
           updated_at: string
         }
         Insert: {
@@ -4087,6 +4096,9 @@ export type Database = {
           sms_check_enabled?: boolean
           sms_check_interval_hours?: number
           sms_message_template?: string | null
+          sms_reminder_enabled?: boolean | null
+          sms_reminder_hours?: number | null
+          sms_reminder_message?: string | null
           updated_at?: string
         }
         Update: {
@@ -4102,6 +4114,9 @@ export type Database = {
           sms_check_enabled?: boolean
           sms_check_interval_hours?: number
           sms_message_template?: string | null
+          sms_reminder_enabled?: boolean | null
+          sms_reminder_hours?: number | null
+          sms_reminder_message?: string | null
           updated_at?: string
         }
         Relationships: [
