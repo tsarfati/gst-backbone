@@ -98,6 +98,29 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
+      // Fetch job and cost code details for coded receipts
+      const jobIds = [...new Set(receipts?.filter(r => r.job_id).map(r => r.job_id))];
+      const costCodeIds = [...new Set(receipts?.filter(r => r.cost_code_id).map(r => r.cost_code_id))];
+      
+      const jobsMap = new Map();
+      const costCodesMap = new Map();
+      
+      if (jobIds.length > 0) {
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', jobIds);
+        jobsData?.forEach(job => jobsMap.set(job.id, job));
+      }
+      
+      if (costCodeIds.length > 0) {
+        const { data: costCodesData } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .in('id', costCodeIds);
+        costCodesData?.forEach(cc => costCodesMap.set(cc.id, cc));
+      }
+
       const processedReceipts = (receipts || []).map(receipt => ({
         ...receipt,
         // Legacy compatibility fields
@@ -112,14 +135,18 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       }));
 
       const uncoded = processedReceipts.filter(r => r.status === 'uncoded');
-      const coded = processedReceipts.filter(r => r.status !== 'uncoded').map(r => ({
-        ...r,
-        jobName: '', // Will populate from lookup later
-        costCodeName: '', // Will populate from lookup later
-        codedBy: 'User',
-        codedDate: new Date(r.updated_at),
-        vendorId: r.vendor_name
-      }));
+      const coded = processedReceipts.filter(r => r.status !== 'uncoded').map(r => {
+        const job = r.job_id ? jobsMap.get(r.job_id) : null;
+        const costCode = r.cost_code_id ? costCodesMap.get(r.cost_code_id) : null;
+        return {
+          ...r,
+          jobName: job?.name || '',
+          costCodeName: costCode?.description || '',
+          codedBy: 'User',
+          codedDate: new Date(r.updated_at),
+          vendorId: r.vendor_id || r.vendor_name // Use vendor_id if available, fallback to vendor_name
+        };
+      });
 
       setUncodedReceipts(uncoded);
       setCodedReceipts(coded);

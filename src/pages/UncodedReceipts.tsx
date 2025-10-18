@@ -222,13 +222,29 @@ export default function UncodedReceipts() {
     } else {
       // Handle receipt coding with cost distribution
       try {
-        // Update receipt basic info
+        // Get vendor_id from vendor name
+        let vendorIdToSave = null;
+        if (selectedVendor) {
+          const { data: vendorData } = await supabase
+            .from('vendors')
+            .select('id')
+            .eq('name', selectedVendor)
+            .eq('company_id', currentCompany?.id || profile?.current_company_id)
+            .maybeSingle();
+          vendorIdToSave = vendorData?.id || null;
+        }
+
+        // Update receipt basic info - include job_id and cost_code_id from first distribution
+        const firstDist = distributions[0];
         const { error: updateError } = await supabase
           .from('receipts')
           .update({
             amount: totalAmount,
             vendor_name: selectedVendor || null,
-            status: 'coded'
+            vendor_id: vendorIdToSave,
+            status: 'coded',
+            job_id: firstDist.job_id || null,
+            cost_code_id: firstDist.cost_code_id || null
           })
           .eq('id', selectedReceipt.id);
 

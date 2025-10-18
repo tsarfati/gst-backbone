@@ -3188,6 +3188,7 @@ export type Database = {
           receipt_date: string | null
           status: string
           updated_at: string
+          vendor_id: string | null
           vendor_name: string | null
         }
         Insert: {
@@ -3206,6 +3207,7 @@ export type Database = {
           receipt_date?: string | null
           status?: string
           updated_at?: string
+          vendor_id?: string | null
           vendor_name?: string | null
         }
         Update: {
@@ -3224,9 +3226,18 @@ export type Database = {
           receipt_date?: string | null
           status?: string
           updated_at?: string
+          vendor_id?: string | null
           vendor_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "receipts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reconcile_reports: {
         Row: {
