@@ -134,6 +134,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           supabase
             .from('pin_employees')
             .select('id, first_name, last_name, display_name, avatar_url')
+            .eq('company_id', currentCompany.id)
             .in('id', userIds)
         ]);
         
@@ -200,6 +201,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           supabase
             .from('pin_employees')
             .select('id, first_name, last_name, display_name, avatar_url')
+            .eq('company_id', currentCompany.id)
             .in('id', outUserIds)
         ]);
         
@@ -492,6 +494,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
             id,
             user_id,
             job_id,
+            company_id,
             punch_in_time,
             punch_out_time,
             total_hours,
@@ -499,6 +502,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           )
         `)
         .eq('status', 'pending')
+        .eq('time_cards.company_id', currentCompany.id)
         .order('created_at', { ascending: false })
         .limit(20);
       
@@ -528,6 +532,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
             supabase
               .from('pin_employees')
               .select('id, first_name, last_name, display_name, avatar_url')
+              .eq('company_id', currentCompany.id)
               .in('id', userIds)
           ]);
           
