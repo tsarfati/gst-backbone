@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 
 interface JobOption { id: string; name: string }
-interface CostCodeOption { id: string; code: string; description: string }
+interface CostCodeOption { id: string; code: string; description: string; type: string }
 interface VendorOption { id: string; name: string }
 
 export default function UncodedReceipts() {
@@ -82,7 +82,7 @@ export default function UncodedReceipts() {
         if (!job) { setCostCodes([]); return; }
         const { data, error } = await supabase
           .from('cost_codes')
-          .select('id, code, description')
+          .select('id, code, description, type')
           .eq('job_id', job.id)
           .eq('company_id', currentCompany.id)
           .eq('is_active', true)
@@ -763,7 +763,14 @@ export default function UncodedReceipts() {
                       <SelectContent className="bg-popover border border-border shadow-md z-50">
                         {costCodes.map((cc) => (
                           <SelectItem key={cc.id} value={cc.code} className="cursor-pointer">
-                            {cc.code} - {cc.description}
+                            <span>
+                              {cc.code} - {cc.description}
+                              {cc.type && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
+                                </span>
+                              )}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
