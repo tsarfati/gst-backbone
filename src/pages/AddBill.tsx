@@ -1403,9 +1403,9 @@ export default function AddBill() {
         </Card>
 
         {/* Receipt Suggestions */}
-        {formData.vendor_id && formData.amount && (
+        {Boolean(formData.amount) && (
           <BillReceiptSuggestions
-            billVendorId={formData.vendor_id}
+            billVendorId={formData.vendor_id || undefined}
             billVendorName={selectedVendor?.name}
             billAmount={parseFloat(formData.amount) || 0}
             billJobId={billType === "commitment" ? formData.job_id : undefined}
