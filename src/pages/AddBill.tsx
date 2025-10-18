@@ -736,6 +736,14 @@ export default function AddBill() {
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
       (formData.pending_coding || isDistributionValid()); // Either pending coding or valid distribution
 
+  // Check if basic information is entered for "Send to PM for Coding" button
+  const isBasicInfoComplete = 
+    formData.vendor_id &&
+    formData.amount &&
+    formData.issueDate &&
+    ((formData.use_terms && formData.payment_terms) || (!formData.use_terms && formData.dueDate)) &&
+    (billFiles.length > 0 || attachedReceipt !== null);
+
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
   }
@@ -1570,6 +1578,7 @@ export default function AddBill() {
           <Button 
             type="button" 
             variant="secondary"
+            disabled={!isBasicInfoComplete}
             onClick={(e) => {
               e.preventDefault();
               handleInputChange("pending_coding", !formData.pending_coding);
