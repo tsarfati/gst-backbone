@@ -131,8 +131,9 @@ export default function AddPurchaseOrder() {
           .from('cost_codes')
           .select('*')
           .eq('job_id', formData.job_id)
-          .eq('type', 'material')
+          .in('type', ['material', 'equipment', 'other'] as any[])
           .eq('is_active', true)
+          .eq('is_dynamic_group', false)
           .order('code');
 
         if (error) throw error;

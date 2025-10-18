@@ -1586,22 +1586,24 @@ export default function AddBill() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
-                      <div className="w-full h-[600px]">
-                        <UrlPdfInlinePreview url={attachedReceipt.file_url} className="h-full" />
-                      </div>
-                    ) : attachedReceipt.file_url ? (
-                      <img
-                        src={attachedReceipt.file_url}
-                        alt="Receipt preview"
-                        className="w-full h-auto"
-                      />
-                    ) : (
-                      <div className="p-8 text-center text-muted-foreground">
-                        <FileText className="h-12 w-12 mx-auto mb-2" />
-                        <p>Receipt preview not available</p>
-                      </div>
-                    )}
+                    <div className="max-h-[600px] overflow-auto">
+                      {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
+                        <div className="w-full h-[600px]">
+                          <UrlPdfInlinePreview url={attachedReceipt.file_url} className="h-full" />
+                        </div>
+                      ) : attachedReceipt.file_url ? (
+                        <img
+                          src={attachedReceipt.file_url}
+                          alt="Receipt preview"
+                          className="w-full h-auto"
+                        />
+                      ) : (
+                        <div className="p-8 text-center text-muted-foreground">
+                          <FileText className="h-12 w-12 mx-auto mb-2" />
+                          <p>Receipt preview not available</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 

@@ -135,18 +135,20 @@ export default function ReceiptPreviewModal({
           </div>
 
           {/* Receipt Preview - Full Width Bottom Section */}
-          <div className="flex-1 border rounded-lg overflow-hidden bg-muted/30">
-            {isPdf ? (
-              <UrlPdfInlinePreview url={receipt.file_url} className="h-full" />
-            ) : (
-              <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
-                <img
-                  src={receipt.file_url}
-                  alt="Receipt preview"
-                  className="max-w-full h-auto"
-                />
-              </div>
-            )}
+          <div className="flex-1 border rounded-lg overflow-hidden bg-muted/30 min-h-0">
+            <div className="w-full h-full overflow-auto">
+              {isPdf ? (
+                <UrlPdfInlinePreview url={receipt.file_url} className="h-full" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-4">
+                  <img
+                    src={receipt.file_url}
+                    alt="Receipt preview"
+                    className="max-w-full h-auto"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Action Button at Bottom */}
