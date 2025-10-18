@@ -121,6 +121,21 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         costCodesData?.forEach(cc => costCodesMap.set(cc.id, cc));
       }
 
+      // Fetch user profiles for uploadedBy
+      const userIds = [...new Set(receipts?.map(r => r.created_by).filter(Boolean))];
+      const profilesMap = new Map();
+      
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name')
+          .in('user_id', userIds);
+        profilesData?.forEach(p => {
+          const name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+          profilesMap.set(p.user_id, name || 'User');
+        });
+      }
+
       const processedReceipts = (receipts || []).map(receipt => ({
         ...receipt,
         // Legacy compatibility fields
@@ -129,7 +144,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         vendor: receipt.vendor_name,
         type: receipt.file_name.toLowerCase().includes('.pdf') ? 'pdf' as const : 'image' as const,
         previewUrl: receipt.file_url,
-        uploadedBy: undefined,
+        uploadedBy: profilesMap.get(receipt.created_by) || 'User',
         uploadedDate: new Date(receipt.created_at),
         amount: receipt.amount !== null && receipt.amount !== undefined ? receipt.amount.toString() : undefined
       }));
@@ -142,7 +157,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           ...r,
           jobName: job?.name || '',
           costCodeName: costCode ? `${costCode.code} - ${costCode.description}` : '',
-          codedBy: '',
+          codedBy: profilesMap.get(r.created_by) || 'User',
           codedDate: new Date(r.updated_at),
           vendorId: r.vendor_id || r.vendor_name // Use vendor_id if available, fallback to vendor_name
         };

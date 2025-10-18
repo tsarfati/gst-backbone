@@ -12,6 +12,7 @@ import { Download, Upload, Shield, Key, Trash2, Lock, FileText } from 'lucide-re
 import { useCompany } from '@/contexts/CompanyContext';
 import DevelopmentFreeze from '@/components/DevelopmentFreeze';
 import AuditLog from '@/components/AuditLog';
+import FileUploadSettings from '@/components/FileUploadSettings';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
@@ -63,6 +64,7 @@ export default function SecuritySettings() {
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger value="security" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Security</TabsTrigger>
             <TabsTrigger value="data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Data & Privacy</TabsTrigger>
+            <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">File Uploads</TabsTrigger>
             <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Audit Log</TabsTrigger>
             <TabsTrigger value="development" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Development Freeze</TabsTrigger>
           </TabsList>
@@ -192,6 +194,10 @@ export default function SecuritySettings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="files" className="space-y-6">
+            <FileUploadSettings />
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-6">

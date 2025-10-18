@@ -1217,6 +1217,80 @@ export type Database = {
         }
         Relationships: []
       }
+      file_upload_settings: {
+        Row: {
+          bill_naming_pattern: string | null
+          company_id: string
+          created_at: string | null
+          created_by: string
+          enable_ftp: boolean | null
+          enable_google_drive: boolean | null
+          enable_onedrive: boolean | null
+          ftp_folder_path: string | null
+          ftp_host: string | null
+          ftp_password: string | null
+          ftp_port: number | null
+          ftp_username: string | null
+          google_drive_folder_id: string | null
+          id: string
+          naming_variables: Json | null
+          onedrive_folder_id: string | null
+          receipt_naming_pattern: string | null
+          subcontract_naming_pattern: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          bill_naming_pattern?: string | null
+          company_id: string
+          created_at?: string | null
+          created_by: string
+          enable_ftp?: boolean | null
+          enable_google_drive?: boolean | null
+          enable_onedrive?: boolean | null
+          ftp_folder_path?: string | null
+          ftp_host?: string | null
+          ftp_password?: string | null
+          ftp_port?: number | null
+          ftp_username?: string | null
+          google_drive_folder_id?: string | null
+          id?: string
+          naming_variables?: Json | null
+          onedrive_folder_id?: string | null
+          receipt_naming_pattern?: string | null
+          subcontract_naming_pattern?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          bill_naming_pattern?: string | null
+          company_id?: string
+          created_at?: string | null
+          created_by?: string
+          enable_ftp?: boolean | null
+          enable_google_drive?: boolean | null
+          enable_onedrive?: boolean | null
+          ftp_folder_path?: string | null
+          ftp_host?: string | null
+          ftp_password?: string | null
+          ftp_port?: number | null
+          ftp_username?: string | null
+          google_drive_folder_id?: string | null
+          id?: string
+          naming_variables?: Json | null
+          onedrive_folder_id?: string | null
+          receipt_naming_pattern?: string | null
+          subcontract_naming_pattern?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_upload_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_audit_trail: {
         Row: {
           change_type: string
