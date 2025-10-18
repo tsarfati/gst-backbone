@@ -908,6 +908,17 @@ export default function AddBill() {
                       </div>
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <div className="h-8"></div>
+                    <div className="flex items-center space-x-2 h-10">
+                      <Checkbox
+                        id="is_reimbursement"
+                        checked={formData.is_reimbursement}
+                        onCheckedChange={(checked) => handleInputChange("is_reimbursement", checked)}
+                      />
+                      <Label htmlFor="is_reimbursement" className="cursor-pointer">Reimbursement payment</Label>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Cost Distribution Section */}
@@ -1034,38 +1045,6 @@ export default function AddBill() {
                     />
                     <Label htmlFor="is_reimbursement">Reimbursement payment</Label>
                   </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="pending_coding"
-                      checked={formData.pending_coding}
-                      onCheckedChange={(checked) => {
-                        handleInputChange("pending_coding", checked);
-                        // Clear cost codes if marking as pending
-                        if (checked) {
-                          setDistributionItems(items => 
-                            items.map(item => ({ ...item, cost_code_id: "" }))
-                          );
-                        }
-                      }}
-                    />
-                    <Label htmlFor="pending_coding" className="flex items-center gap-2">
-                      Send to Project Manager for Coding
-                      <Badge variant="outline" className="text-xs">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        No cost code needed
-                      </Badge>
-                    </Label>
-                  </div>
-                  
-                  {formData.pending_coding && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        This bill will be sent to the project manager for cost code assignment
-                      </AlertDescription>
-                    </Alert>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -1388,39 +1367,6 @@ export default function AddBill() {
 
                 {/* Reimbursement checkbox removed from commitment tab */}
                 
-                {/* Pending Coding Checkbox */}
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="pending_coding_commitment"
-                      checked={formData.pending_coding}
-                      onCheckedChange={(checked) => {
-                        handleInputChange("pending_coding", checked);
-                        // Clear cost code if marking as pending
-                        if (checked) {
-                          handleInputChange("cost_code_id", "");
-                        }
-                      }}
-                    />
-                    <Label htmlFor="pending_coding_commitment" className="flex items-center gap-2">
-                      Send to Project Manager for Coding
-                      <Badge variant="outline" className="text-xs">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        No cost code needed
-                      </Badge>
-                    </Label>
-                  </div>
-                  
-                  {formData.pending_coding && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        This bill will be sent to the project manager for cost code assignment
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-
                 {/* Commitment Information Display */}
                 {commitmentTotals && (formData.subcontract_id || formData.purchase_order_id) && (
                   <div className="border-t pt-4">
@@ -1568,6 +1514,41 @@ export default function AddBill() {
                     )}
                   </div>
                 ))}
+                
+                {/* Additional document upload section - below preview */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Add More Documents</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Drag and drop additional files or click to browse
+                      </p>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                        id="bill-file-upload-additional"
+                      />
+                      <Button type="button" asChild size="sm" variant="outline">
+                        <label htmlFor="bill-file-upload-additional" className="cursor-pointer">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Choose More Files
+                        </label>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
             
@@ -1585,6 +1566,26 @@ export default function AddBill() {
           <Button type="submit" disabled={!isFormValid}>
             <FileText className="h-4 w-4 mr-2" />
             Add Bill
+          </Button>
+          <Button 
+            type="button" 
+            variant="secondary"
+            onClick={(e) => {
+              e.preventDefault();
+              handleInputChange("pending_coding", !formData.pending_coding);
+              if (!formData.pending_coding) {
+                // Clear cost codes when enabling pending coding
+                setDistributionItems(distributionItems.map(item => ({ ...item, cost_code_id: "" })));
+                toast({
+                  title: "Coding mode enabled",
+                  description: "Bill will be sent to project manager for cost code assignment"
+                });
+              }
+            }}
+            className={formData.pending_coding ? "border-primary" : ""}
+          >
+            <AlertCircle className="h-4 w-4 mr-2" />
+            {formData.pending_coding ? "Sending to PM for Coding" : "Send to PM for Coding"}
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
             Cancel
