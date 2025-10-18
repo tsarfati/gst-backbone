@@ -74,6 +74,7 @@ export function ReceiptScanner() {
         .from('cost_codes')
         .select('id, code, description')
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
       
       if (costCodesData) setCostCodes(costCodesData);

@@ -87,6 +87,7 @@ export default function AccountingJobCostSelector({
         .select('id, code, description, job_id, type')
         .eq('job_id', jobId)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       if (error) throw error;

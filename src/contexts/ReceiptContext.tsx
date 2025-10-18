@@ -141,7 +141,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         return {
           ...r,
           jobName: job?.name || '',
-          costCodeName: costCode?.description || '',
+          costCodeName: costCode ? `${costCode.code} - ${costCode.description}` : '',
           codedBy: 'User',
           codedDate: new Date(r.updated_at),
           vendorId: r.vendor_id || r.vendor_name // Use vendor_id if available, fallback to vendor_name

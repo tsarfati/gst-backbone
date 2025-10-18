@@ -102,6 +102,7 @@ export default function ReceiptCostDistribution({
         .select('id, code, description, type')
         .eq('job_id', jobId)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       if (error) throw error;
@@ -298,7 +299,7 @@ export default function ReceiptCostDistribution({
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
+                  <PopoverContent className="w-[400px] p-0 bg-popover border border-border shadow-md z-50" align="start">
                     <Command>
                       <CommandInput placeholder="Search cost codes..." className="h-8" />
                       <CommandEmpty>No cost code found.</CommandEmpty>

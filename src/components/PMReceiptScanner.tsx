@@ -209,6 +209,7 @@ export function PMReceiptScanner() {
         .select('id, code, description')
         .eq('job_id', selectedJob)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .in('type', ['material','equipment','other'])
         .order('code');
       setCostCodes((data || []) as CostCode[]);

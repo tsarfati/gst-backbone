@@ -173,6 +173,7 @@ export default function AddBill() {
         .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .neq('type', 'sub'); // Exclude subcontractor cost codes
       
       setCostCodes(data || []);
@@ -188,6 +189,7 @@ export default function AddBill() {
         .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .neq('type', 'sub');
       
       setLineItemCostCodes(prev => ({
