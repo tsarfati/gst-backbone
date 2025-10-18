@@ -33,6 +33,7 @@ export default function CodedReceipts() {
   const { currentView, setCurrentView, setDefaultView, isDefault } = useCodedReceiptViewPreference('coded-receipts', 'list');
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
   const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
+  const [receiptDetails, setReceiptDetails] = useState<any>(null);
   const { toast } = useToast();
 
   // Fetch receipts that are linked to bills via audit trail
@@ -63,6 +64,34 @@ export default function CodedReceipts() {
     
     fetchLinkedReceipts();
   }, [codedReceipts]);
+
+  // Fetch detailed receipt information when selected
+  React.useEffect(() => {
+    const fetchReceiptDetails = async () => {
+      if (!selectedReceipt) {
+        setReceiptDetails(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('receipts')
+        .select(`
+          *,
+          job:job_id(id, name),
+          cost_code:cost_code_id(id, code, description),
+          uploaded_by_profile:uploaded_by(user_id, first_name, last_name),
+          coded_by_profile:coded_by(user_id, first_name, last_name)
+        `)
+        .eq('id', selectedReceipt.id)
+        .single();
+
+      if (!error && data) {
+        setReceiptDetails(data);
+      }
+    };
+
+    fetchReceiptDetails();
+  }, [selectedReceipt]);
 
   // Filter out receipts that are linked to bills
   const unlinkedCodedReceipts = useMemo(() => {
@@ -693,9 +722,9 @@ export default function CodedReceipts() {
       )}
 
       {/* Receipt Details Dialog */}
-      {selectedReceipt && (
+      {selectedReceipt && receiptDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedReceipt(null)}>
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-card p-6 rounded-lg max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-xl font-semibold">Receipt Details</h2>
               <div className="flex gap-2">
@@ -711,35 +740,57 @@ export default function CodedReceipts() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Filename</Label>
-                <p className="font-medium">{selectedReceipt.filename}</p>
+                <p className="font-medium">{receiptDetails.filename || receiptDetails.file_name}</p>
               </div>
               <div>
                 <Label>Amount</Label>
-                <p className="font-medium">{selectedReceipt.amount}</p>
+                <p className="font-medium">${Number(receiptDetails.amount || 0).toLocaleString()}</p>
               </div>
               <div>
                 <Label>Date</Label>
-                <p className="font-medium">{selectedReceipt.date}</p>
+                <p className="font-medium">{new Date(receiptDetails.date || receiptDetails.receipt_date).toLocaleDateString()}</p>
               </div>
               <div>
                 <Label>Vendor</Label>
-                <p className="font-medium">{selectedReceipt.vendor || 'Not specified'}</p>
+                <p className="font-medium">{receiptDetails.vendor || receiptDetails.vendor_name || 'Not specified'}</p>
               </div>
               <div>
                 <Label>Job</Label>
-                <Badge variant="secondary">{selectedReceipt.job?.name || 'Not specified'}</Badge>
+                <Badge variant="secondary">{receiptDetails.job?.name || 'Not specified'}</Badge>
               </div>
               <div>
                 <Label>Cost Code</Label>
-                <Badge variant="outline">{selectedReceipt.costCode?.description || 'Not specified'}</Badge>
+                <Badge variant="outline">
+                  {receiptDetails.cost_code 
+                    ? `${receiptDetails.cost_code.code} - ${receiptDetails.cost_code.description}`
+                    : 'Not specified'}
+                </Badge>
               </div>
               <div>
                 <Label>Uploaded By</Label>
-                <p className="font-medium">{selectedReceipt.uploadedBy}</p>
+                <p className="font-medium">
+                  {receiptDetails.uploaded_by_profile 
+                    ? `${receiptDetails.uploaded_by_profile.first_name || ''} ${receiptDetails.uploaded_by_profile.last_name || ''}`.trim() || 'User'
+                    : 'User'}
+                </p>
+                {receiptDetails.created_at && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(receiptDetails.created_at).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Coded By</Label>
-                <p className="font-medium">{selectedReceipt.codedBy}</p>
+                <p className="font-medium">
+                  {receiptDetails.coded_by_profile 
+                    ? `${receiptDetails.coded_by_profile.first_name || ''} ${receiptDetails.coded_by_profile.last_name || ''}`.trim() || 'User'
+                    : 'User'}
+                </p>
+                {receiptDetails.coded_at && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(receiptDetails.coded_at).toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
           </div>
