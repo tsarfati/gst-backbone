@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { FileText, Link as LinkIcon, User, Calendar, Undo2 } from "lucide-react";
+import { FileText, Link as LinkIcon, User, Calendar } from "lucide-react";
 import { CodedReceipt } from "@/contexts/ReceiptContext";
 import UrlPdfInlinePreview from "./UrlPdfInlinePreview";
 import { useEffect, useState } from "react";
@@ -15,15 +15,13 @@ interface ReceiptPreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAttach?: (receipt: CodedReceipt) => void;
-  onUncode?: (receipt: CodedReceipt) => void;
 }
 
 export default function ReceiptPreviewModal({ 
   receipt, 
   open, 
   onOpenChange,
-  onAttach,
-  onUncode
+  onAttach
 }: ReceiptPreviewModalProps) {
   const [costDistributions, setCostDistributions] = useState<any[]>([]);
   const [uploadedByProfile, setUploadedByProfile] = useState<any>(null);
@@ -137,20 +135,6 @@ export default function ReceiptPreviewModal({
             <Card>
               <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm">Details</CardTitle>
-                {onUncode && receipt.status === 'coded' && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="transition-colors hover:bg-primary hover:text-primary-foreground"
-                    onClick={() => {
-                      onUncode(receipt);
-                      onOpenChange(false);
-                    }}
-                  >
-                    <Undo2 className="h-4 w-4 mr-1" />
-                    Uncode
-                  </Button>
-                )}
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {receipt.amount && (

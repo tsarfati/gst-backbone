@@ -55,6 +55,26 @@ export default function AuditLog() {
 
       // Get audit entries from various audit tables
       const auditQueries = [
+        // Company-wide audit log (jobs, vendors, receipts, users, etc.)
+        supabase
+          .from('company_audit_log')
+          .select(`
+            id,
+            company_id,
+            table_name,
+            record_id,
+            action,
+            field_name,
+            old_value,
+            new_value,
+            changed_by,
+            reason,
+            created_at
+          `)
+          .eq('company_id', currentCompany.id)
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false }),
+
         // Time card audit
         supabase
           .from('time_card_audit_trail')
@@ -123,11 +143,14 @@ export default function AuditLog() {
           .order('created_at', { ascending: false })
       ];
 
-      const [timeCardAudit, invoiceAudit, deliveryTicketAudit, loginAudit] = await Promise.all(auditQueries);
+      const [companyAudit, timeCardAudit, invoiceAudit, deliveryTicketAudit, loginAudit] = await Promise.all(auditQueries);
 
-      // Get user profiles for user names
+      // Get user profiles for user names (including PIN employees)
       const allUserIds = new Set<string>();
       
+      if (companyAudit.data) {
+        companyAudit.data.forEach(entry => entry.changed_by && allUserIds.add(entry.changed_by));
+      }
       if (timeCardAudit.data) {
         timeCardAudit.data.forEach(entry => entry.changed_by && allUserIds.add(entry.changed_by));
       }
@@ -147,24 +170,58 @@ export default function AuditLog() {
         .select('user_id, first_name, last_name, display_name')
         .in('user_id', Array.from(allUserIds));
 
+      // Also fetch PIN employees
+      const { data: pinEmployees } = await supabase
+        .from('pin_employees')
+        .select('id, first_name, last_name, display_name')
+        .in('id', Array.from(allUserIds));
+
       const userMap = new Map();
+      
+      // Map regular users
       profiles?.forEach(profile => {
         const displayName = profile.display_name || 
-          `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+          `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
+          'User';
         userMap.set(profile.user_id, {
-          name: displayName || 'Unknown User'
+          name: displayName
         });
       });
       
-      // Add entries for users without profiles
+      // Map PIN employees
+      pinEmployees?.forEach(employee => {
+        const displayName = employee.display_name ||
+          `${employee.first_name || ''} ${employee.last_name || ''}`.trim() ||
+          'Employee';
+        userMap.set(employee.id, {
+          name: displayName
+        });
+      });
+      
+      // Add fallback for any remaining unknown users
       allUserIds.forEach(userId => {
         if (!userMap.has(userId)) {
-          userMap.set(userId, { name: 'Unknown User' });
+          userMap.set(userId, { name: 'System User' });
         }
       });
 
       // Combine and format all audit entries
       const combinedEntries: AuditEntry[] = [];
+
+      // Process company-wide audit entries (jobs, vendors, receipts, etc.)
+      companyAudit.data?.forEach(entry => {
+        combinedEntries.push({
+          id: entry.id,
+          table_name: entry.table_name,
+          record_id: entry.record_id,
+          action: entry.action,
+          old_values: entry.old_value ? { [entry.field_name || 'value']: entry.old_value } : undefined,
+          new_values: entry.new_value ? { [entry.field_name || 'value']: entry.new_value } : undefined,
+          user_id: entry.changed_by,
+          user_name: userMap.get(entry.changed_by)?.name || 'System User',
+          created_at: entry.created_at
+        });
+      });
 
       // Process time card audit entries
       timeCardAudit.data?.forEach(entry => {
@@ -176,7 +233,7 @@ export default function AuditLog() {
           old_values: entry.old_value ? { [entry.field_name || 'status']: entry.old_value } : undefined,
           new_values: entry.new_value ? { [entry.field_name || 'status']: entry.new_value } : undefined,
           user_id: entry.changed_by,
-          user_name: userMap.get(entry.changed_by)?.name || 'Unknown User',
+          user_name: userMap.get(entry.changed_by)?.name || 'System User',
           created_at: entry.created_at
         });
       });
@@ -191,7 +248,7 @@ export default function AuditLog() {
           old_values: entry.old_value ? { [entry.field_name || 'status']: entry.old_value } : undefined,
           new_values: entry.new_value ? { [entry.field_name || 'status']: entry.new_value } : undefined,
           user_id: entry.changed_by,
-          user_name: userMap.get(entry.changed_by)?.name || 'Unknown User',
+          user_name: userMap.get(entry.changed_by)?.name || 'System User',
           created_at: entry.created_at
         });
       });
@@ -206,7 +263,7 @@ export default function AuditLog() {
           old_values: entry.old_value ? { [entry.field_name || 'status']: entry.old_value } : undefined,
           new_values: entry.new_value ? { [entry.field_name || 'status']: entry.new_value } : undefined,
           user_id: entry.changed_by,
-          user_name: userMap.get(entry.changed_by)?.name || 'Unknown User',
+          user_name: userMap.get(entry.changed_by)?.name || 'System User',
           created_at: entry.created_at
         });
       });
@@ -224,7 +281,7 @@ export default function AuditLog() {
             ip_address: entry.ip_address
           },
           user_id: entry.user_id,
-          user_name: userMap.get(entry.user_id)?.name || 'Unknown User',
+          user_name: userMap.get(entry.user_id)?.name || 'System User',
           created_at: entry.created_at,
           ip_address: entry.ip_address,
           user_agent: entry.user_agent
@@ -284,6 +341,8 @@ export default function AuditLog() {
         return 'Vendors';
       case 'receipts':
         return 'Receipts';
+      case 'profiles':
+        return 'Users';
       default:
         return tableName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
@@ -388,6 +447,8 @@ export default function AuditLog() {
                   <SelectItem value="delete">Delete</SelectItem>
                   <SelectItem value="approve">Approve</SelectItem>
                   <SelectItem value="reject">Reject</SelectItem>
+                  <SelectItem value="upload">Upload</SelectItem>
+                  <SelectItem value="login_success">Login</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -403,6 +464,8 @@ export default function AuditLog() {
                   <SelectItem value="user_logins">User Logins</SelectItem>
                   <SelectItem value="jobs">Jobs</SelectItem>
                   <SelectItem value="vendors">Vendors</SelectItem>
+                  <SelectItem value="receipts">Receipts</SelectItem>
+                  <SelectItem value="profiles">Users</SelectItem>
                 </SelectContent>
               </Select>
             </div>

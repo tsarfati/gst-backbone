@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Calendar, DollarSign, Building, Code, Receipt as ReceiptIcon, User, FileImage, FileText, Eye, MessageSquare, Briefcase } from 'lucide-react';
+import { Calendar, DollarSign, Building, Code, Receipt as ReceiptIcon, User, FileImage, FileText, MessageSquare, Briefcase } from 'lucide-react';
 import { CodedReceipt } from '@/contexts/ReceiptContext';
 
 interface CodedReceiptViewsProps {
@@ -17,7 +17,11 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
   return (
     <div className="space-y-4">
       {receipts.map((receipt) => (
-        <Card key={receipt.id} className="hover:shadow-md transition-shadow">
+        <Card 
+          key={receipt.id} 
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => onReceiptClick(receipt)}
+        >
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-4 flex-1">
@@ -25,33 +29,28 @@ export function CodedReceiptListView({ receipts, selectedReceipts, onSelectRecei
                   checked={selectedReceipts.includes(receipt.id)}
                   onCheckedChange={() => onSelectReceipt(receipt.id)}
                   className="mt-1"
+                  onClick={(e) => e.stopPropagation()}
                 />
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-lg text-foreground mb-1">{receipt.filename}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="mb-3">
+                    <h3 className="font-semibold text-lg text-foreground mb-1">{receipt.filename}</h3>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {receipt.date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <DollarSign className="h-4 w-4" />
+                        {receipt.amount}
+                      </span>
+                      {receipt.vendor && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {receipt.date}
+                          <Building className="h-4 w-4" />
+                          {receipt.vendor}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="h-4 w-4" />
-                          {receipt.amount}
-                        </span>
-                        {receipt.vendor && (
-                          <span className="flex items-center gap-1">
-                            <Building className="h-4 w-4" />
-                            {receipt.vendor}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => onReceiptClick(receipt)}>
-                      <Eye className="h-4 w-4 mr-1" />
-                      View
-                    </Button>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -95,15 +94,20 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
   return (
     <div className="space-y-2">
       {receipts.map((receipt) => (
-        <Card key={receipt.id} className="hover:bg-primary/10 hover:border-primary transition-colors">
+        <Card 
+          key={receipt.id} 
+          className="hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
+          onClick={() => onReceiptClick(receipt)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Checkbox
                 checked={selectedReceipts.includes(receipt.id)}
                 onCheckedChange={() => onSelectReceipt(receipt.id)}
+                onClick={(e) => e.stopPropagation()}
               />
               
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-2 items-center">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
                 <div className="md:col-span-2">
                   <h4 className="font-medium text-sm truncate">{receipt.filename}</h4>
                   <p className="text-xs text-muted-foreground">{receipt.date}</p>
@@ -119,12 +123,6 @@ export function CodedReceiptCompactView({ receipts, selectedReceipts, onSelectRe
                   <Badge variant="secondary" className="text-xs">{receipt.jobName || 'No job'}</Badge>
                   <Badge variant="outline" className="text-xs">{receipt.costCodeName || 'No cost code'}</Badge>
                 </div>
-                
-                <div className="flex justify-end">
-                  <Button size="sm" variant="ghost" onClick={() => onReceiptClick(receipt)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
             </div>
           </CardContent>
@@ -138,24 +136,24 @@ export function CodedReceiptSuperCompactView({ receipts, selectedReceipts, onSel
   return (
     <div className="space-y-1">
       {receipts.map((receipt) => (
-        <div key={receipt.id} className="flex items-center gap-2 p-2 hover:bg-primary/10 hover:border-primary rounded border">
+        <div 
+          key={receipt.id} 
+          className="flex items-center gap-2 p-2 hover:bg-primary/10 hover:border-primary rounded border cursor-pointer"
+          onClick={() => onReceiptClick(receipt)}
+        >
           <Checkbox
             checked={selectedReceipts.includes(receipt.id)}
             onCheckedChange={() => onSelectReceipt(receipt.id)}
             className="shrink-0"
+            onClick={(e) => e.stopPropagation()}
           />
           
-          <div className="flex-1 grid grid-cols-6 gap-2 items-center text-sm">
+          <div className="flex-1 grid grid-cols-5 gap-2 items-center text-sm">
             <div className="truncate font-medium">{receipt.filename}</div>
             <div className="text-muted-foreground">{receipt.amount}</div>
             <div className="truncate text-muted-foreground">{receipt.vendor || '-'}</div>
             <div className="truncate">{receipt.jobName || 'No job'}</div>
             <div className="truncate">{receipt.costCodeName || 'No cost code'}</div>
-            <div className="text-right">
-              <Button size="sm" variant="ghost" onClick={() => onReceiptClick(receipt)} className="h-6 w-6 p-0">
-                <Eye className="h-3 w-3" />
-              </Button>
-            </div>
           </div>
         </div>
       ))}

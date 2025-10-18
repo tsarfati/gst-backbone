@@ -701,6 +701,32 @@ export default function CodedReceipts() {
             Export Selected ({selectedReceipts.length})
           </Button>
           <Button 
+            variant="secondary" 
+            onClick={async () => {
+              try {
+                const selectedReceiptsData = filteredReceipts.filter(r => selectedReceipts.includes(r.id));
+                for (const receipt of selectedReceiptsData) {
+                  await uncodeReceipt(receipt.id);
+                }
+                toast({
+                  title: "Receipts uncoded",
+                  description: `${selectedReceipts.length} receipt(s) moved to uncoded receipts`,
+                });
+                setSelectedReceipts([]);
+              } catch (error) {
+                toast({
+                  title: "Error",
+                  description: "Failed to uncode receipts",
+                  variant: "destructive",
+                });
+              }
+            }}
+            disabled={selectedReceipts.length === 0}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Uncode Selected ({selectedReceipts.length})
+          </Button>
+          <Button 
             variant="destructive" 
             onClick={handleBulkDelete}
             disabled={selectedReceipts.length === 0}
@@ -769,7 +795,6 @@ export default function CodedReceipts() {
             setReceiptDetails(null);
           }
         }}
-        onUncode={(receipt) => uncodeReceipt(receipt.id)}
       />
     </div>
   );
