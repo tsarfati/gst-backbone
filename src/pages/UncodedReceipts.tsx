@@ -40,6 +40,7 @@ export default function UncodedReceipts() {
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedAmount, setSelectedAmount] = useState("");
   const [costDistribution, setCostDistribution] = useState<CostDistribution[]>([]);
+  const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -52,6 +53,31 @@ export default function UncodedReceipts() {
     setCurrentView, 
     setDefaultView 
   } = useViewPreference('uncoded-receipts-view', 'grid');
+
+  // Fetch receipts that are linked to bills via audit trail
+  useEffect(() => {
+    const fetchLinkedReceipts = async () => {
+      const { data, error } = await supabase
+        .from('invoice_audit_trail')
+        .select('new_value')
+        .eq('change_type', 'update')
+        .eq('field_name', 'attachment');
+      
+      if (!error && data) {
+        const linkedIds = new Set(
+          data
+            .map(entry => entry.new_value)
+            .filter(Boolean)
+        );
+        setLinkedReceiptIds(linkedIds);
+      }
+    };
+    
+    fetchLinkedReceipts();
+  }, [uncodedReceipts]);
+
+  // Filter out receipts that are linked to bills
+  const availableUncodedReceipts = uncodedReceipts.filter(receipt => !linkedReceiptIds.has(receipt.id));
 
   useEffect(() => {
     if (selectedReceipt) {
@@ -357,7 +383,7 @@ export default function UncodedReceipts() {
             </p>
           </div>
 
-          {uncodedReceipts.length === 0 && uncodedBills.length === 0 ? (
+          {availableUncodedReceipts.length === 0 && uncodedBills.length === 0 ? (
             <div className="text-center py-12">
               <Receipt className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium mb-2">All receipts and bills have been coded!</h3>
@@ -371,7 +397,7 @@ export default function UncodedReceipts() {
                 ? "space-y-4"
                 : "space-y-2"
             }>
-              {[...uncodedReceipts, ...uncodedBills.map(bill => ({
+              {[...availableUncodedReceipts, ...uncodedBills.map(bill => ({
                 id: bill.id,
                 filename: bill.invoice_number || `Bill ${bill.id.slice(0, 8)}`,
                 amount: `$${bill.amount?.toFixed(2) || '0.00'}`,

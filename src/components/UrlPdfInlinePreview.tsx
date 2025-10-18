@@ -7,12 +7,12 @@ interface UrlPdfInlinePreviewProps {
   className?: string;
 }
 
-// Renders first page of a PDF from a URL using pdfjs to avoid iframe blocking
+// Renders all pages of a PDF from a URL using pdfjs to avoid iframe blocking
 export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageCount, setPageCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,28 +36,45 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
         const pdf = await loadingTask.promise;
         if (cancelled) return;
 
-        const page = await pdf.getPage(1);
-        if (cancelled) return;
+        const numPages = pdf.numPages;
+        setPageCount(numPages);
+
+        // Clear container
+        if (containerRef.current) {
+          containerRef.current.innerHTML = '';
+        }
 
         await new Promise(resolve => setTimeout(resolve, 0));
         const containerWidth = containerRef.current?.clientWidth || 800;
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / viewport.width;
-        const scaledViewport = page.getViewport({ scale });
 
-        const canvas = canvasRef.current;
-        if (!canvas) throw new Error('Canvas not available');
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('2D context not available');
+        // Render all pages
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          if (cancelled) break;
 
-        canvas.width = Math.ceil(scaledViewport.width);
-        canvas.height = Math.ceil(scaledViewport.height);
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1 });
+          const scale = containerWidth / viewport.width;
+          const scaledViewport = page.getViewport({ scale });
 
-        const renderTask = page.render({ canvasContext: context, viewport: scaledViewport });
-        await renderTask.promise;
-        if (cancelled) return;
+          // Create canvas for this page
+          const canvas = document.createElement('canvas');
+          canvas.className = 'w-full h-auto border-b bg-white';
+          const context = canvas.getContext('2d');
+          if (!context) continue;
 
-        setLoading(false);
+          canvas.width = Math.ceil(scaledViewport.width);
+          canvas.height = Math.ceil(scaledViewport.height);
+
+          containerRef.current?.appendChild(canvas);
+
+          const renderTask = page.render({ canvasContext: context, viewport: scaledViewport });
+          await renderTask.promise;
+        }
+
+        if (!cancelled) {
+          setLoading(false);
+        }
+        
         await pdf.cleanup();
         await pdf.destroy();
       } catch (err) {
@@ -74,11 +91,11 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
   }, [url]);
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)}>
-      <canvas ref={canvasRef} className="w-full h-auto rounded border bg-white" />
+    <div className={cn("relative w-full", className)}>
+      <div ref={containerRef} className="w-full space-y-0" />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/60">
-          Rendering preview...
+          {pageCount > 0 ? `Rendering ${pageCount} page${pageCount !== 1 ? 's' : ''}...` : 'Loading PDF...'}
         </div>
       )}
       {error && (

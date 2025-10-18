@@ -24,24 +24,39 @@ export default function BillReceiptSuggestions({
   billDate,
   onReceiptAttached 
 }: BillReceiptSuggestionsProps) {
-  const { codedReceipts } = useReceipts();
+  const { codedReceipts, uncodedReceipts } = useReceipts();
   const { toast } = useToast();
   const [previewReceipt, setPreviewReceipt] = useState<CodedReceipt | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const suggestedReceipts = useMemo(() => {
-    if (!codedReceipts?.length) return [];
+    // Convert uncoded receipts to coded format for compatibility
+    const uncodedAsCodedReceipts: CodedReceipt[] = (uncodedReceipts || []).map(receipt => ({
+      ...receipt,
+      jobName: receipt.job?.name || '',
+      costCodeName: receipt.costCode?.description || '',
+      codedBy: '',
+      codedDate: new Date(),
+      vendorId: undefined
+    }));
+    
+    // Combine coded and converted uncoded receipts
+    const allReceipts = [...(codedReceipts || []), ...uncodedAsCodedReceipts];
+    
+    if (!allReceipts.length) return [];
     
     console.log('BillReceiptSuggestions - Checking receipts:', {
-      totalReceipts: codedReceipts.length,
+      totalReceipts: allReceipts.length,
+      codedCount: codedReceipts?.length || 0,
+      uncodedCount: uncodedReceipts?.length || 0,
       billAmount,
       billVendorId,
       billJobId,
       billDate,
-      sampleReceipt: codedReceipts[0]
+      sampleReceipt: allReceipts[0]
     });
 
-    const suggestions = codedReceipts
+    const suggestions = allReceipts
       .filter(receipt => {
         // Primary filter: amount must match (within $10 tolerance) - this is the main match point
         const receiptAmount = typeof receipt.amount === 'string' 
@@ -124,7 +139,7 @@ export default function BillReceiptSuggestions({
       .slice(0, 5); // Limit to top 5 suggestions
 
     return suggestions;
-  }, [codedReceipts, billVendorId, billAmount, billJobId, billDate]);
+  }, [codedReceipts, uncodedReceipts, billVendorId, billAmount, billJobId, billDate]);
 
   const handleAttachReceipt = async (receipt: CodedReceipt) => {
     try {
@@ -164,7 +179,7 @@ export default function BillReceiptSuggestions({
           Suggested Receipts
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Found {suggestedReceipts.length} coded receipt{suggestedReceipts.length !== 1 ? 's' : ''} that might match this bill
+          Found {suggestedReceipts.length} receipt{suggestedReceipts.length !== 1 ? 's' : ''} that might match this bill
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

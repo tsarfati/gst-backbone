@@ -42,20 +42,13 @@ export default function CodedReceipts() {
       const { data, error } = await supabase
         .from('invoice_audit_trail')
         .select('new_value')
-        .eq('change_type', 'receipt_attached');
+        .eq('change_type', 'update')
+        .eq('field_name', 'attachment');
       
       if (!error && data) {
         const linkedIds = new Set(
           data
-            .map(entry => {
-              try {
-                // Parse the new_value JSON to extract receipt ID
-                const value = JSON.parse(entry.new_value || '{}');
-                return value.receipt_id;
-              } catch {
-                return null;
-              }
-            })
+            .map(entry => entry.new_value)
             .filter(Boolean)
         );
         setLinkedReceiptIds(linkedIds);
