@@ -141,6 +141,7 @@ export default function ReceiptPreviewModal({
                   <Button 
                     size="sm" 
                     variant="outline"
+                    className="transition-colors hover:bg-primary hover:text-primary-foreground"
                     onClick={() => {
                       onUncode(receipt);
                       onOpenChange(false);
@@ -178,6 +179,59 @@ export default function ReceiptPreviewModal({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Internal Notes */}
+            {internalNotes.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Internal Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {internalNotes.map((note, index) => (
+                      <div key={index} className="p-2 bg-muted rounded text-xs">
+                        {typeof note === 'string' ? note : note.note || note.message}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Cost Distributions */}
+            {costDistributions.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Cost Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {costDistributions.map((dist, index) => (
+                      <div key={index} className="p-3 bg-muted rounded-lg space-y-2 text-xs">
+                        <div>
+                          <span className="font-medium text-muted-foreground">Job:</span>
+                          <p className="font-medium text-sm">{dist.job?.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">Cost Code:</span>
+                          <p className="text-sm">{dist.cost_code?.code} - {dist.cost_code?.description}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-muted-foreground">Amount:</span>
+                          <p className="font-semibold text-sm">${Number(dist.amount || 0).toLocaleString()}</p>
+                        </div>
+                        {dist.notes && (
+                          <div>
+                            <span className="font-medium text-muted-foreground">Notes:</span>
+                            <p className="text-xs">{dist.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* User Information */}
             <Card>
@@ -237,59 +291,6 @@ export default function ReceiptPreviewModal({
                 )}
               </CardContent>
             </Card>
-
-            {/* Internal Notes */}
-            {internalNotes.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Internal Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {internalNotes.map((note, index) => (
-                      <div key={index} className="p-2 bg-muted rounded text-xs">
-                        {typeof note === 'string' ? note : note.note || note.message}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Cost Distributions */}
-            {costDistributions.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Cost Distribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {costDistributions.map((dist, index) => (
-                      <div key={index} className="p-3 bg-muted rounded-lg space-y-2 text-xs">
-                        <div>
-                          <span className="font-medium text-muted-foreground">Job:</span>
-                          <p className="font-medium text-sm">{dist.job?.name || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">Cost Code:</span>
-                          <p className="text-sm">{dist.cost_code?.code} - {dist.cost_code?.description}</p>
-                        </div>
-                        <div>
-                          <span className="font-medium text-muted-foreground">Amount:</span>
-                          <p className="font-semibold text-sm">${Number(dist.amount || 0).toLocaleString()}</p>
-                        </div>
-                        {dist.notes && (
-                          <div>
-                            <span className="font-medium text-muted-foreground">Notes:</span>
-                            <p className="text-xs">{dist.notes}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Action Button at Bottom */}
             {onAttach && (
