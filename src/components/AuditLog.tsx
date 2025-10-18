@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Search, Filter, Download, User, Clock, FileText } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Search, Filter, Download, User, Clock, FileText, Eye, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,8 @@ export default function AuditLog() {
   const [actionFilter, setActionFilter] = useState('all');
   const [tableFilter, setTableFilter] = useState('all');
   const [dateRange, setDateRange] = useState('7'); // days
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (currentCompany) {
@@ -507,7 +510,14 @@ export default function AuditLog() {
               </TableHeader>
               <TableBody>
                 {filteredEntries.map((entry) => (
-                  <TableRow key={entry.id}>
+                  <TableRow 
+                    key={entry.id}
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => {
+                      setSelectedEntry(entry);
+                      setDetailsOpen(true);
+                    }}
+                  >
                     <TableCell className="font-mono text-sm">
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
@@ -532,17 +542,10 @@ export default function AuditLog() {
                       {entry.record_id.substring(0, 8)}...
                     </TableCell>
                     <TableCell>
-                      {entry.new_values && (
-                        <div className="max-w-xs">
-                          <div className="text-sm">
-                            {Object.entries(entry.new_values).map(([key, value]) => (
-                              <div key={key} className="truncate">
-                                <span className="font-medium">{key}:</span> {String(value)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Click to view details</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -551,6 +554,113 @@ export default function AuditLog() {
           )}
         </CardContent>
       </Card>
+
+      {/* Audit Entry Details Dialog */}
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Audit Entry Details
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedEntry && (
+            <div className="space-y-6">
+              {/* Entry Summary */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-accent/20 rounded-lg">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Date & Time</p>
+                  <p className="font-mono text-sm font-medium">
+                    {format(new Date(selectedEntry.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">User</p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{selectedEntry.user_name}</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Action</p>
+                  <Badge variant={getActionBadgeVariant(selectedEntry.action)}>
+                    {selectedEntry.action}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Table</p>
+                  <span className="font-medium">{getTableDisplayName(selectedEntry.table_name)}</span>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground mb-1">Record ID</p>
+                  <p className="font-mono text-sm break-all">{selectedEntry.record_id}</p>
+                </div>
+                {selectedEntry.ip_address && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">IP Address</p>
+                    <p className="font-mono text-sm">{selectedEntry.ip_address}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Changes Details */}
+              {(selectedEntry.old_values || selectedEntry.new_values) && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4" />
+                    Changes Made
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    {selectedEntry.old_values && Object.keys(selectedEntry.old_values).length > 0 && (
+                      <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                        <p className="text-xs font-semibold text-destructive mb-2">Previous Value</p>
+                        <div className="space-y-2">
+                          {Object.entries(selectedEntry.old_values).map(([key, value]) => (
+                            <div key={key} className="text-sm">
+                              <span className="font-medium text-muted-foreground">{key}:</span>
+                              <pre className="mt-1 p-2 bg-background rounded text-xs overflow-x-auto">
+                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedEntry.new_values && Object.keys(selectedEntry.new_values).length > 0 && (
+                      <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                        <p className="text-xs font-semibold text-primary mb-2">New Value</p>
+                        <div className="space-y-2">
+                          {Object.entries(selectedEntry.new_values).map(([key, value]) => (
+                            <div key={key} className="text-sm">
+                              <span className="font-medium text-muted-foreground">{key}:</span>
+                              <pre className="mt-1 p-2 bg-background rounded text-xs overflow-x-auto">
+                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* User Agent for login events */}
+              {selectedEntry.user_agent && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Browser Information</h4>
+                  <p className="text-xs font-mono bg-accent/20 p-3 rounded break-all">
+                    {selectedEntry.user_agent}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
