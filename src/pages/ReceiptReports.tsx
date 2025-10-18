@@ -103,23 +103,9 @@ export default function ReceiptReports() {
                 {receipt.status}
               </Badge>
             </div>
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Amount:</span>
-                <p className="font-medium">${receipt.amount.toFixed(2)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Job:</span>
-                <p className="font-medium">{receipt.job}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Cost Code:</span>
-                <p className="font-medium">{receipt.costCode}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Uploaded:</span>
-                <p className="font-medium">{format(new Date(receipt.uploadDate), 'MMM dd, yyyy')}</p>
-              </div>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="font-medium text-lg">${receipt.amount.toFixed(2)}</span>
+              <span className="text-muted-foreground">{receipt.job}</span>
             </div>
           </div>
         );

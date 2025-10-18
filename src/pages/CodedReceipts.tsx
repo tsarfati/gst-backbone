@@ -72,15 +72,36 @@ export default function CodedReceipts() {
         .select(`
           *,
           job:job_id(id, name),
-          cost_code:cost_code_id(id, code, description),
-          uploaded_by_profile:uploaded_by(user_id, first_name, last_name),
-          coded_by_profile:coded_by(user_id, first_name, last_name)
+          cost_code:cost_code_id(id, code, description)
         `)
         .eq('id', selectedReceipt.id)
         .single();
 
       if (!error && data) {
-        setReceiptDetails(data);
+        // Fetch user profiles separately to handle nulls better
+        const uploadedById = (data as any).uploaded_by;
+        const codedById = (data as any).coded_by;
+        
+        const uploadedByProfile = uploadedById ? await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', uploadedById)
+          .single() : null;
+
+        const codedByProfile = codedById ? await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', codedById)
+          .single() : null;
+
+        setReceiptDetails({
+          ...data,
+          uploaded_by_profile: uploadedByProfile?.data || null,
+          coded_by_profile: codedByProfile?.data || null
+        } as any);
+      } else {
+        console.error('Error fetching receipt details:', error);
+        setReceiptDetails(null);
       }
     };
 

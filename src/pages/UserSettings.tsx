@@ -10,13 +10,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserPlus } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Shield } from 'lucide-react';
 import RolePermissionsManager from "@/components/RolePermissionsManager";
 import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
+import UserRoleManagement from "@/components/UserRoleManagement";
 
 interface UserProfile {
   id: string;
@@ -231,6 +232,13 @@ export default function UserSettings() {
             Users
           </TabsTrigger>
           <TabsTrigger 
+            value="user-roles" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            User Roles
+          </TabsTrigger>
+          <TabsTrigger
             value="access-requests" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
           >
@@ -308,6 +316,10 @@ export default function UserSettings() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="user-roles">
+          <UserRoleManagement />
         </TabsContent>
 
         <TabsContent value="access-requests">
