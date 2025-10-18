@@ -328,13 +328,14 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'mat
                       <CommandEmpty>No cost code found.</CommandEmpty>
                       <CommandGroup className="max-h-[300px] overflow-auto">
                         {costCodesForJob.map((cc) => (
-                          <CommandItem
-                            key={cc.id}
-                            value={`${cc.code} ${cc.description}`}
-                            onSelect={() => {
-                              updateDistribution(dist.id, 'cost_code_id', cc.id);
-                            }}
-                          >
+                        <CommandItem
+                          key={cc.id}
+                          value={`${cc.id}-${cc.code} ${cc.description}`}
+                          onSelect={() => {
+                            updateDistribution(dist.id, 'cost_code_id', cc.id);
+                          }}
+                          className="hover:bg-primary/10 hover:text-primary"
+                        >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",

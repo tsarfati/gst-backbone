@@ -90,13 +90,72 @@ export default function Dashboard() {
     show_resource_allocation: false,
   });
 
+  // Stats data
+  const [uncodedReceiptsCount, setUncodedReceiptsCount] = useState(0);
+  const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
+  const [activeJobsCount, setActiveJobsCount] = useState(0);
+  const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
+
   useEffect(() => {
     if (user && currentCompany) {
       fetchNotifications();
       fetchMessages();
       fetchDashboardSettings();
+      fetchDashboardStats();
     }
   }, [user, currentCompany]);
+
+  const fetchDashboardStats = async () => {
+    if (!currentCompany) return;
+
+    try {
+      // Fetch uncoded receipts count
+      const { data: uncodedData, error: uncodedError } = await supabase
+        .from('receipts')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'uncoded');
+      
+      if (!uncodedError) {
+        setUncodedReceiptsCount(uncodedData?.length || 0);
+      }
+
+      // Fetch total receipts count
+      const { data: totalData, error: totalError } = await supabase
+        .from('receipts')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+      
+      if (!totalError) {
+        setTotalReceiptsCount(totalData?.length || 0);
+      }
+
+      // Fetch active jobs count
+      const { data: jobsData, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'active');
+      
+      if (!jobsError) {
+        setActiveJobsCount(jobsData?.length || 0);
+      }
+
+      // Fetch pending bills total
+      const { data: pendingBills, error: billsError } = await supabase
+        .from('invoices')
+        .select('amount, vendors!inner(company_id)')
+        .eq('vendors.company_id', currentCompany.id)
+        .in('status', ['pending_approval', 'pending_coding']);
+      
+      if (!billsError && pendingBills) {
+        const total = pendingBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
+        setPendingBillsTotal(total);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
 
   const fetchNotifications = async () => {
     if (!user) return;
@@ -259,28 +318,28 @@ export default function Dashboard() {
   const stats = [
     {
       title: "Uncoded Receipts",
-      value: "0",
+      value: uncodedReceiptsCount.toString(),
       icon: Clock,
       variant: "warning" as const,
       href: "/uncoded",
     },
     {
       title: "Total Receipts",
-      value: "0",
+      value: totalReceiptsCount.toString(),
       icon: Receipt,
       variant: "default" as const,
       href: "/receipts",
     },
     {
-      title: "Completed Jobs",
-      value: "0",
+      title: "Active Jobs",
+      value: activeJobsCount.toString(),
       icon: CheckCircle,
       variant: "secondary" as const,
       href: "/jobs",
     },
     {
       title: "Pending Bills",
-      value: "$0",
+      value: `$${pendingBillsTotal.toFixed(2)}`,
       icon: DollarSign,
       variant: "destructive" as const,
       href: "/invoices",
@@ -837,12 +896,30 @@ export default function Dashboard() {
           {dashboardSettings.show_active_jobs && (
             <Card>
               <CardHeader>
-                <CardTitle>Active Jobs</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  Active Jobs
+                  <Badge variant="secondary">{activeJobsCount}</Badge>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No active jobs</p>
-                </div>
+                {activeJobsCount === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No active jobs</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-2xl font-bold text-primary">{activeJobsCount}</p>
+                    <p className="text-sm text-muted-foreground mt-2">Active projects</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-4"
+                      onClick={() => navigate('/jobs')}
+                    >
+                      View All Jobs
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
