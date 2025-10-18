@@ -707,121 +707,13 @@ export default function AddBill() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Add New Bill</h1>
-          <p className="text-muted-foreground">Upload and create a new bill record</p>
+          <p className="text-muted-foreground">Fill in the form below and upload the bill document at the bottom</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        {/* Two-column layout: Preview on left, Form on right */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: File Upload/Preview Section - Sticky */}
-          <div className="lg:sticky lg:top-6 h-fit">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Bill File Upload
-                  <Badge variant="destructive" className="text-xs">Required</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  {billFiles.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
-                        <FileText className="h-8 w-8 text-success" />
-                      </div>
-                      <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
-                        <Upload className="h-8 w-8 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-medium">Upload Bill File</p>
-                        <p className="text-sm text-muted-foreground">
-                          Drag and drop your bill file here, or click to browse
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
-                        </p>
-                      </div>
-                      <div>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf,.jpg,.jpeg,.png,.webp"
-                          onChange={handleFileInputChange}
-                          className="hidden"
-                          id="bill-file-upload"
-                        />
-                        <Button type="button" asChild>
-                          <label htmlFor="bill-file-upload" className="cursor-pointer">
-                            <Upload className="h-4 w-4 mr-2" />
-                            Choose Files
-                          </label>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* File Preview */}
-                {billFiles.length > 0 && (
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold">Preview</Label>
-                    <div className="max-h-[70vh] overflow-y-auto space-y-3">
-                      {billFiles.map((file, index) => (
-                        <div key={index} className="border rounded-lg overflow-hidden">
-                          <div className="flex items-center justify-between p-3 bg-muted">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              <span className="font-medium text-sm">{file.name}</span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFile(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          {file.type === 'application/pdf' ? (
-                            <PdfInlinePreview file={file} className="w-full" />
-                          ) : (
-                            <img
-                              src={URL.createObjectURL(file)}
-                              alt="Bill preview"
-                              className="w-full h-auto"
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {billFiles.length === 0 && !attachedReceipt && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>Bill file or receipt attachment is required before saving</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right: Form Fields */}
-          <div className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Form Fields - Compact Layout at Top */}
+        <div className="space-y-6">
         {/* Invoice Information */}
         <Card>
           <CardHeader>
@@ -846,7 +738,7 @@ export default function AddBill() {
               </TabsList>
               
               <TabsContent value="non_commitment" className="space-y-4 mt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vendor">Vendor *</Label>
                     <div className="flex gap-2">
@@ -892,6 +784,16 @@ export default function AddBill() {
                       required
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="issueDate">Issue Date *</Label>
+                    <Input
+                      id="issueDate"
+                      type="date"
+                      value={formData.issueDate}
+                      onChange={(e) => handleInputChange("issueDate", e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* Vendor Compliance Warning */}
@@ -905,38 +807,25 @@ export default function AddBill() {
                   </Alert>
                 )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoice_number">Invoice #</Label>
                     <Input
                       id="invoice_number"
                       value={formData.invoice_number}
                       onChange={(e) => handleInputChange("invoice_number", e.target.value)}
-                      placeholder="Enter invoice number (optional)"
+                      placeholder="Optional"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="issueDate">Issue Date *</Label>
-                    <Input
-                      id="issueDate"
-                      type="date"
-                      value={formData.issueDate}
-                      onChange={(e) => handleInputChange("issueDate", e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Checkbox
-                      id="use_terms"
-                      checked={formData.use_terms}
-                      onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
-                    />
-                    <Label htmlFor="use_terms">Use payment terms instead of due date</Label>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2 h-8">
+                      <Checkbox
+                        id="use_terms"
+                        checked={formData.use_terms}
+                        onCheckedChange={(checked) => handleInputChange("use_terms", checked)}
+                      />
+                      <Label htmlFor="use_terms" className="text-sm">Use terms</Label>
+                    </div>
                     {formData.use_terms ? (
                       <div className="space-y-2">
                         <Label htmlFor="payment_terms">Payment Terms *</Label>
@@ -1521,6 +1410,111 @@ export default function AddBill() {
             }}
           />
         )}
+        </div>
+        
+        {/* Bill File Upload & Preview - Full Width at Bottom */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Bill Document
+              <Badge variant="destructive" className="text-xs">Required</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {billFiles.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
+                    <FileText className="h-8 w-8 text-success" />
+                  </div>
+                  <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-medium">Upload Bill Document</p>
+                    <p className="text-sm text-muted-foreground">
+                      Drag and drop your bill file here, or click to browse
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
+                    </p>
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png,.webp"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                      id="bill-file-upload"
+                    />
+                    <Button type="button" asChild>
+                      <label htmlFor="bill-file-upload" className="cursor-pointer">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Choose Files
+                      </label>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Bill Preview - Full Width */}
+            {billFiles.length > 0 && (
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Document Preview</Label>
+                {billFiles.map((file, index) => (
+                  <div key={index} className="border rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between p-3 bg-muted">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span className="font-medium text-sm">{file.name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFile(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {file.type === 'application/pdf' ? (
+                      <div className="w-full">
+                        <PdfInlinePreview file={file} className="w-full" />
+                      </div>
+                    ) : (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt="Bill preview"
+                        className="w-full h-auto"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {billFiles.length === 0 && !attachedReceipt && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                <span>Bill document or receipt attachment is required before saving</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Form Actions */}
         <div className="flex gap-3">
@@ -1531,8 +1525,6 @@ export default function AddBill() {
           <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
             Cancel
           </Button>
-        </div>
-        </div>
         </div>
       </form>
     </div>

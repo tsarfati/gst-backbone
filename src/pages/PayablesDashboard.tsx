@@ -60,12 +60,84 @@ export default function PayablesDashboard() {
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("this_month");
+  const [selectedJobId, setSelectedJobId] = useState<string>("all");
+  const [userDefaultJob, setUserDefaultJob] = useState<string>("all");
+
+  useEffect(() => {
+    if (user && (currentCompany?.id || profile?.current_company_id)) {
+      loadUserJobPreference();
+    }
+  }, [user, currentCompany]);
 
   useEffect(() => {
     if (user && (currentCompany?.id || profile?.current_company_id)) {
       loadDashboardData();
     }
-  }, [user, currentCompany, profile?.current_company_id, selectedPeriod]);
+  }, [user, currentCompany, profile?.current_company_id, selectedPeriod, selectedJobId]);
+
+  const loadUserJobPreference = async () => {
+    if (!user || !currentCompany?.id) return;
+    
+    try {
+      const { data } = await supabase
+        .from('company_ui_settings')
+        .select('settings')
+        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      
+      const settings = data?.settings as Record<string, any> | null;
+      if (settings?.payables_dashboard_default_job) {
+        const defaultJob = settings.payables_dashboard_default_job as string;
+        setSelectedJobId(defaultJob);
+        setUserDefaultJob(defaultJob);
+      }
+    } catch (error) {
+      console.error('Error loading job preference:', error);
+    }
+  };
+
+  const saveJobPreference = async (jobId: string, setAsDefault: boolean = false) => {
+    if (!user || !currentCompany?.id) return;
+    
+    setSelectedJobId(jobId);
+    
+    if (setAsDefault) {
+      try {
+        const { data: existing } = await supabase
+          .from('company_ui_settings')
+          .select('settings')
+          .eq('user_id', user.id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        
+        const existingSettings = (existing?.settings as Record<string, any>) || {};
+        const newSettings = {
+          ...existingSettings,
+          payables_dashboard_default_job: jobId
+        };
+        
+        await supabase
+          .from('company_ui_settings')
+          .upsert({
+            user_id: user.id,
+            company_id: currentCompany.id,
+            settings: newSettings
+          }, {
+            onConflict: 'user_id,company_id'
+          });
+        
+        setUserDefaultJob(jobId);
+        
+        toast({
+          title: "Default set",
+          description: "Default job filter saved"
+        });
+      } catch (error) {
+        console.error('Error saving job preference:', error);
+      }
+    }
+  };
 
   const loadDashboardData = async () => {
     if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
@@ -79,12 +151,18 @@ export default function PayablesDashboard() {
         .select('id')
         .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
-      // Load invoices for calculations (filtered by company)
-      const { data: invoicesData } = await supabase
+      // Load invoices for calculations (filtered by company and job)
+      let query = supabase
         .from('invoices')
         .select('*, vendors!inner(company_id)')
-        .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id)
-        .order('created_at', { ascending: false });
+        .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id);
+      
+      // Filter by job if not "all"
+      if (selectedJobId !== "all") {
+        query = query.eq('job_id', selectedJobId);
+      }
+      
+      const { data: invoicesData } = await query.order('created_at', { ascending: false });
 
       // Calculate metrics
       const totalOutstanding = (invoicesData || [])
@@ -215,11 +293,36 @@ export default function PayablesDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Select value={selectedJobId} onValueChange={(value) => saveJobPreference(value, false)}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">All Jobs</SelectItem>
+                {jobs?.map((job) => (
+                  <SelectItem key={job.id} value={job.id}>
+                    {job.name}
+                  </SelectItem>
+                )) || []}
+              </SelectContent>
+            </Select>
+            {selectedJobId !== userDefaultJob && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => saveJobPreference(selectedJobId, true)}
+                title="Set as default"
+              >
+                Set Default
+              </Button>
+            )}
+          </div>
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background z-50">
               <SelectItem value="this_week">This Week</SelectItem>
               <SelectItem value="this_month">This Month</SelectItem>
               <SelectItem value="this_quarter">This Quarter</SelectItem>
