@@ -91,10 +91,14 @@ export default function FileUploadSettings() {
 
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { error } = await supabase
         .from('file_upload_settings')
         .upsert({
           company_id: currentCompany.id,
+          created_by: user.id,
           receipt_naming_pattern: settings.receipt_naming_pattern,
           bill_naming_pattern: settings.bill_naming_pattern,
           subcontract_naming_pattern: settings.subcontract_naming_pattern,
