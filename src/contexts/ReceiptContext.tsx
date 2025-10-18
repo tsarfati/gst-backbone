@@ -202,6 +202,13 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Fetch file upload settings to get naming pattern
+    const { data: settings } = await supabase
+      .from('file_upload_settings')
+      .select('receipt_naming_pattern')
+      .eq('company_id', currentCompany.id)
+      .single();
+
     const filesArray = Array.from(files);
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
@@ -210,11 +217,25 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       try {
         // Upload to Supabase storage
         const fileExt = file.name.split('.').pop();
-        const fileName = `${currentCompany.id}/${Date.now()}.${fileExt}`;
+        
+        // Apply naming pattern if available
+        let displayName = file.name;
+        if (settings?.receipt_naming_pattern && amount) {
+          const today = new Date();
+          const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+          
+          displayName = settings.receipt_naming_pattern
+            .replace('{date}', dateStr)
+            .replace('{amount}', amount.toFixed(2))
+            .replace('{original_filename}', file.name.replace(/\.[^/.]+$/, '')) // filename without extension
+            + '.' + fileExt;
+        }
+        
+        const storageFileName = `${currentCompany.id}/${Date.now()}.${fileExt}`;
         
         const { data, error } = await supabase.storage
           .from('receipts')
-          .upload(fileName, file);
+          .upload(storageFileName, file);
 
         if (error) {
           console.error('Upload error:', error);
@@ -224,15 +245,15 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         // Get public URL
         const { data: publicUrlData } = supabase.storage
           .from('receipts')
-          .getPublicUrl(fileName);
+          .getPublicUrl(storageFileName);
 
-        // Insert into database with amount
+        // Insert into database with formatted name
         const { error: insertError } = await supabase
           .from('receipts')
           .insert({
             company_id: currentCompany.id,
             created_by: user.id,
-            file_name: file.name,
+            file_name: displayName,
             file_url: publicUrlData.publicUrl,
             file_size: file.size,
             amount: amount,
