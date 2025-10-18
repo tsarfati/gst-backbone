@@ -97,6 +97,7 @@ export default function Bills() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [jobFilter, setJobFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,30 +163,34 @@ export default function Bills() {
     }
   };
 
-  const filteredBills = jobFilter === "all" 
-    ? bills 
-    : bills.filter(bill => bill.job_name === jobFilter);
-
-  const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
-
   const pendingApprovalBills = bills.filter(bill => bill.status === 'pending' || bill.status === 'pending_approval');
-  const pendingPaymentBills = bills.filter(bill => bill.status === 'pending_payment');
+  const awaitingPaymentBills = bills.filter(bill => bill.status === 'approved' || bill.status === 'pending_payment');
   const overdueBills = bills.filter(bill => {
     const dueDate = new Date(bill.due_date);
     const today = new Date();
-    return (bill.status === 'pending' || bill.status === 'pending_approval') && dueDate < today;
-  });
-  const paidThisMonthBills = bills.filter(bill => {
-    const issueDate = new Date(bill.issue_date);
-    const thisMonth = new Date();
-    thisMonth.setDate(1);
-    return bill.status === 'paid' && issueDate >= thisMonth;
+    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
   });
 
+  // Apply status filter
+  let statusFilteredBills = bills;
+  if (statusFilter === "pending_approval") {
+    statusFilteredBills = pendingApprovalBills;
+  } else if (statusFilter === "awaiting_payment") {
+    statusFilteredBills = awaitingPaymentBills;
+  } else if (statusFilter === "overdue") {
+    statusFilteredBills = overdueBills;
+  }
+
+  // Apply job filter
+  const filteredBills = jobFilter === "all" 
+    ? statusFilteredBills 
+    : statusFilteredBills.filter(bill => bill.job_name === jobFilter);
+
+  const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
+
   const totalPendingApproval = pendingApprovalBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const totalPendingPayment = pendingPaymentBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const totalAwaitingPayment = awaitingPaymentBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const totalPaidThisMonth = paidThisMonthBills.reduce((sum, bill) => sum + bill.amount, 0);
 
   const handleSelectAll = () => {
     if (selectedBills.length === filteredBills.length) {
@@ -267,7 +272,7 @@ export default function Bills() {
 
   return (
     <div className="p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bills</h1>
             <p className="text-muted-foreground">Manage vendor bills and payments</p>
@@ -279,11 +284,77 @@ export default function Bills() {
               onSetDefault={setAsDefault}
               isDefault={isDefault}
             />
-<Button onClick={() => navigate("/invoices/add")}>
+            <Button onClick={() => navigate("/invoices/add")}>
               <Plus className="h-4 w-4 mr-2" />
               Add Bill
             </Button>
           </div>
+        </div>
+
+        {/* Status Filter Counters */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">All Bills</p>
+                  <p className="text-2xl font-bold">{bills.length}</p>
+                </div>
+                <Receipt className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending_approval' ? 'ring-2 ring-warning' : ''}`}
+            onClick={() => setStatusFilter('pending_approval')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Pending Approval</p>
+                  <p className="text-2xl font-bold">{pendingApprovalBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalPendingApproval.toLocaleString()}</p>
+                </div>
+                <FileText className="h-8 w-8 text-warning" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'awaiting_payment' ? 'ring-2 ring-secondary' : ''}`}
+            onClick={() => setStatusFilter('awaiting_payment')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Awaiting Payment</p>
+                  <p className="text-2xl font-bold">{awaitingPaymentBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalAwaitingPayment.toLocaleString()}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-secondary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'overdue' ? 'ring-2 ring-destructive' : ''}`}
+            onClick={() => setStatusFilter('overdue')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Overdue</p>
+                  <p className="text-2xl font-bold">{overdueBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalOverdue.toLocaleString()}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-destructive" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Bulk Actions */}
