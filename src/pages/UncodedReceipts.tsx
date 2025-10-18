@@ -17,19 +17,29 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import ReceiptCostDistribution from "@/components/ReceiptCostDistribution";
 
 interface JobOption { id: string; name: string }
 interface CostCodeOption { id: string; code: string; description: string; type: string }
 interface VendorOption { id: string; name: string }
 
+interface CostDistribution {
+  id: string;
+  job_id: string;
+  cost_code_id: string;
+  amount: number;
+  percentage: number;
+  job_name?: string;
+  cost_code_display?: string;
+}
+
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [uncodedBills, setUncodedBills] = useState<any[]>([]);
-  const [selectedJob, setSelectedJob] = useState("");
-  const [selectedCostCode, setSelectedCostCode] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedAmount, setSelectedAmount] = useState("");
+  const [costDistribution, setCostDistribution] = useState<CostDistribution[]>([]);
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -52,49 +62,8 @@ export default function UncodedReceipts() {
     }
   }, [selectedReceipt]);
 
-  const [jobs, setJobs] = useState<JobOption[]>([]);
-  const [costCodes, setCostCodes] = useState<CostCodeOption[]>([]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
 
-  useEffect(() => {
-    const loadJobs = async () => {
-      if (!user || !currentCompany) return;
-      try {
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('id, name')
-          .eq('company_id', currentCompany.id)
-          .order('name');
-        if (error) throw error;
-        setJobs((data || []) as JobOption[]);
-      } catch (err) {
-        console.error('Error loading jobs:', err);
-      }
-    };
-    loadJobs();
-  }, [currentCompany]);
-
-  useEffect(() => {
-    const loadCostCodes = async () => {
-      if (!currentCompany) return;
-      try {
-        const job = jobs.find(j => j.name === selectedJob);
-        if (!job) { setCostCodes([]); return; }
-        const { data, error } = await supabase
-          .from('cost_codes')
-          .select('id, code, description, type')
-          .eq('job_id', job.id)
-          .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
-          .order('code');
-        if (error) throw error;
-        setCostCodes((data || []) as CostCodeOption[]);
-      } catch (err) {
-        console.error('Error loading cost codes:', err);
-      }
-    };
-    if (selectedJob) loadCostCodes(); else setCostCodes([]);
-  }, [selectedJob, jobs, currentCompany]);
 
   useEffect(() => {
     const loadVendors = async () => {
@@ -182,50 +151,58 @@ export default function UncodedReceipts() {
     }
   };
   const handleCodeReceipt = async () => {
-    if (!selectedReceipt || !selectedJob || !selectedCostCode) {
+    if (!selectedReceipt) {
       toast({
-        title: "Missing information",
-        description: "Please select a job and cost code.",
+        title: "No receipt selected",
+        description: "Please select a receipt",
         variant: "destructive",
       });
       return;
     }
 
-    // Get user's display name from profiles
-    const userName = user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.email || "Current User";
-    
-    if (selectedReceipt.type === 'bill') {
-      // Handle bill coding by updating the invoice directly
-      try {
-        const jobObj = jobs.find(j => j.name === selectedJob);
-        const costCodeObj = costCodes.find(c => `${c.code} - ${c.description}` === selectedCostCode);
-        
-        if (!jobObj || !costCodeObj) {
-          toast({
-            title: "Error",
-            description: "Invalid job or cost code selection",
-            variant: "destructive",
-          });
-          return;
-        }
+    // Validate cost distribution
+    if (costDistribution.length === 0 || !costDistribution.every(d => d.job_id && d.cost_code_id)) {
+      toast({
+        title: "Missing information",
+        description: "Please complete all cost distribution items",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    const totalAmount = parseFloat(selectedAmount) || 0;
+    const distributedTotal = costDistribution.reduce((sum, d) => sum + d.amount, 0);
+    
+    if (Math.abs(totalAmount - distributedTotal) > 0.01) {
+      toast({
+        title: "Distribution mismatch",
+        description: "Total distributed amount must equal receipt amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedReceipt.type === 'bill') {
+      // Handle bill coding - use first distribution item for now
+      try {
+        const firstDist = costDistribution[0];
+        
         const { error } = await supabase
           .from('invoices')
           .update({
-            job_id: jobObj.id,
-            cost_code_id: costCodeObj.id
+            job_id: firstDist.job_id,
+            cost_code_id: firstDist.cost_code_id
           })
           .eq('id', selectedReceipt.billData.id);
 
         if (error) throw error;
 
-        // Refresh the uncoded bills list
         await loadUncodedBills();
         setSelectedReceipt(null);
         
         toast({
           title: "Bill coded successfully",
-          description: `Bill assigned to ${selectedJob} - ${selectedCostCode}`,
+          description: "Bill has been assigned",
         });
       } catch (error) {
         console.error('Error coding bill:', error);
@@ -236,39 +213,45 @@ export default function UncodedReceipts() {
         });
       }
     } else {
-      // Handle receipt coding - convert names to IDs
+      // Handle receipt coding with cost distribution
       try {
-        const jobObj = jobs.find(j => j.name === selectedJob);
-        const costCodeObj = costCodes.find(c => `${c.code} - ${c.description}` === selectedCostCode);
-        
-        if (!jobObj || !costCodeObj) {
-          toast({
-            title: "Error",
-            description: "Invalid job or cost code selection",
-            variant: "destructive",
-          });
-          return;
-        }
+        // Update receipt basic info
+        const { error: updateError } = await supabase
+          .from('receipts')
+          .update({
+            amount: totalAmount,
+            vendor_name: selectedVendor || null,
+            status: 'coded'
+          })
+          .eq('id', selectedReceipt.id);
 
-        // Code the receipt using IDs instead of names
-        await codeReceipt(
-          selectedReceipt.id, 
-          jobObj.id,           // Pass job ID
-          costCodeObj.id,      // Pass cost code ID
-          userName, 
-          selectedVendor || undefined, 
-          selectedAmount || undefined
-        );
-        
-        // Close the receipt view and reset form
+        if (updateError) throw updateError;
+
+        // Insert cost distributions
+        const { error: distError } = await supabase
+          .from('receipt_cost_distributions')
+          .insert(
+            costDistribution.map(dist => ({
+              receipt_id: selectedReceipt.id,
+              job_id: dist.job_id,
+              cost_code_id: dist.cost_code_id,
+              amount: dist.amount,
+              percentage: dist.percentage,
+              created_by: user!.id
+            }))
+          );
+
+        if (distError) throw distError;
+
+        // Close the receipt view and reset
         setSelectedReceipt(null);
-        setSelectedJob("");
-        setSelectedCostCode("");
+        setCostDistribution([]);
         setSelectedVendor("");
+        setSelectedAmount("");
         
         toast({
           title: "Receipt coded successfully",
-          description: `Receipt assigned to ${selectedJob} - ${selectedCostCode}`,
+          description: "Receipt has been assigned to jobs and cost codes",
         });
       } catch (error) {
         console.error('Error coding receipt:', error);
@@ -762,52 +745,13 @@ export default function UncodedReceipts() {
               </div>
 
               {/* Coding Section */}
-              <div className="p-4 border-b border-border">
+              <div className="p-4 border-b border-border overflow-y-auto">
                 <h3 className="font-medium mb-3 flex items-center">
                   <Code className="h-4 w-4 mr-2" />
                   Code Receipt
                 </h3>
                 
                 <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="job-select" className="text-xs">Assign to Job</Label>
-                    <Select value={selectedJob} onValueChange={setSelectedJob}>
-                      <SelectTrigger id="job-select" className="h-8">
-                        <SelectValue placeholder="Select a job" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border border-border shadow-md z-50">
-                        {jobs.map((job) => (
-                          <SelectItem key={job.id} value={job.name} className="cursor-pointer">
-                            {job.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="cost-code-select" className="text-xs">Cost Code</Label>
-                    <Select value={selectedCostCode} onValueChange={setSelectedCostCode}>
-                      <SelectTrigger id="cost-code-select" className="h-8">
-                        <SelectValue placeholder="Select cost code" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border border-border shadow-md z-50">
-                        {costCodes.map((cc) => (
-                          <SelectItem key={cc.id} value={cc.code} className="cursor-pointer">
-                            <span>
-                              {cc.code} - {cc.description}
-                              {cc.type && (
-                                <span className="text-muted-foreground ml-1">
-                                  ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
-                                </span>
-                              )}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <div>
                     <Label htmlFor="vendor-select" className="text-xs">Vendor (Optional)</Label>
                     <Select value={selectedVendor} onValueChange={setSelectedVendor}>
@@ -837,13 +781,22 @@ export default function UncodedReceipts() {
                     />
                   </div>
 
+                  <div className="mt-4">
+                    <ReceiptCostDistribution
+                      totalAmount={parseFloat(selectedAmount) || 0}
+                      companyId={currentCompany?.id || ''}
+                      initialDistribution={costDistribution}
+                      onChange={setCostDistribution}
+                      disabled={!selectedAmount || parseFloat(selectedAmount) <= 0}
+                    />
+                  </div>
+
                   <Button 
                     onClick={() => {
                       handleCodeReceipt();
-                      setSelectedReceipt(null); // Return to list view
                     }} 
-                    className="w-full h-8"
-                    disabled={!selectedJob || !selectedCostCode}
+                    className="w-full h-8 mt-4"
+                    disabled={!selectedAmount || costDistribution.length === 0 || !costDistribution.every(d => d.job_id && d.cost_code_id)}
                   >
                     Code Receipt
                   </Button>

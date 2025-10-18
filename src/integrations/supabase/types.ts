@@ -3067,6 +3067,78 @@ export type Database = {
         }
         Relationships: []
       }
+      receipt_cost_distributions: {
+        Row: {
+          amount: number
+          cost_code_id: string
+          created_at: string | null
+          created_by: string
+          id: string
+          job_id: string
+          percentage: number
+          receipt_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          cost_code_id: string
+          created_at?: string | null
+          created_by: string
+          id?: string
+          job_id: string
+          percentage?: number
+          receipt_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          cost_code_id?: string
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          job_id?: string
+          percentage?: number
+          receipt_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_cost_distributions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_cost_distributions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "receipt_cost_distributions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "receipt_cost_distributions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_cost_distributions_receipt_id_fkey"
+            columns: ["receipt_id"]
+            isOneToOne: false
+            referencedRelation: "receipts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       receipt_messages: {
         Row: {
           created_at: string
