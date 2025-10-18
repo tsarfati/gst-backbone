@@ -34,7 +34,7 @@ interface CostDistribution {
 }
 
 export default function UncodedReceipts() {
-  const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt } = useReceipts();
+  const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt, refreshReceipts } = useReceipts();
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [uncodedBills, setUncodedBills] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState("");
@@ -171,7 +171,14 @@ export default function UncodedReceipts() {
     }
 
     const totalAmount = parseFloat(selectedAmount) || 0;
-    const distributedTotal = costDistribution.reduce((sum, d) => sum + d.amount, 0);
+    // Auto-assign 100% if only one distribution row
+    let distributions = costDistribution.map(d => ({ ...d }));
+    if (distributions.length === 1) {
+      distributions[0].amount = totalAmount;
+      distributions[0].percentage = 100;
+      setCostDistribution(distributions);
+    }
+    const distributedTotal = distributions.reduce((sum, d) => sum + (d.amount || 0), 0);
     
     if (Math.abs(totalAmount - distributedTotal) > 0.01) {
       toast({
@@ -231,7 +238,7 @@ export default function UncodedReceipts() {
         const { error: distError } = await supabase
           .from('receipt_cost_distributions')
           .insert(
-            costDistribution.map(dist => ({
+            distributions.map(dist => ({
               receipt_id: selectedReceipt.id,
               job_id: dist.job_id,
               cost_code_id: dist.cost_code_id,
@@ -242,6 +249,9 @@ export default function UncodedReceipts() {
           );
 
         if (distError) throw distError;
+
+        // Refresh lists so the coded receipt disappears from Uncoded
+        await refreshReceipts();
 
         // Close the receipt view and reset
         setSelectedReceipt(null);
