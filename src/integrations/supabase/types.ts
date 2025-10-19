@@ -2691,9 +2691,13 @@ export type Database = {
           id: string
           notes: string | null
           primary_color: string | null
+          secondary_color: string | null
           show_company_info: boolean
           show_contact_info: boolean
           show_logo: boolean
+          table_border_color: string | null
+          table_header_bg: string | null
+          table_stripe_color: string | null
           template_type: string
           updated_at: string
         }
@@ -2707,9 +2711,13 @@ export type Database = {
           id?: string
           notes?: string | null
           primary_color?: string | null
+          secondary_color?: string | null
           show_company_info?: boolean
           show_contact_info?: boolean
           show_logo?: boolean
+          table_border_color?: string | null
+          table_header_bg?: string | null
+          table_stripe_color?: string | null
           template_type: string
           updated_at?: string
         }
@@ -2723,9 +2731,13 @@ export type Database = {
           id?: string
           notes?: string | null
           primary_color?: string | null
+          secondary_color?: string | null
           show_company_info?: boolean
           show_contact_info?: boolean
           show_logo?: boolean
+          table_border_color?: string | null
+          table_header_bg?: string | null
+          table_stripe_color?: string | null
           template_type?: string
           updated_at?: string
         }

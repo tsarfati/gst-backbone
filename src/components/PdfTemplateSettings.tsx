@@ -23,6 +23,10 @@ interface TemplateSettings {
   show_contact_info: boolean;
   font_family: string;
   primary_color?: string;
+  secondary_color?: string;
+  table_header_bg?: string;
+  table_border_color?: string;
+  table_stripe_color?: string;
   notes?: string;
 }
 
@@ -38,7 +42,12 @@ export default function PdfTemplateSettings() {
     show_contact_info: true,
     font_family: 'helvetica',
     header_text: '',
-    footer_text: 'Confidential - For Internal Use Only'
+    footer_text: 'Confidential - For Internal Use Only',
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f3f4f6',
+    table_border_color: '#e5e7eb',
+    table_stripe_color: '#f9fafb'
   });
 
   useEffect(() => {
@@ -224,14 +233,42 @@ export default function PdfTemplateSettings() {
                         </div>
                       )}
 
-                      {/* Sample Content */}
-                      <div className="py-4 space-y-2 text-sm">
-                        <p className="font-semibold">Sample Timecard Data</p>
-                        <div className="text-xs text-muted-foreground space-y-1">
-                          <p>• Employee: John Doe</p>
-                          <p>• Date: 01/15/2025</p>
-                          <p>• Hours: 8.5</p>
-                          <p>• Job: Sample Project</p>
+                      {/* Sample Content with styled table */}
+                      <div className="py-4 space-y-3 text-sm">
+                        <div 
+                          className="font-semibold text-lg" 
+                          style={{ color: timecardTemplate.primary_color || '#1e40af' }}
+                        >
+                          Timecard Report
+                        </div>
+                        <div 
+                          className="text-sm font-medium"
+                          style={{ color: timecardTemplate.secondary_color || '#3b82f6' }}
+                        >
+                          Employee Details
+                        </div>
+                        <div className="border rounded overflow-hidden">
+                          <table className="w-full text-xs" style={{ fontFamily: timecardTemplate.font_family }}>
+                            <thead>
+                              <tr style={{ backgroundColor: timecardTemplate.table_header_bg || '#f3f4f6' }}>
+                                <th className="px-2 py-1 text-left border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>Date</th>
+                                <th className="px-2 py-1 text-left border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>Job</th>
+                                <th className="px-2 py-1 text-right border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>Hours</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr style={{ backgroundColor: timecardTemplate.table_stripe_color || '#f9fafb' }}>
+                                <td className="px-2 py-1 border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>01/15/2025</td>
+                                <td className="px-2 py-1 border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>Sample Project</td>
+                                <td className="px-2 py-1 text-right border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>8.5</td>
+                              </tr>
+                              <tr>
+                                <td className="px-2 py-1 border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>01/16/2025</td>
+                                <td className="px-2 py-1 border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>Another Project</td>
+                                <td className="px-2 py-1 text-right border-b" style={{ borderColor: timecardTemplate.table_border_color || '#e5e7eb' }}>7.0</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
                       </div>
 
@@ -264,61 +301,182 @@ export default function PdfTemplateSettings() {
 
               <Separator className="my-6" />
 
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="font-medium">Display Options</h4>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="show-logo">Show Company Logo</Label>
-                    <p className="text-sm text-muted-foreground">Display logo in PDF header</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left Column - Display & Font Options */}
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Display Options</h4>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="show-logo">Show Company Logo</Label>
+                        <p className="text-xs text-muted-foreground">Display logo in PDF header</p>
+                      </div>
+                      <Switch
+                        id="show-logo"
+                        checked={timecardTemplate.show_logo}
+                        onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_logo: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="show-company-info">Show Company Information</Label>
+                        <p className="text-xs text-muted-foreground">Display company name and address</p>
+                      </div>
+                      <Switch
+                        id="show-company-info"
+                        checked={timecardTemplate.show_company_info}
+                        onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_company_info: checked })}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="show-contact">Show Contact Information</Label>
+                        <p className="text-xs text-muted-foreground">Display phone and email</p>
+                      </div>
+                      <Switch
+                        id="show-contact"
+                        checked={timecardTemplate.show_contact_info}
+                        onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_contact_info: checked })}
+                      />
+                    </div>
                   </div>
-                  <Switch
-                    id="show-logo"
-                    checked={timecardTemplate.show_logo}
-                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_logo: checked })}
-                  />
+
+                  <div className="space-y-4 border-t pt-4">
+                    <h4 className="font-medium">Font Settings</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="font-family">Font Family (Entire Report)</Label>
+                      <select
+                        id="font-family"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        value={timecardTemplate.font_family}
+                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
+                      >
+                        <option value="helvetica">Helvetica</option>
+                        <option value="times">Times New Roman</option>
+                        <option value="courier">Courier</option>
+                        <option value="arial">Arial</option>
+                        <option value="georgia">Georgia</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">This font will be used throughout the entire PDF report</p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="show-company-info">Show Company Information</Label>
-                    <p className="text-sm text-muted-foreground">Display company name and address</p>
-                  </div>
-                  <Switch
-                    id="show-company-info"
-                    checked={timecardTemplate.show_company_info}
-                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_company_info: checked })}
-                  />
-                </div>
+                {/* Right Column - Color & Styling Options */}
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Color Settings</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="primary-color">Primary Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          id="primary-color"
+                          value={timecardTemplate.primary_color || '#1e40af'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                          className="h-10 w-20 rounded border border-input cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={timecardTemplate.primary_color || '#1e40af'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder="#1e40af"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Used for main headings and accent elements</p>
+                    </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="show-contact">Show Contact Information</Label>
-                    <p className="text-sm text-muted-foreground">Display phone and email</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="secondary-color">Secondary Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          id="secondary-color"
+                          value={timecardTemplate.secondary_color || '#3b82f6'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
+                          className="h-10 w-20 rounded border border-input cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={timecardTemplate.secondary_color || '#3b82f6'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
+                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder="#3b82f6"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Used for subheadings and secondary elements</p>
+                    </div>
                   </div>
-                  <Switch
-                    id="show-contact"
-                    checked={timecardTemplate.show_contact_info}
-                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_contact_info: checked })}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-4 border-t pt-4">
-                <h4 className="font-medium">Font Settings</h4>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="font-family">Font Family</Label>
-                  <select
-                    id="font-family"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    value={timecardTemplate.font_family}
-                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
-                  >
-                    <option value="helvetica">Helvetica (Default)</option>
-                    <option value="times">Times New Roman</option>
-                    <option value="courier">Courier</option>
-                  </select>
+                  <div className="space-y-4 border-t pt-4">
+                    <h4 className="font-medium">Data Table Styling</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="table-header">Table Header Background</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          id="table-header"
+                          value={timecardTemplate.table_header_bg || '#f3f4f6'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
+                          className="h-10 w-20 rounded border border-input cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={timecardTemplate.table_header_bg || '#f3f4f6'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
+                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder="#f3f4f6"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="table-border">Table Border Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          id="table-border"
+                          value={timecardTemplate.table_border_color || '#e5e7eb'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_border_color: e.target.value })}
+                          className="h-10 w-20 rounded border border-input cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={timecardTemplate.table_border_color || '#e5e7eb'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_border_color: e.target.value })}
+                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder="#e5e7eb"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="table-stripe">Alternate Row Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          id="table-stripe"
+                          value={timecardTemplate.table_stripe_color || '#f9fafb'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_stripe_color: e.target.value })}
+                          className="h-10 w-20 rounded border border-input cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={timecardTemplate.table_stripe_color || '#f9fafb'}
+                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_stripe_color: e.target.value })}
+                          className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          placeholder="#f9fafb"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
