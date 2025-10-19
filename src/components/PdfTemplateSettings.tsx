@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
-import { Canvas as FabricCanvas, FabricImage } from 'fabric';
+import { Canvas as FabricCanvas, Image as FabricImage } from 'fabric';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface TemplateSettings {
@@ -331,6 +331,7 @@ export default function PdfTemplateSettings() {
           (async () => {
             try {
               const resolvedUrl = await resolveStorageUrl(img.url);
+              console.log('[PdfTemplateSettings] Loading header image URL:', resolvedUrl);
               const fabricImg = await FabricImage.fromURL(resolvedUrl, { crossOrigin: 'anonymous' });
               (fabricImg as any)._originalUrl = img.url;
               fabricImg.set({
@@ -1005,7 +1006,7 @@ export default function PdfTemplateSettings() {
                           height={595}
                           className="absolute inset-0 w-full h-full"
                           style={{ 
-                            zIndex: 90, 
+                            zIndex: 200, 
                             background: 'transparent', 
                             cursor: 'move',
                             pointerEvents: 'auto'
