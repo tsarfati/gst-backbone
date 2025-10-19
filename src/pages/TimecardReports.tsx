@@ -443,8 +443,16 @@ export default function TimecardReports() {
         };
       });
 
-      setRecords(transformedRecords);
-      console.log('TimecardReports: loaded', transformedRecords.length, 'records');
+      // Apply client-side filters after recalculation
+      let finalRecords = transformedRecords;
+      
+      // Filter by overtime if requested
+      if (filters.hasOvertime) {
+        finalRecords = finalRecords.filter(r => r.overtime_hours > 0);
+      }
+
+      setRecords(finalRecords);
+      console.log('TimecardReports: loaded', finalRecords.length, 'records');
     } catch (error) {
       console.error('Error loading timecard records:', error);
       toast({
@@ -566,6 +574,13 @@ export default function TimecardReports() {
       if (endISO) {
         query = query.lte('punch_time', endISO.toISOString());
       }
+
+      if (filters.hasNotes) {
+        query = query.not('notes', 'is', null);
+      }
+
+      // Note: hasOvertime filter doesn't apply to individual punch records
+      // Overtime is calculated when punch-in/out pairs are matched into timecards
 
       const { data, error } = await query;
       if (error) throw error;

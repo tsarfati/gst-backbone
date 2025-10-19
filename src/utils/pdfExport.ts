@@ -1,7 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-import html2canvas from 'html2canvas';
 import { supabase } from "@/integrations/supabase/client";
 
 export interface CompanyBranding {
@@ -213,10 +212,10 @@ export class PDFExporter {
       record.total_hours?.toFixed(2) || '0.00'
     ]);
 
-    // Get colors from template or use defaults (supports HEX and HSL)
-    const headerBgColor = this.getColor(this.template?.table_header_bg, '#f1f5f9');
-    const borderColor = this.getColor(this.template?.table_border_color, '#e2e8f0');
-    const stripeColor = this.getColor(this.template?.table_stripe_color, '#f8fafc');
+    // Get colors from template or use defaults
+    const headerBgColor = this.hexToRgb(this.template?.table_header_bg || '#f1f5f9');
+    const borderColor = this.hexToRgb(this.template?.table_border_color || '#e2e8f0');
+    const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
     // Table configuration with template styling
     const tableConfig: any = {
@@ -310,58 +309,57 @@ export class PDFExporter {
   }
 
   private async renderHtmlHeader(doc: jsPDF, html: string, reportData: ReportData, startY: number, pageWidth: number): Promise<number> {
-    // Render HTML to an image using html2canvas so styles are preserved
-    const container = document.createElement('div');
-    container.innerHTML = this.replacePlaceholders(html, reportData);
-    container.style.width = `${pageWidth - 80}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.background = 'transparent';
-    document.body.appendChild(container);
-
-    try {
-      const canvas = await html2canvas(container, { backgroundColor: null, scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-
-      const maxWidth = pageWidth - 40; // 20pt margins
-      const imgWidth = Math.min(maxWidth, canvas.width);
-      const scale = imgWidth / canvas.width;
-      const imgHeight = canvas.height * scale;
-
-      doc.addImage(imgData, 'PNG', 20, startY, imgWidth, imgHeight);
-      return startY + imgHeight + 16; // add spacing below header
-    } finally {
-      document.body.removeChild(container);
-    }
+    // Simple HTML to PDF rendering for headers
+    // Replace placeholders
+    const rendered = this.replacePlaceholders(html, reportData);
+    
+    // Very basic HTML parsing - in production, consider using html2canvas or similar
+    const div = document.createElement('div');
+    div.innerHTML = rendered;
+    div.style.width = `${pageWidth - 80}px`;
+    div.style.position = 'absolute';
+    div.style.left = '-9999px';
+    document.body.appendChild(div);
+    
+    const lines = div.innerText.split('\n');
+    let yPos = startY + 20;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    lines.forEach(line => {
+      if (line.trim()) {
+        doc.text(line, 40, yPos);
+        yPos += 16;
+      }
+    });
+    
+    document.body.removeChild(div);
+    return yPos + 20;
   }
 
-  private renderHtmlFooter(doc: jsPDF, html: string, reportData: ReportData, _yPos: number, pageWidth: number): void {
-    // Render HTML footer via html2canvas so formatting is preserved
-    const container = document.createElement('div');
-    container.innerHTML = this.replacePlaceholders(html, reportData);
-    container.style.width = `${pageWidth - 80}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.bottom = '0';
-    container.style.background = 'transparent';
-    document.body.appendChild(container);
-
-    html2canvas(container, { backgroundColor: null, scale: 2, useCORS: true }).then(canvas => {
-      const imgData = canvas.toDataURL('image/png');
-      const maxWidth = pageWidth - 40; // 20pt margins
-      const imgWidth = Math.min(maxWidth, canvas.width);
-      const scale = imgWidth / canvas.width;
-      const imgHeight = canvas.height * scale;
-
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const x = 20;
-      const y = pageHeight - imgHeight - 16; // 16pt margin from bottom
-      doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-      document.body.removeChild(container);
-    }).catch(() => {
-      document.body.removeChild(container);
+  private renderHtmlFooter(doc: jsPDF, html: string, reportData: ReportData, yPos: number, pageWidth: number): void {
+    const rendered = this.replacePlaceholders(html, reportData);
+    
+    const div = document.createElement('div');
+    div.innerHTML = rendered;
+    div.style.width = `${pageWidth - 80}px`;
+    div.style.position = 'absolute';
+    div.style.left = '-9999px';
+    document.body.appendChild(div);
+    
+    const lines = div.innerText.split('\n');
+    
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    
+    lines.forEach((line, idx) => {
+      if (line.trim()) {
+        doc.text(line, pageWidth / 2, yPos + (idx * 12), { align: 'center' });
+      }
     });
+    
+    document.body.removeChild(div);
   }
 
   private replacePlaceholders(html: string, reportData: ReportData): string {
