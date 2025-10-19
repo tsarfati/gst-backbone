@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -9,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Info } from 'lucide-react';
+import { FileText, Info, Eye } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 interface TemplateSettings {
   id?: string;
@@ -146,30 +146,45 @@ export default function PdfTemplateSettings() {
             </TabsList>
 
             <TabsContent value="timecard" className="space-y-6">
-              <div className="space-y-4">
-                <div className="grid gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Editor Section */}
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="header-text">Header Text</Label>
+                    <Label htmlFor="header-html" className="flex items-center gap-2">
+                      Header HTML
+                      <span className="text-xs text-muted-foreground">(Supports HTML)</span>
+                    </Label>
                     <Textarea
-                      id="header-text"
-                      placeholder="Optional custom header text..."
+                      id="header-html"
+                      placeholder='<div style="text-align: center; font-size: 18px; font-weight: bold;">{company_name}</div>
+<div style="text-align: center;">Timecard Report - {period}</div>'
                       value={timecardTemplate.header_text || ''}
                       onChange={(e) => setTimecardTemplate({ ...timecardTemplate, header_text: e.target.value })}
-                      rows={2}
+                      rows={6}
+                      className="font-mono text-sm"
                     />
-                    <p className="text-sm text-muted-foreground">
-                      This text will appear at the top of the report. Use placeholders like {'{company_name}'} or {'{period}'}
+                    <p className="text-xs text-muted-foreground">
+                      Available placeholders: {'{company_name}'}, {'{period}'}, {'{date}'}, {'{employee_name}'}, {'{job_name}'}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="footer-text">Footer Text</Label>
-                    <Input
-                      id="footer-text"
-                      placeholder="Confidential - For Internal Use Only"
+                    <Label htmlFor="footer-html" className="flex items-center gap-2">
+                      Footer HTML
+                      <span className="text-xs text-muted-foreground">(Supports HTML)</span>
+                    </Label>
+                    <Textarea
+                      id="footer-html"
+                      placeholder='<div style="text-align: center; font-size: 10px; color: #666;">Confidential - For Internal Use Only</div>
+<div style="text-align: center; font-size: 10px;">Page {page} of {pages}</div>'
                       value={timecardTemplate.footer_text || ''}
                       onChange={(e) => setTimecardTemplate({ ...timecardTemplate, footer_text: e.target.value })}
+                      rows={6}
+                      className="font-mono text-sm"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Additional placeholders: {'{page}'}, {'{pages}'}, {'{generated_date}'}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -184,72 +199,136 @@ export default function PdfTemplateSettings() {
                   </div>
                 </div>
 
-                <div className="space-y-4 border-t pt-4">
-                  <h4 className="font-medium">Display Options</h4>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-logo">Show Company Logo</Label>
-                      <p className="text-sm text-muted-foreground">Display logo in PDF header</p>
-                    </div>
-                    <Switch
-                      id="show-logo"
-                      checked={timecardTemplate.show_logo}
-                      onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_logo: checked })}
-                    />
+                {/* Preview Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="h-4 w-4" />
+                    <Label>Live Preview</Label>
                   </div>
+                  <Card className="border-2">
+                    <CardContent className="p-6 space-y-4">
+                      {/* Preview Header */}
+                      {timecardTemplate.header_text && (
+                        <div className="border-b pb-4">
+                          <div 
+                            className="preview-content"
+                            dangerouslySetInnerHTML={{ 
+                              __html: timecardTemplate.header_text
+                                .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
+                                .replace(/{period}/g, 'Jan 1 - Jan 7, 2025')
+                                .replace(/{date}/g, new Date().toLocaleDateString())
+                                .replace(/{employee_name}/g, 'John Doe')
+                                .replace(/{job_name}/g, 'Sample Project')
+                            }} 
+                          />
+                        </div>
+                      )}
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-company-info">Show Company Information</Label>
-                      <p className="text-sm text-muted-foreground">Display company name and address</p>
-                    </div>
-                    <Switch
-                      id="show-company-info"
-                      checked={timecardTemplate.show_company_info}
-                      onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_company_info: checked })}
-                    />
-                  </div>
+                      {/* Sample Content */}
+                      <div className="py-4 space-y-2 text-sm">
+                        <p className="font-semibold">Sample Timecard Data</p>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p>• Employee: John Doe</p>
+                          <p>• Date: 01/15/2025</p>
+                          <p>• Hours: 8.5</p>
+                          <p>• Job: Sample Project</p>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-contact">Show Contact Information</Label>
-                      <p className="text-sm text-muted-foreground">Display phone and email</p>
-                    </div>
-                    <Switch
-                      id="show-contact"
-                      checked={timecardTemplate.show_contact_info}
-                      onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_contact_info: checked })}
-                    />
+                      {/* Preview Footer */}
+                      {timecardTemplate.footer_text && (
+                        <div className="border-t pt-4">
+                          <div 
+                            className="preview-content"
+                            dangerouslySetInnerHTML={{ 
+                              __html: timecardTemplate.footer_text
+                                .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
+                                .replace(/{page}/g, '1')
+                                .replace(/{pages}/g, '1')
+                                .replace(/{generated_date}/g, new Date().toLocaleDateString())
+                            }} 
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      This is a simplified preview. The actual PDF will include all timecard data in a table format between the header and footer.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </div>
+
+              <Separator className="my-6" />
+
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="font-medium">Display Options</h4>
+                
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="show-logo">Show Company Logo</Label>
+                    <p className="text-sm text-muted-foreground">Display logo in PDF header</p>
                   </div>
+                  <Switch
+                    id="show-logo"
+                    checked={timecardTemplate.show_logo}
+                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_logo: checked })}
+                  />
                 </div>
 
-                <div className="space-y-4 border-t pt-4">
-                  <h4 className="font-medium">Font Settings</h4>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="font-family">Font Family</Label>
-                    <select
-                      id="font-family"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={timecardTemplate.font_family}
-                      onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
-                    >
-                      <option value="helvetica">Helvetica (Default)</option>
-                      <option value="times">Times New Roman</option>
-                      <option value="courier">Courier</option>
-                    </select>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="show-company-info">Show Company Information</Label>
+                    <p className="text-sm text-muted-foreground">Display company name and address</p>
                   </div>
+                  <Switch
+                    id="show-company-info"
+                    checked={timecardTemplate.show_company_info}
+                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_company_info: checked })}
+                  />
                 </div>
 
-                <div className="flex justify-end pt-4">
-                  <Button 
-                    onClick={() => saveTemplate(timecardTemplate)}
-                    disabled={loading}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="show-contact">Show Contact Information</Label>
+                    <p className="text-sm text-muted-foreground">Display phone and email</p>
+                  </div>
+                  <Switch
+                    id="show-contact"
+                    checked={timecardTemplate.show_contact_info}
+                    onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, show_contact_info: checked })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="font-medium">Font Settings</h4>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="font-family">Font Family</Label>
+                  <select
+                    id="font-family"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={timecardTemplate.font_family}
+                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
                   >
-                    {loading ? 'Saving...' : 'Save Template'}
-                  </Button>
+                    <option value="helvetica">Helvetica (Default)</option>
+                    <option value="times">Times New Roman</option>
+                    <option value="courier">Courier</option>
+                  </select>
                 </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button 
+                  onClick={() => saveTemplate(timecardTemplate)}
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Save Template'}
+                </Button>
               </div>
             </TabsContent>
 
