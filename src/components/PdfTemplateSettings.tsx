@@ -153,6 +153,36 @@ export default function PdfTemplateSettings() {
   const fabricImagesRef = useRef<FabricImage[]>([]);
   const [canvasReady, setCanvasReady] = useState(false);
 
+  // Resolve storage or relative URLs to loadable image URLs (uses signed URLs if needed)
+  const resolveStorageUrl = async (rawUrl: string): Promise<string> => {
+    try {
+      if (/^https?:\/\//i.test(rawUrl)) {
+        const sep = rawUrl.includes('?') ? '&' : '?';
+        return `${rawUrl}${sep}t=${Date.now()}`;
+      }
+      if (rawUrl.startsWith('/')) {
+        return window.location.origin + rawUrl;
+      }
+      const [bucket, ...rest] = rawUrl.split('/');
+      const objectPath = rest.join('/');
+      if (bucket && objectPath) {
+        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+        let url = pub?.publicUrl;
+        if (!url) {
+          const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(objectPath, 60 * 60 * 24);
+          url = signed?.signedUrl;
+        }
+        if (url) {
+          const sep = url.includes('?') ? '&' : '?';
+          return `${url}${sep}t=${Date.now()}`;
+        }
+      }
+    } catch (e) {
+      console.error('resolveStorageUrl error:', e);
+    }
+    return rawUrl;
+  };
+
   useEffect(() => {
     if (currentCompany?.id) {
       loadTemplate('timecard');
@@ -215,57 +245,63 @@ export default function PdfTemplateSettings() {
         existing.setCoords?.();
         canvas.setActiveObject(existing as any);
         canvas.requestRenderAll();
-      } else {
-        // Remove mismatched existing
-        if (existing) {
-          canvas.remove(existing as any);
+        } else {
+          // Remove mismatched existing
+          if (existing) {
+            canvas.remove(existing as any);
+          }
+          (async () => {
+            try {
+              const resolvedUrl = await resolveStorageUrl(img.url);
+              const fabricImg = await FabricImage.fromURL(resolvedUrl, { crossOrigin: 'anonymous' });
+              (fabricImg as any)._originalUrl = img.url;
+              fabricImg.set({
+                left: img.x,
+                top: img.y,
+                scaleX: img.width / ((fabricImg.width as number) || 1),
+                scaleY: img.height / ((fabricImg.height as number) || 1),
+                selectable: true,
+                evented: true,
+                hasControls: true,
+                hasBorders: true,
+                hoverCursor: 'move',
+                lockRotation: false,
+              });
+
+              // Styling of controls (fallback to a solid color for canvas rendering)
+              fabricImg.set({
+                borderColor: '#3b82f6',
+                cornerColor: '#3b82f6',
+                cornerSize: 8,
+                transparentCorners: false,
+              });
+
+              // Persist changes when moved/resized
+              fabricImg.on('modified', () => {
+                const updated = [...imgs];
+                const w = (fabricImg.width as number) || 0;
+                const h = (fabricImg.height as number) || 0;
+                updated[idx] = {
+                  url: img.url,
+                  x: Math.round(fabricImg.left || 0),
+                  y: Math.round(fabricImg.top || 0),
+                  width: Math.round(w * ((fabricImg.scaleX as number) || 1)),
+                  height: Math.round(h * ((fabricImg.scaleY as number) || 1)),
+                };
+                setTimecardTemplate((prev) => ({ ...prev, header_images: updated }));
+                canvas.setActiveObject(fabricImg);
+                canvas.requestRenderAll();
+              });
+
+              fabricImagesRef.current[idx] = fabricImg;
+              canvas.add(fabricImg);
+              canvas.setActiveObject(fabricImg);
+              canvas.requestRenderAll();
+            } catch (err) {
+              console.error('Failed to load header image onto canvas:', err, img.url);
+            }
+          })();
         }
-        FabricImage.fromURL(img.url, { crossOrigin: 'anonymous' }).then((fabricImg) => {
-          (fabricImg as any)._originalUrl = img.url;
-          fabricImg.set({
-            left: img.x,
-            top: img.y,
-            scaleX: img.width / ((fabricImg.width as number) || 1),
-            scaleY: img.height / ((fabricImg.height as number) || 1),
-            selectable: true,
-            evented: true,
-            hasControls: true,
-            hasBorders: true,
-            hoverCursor: 'move',
-            lockRotation: false,
-          });
-
-          // Styling of controls (fallback to a solid color for canvas rendering)
-          fabricImg.set({
-            borderColor: '#3b82f6',
-            cornerColor: '#3b82f6',
-            cornerSize: 8,
-            transparentCorners: false,
-          });
-
-          // Persist changes when moved/resized
-          fabricImg.on('modified', () => {
-            const updated = [...imgs];
-            const w = (fabricImg.width as number) || 0;
-            const h = (fabricImg.height as number) || 0;
-            updated[idx] = {
-              url: img.url,
-              x: Math.round(fabricImg.left || 0),
-              y: Math.round(fabricImg.top || 0),
-              width: Math.round(w * ((fabricImg.scaleX as number) || 1)),
-              height: Math.round(h * ((fabricImg.scaleY as number) || 1)),
-            };
-            setTimecardTemplate((prev) => ({ ...prev, header_images: updated }));
-            canvas.setActiveObject(fabricImg);
-            canvas.requestRenderAll();
-          });
-
-          fabricImagesRef.current[idx] = fabricImg;
-          canvas.add(fabricImg);
-          canvas.setActiveObject(fabricImg);
-          canvas.requestRenderAll();
-        });
-      }
     });
 
     // Remove extra fabric objects if images were removed
