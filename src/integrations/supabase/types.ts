@@ -2130,19 +2130,25 @@ export type Database = {
           budget_total: number | null
           client: string | null
           company_id: string
+          count_early_punch_in: boolean | null
+          count_late_punch_out: boolean | null
           created_at: string
           created_by: string
           description: string | null
+          early_punch_in_grace_minutes: number | null
           end_date: string | null
           id: string
           is_active: boolean
           job_type: Database["public"]["Enums"]["job_type"] | null
+          late_punch_out_grace_minutes: number | null
           latitude: number | null
           longitude: number | null
           name: string
           project_manager_user_id: string | null
           require_pm_bill_approval: boolean | null
           revenue_account_id: string | null
+          shift_end_time: string | null
+          shift_start_time: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["job_status"] | null
           updated_at: string
@@ -2155,19 +2161,25 @@ export type Database = {
           budget_total?: number | null
           client?: string | null
           company_id: string
+          count_early_punch_in?: boolean | null
+          count_late_punch_out?: boolean | null
           created_at?: string
           created_by: string
           description?: string | null
+          early_punch_in_grace_minutes?: number | null
           end_date?: string | null
           id?: string
           is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          late_punch_out_grace_minutes?: number | null
           latitude?: number | null
           longitude?: number | null
           name: string
           project_manager_user_id?: string | null
           require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
+          shift_end_time?: string | null
+          shift_start_time?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string
@@ -2180,19 +2192,25 @@ export type Database = {
           budget_total?: number | null
           client?: string | null
           company_id?: string
+          count_early_punch_in?: boolean | null
+          count_late_punch_out?: boolean | null
           created_at?: string
           created_by?: string
           description?: string | null
+          early_punch_in_grace_minutes?: number | null
           end_date?: string | null
           id?: string
           is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          late_punch_out_grace_minutes?: number | null
           latitude?: number | null
           longitude?: number | null
           name?: string
           project_manager_user_id?: string | null
           require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
+          shift_end_time?: string | null
+          shift_start_time?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["job_status"] | null
           updated_at?: string

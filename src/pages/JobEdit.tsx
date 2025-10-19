@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
 import { formatCurrency } from "@/utils/formatNumber";
+import { JobShiftTimeSettings } from "@/components/JobShiftTimeSettings";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -717,6 +718,9 @@ export default function JobEdit() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Shift Time Rules */}
+        {id && <JobShiftTimeSettings jobId={id} />}
 
         {/* Cost Codes & Budget Link */}
         <Card>
