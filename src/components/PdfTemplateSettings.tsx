@@ -758,20 +758,20 @@ export default function PdfTemplateSettings() {
                             className="prose prose-sm max-w-none mt-4"
                             dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
                           />
+
+                          {/* Interactive Canvas Overlay for Logo Positioning (inside preview) */}
+                          <canvas
+                            ref={canvasRef}
+                            className="absolute inset-0 w-full h-full pointer-events-auto"
+                            style={{
+                              zIndex: 10,
+                              background: 'transparent',
+                              display: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 'block' : 'none'
+                            }}
+                          />
                         </div>
                       </div>
 
-                      {/* Interactive Canvas Overlay for Logo Positioning */}
-                      <canvas 
-                        ref={canvasRef} 
-                        className="absolute top-4 left-4 pointer-events-auto"
-                        style={{ 
-                          width: 'calc(100% - 2rem)',
-                          height: 'calc(100% - 2rem)',
-                          zIndex: 10,
-                          display: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 'block' : 'none'
-                        }}
-                      />
                     </div>
 
                     {/* Logo List */}
