@@ -661,27 +661,50 @@ export default function PdfTemplateSettings() {
         table_header_bg: preset.table_header_bg,
       }));
       setSelectedPreset(presetKey);
-      // If no logos positioned yet, auto-place company logo depending on layout
+
+      // Auto-place/resize primary logo for every preset
+      const placements: Record<string, { x: number; y: number; width: number; height: number }> = {
+        // Core layouts (A4 landscape 842 x 595)
+        professional: { x: 36, y: 28, width: 140, height: 56 },
+        corporate: { x: 36, y: 28, width: 150, height: 60 },
+        executive: { x: 842 - 36 - 140, y: 30, width: 140, height: 56 },
+        modern: { x: 36, y: 30, width: 140, height: 56 },
+        financial: { x: 36, y: 28, width: 140, height: 56 },
+        legal: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
+        tech: { x: 842 - 36 - 130, y: 34, width: 130, height: 52 },
+        minimal: { x: 36, y: 32, width: 120, height: 48 },
+        construction: { x: 36, y: 26, width: 150, height: 60 },
+        healthcare: { x: 36, y: 30, width: 130, height: 52 },
+        luxury: { x: 36, y: 30, width: 140, height: 56 },
+        creative: { x: (842 - 150) / 2, y: 28, width: 150, height: 60 },
+        split_header: { x: 36, y: 28, width: 140, height: 56 },
+        centered_logo: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
+        right_aligned: { x: 842 - 36 - 140, y: 28, width: 140, height: 56 },
+        banner_top: { x: 36, y: 26, width: 120, height: 48 },
+        sidebar_accent: { x: 24, y: 28, width: 120, height: 48 },
+      };
+      const fallback = { x: 36, y: 28, width: 140, height: 56 };
+      const pos = placements[presetKey] || fallback;
+
       getCompanyLogoPublicUrl().then((logoUrl) => {
-        if (!logoUrl) return;
         setTimecardTemplate(prev => {
-          if ((prev.header_images || []).length > 0) return prev;
-          // Default positions for a few layouts (A4 landscape 842x595)
-          const placements: Record<string, { x: number; y: number; width: number; height: number }> = {
-            split_header: { x: 36, y: 28, width: 140, height: 56 },
-            centered_logo: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
-            right_aligned: { x: 842 - 36 - 140, y: 28, width: 140, height: 56 },
-            banner_top: { x: 36, y: 26, width: 120, height: 48 },
-            sidebar_accent: { x: 24, y: 28, width: 120, height: 48 },
-          };
-          const fallback = { x: 36, y: 28, width: 140, height: 56 };
-          const pos = placements[presetKey] || fallback;
-          return { ...prev, header_images: [{ url: logoUrl, ...pos }] };
+          const imgs = [...(prev.header_images || [])];
+          if (imgs.length > 0) {
+            // Reposition and resize the first logo to match the template
+            imgs[0] = { ...imgs[0], ...pos };
+            return { ...prev, header_images: imgs };
+          }
+          // No logos yet: add company logo if available
+          if (logoUrl) {
+            return { ...prev, header_images: [{ url: logoUrl, ...pos }] };
+          }
+          return prev;
         });
       });
+
       toast({
         title: "Template applied",
-        description: `${preset.name} template has been applied. You can customize it further.`,
+        description: `${preset.name} template has been applied. Logo positioned for this layout.`,
       });
     }
   };
