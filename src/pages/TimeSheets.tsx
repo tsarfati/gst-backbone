@@ -132,16 +132,7 @@ export default function TimeSheets() {
     if (!user || !currentCompany?.id) return;
 
     try {
-      // Get users with access to current company
-      const { data: companyUsers } = await supabase
-        .from('user_company_access')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
-
-      // Build candidate PIN employee IDs based on settings and activity for THIS company
+      // Build candidate IDs strictly from activity and settings for THIS company
       const pinSettingsRes = await supabase
         .from('pin_employee_timecard_settings')
         .select('pin_employee_id')
@@ -150,35 +141,37 @@ export default function TimeSheets() {
       const tcUsersRes = await supabase
         .from('time_cards')
         .select('user_id')
-        .eq('company_id', currentCompany.id);
+        .eq('company_id', currentCompany.id)
+        .neq('status', 'deleted');
 
-      const punchPinsRes = await supabase
+      const punchUsersRes = await supabase
         .from('punch_records')
-        .select('pin_employee_id')
+        .select('user_id, pin_employee_id')
         .eq('company_id', currentCompany.id);
 
-      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
-      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
-      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
-      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
+      const idsFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id).filter(Boolean);
+      const idsFromPunches: string[] = (punchUsersRes.data || []).flatMap((r: any) => [r.user_id, r.pin_employee_id]).filter(Boolean);
 
-      if (companyUserIds.length === 0 && candidatePinIds.length === 0) {
+      const candidateIds = Array.from(new Set([...idsFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
+
+      if (candidateIds.length === 0) {
         setEmployees([]);
         return;
       }
 
-      // Load regular users from profiles
+      // Load regular users whose IDs are in candidate set
       const profilesRes: any = await supabase
         .from('profiles')
         .select('user_id, display_name, first_name, last_name')
-        .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
+        .in('user_id', candidateIds.length > 0 ? candidateIds : ['00000000-0000-0000-0000-000000000000']);
 
       // Load PIN employees that actually appear for this company
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
         .select('id, display_name, first_name, last_name')
         .eq('is_active', true)
-        .in('id', candidatePinIds.length > 0 ? candidatePinIds : ['00000000-0000-0000-0000-000000000000']);
+        .in('id', candidateIds.length > 0 ? candidateIds : ['00000000-0000-0000-0000-000000000000']);
 
       const list: Array<{id: string, name: string}> = [];
       const addedIds = new Set<string>();
