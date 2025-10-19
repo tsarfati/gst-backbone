@@ -149,7 +149,8 @@ export default function TimecardReports() {
         .select('user_id, display_name, first_name, last_name')
         .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
       
-      // Load PIN employees - try with company filter first, then without for any missing
+      // Load only PIN employees who have activity in this company (from candidateIds)
+      // Don't filter by company_id to allow cross-company workers, but only fetch those with actual records
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
         .select('id, display_name, first_name, last_name, company_id')
