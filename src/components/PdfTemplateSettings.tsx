@@ -151,7 +151,7 @@ export default function PdfTemplateSettings() {
     const canvas = new FabricCanvas(canvasRef.current, {
       width: 842,
       height: 595,
-      backgroundColor: '#ffffff',
+      backgroundColor: 'transparent',
     });
 
     fabricCanvasRef.current = canvas;
