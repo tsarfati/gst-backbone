@@ -674,7 +674,7 @@ export default function PdfTemplateSettings() {
                     Interactive Template Preview
                   </CardTitle>
                   <CardDescription>
-                    Drag and resize logos directly on the template preview
+                    Preview your template and drag logos to position them
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -684,16 +684,91 @@ export default function PdfTemplateSettings() {
                       <AlertDescription className="text-xs">
                         {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
                           ? <span><strong>Click and drag</strong> logos to reposition. <strong>Drag corners</strong> to resize. Changes save automatically.</span>
-                          : 'Upload logo images above, then position them directly on this preview.'}
+                          : 'Preview shows how your template will look. Upload logo images above to position them here.'}
                       </AlertDescription>
                     </Alert>
 
-                    {/* Canvas-based Interactive Preview */}
+                    {/* Template Preview with Canvas Overlay */}
                     <div className="relative w-full bg-gradient-to-br from-muted/10 to-muted/5 rounded-lg p-4 shadow-xl">
-                      <canvas 
-                        ref={canvasRef} 
-                        className="border-2 border-border rounded shadow-lg w-full bg-white"
-                      />
+                      {/* Static HTML Preview */}
+                      <div className="relative w-full bg-white rounded shadow-lg overflow-hidden" style={{ aspectRatio: '842/595' }}>
+                        {/* Grid background */}
+                        <div className="absolute inset-0 pointer-events-none" style={{
+                          backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)',
+                          backgroundSize: '50px 50px'
+                        }} />
+                        
+                        {/* Reference dimensions */}
+                        <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-10">
+                          842pt × 595pt
+                        </div>
+
+                        {/* Template Content */}
+                        <div className="relative w-full h-full flex flex-col p-6">
+                          {/* Header Section */}
+                          <div 
+                            className="prose prose-sm max-w-none mb-4"
+                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
+                          />
+
+                          {/* Sample Body Content */}
+                          <div className="flex-1 overflow-hidden">
+                            <table className="w-full text-xs border-collapse">
+                              <thead>
+                                <tr style={{ backgroundColor: timecardTemplate.table_header_bg }}>
+                                  <th className="border p-2 text-left">Employee</th>
+                                  <th className="border p-2 text-left">Date</th>
+                                  <th className="border p-2 text-left">Job</th>
+                                  <th className="border p-2 text-center">Hours</th>
+                                  <th className="border p-2 text-right">Rate</th>
+                                  <th className="border p-2 text-right">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr className="bg-muted/20">
+                                  <td className="border p-2">John Doe</td>
+                                  <td className="border p-2">01/15/2025</td>
+                                  <td className="border p-2">Main Street Project</td>
+                                  <td className="border p-2 text-center">8.0</td>
+                                  <td className="border p-2 text-right">$45.00</td>
+                                  <td className="border p-2 text-right">$360.00</td>
+                                </tr>
+                                <tr>
+                                  <td className="border p-2">Jane Smith</td>
+                                  <td className="border p-2">01/15/2025</td>
+                                  <td className="border p-2">Downtown Building</td>
+                                  <td className="border p-2 text-center">7.5</td>
+                                  <td className="border p-2 text-right">$50.00</td>
+                                  <td className="border p-2 text-right">$375.00</td>
+                                </tr>
+                                <tr className="bg-muted/20">
+                                  <td className="border p-2">Mike Johnson</td>
+                                  <td className="border p-2">01/15/2025</td>
+                                  <td className="border p-2">Bridge Repair</td>
+                                  <td className="border p-2 text-center">9.0</td>
+                                  <td className="border p-2 text-right">$55.00</td>
+                                  <td className="border p-2 text-right">$495.00</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Footer Section */}
+                          <div 
+                            className="prose prose-sm max-w-none mt-4"
+                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Interactive Canvas Overlay for Logo Positioning */}
+                      <div className="absolute top-4 left-4 right-4 pointer-events-auto" style={{ aspectRatio: '842/595' }}>
+                        <canvas 
+                          ref={canvasRef} 
+                          className="w-full h-full"
+                          style={{ opacity: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 1 : 0 }}
+                        />
+                      </div>
                     </div>
 
                     {/* Logo List */}
