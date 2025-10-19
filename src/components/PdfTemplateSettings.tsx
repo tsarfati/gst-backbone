@@ -332,17 +332,265 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="timecard" className="space-y-6">
-              {/* Existing timecard content - keeping as is */}
+              {/* Template Presets */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Layout className="h-4 w-4" />
-                    Choose a Template
+                    Choose a Template Preset
                   </CardTitle>
+                  <CardDescription>Start with a professionally designed template</CardDescription>
                 </CardHeader>
+                <CardContent>
+                  <Select value={selectedPreset} onValueChange={applyPreset}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                        <SelectItem key={key} value={key}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
               </Card>
+
+              {/* Edit Mode Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Edit Mode</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <RadioGroup value={editMode} onValueChange={(value) => setEditMode(value as 'visual' | 'code')}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="visual" id="visual" />
+                      <Label htmlFor="visual" className="flex items-center gap-2 cursor-pointer">
+                        <Layout className="h-4 w-4" />
+                        Visual Editor
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="code" id="code" />
+                      <Label htmlFor="code" className="flex items-center gap-2 cursor-pointer">
+                        <Code className="h-4 w-4" />
+                        HTML Code
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+
+              {editMode === 'code' ? (
+                <>
+                  {/* Header HTML Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Header HTML</CardTitle>
+                      <CardDescription>Design the header section with HTML</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        value={timecardTemplate.header_html || ''}
+                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, header_html: e.target.value })}
+                        rows={10}
+                        className="font-mono text-xs"
+                        placeholder="Enter HTML for header..."
+                      />
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
+                        <div 
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Footer HTML Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Footer HTML</CardTitle>
+                      <CardDescription>Design the footer section with HTML</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        value={timecardTemplate.footer_html || ''}
+                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, footer_html: e.target.value })}
+                        rows={8}
+                        className="font-mono text-xs"
+                        placeholder="Enter HTML for footer..."
+                      />
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
+                        <div 
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <>
+                  {/* Visual Style Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Colors & Styling</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Primary Color</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={timecardTemplate.primary_color}
+                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                              className="h-10 w-16 rounded border cursor-pointer"
+                            />
+                            <Input
+                              type="text"
+                              value={timecardTemplate.primary_color}
+                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Table Header Background</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={timecardTemplate.table_header_bg}
+                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
+                              className="h-10 w-16 rounded border cursor-pointer"
+                            />
+                            <Input
+                              type="text"
+                              value={timecardTemplate.table_header_bg}
+                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Font Family</Label>
+                        <Select 
+                          value={timecardTemplate.font_family} 
+                          onValueChange={(value) => setTimecardTemplate({ ...timecardTemplate, font_family: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="helvetica">Helvetica</SelectItem>
+                            <SelectItem value="times">Times New Roman</SelectItem>
+                            <SelectItem value="courier">Courier</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Header Images */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Header Images
+                      </CardTitle>
+                      <CardDescription>Upload and position images in your header</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="image-upload" className="cursor-pointer">
+                          <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
+                            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">
+                              {uploadingImage ? 'Uploading...' : 'Click to upload image'}
+                            </p>
+                          </div>
+                          <Input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageUpload}
+                            disabled={uploadingImage}
+                          />
+                        </Label>
+                      </div>
+
+                      {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+                        <div className="space-y-3">
+                          {timecardTemplate.header_images.map((img, index) => (
+                            <Card key={index}>
+                              <CardContent className="pt-6">
+                                <div className="flex items-start gap-4">
+                                  <img src={img.url} alt="Header" className="w-20 h-20 object-contain border rounded" />
+                                  <div className="flex-1 grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">X Position</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.x}
+                                        onChange={(e) => updateImagePosition(index, 'x', Number(e.target.value))}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Y Position</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.y}
+                                        onChange={(e) => updateImagePosition(index, 'y', Number(e.target.value))}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Width</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.width}
+                                        onChange={(e) => updateImagePosition(index, 'width', Number(e.target.value))}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Height</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.height}
+                                        onChange={(e) => updateImagePosition(index, 'height', Number(e.target.value))}
+                                        className="h-8"
+                                      />
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeHeaderImage(index)}
+                                    className="shrink-0"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* Save Button */}
               <div className="flex justify-end">
                 <Button onClick={() => saveTemplate(timecardTemplate)} disabled={loading}>
+                  <Save className="h-4 w-4 mr-2" />
                   {loading ? 'Saving...' : 'Save Template'}
                 </Button>
               </div>
