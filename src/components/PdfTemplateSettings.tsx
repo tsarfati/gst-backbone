@@ -169,7 +169,7 @@ export default function PdfTemplateSettings() {
 
     const canvas = fabricCanvasRef.current;
     canvas.clear();
-    canvas.backgroundColor = '#ffffff';
+    canvas.backgroundColor = 'transparent';
 
     // Load each image onto the canvas
     timecardTemplate.header_images.forEach((img, idx) => {
@@ -768,6 +768,7 @@ export default function PdfTemplateSettings() {
                         style={{ 
                           width: 'calc(100% - 2rem)',
                           height: 'calc(100% - 2rem)',
+                          zIndex: 10,
                           display: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 'block' : 'none'
                         }}
                       />
