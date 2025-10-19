@@ -136,6 +136,7 @@ export default function PdfTemplateSettings() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
+  const fabricImagesRef = useRef<FabricImage[]>([]);
   const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
@@ -163,51 +164,81 @@ export default function PdfTemplateSettings() {
     };
   }, []);
 
-  // Update canvas with logos
+  // Update canvas with logos without clearing to prevent flicker/disappear
   useEffect(() => {
-    if (!fabricCanvasRef.current || !canvasReady || !timecardTemplate.header_images) return;
-
     const canvas = fabricCanvasRef.current;
-    canvas.clear();
-    canvas.backgroundColor = 'transparent';
+    const imgs = timecardTemplate.header_images || [];
+    if (!canvas || !canvasReady) return;
 
-    // Load each image onto the canvas
-    timecardTemplate.header_images.forEach((img, idx) => {
-      FabricImage.fromURL(img.url, {
-        crossOrigin: 'anonymous'
-      }).then((fabricImg) => {
-        fabricImg.set({
+    // Ensure canvas stays transparent
+    canvas.backgroundColor = 'transparent';
+    canvas.requestRenderAll();
+
+    // Sync fabric objects with state (by index)
+    imgs.forEach((img, idx) => {
+      const existing = fabricImagesRef.current[idx];
+      if (existing && (existing as any)._originalUrl === img.url) {
+        existing.set({
           left: img.x,
           top: img.y,
-          scaleX: img.width / (fabricImg.width || 1),
-          scaleY: img.height / (fabricImg.height || 1),
+          scaleX: img.width / ((existing.width as number) || 1),
+          scaleY: img.height / ((existing.height as number) || 1),
         });
+      } else {
+        // Remove mismatched existing
+        if (existing) {
+          canvas.remove(existing as any);
+        }
+        FabricImage.fromURL(img.url, { crossOrigin: 'anonymous' }).then((fabricImg) => {
+          (fabricImg as any)._originalUrl = img.url;
+          fabricImg.set({
+            left: img.x,
+            top: img.y,
+            scaleX: img.width / ((fabricImg.width as number) || 1),
+            scaleY: img.height / ((fabricImg.height as number) || 1),
+          });
 
-        // Add border and controls
-        fabricImg.set({
-          borderColor: 'hsl(var(--primary))',
-          cornerColor: 'hsl(var(--primary))',
-          cornerSize: 8,
-          transparentCorners: false,
+          // Styling of controls (fallback to a solid color for canvas rendering)
+          fabricImg.set({
+            borderColor: '#3b82f6',
+            cornerColor: '#3b82f6',
+            cornerSize: 8,
+            transparentCorners: false,
+          });
+
+          // Persist changes when moved/resized
+          fabricImg.on('modified', () => {
+            const updated = [...imgs];
+            const w = (fabricImg.width as number) || 0;
+            const h = (fabricImg.height as number) || 0;
+            updated[idx] = {
+              url: img.url,
+              x: Math.round(fabricImg.left || 0),
+              y: Math.round(fabricImg.top || 0),
+              width: Math.round(w * ((fabricImg.scaleX as number) || 1)),
+              height: Math.round(h * ((fabricImg.scaleY as number) || 1)),
+            };
+            setTimecardTemplate((prev) => ({ ...prev, header_images: updated }));
+            canvas.requestRenderAll();
+          });
+
+          fabricImagesRef.current[idx] = fabricImg;
+          canvas.add(fabricImg);
+          canvas.requestRenderAll();
         });
-
-        // Save position when moved or scaled
-        fabricImg.on('modified', () => {
-          const newImages = [...(timecardTemplate.header_images || [])];
-          newImages[idx] = {
-            url: img.url,
-            x: Math.round(fabricImg.left || 0),
-            y: Math.round(fabricImg.top || 0),
-            width: Math.round((fabricImg.width || 0) * (fabricImg.scaleX || 1)),
-            height: Math.round((fabricImg.height || 0) * (fabricImg.scaleY || 1)),
-          };
-          setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
-        });
-
-        canvas.add(fabricImg);
-        canvas.renderAll();
-      });
+      }
     });
+
+    // Remove extra fabric objects if images were removed
+    for (let i = imgs.length; i < fabricImagesRef.current.length; i++) {
+      const obj = fabricImagesRef.current[i];
+      if (obj) {
+        canvas.remove(obj as any);
+      }
+    }
+    fabricImagesRef.current.length = imgs.length;
+
+    canvas.requestRenderAll();
   }, [timecardTemplate.header_images, canvasReady]);
 
   const loadTemplate = async (templateType: string) => {
