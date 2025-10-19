@@ -308,6 +308,7 @@ export default function TimecardReports() {
           break_minutes,
           status,
           notes,
+          deleted_at,
           punch_in_location_lat,
           punch_in_location_lng,
           punch_out_location_lat,
@@ -553,7 +554,8 @@ export default function TimecardReports() {
       let query = supabase
         .from('time_cards')
         .select('id, status')
-        .neq('status', 'approved');
+        .neq('status', 'approved')
+        .neq('status', 'deleted'); // Exclude deleted time cards from validation
 
       // Apply date filters if they exist
       // Normalize date range to full days in UTC
