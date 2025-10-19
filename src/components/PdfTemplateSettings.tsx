@@ -225,14 +225,9 @@ export default function PdfTemplateSettings() {
     const raw = (currentCompany as any)?.logo_url as string | undefined;
     if (!raw) return undefined;
     try {
-      if (/^https?:\/\//i.test(raw)) return raw;
-      if (raw.startsWith('/')) return window.location.origin + raw;
-      const [bucket, ...rest] = raw.split('/');
-      const objectPath = rest.join('/');
-      if (bucket && objectPath) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
-        return data?.publicUrl || undefined;
-      }
+      // Use the same resolver that supports public and signed URLs
+      const resolved = await resolveStorageUrl(raw);
+      return resolved;
     } catch (e) {
       console.error('getCompanyLogoPublicUrl error:', e);
     }
@@ -421,9 +416,18 @@ export default function PdfTemplateSettings() {
           headerImages = [];
         }
 
+        // If no images saved, try default company logo
+        let finalHeaderImages = headerImages;
+        if ((!finalHeaderImages || finalHeaderImages.length === 0) && currentCompany?.logo_url) {
+          const logoUrl = await getCompanyLogoPublicUrl();
+          if (logoUrl) {
+            finalHeaderImages = [{ url: logoUrl, x: 36, y: 28, width: 140, height: 56 }];
+          }
+        }
+
         setTimecardTemplate({
           ...data,
-          header_images: headerImages
+          header_images: finalHeaderImages
         });
       } else {
         // If no saved template, try to add company logo as default
