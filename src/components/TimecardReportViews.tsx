@@ -45,6 +45,7 @@ interface TimecardReportViewsProps {
   loading: boolean;
   onExportPDF: (reportType: string, data: any) => void;
   onExportExcel?: (reportType: string, data: any) => void;
+  showNotes?: boolean;
 }
 
 export default function TimecardReportViews({
@@ -52,7 +53,8 @@ export default function TimecardReportViews({
   summary,
   loading,
   onExportPDF,
-  onExportExcel
+  onExportExcel,
+  showNotes = false
 }: TimecardReportViewsProps) {
   const [selectedView, setSelectedView] = useState('detailed');
   const [selectedPunch, setSelectedPunch] = useState<any>(null);
@@ -296,6 +298,7 @@ export default function TimecardReportViews({
                       <TableHead>Hours</TableHead>
                       <TableHead>Overtime</TableHead>
                       <TableHead>Status</TableHead>
+                      {showNotes && <TableHead>Notes</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -333,6 +336,11 @@ export default function TimecardReportViews({
                             {record.status}
                           </Badge>
                         </TableCell>
+                        {showNotes && (
+                          <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
+                            {record.notes || "-"}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

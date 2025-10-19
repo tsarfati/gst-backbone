@@ -57,6 +57,7 @@ interface FilterState {
   hasOvertime: boolean;
   status: string[];
   showDeleted: boolean;
+  showNotes: boolean;
 }
 
 export default function TimecardReports() {
@@ -79,7 +80,8 @@ export default function TimecardReports() {
     hasNotes: false,
     hasOvertime: false,
     status: [],
-    showDeleted: false
+    showDeleted: false,
+    showNotes: false
   });
 
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
@@ -467,7 +469,8 @@ export default function TimecardReports() {
       hasNotes: false,
       hasOvertime: false,
       status: [],
-      showDeleted: false
+      showDeleted: false,
+      showNotes: false
     });
     // Reload after clearing
     Promise.all([loadEmployees(), loadTimecardRecords(), loadPunchRecords()]);
@@ -839,6 +842,7 @@ export default function TimecardReports() {
               loading={loading}
               onExportPDF={handleExportPDF}
               onExportExcel={handleExportExcel}
+              showNotes={filters.showNotes}
             />
           </TabsContent>
           <TabsContent value="punches">
