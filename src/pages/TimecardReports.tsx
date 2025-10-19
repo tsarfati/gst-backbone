@@ -344,26 +344,26 @@ export default function TimecardReports() {
         query = query.not('notes', 'is', null);
       }
 
-      if (filters.hasOvertime) {
-        query = query.gt('overtime_hours', 0);
-      }
-
-      // By default, exclude deleted records unless showDeleted is true
-      if (!filters.showDeleted) {
-        query = query.is('deleted_at', null);
-      }
+      // Note: hasOvertime filter applied after recalculation below
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      // Strictly scope to this company's jobs
+      // Strictly scope to this company's jobs and apply deleted filter
       const { data: allowedJobs } = await supabase
         .from('jobs')
         .select('id')
         .eq('company_id', currentCompany.id);
       const allowedJobSet = new Set((allowedJobs || []).map((j: any) => j.id));
-      const filteredData = (data || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+      
+      // Filter by company jobs AND deleted status
+      let filteredData = (data || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+      
+      // Apply deleted filter on client side as well (double-check)
+      if (!filters.showDeleted) {
+        filteredData = filteredData.filter((r: any) => !r.deleted_at);
+      }
 
       // Get additional data for display
       const jobIds = [...new Set(filteredData.map((r: any) => r.job_id).filter(Boolean))];

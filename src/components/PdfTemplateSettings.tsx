@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon } from 'lucide-react';
+import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon, Move } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TemplateSettings {
   id?: string;
@@ -284,7 +285,7 @@ export default function PdfTemplateSettings() {
             </TabsList>
 
             <TabsContent value="timecard" className="space-y-6">
-              {/* Template Preset Gallery */}
+              {/* Template Preset Selector */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -292,33 +293,30 @@ export default function PdfTemplateSettings() {
                     Choose a Template
                   </CardTitle>
                   <CardDescription>
-                    Start with a pre-designed template or create your own from scratch
+                    Start with a pre-designed template
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <RadioGroup value={selectedPreset} onValueChange={applyPreset} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
-                      <div key={key} className="relative">
-                        <RadioGroupItem value={key} id={key} className="peer sr-only" />
-                        <Label
-                          htmlFor={key}
-                          className="flex flex-col items-center justify-between rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-all"
-                        >
-                          <div className="mb-3 w-full aspect-[4/3] bg-gradient-to-br from-background to-muted rounded border flex items-center justify-center relative overflow-hidden">
-                            <div className="absolute inset-0 flex flex-col p-2 text-[6px]">
-                              <div 
-                                className="text-center font-bold mb-1" 
-                                style={{ color: preset.primary_color }}
-                                dangerouslySetInnerHTML={{ __html: renderPreview(preset.header_html.substring(0, 100) + '...') }}
-                              />
-                              <div className="flex-1 border rounded bg-white/50" />
-                            </div>
-                          </div>
-                          <div className="text-sm font-medium">{preset.name}</div>
-                        </Label>
-                      </div>
-                    ))}
-                  </RadioGroup>
+                  <div className="space-y-2">
+                    <Label>Template Style</Label>
+                    <Select value={selectedPreset} onValueChange={applyPreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a template style" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                          <SelectItem key={key} value={key}>
+                            {preset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedPreset && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Selected: {TEMPLATE_PRESETS[selectedPreset as keyof typeof TEMPLATE_PRESETS]?.name}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -386,63 +384,28 @@ export default function PdfTemplateSettings() {
                           
                           {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
                             <div className="space-y-3">
+                              <p className="text-xs text-muted-foreground">
+                                <Move className="h-3 w-3 inline mr-1" />
+                                Use the live preview below to adjust position and size
+                              </p>
                               {timecardTemplate.header_images.map((img, idx) => (
-                                <Card key={idx} className="p-4">
-                                  <div className="flex items-start justify-between mb-3">
+                                <Card key={idx} className="p-3">
+                                  <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                      <div className="w-16 h-16 border rounded overflow-hidden bg-muted flex items-center justify-center">
+                                      <div className="w-12 h-12 border rounded overflow-hidden bg-muted flex items-center justify-center">
                                         <img src={img.url} alt={`Header ${idx + 1}`} className="w-full h-full object-contain" />
                                       </div>
                                       <div>
                                         <div className="font-medium text-sm">Image {idx + 1}</div>
-                                        <div className="text-xs text-muted-foreground">Position and size</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {Math.round(img.width)}×{Math.round(img.height)}pt at ({Math.round(img.x)}, {Math.round(img.y)})
+                                        </div>
                                       </div>
                                     </div>
                                     <Button size="sm" variant="ghost" onClick={() => removeHeaderImage(idx)}>
                                       <X className="h-4 w-4" />
                                     </Button>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <Label className="text-xs">X Position (pt)</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.x}
-                                        onChange={(e) => updateImagePosition(idx, 'x', parseInt(e.target.value))}
-                                        className="h-8 mt-1"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs">Y Position (pt)</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.y}
-                                        onChange={(e) => updateImagePosition(idx, 'y', parseInt(e.target.value))}
-                                        className="h-8 mt-1"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs">Width (pt)</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.width}
-                                        onChange={(e) => updateImagePosition(idx, 'width', parseInt(e.target.value))}
-                                        className="h-8 mt-1"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-xs">Height (pt)</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.height}
-                                        onChange={(e) => updateImagePosition(idx, 'height', parseInt(e.target.value))}
-                                        className="h-8 mt-1"
-                                      />
-                                    </div>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-2">
-                                    Tip: 1 inch = 72 points. Standard page width is ~800pt
-                                  </p>
                                 </Card>
                               ))}
                             </div>
@@ -675,6 +638,103 @@ export default function PdfTemplateSettings() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Live Preview Section */}
+      {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Header Preview & Positioning
+            </CardTitle>
+            <CardDescription>
+              Adjust image positions using the controls below (landscape view: 842×595pt)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="relative w-full bg-white border-2 border-dashed border-muted rounded-lg overflow-hidden" style={{ height: '400px' }}>
+              {/* Grid background */}
+              <div className="absolute inset-0" style={{
+                backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)',
+                backgroundSize: '50px 50px'
+              }} />
+              
+              {/* Reference dimensions */}
+              <div className="absolute top-2 left-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                842pt wide × 595pt tall (A4 Landscape)
+              </div>
+
+              {/* Render images with positioning */}
+              {timecardTemplate.header_images.map((img, idx) => (
+                <div
+                  key={idx}
+                  className="absolute border-2 border-primary bg-white/90 rounded group hover:shadow-lg transition-shadow"
+                  style={{
+                    left: `${(img.x / 842) * 100}%`,
+                    top: `${(img.y / 595) * 100}%`,
+                    width: `${(img.width / 842) * 100}%`,
+                    height: `${(img.height / 595) * 100}%`,
+                  }}
+                >
+                  <img 
+                    src={img.url} 
+                    alt={`Header ${idx + 1}`} 
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    Image {idx + 1}
+                  </div>
+                  
+                  {/* Position adjustment controls */}
+                  <div className="absolute -bottom-24 left-0 right-0 bg-background border border-border rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10">
+                    <div className="grid grid-cols-4 gap-1 text-xs">
+                      <div>
+                        <Label className="text-[10px]">X</Label>
+                        <Input
+                          type="number"
+                          value={Math.round(img.x)}
+                          onChange={(e) => updateImagePosition(idx, 'x', parseFloat(e.target.value) || 0)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">Y</Label>
+                        <Input
+                          type="number"
+                          value={Math.round(img.y)}
+                          onChange={(e) => updateImagePosition(idx, 'y', parseFloat(e.target.value) || 0)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">W</Label>
+                        <Input
+                          type="number"
+                          value={Math.round(img.width)}
+                          onChange={(e) => updateImagePosition(idx, 'width', parseFloat(e.target.value) || 10)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[10px]">H</Label>
+                        <Input
+                          type="number"
+                          value={Math.round(img.height)}
+                          onChange={(e) => updateImagePosition(idx, 'height', parseFloat(e.target.value) || 10)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Hover over images to see positioning controls. Values are in PDF points (pt).
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
