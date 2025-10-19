@@ -178,7 +178,15 @@ export default function PdfTemplateSettings() {
           top: img.y,
           scaleX: img.width / ((existing.width as number) || 1),
           scaleY: img.height / ((existing.height as number) || 1),
+          selectable: true,
+          evented: true,
+          hasControls: true,
+          hasBorders: true,
+          hoverCursor: 'move',
         });
+        existing.setCoords?.();
+        canvas.setActiveObject(existing as any);
+        canvas.requestRenderAll();
       } else {
         // Remove mismatched existing
         if (existing) {
@@ -191,6 +199,12 @@ export default function PdfTemplateSettings() {
             top: img.y,
             scaleX: img.width / ((fabricImg.width as number) || 1),
             scaleY: img.height / ((fabricImg.height as number) || 1),
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            hasBorders: true,
+            hoverCursor: 'move',
+            lockRotation: false,
           });
 
           // Styling of controls (fallback to a solid color for canvas rendering)
@@ -214,11 +228,13 @@ export default function PdfTemplateSettings() {
               height: Math.round(h * ((fabricImg.scaleY as number) || 1)),
             };
             setTimecardTemplate((prev) => ({ ...prev, header_images: updated }));
+            canvas.setActiveObject(fabricImg);
             canvas.requestRenderAll();
           });
 
           fabricImagesRef.current[idx] = fabricImg;
           canvas.add(fabricImg);
+          canvas.setActiveObject(fabricImg);
           canvas.requestRenderAll();
         });
       }
@@ -747,21 +763,15 @@ export default function PdfTemplateSettings() {
                             dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
                           />
 
-                          {/* Interactive Canvas Overlay for Logo Positioning (inside preview) */}
-                          <canvas
-                            ref={canvasRef}
-                            width={842}
-                            height={595}
-                            className="absolute inset-0 w-full h-full"
-                            style={{
-                              zIndex: 10,
-                              cursor: 'move',
-                            }}
-                          />
                         </div>
+                        <canvas
+                          ref={canvasRef}
+                          width={842}
+                          height={595}
+                          className="absolute inset-0 w-full h-full"
+                          style={{ zIndex: 50, background: 'transparent', cursor: 'move' }}
+                        />
                       </div>
-
-                    </div>
 
                     {/* Logo List */}
                     {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
