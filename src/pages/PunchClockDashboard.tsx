@@ -36,7 +36,8 @@ interface Job { id: string; name: string; latitude?: number | null; longitude?: 
 
 interface PunchRecord {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  pin_employee_id?: string | null;
   job_id: string | null;
   cost_code_id: string | null;
   punch_time: string;
@@ -167,7 +168,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       // First get the most recent punch record for each user in this company
       const { data: allPunchData } = await supabase
         .from('punch_records')
-        .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
+        .select('id, user_id, pin_employee_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
         .eq('company_id', currentCompany.id)
         .in('user_id', companyUserIds)
         .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
@@ -191,27 +192,28 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       setRecentOuts(recentOuts);
 
       // Preload profiles for recently punched out users and load jobs for punch outs
-      const outUserIds = recentOuts.map(r => r.user_id);
+      const outUserIds = recentOuts.map(r => r.user_id).filter(Boolean) as string[];
+      const outPinIds = recentOuts.map(r => r.pin_employee_id).filter(Boolean) as string[];
       const outJobIds = Array.from(new Set(recentOuts.map(r => r.job_id).filter(Boolean))) as string[];
       
-      if (outUserIds.length) {
+      if (outUserIds.length || outPinIds.length) {
         const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-          supabase
+          outUserIds.length ? supabase
             .from('profiles')
             .select('user_id, display_name, avatar_url')
-            .in('user_id', outUserIds),
-          supabase
+            .in('user_id', outUserIds) : Promise.resolve({ data: [], error: null }),
+          outPinIds.length ? supabase
             .from('pin_employees')
             .select('id, first_name, last_name, display_name, avatar_url')
             .eq('company_id', currentCompany.id)
-            .in('id', outUserIds)
+            .in('id', outPinIds) : Promise.resolve({ data: [], error: null })
         ]);
         
         const profMap: Record<string, Profile> = {};
         // Regular profiles
-        (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
+        (profilesResponse.data || []).forEach((p: any) => { profMap[p.user_id] = p; });
         // PIN employees
-        (pinEmployeesResponse.data || []).forEach(p => { 
+        (pinEmployeesResponse.data || []).forEach((p: any) => { 
           profMap[p.id] = {
             user_id: p.id,
             display_name: p.display_name || `${p.first_name} ${p.last_name}`,
@@ -339,7 +341,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   };
 
   const openDetailForOut = (row: PunchRecord) => {
-    const prof = profiles[row.user_id];
+    const prof = profiles[row.user_id || row.pin_employee_id || ''];
     const job = row.job_id ? jobs[row.job_id] : undefined;
     setSelectedDetail({
       id: row.id,

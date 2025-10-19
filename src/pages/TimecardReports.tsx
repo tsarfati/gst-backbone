@@ -123,19 +123,18 @@ export default function TimecardReports() {
           .eq('company_id', currentCompany.id),
         supabase
           .from('punch_records')
-          .select('user_id')
+          .select('user_id, pin_employee_id')
           .eq('company_id', currentCompany.id),
         supabase
           .from('pin_employees')
           .select('id')
-          .eq('company_id', currentCompany.id)
-          .eq('is_active', true),
+          .eq('company_id', currentCompany.id),
       ]);
 
       const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
       const idsFromTimeCards: string[] = (tcUsersRes.data || []).map(r => r.user_id);
-      const idsFromPunches: string[] = (punchUsersRes.data || []).map(r => r.user_id);
-      const directPinIds: string[] = (directPinEmployees.data || []).map(r => r.id);
+      const idsFromPunches: string[] = (punchUsersRes.data || []).flatMap((r: any) => [r.user_id, r.pin_employee_id]).filter(Boolean);
+      const directPinIds: string[] = (directPinEmployees.data || []).map((r: any) => r.id);
 
       // Candidates for PIN employees are any ids seen in settings, activity, or directly linked to company
       const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches, ...directPinIds]));
