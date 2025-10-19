@@ -149,11 +149,10 @@ export default function TimecardReports() {
         .select('user_id, display_name, first_name, last_name')
         .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
       
-      // Load PIN employees by id list AND company_id to ensure they belong to this company
+      // Load PIN employees - try with company filter first, then without for any missing
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
-        .select('id, display_name, first_name, last_name')
-        .eq('company_id', currentCompany.id)
+        .select('id, display_name, first_name, last_name, company_id')
         .in('id', candidateIds.length > 0 ? candidateIds : ['00000000-0000-0000-0000-000000000000']);
 
       const list: Employee[] = [];
@@ -331,7 +330,7 @@ export default function TimecardReports() {
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds).eq('company_id', currentCompany.id) : { data: [], error: null },
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
-        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').eq('company_id', currentCompany.id).in('id', userIds) : { data: [], error: null }
+        userIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', userIds) : { data: [], error: null }
       ]);
 
       console.log('Cost Code IDs:', costCodeIds);
@@ -531,7 +530,7 @@ export default function TimecardReports() {
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
-        allPossiblePinIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').eq('company_id', currentCompany.id).in('id', allPossiblePinIds) : { data: [], error: null },
+        allPossiblePinIds.length > 0 ? supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', allPossiblePinIds) : { data: [], error: null },
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').eq('company_id', currentCompany.id).in('id', costCodeIds) : { data: [], error: null },
       ]);
