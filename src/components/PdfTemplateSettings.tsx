@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
-import { Canvas as FabricCanvas, Image as FabricImage } from 'fabric';
+import { Canvas as FabricCanvas, Image as FabricImage, Textbox as FabricTextbox } from 'fabric';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface TemplateSettings {
@@ -37,6 +37,15 @@ interface TemplateSettings {
     y: number;
     width: number;
     height: number;
+  }>;
+  header_texts?: Array<{
+    text: string;
+    x: number;
+    y: number;
+    width?: number;
+    fontSize?: number;
+    color?: string;
+    fontFamily?: string;
   }>;
   notes?: string;
 }
@@ -181,12 +190,14 @@ export default function PdfTemplateSettings() {
     table_border_color: '#e2e8f0',
     table_stripe_color: '#f8fafc',
     auto_size_columns: true,
-    header_images: []
+    header_images: [],
+    header_texts: []
   });
   const [uploadingImage, setUploadingImage] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const fabricImagesRef = useRef<FabricImage[]>([]);
+  const fabricTextsRef = useRef<FabricTextbox[]>([]);
   const [canvasReady, setCanvasReady] = useState(false);
   const [saveAsPresetDialogOpen, setSaveAsPresetDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
@@ -397,6 +408,69 @@ export default function PdfTemplateSettings() {
     canvas.requestRenderAll();
   }, [timecardTemplate.header_images, canvasReady]);
 
+  // Update canvas with text boxes
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    const texts = timecardTemplate.header_texts || [];
+    if (!canvas || !canvasReady) return;
+
+    texts.forEach((t, idx) => {
+      const existing = fabricTextsRef.current[idx];
+      if (existing) {
+        existing.set({ 
+          left: t.x, 
+          top: t.y, 
+          width: t.width || (existing.width as number), 
+          fontSize: t.fontSize || (existing.fontSize as number), 
+          fill: (t.color as any) || existing.fill, 
+          fontFamily: t.fontFamily || timecardTemplate.font_family 
+        });
+        existing.setCoords?.();
+      } else {
+        const tb = new FabricTextbox(t.text || 'Text', {
+          left: t.x ?? 40,
+          top: t.y ?? 40,
+          width: t.width ?? 220,
+          fontSize: t.fontSize ?? 16,
+          fill: (t.color as any) ?? '#111827',
+          fontFamily: t.fontFamily || timecardTemplate.font_family || 'helvetica',
+          selectable: true,
+          hasControls: true,
+          hasBorders: true,
+        });
+        tb.on('modified', () => {
+          const updated = [...(timecardTemplate.header_texts || [])];
+          updated[idx] = {
+            text: tb.text || 'Text',
+            x: Math.round(tb.left || 0),
+            y: Math.round(tb.top || 0),
+            width: Math.round((tb.width as number) || 220),
+            fontSize: Math.round(((tb.fontSize as number) || 16)),
+            color: (tb.fill as string) || '#111827',
+            fontFamily: tb.fontFamily,
+          };
+          setTimecardTemplate(prev => ({ ...prev, header_texts: updated }));
+          canvas.setActiveObject(tb as any);
+          canvas.requestRenderAll();
+        });
+        fabricTextsRef.current[idx] = tb as any;
+        canvas.add(tb as any);
+        canvas.setActiveObject(tb as any);
+      }
+    });
+
+    // Remove extra text objects if removed from state
+    for (let i = texts.length; i < fabricTextsRef.current.length; i++) {
+      const obj = fabricTextsRef.current[i];
+      if (obj) {
+        canvas.remove(obj as any);
+      }
+    }
+    fabricTextsRef.current.length = texts.length;
+
+    canvas.requestRenderAll();
+  }, [timecardTemplate.header_texts, canvasReady, timecardTemplate.font_family]);
+
   const loadTemplate = async (templateType: string) => {
     if (!currentCompany?.id) return;
     
@@ -465,8 +539,9 @@ export default function PdfTemplateSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      const { header_texts: _header_texts, ...templateForDb } = template as any;
       const templateData = {
-        ...template,
+        ...templateForDb,
         company_id: currentCompany.id,
         created_by: user.id
       };
@@ -558,6 +633,21 @@ export default function PdfTemplateSettings() {
     const newImages = [...(timecardTemplate.header_images || [])];
     newImages[index] = { ...newImages[index], [field]: value };
     setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+  };
+
+  const addTextBox = () => {
+    setTimecardTemplate(prev => ({
+      ...prev,
+      header_texts: [
+        ...(prev.header_texts || []),
+        { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
+      ]
+    }));
+  };
+
+  const removeTextBox = (index: number) => {
+    const arr = (timecardTemplate.header_texts || []).filter((_, i) => i !== index);
+    setTimecardTemplate({ ...timecardTemplate, header_texts: arr });
   };
 
   const applyPreset = (presetKey: string) => {
@@ -942,7 +1032,11 @@ export default function PdfTemplateSettings() {
                       </AlertDescription>
                     </Alert>
 
-                    {/* Template Preview with Canvas Overlay */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">Drag logos and text boxes on the canvas.</div>
+                      <Button variant="outline" size="sm" onClick={addTextBox}>Add Text Box</Button>
+                    </div>
+
                     <div className="relative w-full bg-gradient-to-br from-muted/10 to-muted/5 rounded-lg p-4 shadow-xl">
                       {/* Static HTML Preview */}
                       <div className="relative w-full bg-white rounded shadow-lg overflow-hidden" style={{ aspectRatio: '842/595' }}>
@@ -1028,27 +1122,6 @@ export default function PdfTemplateSettings() {
                           }}
                         />
 
-                        {/* Fallback positioned logos (HTML) only if canvas has no images yet */}
-                        {(!fabricImagesRef.current || fabricImagesRef.current.length === 0) &&
-                          timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
-                          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 80 }}>
-                            {timecardTemplate.header_images.map((img, idx) => (
-                              <img
-                                key={`fallback-${idx}`}
-                                src={img.url}
-                                alt={`Logo ${idx + 1}`}
-                                style={{
-                                  position: 'absolute',
-                                  left: `${(img.x / 842) * 100}%`,
-                                  top: `${(img.y / 595) * 100}%`,
-                                  width: `${(img.width / 842) * 100}%`,
-                                  height: 'auto',
-                                  objectFit: 'contain'
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
 
                       </div>
                     </div>
