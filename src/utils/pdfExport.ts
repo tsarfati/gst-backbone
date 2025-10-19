@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
-
+import { supabase } from "@/integrations/supabase/client";
 export interface CompanyBranding {
   logo_url?: string;
   name: string;
@@ -54,24 +54,35 @@ export class PDFExporter {
     
     if (this.company.logo_url) {
       try {
-        // Handle Supabase storage URLs
-        let logoUrl = this.company.logo_url;
-        
-        // If it's a relative path, make it absolute
-        if (logoUrl.startsWith('/')) {
-          logoUrl = window.location.origin + logoUrl;
+        let logoUrlRaw = this.company.logo_url;
+        let logoUrl = logoUrlRaw;
+
+        if (/^https?:\/\//i.test(logoUrlRaw)) {
+          // Use as-is
+        } else if (logoUrlRaw.startsWith('/')) {
+          // Relative path in app
+          logoUrl = window.location.origin + logoUrlRaw;
+        } else {
+          // Treat as Supabase Storage path in format "bucket/path/to/file"
+          const [bucket, ...rest] = logoUrlRaw.split('/');
+          const objectPath = rest.join('/');
+          if (bucket && objectPath) {
+            const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+            if (data?.publicUrl) logoUrl = data.publicUrl;
+          }
         }
-        
+
         // Add timestamp to bust cache
         const separator = logoUrl.includes('?') ? '&' : '?';
         logoUrl = `${logoUrl}${separator}t=${Date.now()}`;
-        
+
         console.log('Loading logo from:', logoUrl);
         const logoData = await this.loadImage(logoUrl);
         doc.addImage(logoData, 'PNG', logoX, logoY, 56, 56);
         logoLoaded = true;
         console.log('Logo loaded successfully');
       } catch (e) {
+        console.error('Logo failed to load:', e);
         console.error('Logo failed to load:', e);
         console.log('Logo URL attempted:', this.company.logo_url);
       }
@@ -133,13 +144,14 @@ export class PDFExporter {
       record.cost_code || '-',
       record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
       record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
+      (record.break_minutes ?? 0).toString(),
       record.total_hours?.toFixed(2) || '0.00'
     ]);
 
     // Modern table styling
     autoTable(doc, {
       startY: yPos,
-      head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Hours']],
+      head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours']],
       body: tableData,
       theme: 'plain',
       headStyles: {
@@ -161,12 +173,13 @@ export class PDFExporter {
         fillColor: [248, 250, 252]
       },
       columnStyles: {
-        0: { cellWidth: 160 },
-        1: { cellWidth: 160 },
-        2: { cellWidth: 180 },
-        3: { cellWidth: 120 },
-        4: { cellWidth: 120 },
-        5: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
+        0: { cellWidth: 150 },
+        1: { cellWidth: 150 },
+        2: { cellWidth: 160 },
+        3: { cellWidth: 110 },
+        4: { cellWidth: 110 },
+        5: { cellWidth: 70, halign: 'right' },
+        6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
       },
       styles: {
         overflow: 'ellipsize'
