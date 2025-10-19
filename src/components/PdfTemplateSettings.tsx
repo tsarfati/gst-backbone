@@ -663,25 +663,32 @@ export default function PdfTemplateSettings() {
       setSelectedPreset(presetKey);
 
       // Auto-place/resize primary logo for every preset
+      // Positioned to avoid text overlap - logos on left stay small and clear of text zones
       const placements: Record<string, { x: number; y: number; width: number; height: number }> = {
-        // Core layouts (A4 landscape 842 x 595)
-        professional: { x: 36, y: 28, width: 140, height: 56 },
-        corporate: { x: 36, y: 28, width: 150, height: 60 },
-        executive: { x: 842 - 36 - 140, y: 30, width: 140, height: 56 },
-        modern: { x: 36, y: 30, width: 140, height: 56 },
-        financial: { x: 36, y: 28, width: 140, height: 56 },
-        legal: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
-        tech: { x: 842 - 36 - 130, y: 34, width: 130, height: 52 },
-        minimal: { x: 36, y: 32, width: 120, height: 48 },
-        construction: { x: 36, y: 26, width: 150, height: 60 },
-        healthcare: { x: 36, y: 30, width: 130, height: 52 },
-        luxury: { x: 36, y: 30, width: 140, height: 56 },
-        creative: { x: (842 - 150) / 2, y: 28, width: 150, height: 60 },
-        split_header: { x: 36, y: 28, width: 140, height: 56 },
-        centered_logo: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
-        right_aligned: { x: 842 - 36 - 140, y: 28, width: 140, height: 56 },
-        banner_top: { x: 36, y: 26, width: 120, height: 48 },
-        sidebar_accent: { x: 24, y: 28, width: 120, height: 48 },
+        // Left-aligned logos: positioned with space for text to flow right
+        professional: { x: 36, y: 40, width: 80, height: 32 },
+        corporate: { x: 36, y: 40, width: 85, height: 34 },
+        modern: { x: 36, y: 45, width: 80, height: 32 },
+        financial: { x: 36, y: 42, width: 80, height: 32 },
+        construction: { x: 36, y: 38, width: 90, height: 36 },
+        healthcare: { x: 36, y: 45, width: 75, height: 30 },
+        luxury: { x: 36, y: 45, width: 80, height: 32 },
+        split_header: { x: 36, y: 35, width: 80, height: 32 },
+        minimal: { x: 36, y: 40, width: 70, height: 28 },
+        sidebar_accent: { x: 60, y: 38, width: 70, height: 28 },
+        
+        // Right-aligned logos: positioned far right to avoid center text
+        executive: { x: 842 - 36 - 100, y: 50, width: 100, height: 40 },
+        tech: { x: 842 - 36 - 95, y: 52, width: 95, height: 38 },
+        right_aligned: { x: 842 - 36 - 100, y: 40, width: 100, height: 40 },
+        
+        // Center-aligned logos: positioned above text
+        legal: { x: (842 - 100) / 2, y: 32, width: 100, height: 40 },
+        centered_logo: { x: (842 - 100) / 2, y: 32, width: 100, height: 40 },
+        creative: { x: (842 - 110) / 2, y: 40, width: 110, height: 44 },
+        
+        // Banner logos: smaller to fit in banner space
+        banner_top: { x: 50, y: 35, width: 70, height: 28 },
       };
       const fallback = { x: 36, y: 28, width: 140, height: 56 };
       const pos = placements[presetKey] || fallback;

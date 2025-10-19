@@ -89,6 +89,7 @@ export class PDFExporter {
       const logoX = 36;
       const logoY = 32;
       let logoLoaded = false;
+      let actualLogoWidth = 0;
     
     if (this.company.logo_url) {
       try {
@@ -143,15 +144,16 @@ export class PDFExporter {
         
         doc.addImage(dataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
         logoLoaded = true;
+        actualLogoWidth = logoWidth;
         console.log('Logo loaded successfully with dimensions:', logoWidth, 'x', logoHeight);
       } catch (e) {
-        console.error('Logo failed to load:', e);
         console.error('Logo failed to load:', e);
         console.log('Logo URL attempted:', this.company.logo_url);
       }
     }
 
-    const textStartX = logoLoaded ? logoX + 68 : logoX;
+    // Position text to the right of logo with proper spacing (12px gap)
+    const textStartX = actualLogoWidth > 0 ? logoX + actualLogoWidth + 12 : logoX;
     
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(20);
