@@ -15,7 +15,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
 import { formatCurrency } from "@/utils/formatNumber";
-import { JobShiftTimeSettings } from "@/components/JobShiftTimeSettings";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -718,9 +717,6 @@ export default function JobEdit() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Shift Time Rules */}
-        {id && <JobShiftTimeSettings jobId={id} />}
 
         {/* Cost Codes & Budget Link */}
         <Card>

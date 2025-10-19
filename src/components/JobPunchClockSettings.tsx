@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import { JobShiftTimeSettings } from '@/components/JobShiftTimeSettings';
 
 interface Job { id: string; name: string }
 
@@ -243,6 +244,8 @@ export default function JobPunchClockSettings() {
           </Select>
         </CardContent>
       </Card>
+
+      {selectedJobId && <JobShiftTimeSettings jobId={selectedJobId} />}
 
       {selectedJobId && (
         <Card>
