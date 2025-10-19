@@ -342,13 +342,32 @@ export default function TimecardReports() {
         query = query.in('job_id', filters.jobs);
       }
 
-      // Load punch clock settings to get calculate_overtime setting
-      const { data: settingsData } = await supabase
-        .from('job_punch_clock_settings')
-        .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
-        .eq('company_id', currentCompany.id)
-        .is('job_id', null)
-        .maybeSingle();
+      // Load punch clock settings - prioritize job-specific settings if filtering by a single job
+      let settingsData = null;
+      
+      if (filters.jobs.length === 1) {
+        // Try to load job-specific settings first
+        const { data: jobSettings } = await supabase
+          .from('job_punch_clock_settings')
+          .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+          .eq('company_id', currentCompany.id)
+          .eq('job_id', filters.jobs[0])
+          .maybeSingle();
+        
+        settingsData = jobSettings;
+      }
+      
+      // Fallback to company-level settings if no job-specific settings
+      if (!settingsData) {
+        const { data: companySettings } = await supabase
+          .from('job_punch_clock_settings')
+          .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+          .eq('company_id', currentCompany.id)
+          .is('job_id', null)
+          .maybeSingle();
+        
+        settingsData = companySettings;
+      }
 
       // Only calculate overtime if explicitly enabled in settings
       const calculateOvertime = settingsData?.calculate_overtime === true;

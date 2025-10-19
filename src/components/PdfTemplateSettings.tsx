@@ -241,21 +241,28 @@ export default function PdfTemplateSettings() {
     }
   }, [currentCompany?.id]);
 
-  // Auto-add company logo to header images if none present
+  // Auto-add company logo to header images if none present - only on initial load
   useEffect(() => {
     const maybeAddLogo = async () => {
-      if (!currentCompany?.logo_url) return;
+      if (!currentCompany?.logo_url || !canvasReady) return;
       const hasImages = (timecardTemplate.header_images || []).length > 0;
       if (hasImages) return;
+      
+      // Only add logo if we have a canvas but no images yet
       const url = await getCompanyLogoPublicUrl();
       if (!url) return;
-      setTimecardTemplate(prev => ({
-        ...prev,
-        header_images: prev.header_images && prev.header_images.length > 0 ? prev.header_images : [{ url, x: 36, y: 28, width: 140, height: 56 }]
-      }));
+      
+      setTimecardTemplate(prev => {
+        // Double-check we still don't have images
+        if (prev.header_images && prev.header_images.length > 0) return prev;
+        return {
+          ...prev,
+          header_images: [{ url, x: 36, y: 28, width: 140, height: 56 }]
+        };
+      });
     };
     maybeAddLogo();
-  }, [currentCompany?.logo_url]);
+  }, [currentCompany?.logo_url, canvasReady]);
 
   // Initialize fabric canvas with proper sizing
   useEffect(() => {
@@ -399,10 +406,30 @@ export default function PdfTemplateSettings() {
       if (error) throw error;
       
       if (data) {
+        // Parse header_images properly
+        let headerImages = [];
+        try {
+          headerImages = typeof data.header_images === 'string' 
+            ? JSON.parse(data.header_images) 
+            : (data.header_images || []);
+        } catch (e) {
+          console.error('Error parsing header_images:', e);
+          headerImages = [];
+        }
+
         setTimecardTemplate({
           ...data,
-          header_images: (data.header_images as any) || []
+          header_images: headerImages
         });
+      } else {
+        // If no saved template, try to add company logo as default
+        const logoUrl = await getCompanyLogoPublicUrl();
+        if (logoUrl) {
+          setTimecardTemplate(prev => ({
+            ...prev,
+            header_images: [{ url: logoUrl, x: 36, y: 28, width: 140, height: 56 }]
+          }));
+        }
       }
     } catch (error: any) {
       console.error('Error loading template:', error);
