@@ -77,10 +77,35 @@ export class PDFExporter {
         logoUrl = `${logoUrl}${separator}t=${Date.now()}`;
 
         console.log('Loading logo from:', logoUrl);
-        const logoData = await this.loadImage(logoUrl);
-        doc.addImage(logoData, 'PNG', logoX, logoY, 56, 56);
+        const { dataUrl, width, height } = await this.loadImageWithDimensions(logoUrl);
+        
+        // Calculate dimensions maintaining aspect ratio
+        const maxLogoHeight = 56;
+        const maxLogoWidth = 120;
+        let logoWidth = width;
+        let logoHeight = height;
+        
+        // Scale to fit within max dimensions while maintaining aspect ratio
+        if (logoHeight > maxLogoHeight || logoWidth > maxLogoWidth) {
+          const aspectRatio = width / height;
+          if (aspectRatio > 1) {
+            // Wider than tall
+            logoWidth = Math.min(maxLogoWidth, width);
+            logoHeight = logoWidth / aspectRatio;
+            if (logoHeight > maxLogoHeight) {
+              logoHeight = maxLogoHeight;
+              logoWidth = logoHeight * aspectRatio;
+            }
+          } else {
+            // Taller than wide
+            logoHeight = Math.min(maxLogoHeight, height);
+            logoWidth = logoHeight * aspectRatio;
+          }
+        }
+        
+        doc.addImage(dataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
         logoLoaded = true;
-        console.log('Logo loaded successfully');
+        console.log('Logo loaded successfully with dimensions:', logoWidth, 'x', logoHeight);
       } catch (e) {
         console.error('Logo failed to load:', e);
         console.error('Logo failed to load:', e);
@@ -262,7 +287,7 @@ export class PDFExporter {
     ];
   }
 
-  private loadImage(url: string): Promise<string> {
+  private loadImageWithDimensions(url: string): Promise<{ dataUrl: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -276,7 +301,11 @@ export class PDFExporter {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
+        resolve({
+          dataUrl: canvas.toDataURL('image/png'),
+          width: img.width,
+          height: img.height
+        });
       };
       img.onerror = reject;
       img.src = url;

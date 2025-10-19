@@ -12,7 +12,8 @@ import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette, FileText } from 'lucide-react';
+import PdfTemplateSettings from '@/components/PdfTemplateSettings';
 import ThemeSettings from '@/pages/ThemeSettings';
 import PunchClockSettings from '@/pages/PunchClockSettings';
 
@@ -91,6 +92,13 @@ export default function CompanySettingsPage() {
               Theme & Appearance
             </TabsTrigger>
             <TabsTrigger 
+              value="templates" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              PDF Templates
+            </TabsTrigger>
+            <TabsTrigger 
               value="banking" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
@@ -151,6 +159,10 @@ export default function CompanySettingsPage() {
 
           <TabsContent value="theme">
             <ThemeSettings embedded />
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <PdfTemplateSettings />
           </TabsContent>
 
           <TabsContent value="banking">

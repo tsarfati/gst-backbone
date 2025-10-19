@@ -295,6 +295,7 @@ export default function TimecardReportViews({
                       <TableHead>Cost Code</TableHead>
                       <TableHead>Punch In</TableHead>
                       <TableHead>Punch Out</TableHead>
+                      <TableHead>Break</TableHead>
                       <TableHead>Hours</TableHead>
                       <TableHead>Overtime</TableHead>
                       <TableHead>Status</TableHead>
@@ -326,6 +327,9 @@ export default function TimecardReportViews({
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {record.break_minutes ? `${record.break_minutes} min` : "-"}
                         </TableCell>
                         <TableCell className="font-medium">{formatDuration(record.total_hours)}</TableCell>
                         <TableCell className="text-orange-600">

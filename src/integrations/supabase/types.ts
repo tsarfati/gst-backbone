@@ -2680,6 +2680,65 @@ export type Database = {
           },
         ]
       }
+      pdf_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          font_family: string
+          footer_text: string | null
+          header_text: string | null
+          id: string
+          notes: string | null
+          primary_color: string | null
+          show_company_info: boolean
+          show_contact_info: boolean
+          show_logo: boolean
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          font_family?: string
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          notes?: string | null
+          primary_color?: string | null
+          show_company_info?: boolean
+          show_contact_info?: boolean
+          show_logo?: boolean
+          template_type: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          font_family?: string
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          notes?: string | null
+          primary_color?: string | null
+          show_company_info?: boolean
+          show_contact_info?: boolean
+          show_logo?: boolean
+          template_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pin_employee_timecard_settings: {
         Row: {
           assigned_cost_codes: string[]
