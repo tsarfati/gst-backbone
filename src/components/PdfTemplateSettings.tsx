@@ -42,74 +42,60 @@ interface TemplateSettings {
 
 const TEMPLATE_PRESETS = {
   professional: {
-    name: 'Professional',
-    header_html: '<div style="border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 20px;">\n  <div style="font-size: 28px; font-weight: bold; color: #1e3a8a; margin-bottom: 8px;">{company_name}</div>\n  <div style="font-size: 16px; color: #475569;">Timecard Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Report Period: {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 15px; border-top: 1px solid #e2e8f0;">\n  <div>Confidential - For Internal Use Only</div>\n  <div style="margin-top: 5px;">Generated on {generated_date} | Page {page} of {pages}</div>\n</div>',
+    name: 'Professional Blue',
+    header_html: '<div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 25px;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #64748b; font-weight: 600;">Timecard Report</div>\n  <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Report Period: {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 20px; border-top: 1px solid #e2e8f0;">\n  <div style="font-weight: 600;">Confidential - For Internal Use Only</div>\n  <div style="margin-top: 5px;">Generated on {generated_date} | Page {page} of {pages}</div>\n</div>',
     primary_color: '#1e40af',
     table_header_bg: '#dbeafe',
   },
-  gradient: {
-    name: 'Gradient Flow',
-    header_html: '<div style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 16px; box-shadow: 0 20px 40px rgba(99,102,241,0.3);">\n  <div style="font-size: 36px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 20px rgba(0,0,0,0.3);">{company_name}</div>\n  <div style="font-size: 16px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">TIMECARD REPORT • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; padding-top: 15px;">\n  <div style="background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 700;">Page {page} of {pages} • {generated_date}</div>\n</div>',
-    primary_color: '#6366f1',
-    table_header_bg: '#f5f3ff',
+  corporate: {
+    name: 'Corporate Gray',
+    header_html: '<div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); padding: 25px 0; margin-bottom: 25px; border-bottom: 3px solid #334155;">\n  <div style="font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Timecard Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">{period}</div>\n</div>',
+    footer_html: '<div style="background: #f1f5f9; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 2px solid #cbd5e1; font-size: 10px; color: #475569; display: flex; justify-content: space-between; align-items: center;">\n  <div style="font-weight: 600;">© {company_name} - Confidential</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | {generated_date}</div>\n</div>',
+    primary_color: '#334155',
+    table_header_bg: '#f1f5f9',
   },
-  neon: {
-    name: 'Neon Dark',
-    header_html: '<div style="background: #0a0a0a; color: #00ff88; padding: 28px; margin: -20px -20px 25px -20px; border: 2px solid #00ff88; border-radius: 10px; box-shadow: 0 0 30px rgba(0,255,136,0.4), inset 0 0 20px rgba(0,255,136,0.1);">\n  <div style="font-size: 34px; font-weight: 900; margin-bottom: 10px; text-shadow: 0 0 15px #00ff88, 0 0 30px #00ff88;">{company_name}</div>\n  <div style="font-size: 15px; font-weight: 700; letter-spacing: 2px;">TIMECARD // {period}</div>\n</div>',
-    footer_html: '<div style="background: #0a0a0a; color: #00ff88; padding: 12px; margin: 20px -20px -20px -20px; text-align: center; font-size: 10px; border-top: 2px solid #00ff88; box-shadow: 0 0 20px rgba(0,255,136,0.3);">\n  <div style="font-weight: 800; letter-spacing: 1px;">CONFIDENTIAL</div>\n  <div style="margin-top: 3px; opacity: 0.9;">Page {page}/{pages} // {generated_date}</div>\n</div>',
-    primary_color: '#00ff88',
-    table_header_bg: '#1a2f23',
-  },
-  glass: {
-    name: 'Glassmorphism',
-    header_html: '<div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); padding: 28px; margin-bottom: 25px; border-radius: 16px; box-shadow: 0 8px 32px rgba(31,38,135,0.15);">\n  <div style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #475569; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.08);">\n  <div style="font-weight: 600;">Page {page} of {pages} • Generated {generated_date}</div>\n</div>',
-    primary_color: '#0ea5e9',
-    table_header_bg: 'rgba(14,165,233,0.12)',
+  executive: {
+    name: 'Executive Black',
+    header_html: '<div style="background: #0f172a; color: white; padding: 30px; margin: -20px -20px 25px -20px; border-bottom: 4px solid #334155;">\n  <div style="font-size: 34px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">Timecard Report</div>\n  <div style="font-size: 13px; opacity: 0.8; margin-top: 8px;">{period}</div>\n</div>',
+    footer_html: '<div style="background: #0f172a; color: white; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 3px solid #334155; font-size: 10px; text-align: center;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">CONFIDENTIAL DOCUMENT</div>\n  <div style="opacity: 0.85; font-weight: 500;">Page {page} of {pages} • Generated {generated_date}</div>\n</div>',
+    primary_color: '#0f172a',
+    table_header_bg: '#f8fafc',
   },
   modern: {
-    name: 'Modern Minimal',
-    header_html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 32px; margin: -20px -20px 25px -20px; border-radius: 12px;">\n  <div style="font-size: 38px; font-weight: 800; margin-bottom: 12px; letter-spacing: -1px;">{company_name}</div>\n  <div style="font-size: 16px; opacity: 0.95; font-weight: 500;">Timecard Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; color: #9ca3af; padding-top: 15px;">\n  <div style="font-weight: 600; margin-bottom: 3px;">CONFIDENTIAL DOCUMENT</div>\n  <div>Page {page} • Generated {generated_date}</div>\n</div>',
-    primary_color: '#667eea',
-    table_header_bg: '#ede9fe',
+    name: 'Modern Indigo',
+    header_html: '<div style="padding-bottom: 20px; margin-bottom: 25px; border-bottom: 3px solid #4f46e5;">\n  <div style="font-size: 32px; font-weight: 700; color: #312e81; margin-bottom: 10px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: center;">\n    <div style="font-size: 15px; color: #6366f1; font-weight: 600;">Timecard Report</div>\n    <div style="font-size: 12px; color: #6b7280; font-weight: 500;">{period}</div>\n  </div>\n</div>',
+    footer_html: '<div style="padding-top: 15px; border-top: 2px solid #e0e7ff; font-size: 10px; color: #6b7280;">\n  <table width="100%" style="border-collapse: collapse;"><tr>\n    <td style="font-weight: 600; text-align: left;">Confidential</td>\n    <td style="font-weight: 500; text-align: right;">Page {page} of {pages} • {generated_date}</td>\n  </tr></table>\n</div>',
+    primary_color: '#4f46e5',
+    table_header_bg: '#eef2ff',
   },
-  elegant: {
-    name: 'Elegant Serif',
-    header_html: '<div style="text-align: center; padding: 30px 0; margin-bottom: 25px; background: linear-gradient(to bottom, #fafaf9 0%, #ffffff 100%); border-bottom: 2px solid #e7e5e4;">\n  <div style="font-size: 36px; font-family: Georgia, serif; font-weight: 400; color: #292524; margin-bottom: 12px; letter-spacing: 1px;">{company_name}</div>\n  <div style="width: 80px; height: 3px; background: linear-gradient(90deg, transparent, #a8a29e, transparent); margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #78716c; font-style: italic; font-weight: 500;">Timecard Report</div>\n  <div style="font-size: 12px; color: #a8a29e; margin-top: 6px;">{period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; padding-top: 25px; margin-top: 25px; border-top: 2px solid #e7e5e4; font-size: 10px; color: #a8a29e;">\n  <div style="font-style: italic; font-family: Georgia, serif;">Page {page} of {pages}</div>\n  <div style="margin-top: 5px; font-size: 9px;">{generated_date}</div>\n</div>',
-    primary_color: '#78716c',
-    table_header_bg: '#fafaf9',
-  },
-  bold: {
-    name: 'Bold Impact',
-    header_html: '<div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 28px; margin: -20px -20px 28px -20px; border-bottom: 4px solid #7f1d1d; box-shadow: 0 10px 30px rgba(220,38,38,0.3);">\n  <div style="font-size: 36px; font-weight: 900; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">{company_name}</div>\n  <div style="font-size: 15px; font-weight: 700; opacity: 0.95; letter-spacing: 2px;">TIMECARD REPORT | {period}</div>\n</div>',
-    footer_html: '<div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 12px; margin: 25px -20px -20px -20px; text-align: center; font-size: 10px; border-top: 4px solid #7f1d1d;">\n  <div style="font-weight: 800; letter-spacing: 1.5px;">CONFIDENTIAL & PROPRIETARY</div>\n  <div style="margin-top: 4px; opacity: 0.9; font-weight: 600;">Page {page} of {pages} | {generated_date}</div>\n</div>',
-    primary_color: '#dc2626',
-    table_header_bg: '#fee2e2',
-  },
-  tech: {
-    name: 'Tech Mono',
-    header_html: '<div style="font-family: \'Courier New\', monospace; border: 2px solid #10b981; padding: 20px; margin-bottom: 25px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px;">\n  <div style="font-size: 22px; font-weight: bold; color: #047857; margin-bottom: 8px;">// {company_name}</div>\n  <div style="font-size: 13px; color: #059669; margin-top: 6px; font-weight: 600;">/* Timecard Report */</div>\n  <div style="font-size: 12px; color: #10b981; margin-top: 10px;">const period = "{period}";</div>\n</div>',
-    footer_html: '<div style="font-family: \'Courier New\', monospace; border-top: 2px solid #10b981; padding-top: 12px; font-size: 10px; color: #059669;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">// End of report</td>\n    <td style="text-align: right; font-weight: 600;">Page {page}/{pages}</td>\n  </tr></table>\n</div>',
-    primary_color: '#10b981',
+  financial: {
+    name: 'Financial Green',
+    header_html: '<div style="border-left: 5px solid #059669; padding-left: 20px; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 700; color: #064e3b; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; color: #047857; font-weight: 600; margin-bottom: 6px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #6b7280;">Period: {period}</div>\n</div>',
+    footer_html: '<div style="border-top: 2px solid #d1fae5; padding-top: 15px; font-size: 10px; color: #6b7280;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">This document is confidential</td>\n    <td style="text-align: right; font-weight: 500;">{generated_date} | Page {page}/{pages}</td>\n  </tr></table>\n</div>',
+    primary_color: '#059669',
     table_header_bg: '#d1fae5',
   },
+  legal: {
+    name: 'Legal Navy',
+    header_html: '<div style="text-align: center; padding: 25px 0; margin-bottom: 25px; border-bottom: 3px double #1e3a8a;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; letter-spacing: 0.5px;">{company_name}</div>\n  <div style="width: 100px; height: 2px; background: #3b82f6; margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #1e40af; font-weight: 600; letter-spacing: 1px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">For Period: {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; padding-top: 20px; margin-top: 25px; border-top: 3px double #1e3a8a; font-size: 10px; color: #64748b;">\n  <div style="font-weight: 700; color: #1e40af; margin-bottom: 5px;">CONFIDENTIAL & PRIVILEGED</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | Generated: {generated_date}</div>\n</div>',
+    primary_color: '#1e40af',
+    table_header_bg: '#dbeafe',
+  },
+  tech: {
+    name: 'Tech Slate',
+    header_html: '<div style="font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #334155 0%, #475569 100%); color: white; padding: 25px; margin: -20px -20px 25px -20px; border-radius: 8px;">\n  <div style="font-size: 30px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.9; font-weight: 500; letter-spacing: 0.5px;">TIMECARD REPORT • {period}</div>\n</div>',
+    footer_html: '<div style="font-family: system-ui, -apple-system, sans-serif; padding-top: 15px; border-top: 1px solid #cbd5e1; font-size: 10px; color: #64748b;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">Confidential</td>\n    <td style="text-align: right; font-weight: 500;">Page {page}/{pages} • {generated_date}</td>\n  </tr></table>\n</div>',
+    primary_color: '#334155',
+    table_header_bg: '#f1f5f9',
+  },
   minimal: {
-    name: 'Ultra Minimal',
-    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #6b7280; font-weight: 500;">Timecard Report</div>\n  <div style="font-size: 13px; color: #9ca3af; margin-top: 6px;">{period}</div>\n</div>',
+    name: 'Minimal Clean',
+    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: baseline;">\n    <div style="font-size: 14px; color: #6b7280; font-weight: 500;">Timecard Report</div>\n    <div style="font-size: 12px; color: #9ca3af;">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af;">\n  <table width="100%"><tr>\n    <td style="font-weight: 500;">{generated_date}</td>\n    <td style="text-align: right; font-weight: 500;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
     primary_color: '#111827',
     table_header_bg: '#f9fafb',
-  },
-  ocean: {
-    name: 'Ocean Wave',
-    header_html: '<div style="background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 14px; box-shadow: 0 20px 40px rgba(8,145,178,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; color: #0891b2; padding-top: 15px; font-weight: 600;">\n  <div>Page {page} of {pages} • {generated_date}</div>\n</div>',
-    primary_color: '#0891b2',
-    table_header_bg: '#cffafe',
   },
 };
 
@@ -145,14 +131,23 @@ export default function PdfTemplateSettings() {
     }
   }, [currentCompany?.id]);
 
-  // Initialize fabric canvas
+  // Initialize fabric canvas with proper sizing
   useEffect(() => {
     if (!canvasRef.current || fabricCanvasRef.current) return;
 
+    // Get the container size to match the preview
+    const container = canvasRef.current.parentElement;
+    if (!container) return;
+
+    const width = 842; // A4 landscape in points
+    const height = 595;
+
     const canvas = new FabricCanvas(canvasRef.current, {
-      width: 842,
-      height: 595,
+      width,
+      height,
       backgroundColor: 'transparent',
+      selection: true,
+      preserveObjectStacking: true,
     });
 
     fabricCanvasRef.current = canvas;
@@ -627,59 +622,21 @@ export default function PdfTemplateSettings() {
                       {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
                         <div className="space-y-3">
                           {timecardTemplate.header_images.map((img, index) => (
-                            <Card key={index}>
-                              <CardContent className="pt-6">
-                                <div className="flex items-start gap-4">
-                                  <img src={img.url} alt="Header" className="w-20 h-20 object-contain border rounded" />
-                                  <div className="flex-1 grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">X Position</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.x}
-                                        onChange={(e) => updateImagePosition(index, 'x', Number(e.target.value))}
-                                        className="h-8"
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">Y Position</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.y}
-                                        onChange={(e) => updateImagePosition(index, 'y', Number(e.target.value))}
-                                        className="h-8"
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">Width</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.width}
-                                        onChange={(e) => updateImagePosition(index, 'width', Number(e.target.value))}
-                                        className="h-8"
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-xs">Height</Label>
-                                      <Input
-                                        type="number"
-                                        value={img.height}
-                                        onChange={(e) => updateImagePosition(index, 'height', Number(e.target.value))}
-                                        className="h-8"
-                                      />
-                                    </div>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeHeaderImage(index)}
-                                    className="shrink-0"
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
+                            <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/20 transition-colors">
+                              <img src={img.url} alt={`Logo ${index + 1}`} className="w-16 h-16 object-contain border rounded bg-white" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">Logo {index + 1}</p>
+                                <p className="text-xs text-muted-foreground">Drag on preview to position and resize</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeHeaderImage(index)}
+                                className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           ))}
                         </div>
                       )}
@@ -793,11 +750,12 @@ export default function PdfTemplateSettings() {
                           {/* Interactive Canvas Overlay for Logo Positioning (inside preview) */}
                           <canvas
                             ref={canvasRef}
-                            className="absolute inset-0 w-full h-full pointer-events-auto"
+                            width={842}
+                            height={595}
+                            className="absolute inset-0 w-full h-full"
                             style={{
                               zIndex: 10,
-                              background: 'transparent',
-                              display: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 'block' : 'none'
+                              cursor: 'move',
                             }}
                           />
                         </div>
