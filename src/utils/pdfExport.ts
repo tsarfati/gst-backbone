@@ -264,23 +264,16 @@ export class PDFExporter {
       }
     };
 
-    // Add auto-sizing or fixed columns based on template
-    if (this.template?.auto_size_columns) {
-      tableConfig.columnStyles = {
-        5: { halign: 'right' },
-        6: { halign: 'right', fontStyle: 'bold' }
-      };
-    } else {
-      tableConfig.columnStyles = {
-        0: { cellWidth: 150 },
-        1: { cellWidth: 150 },
-        2: { cellWidth: 160 },
-        3: { cellWidth: 110 },
-        4: { cellWidth: 110 },
-        5: { cellWidth: 70, halign: 'right' },
-        6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
-      };
-    }
+    // Auto-size all columns to fit content and prevent clipping
+    tableConfig.columnStyles = {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 'auto' },
+      4: { cellWidth: 'auto' },
+      5: { cellWidth: 'auto', halign: 'right' },
+      6: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' }
+    };
 
     autoTable(doc, tableConfig);
 
