@@ -762,13 +762,15 @@ export default function PdfTemplateSettings() {
                       </div>
 
                       {/* Interactive Canvas Overlay for Logo Positioning */}
-                      <div className="absolute top-4 left-4 right-4 pointer-events-auto" style={{ aspectRatio: '842/595' }}>
-                        <canvas 
-                          ref={canvasRef} 
-                          className="w-full h-full"
-                          style={{ opacity: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 1 : 0 }}
-                        />
-                      </div>
+                      <canvas 
+                        ref={canvasRef} 
+                        className="absolute top-4 left-4 pointer-events-auto"
+                        style={{ 
+                          width: 'calc(100% - 2rem)',
+                          height: 'calc(100% - 2rem)',
+                          display: timecardTemplate.header_images && timecardTemplate.header_images.length > 0 ? 'block' : 'none'
+                        }}
+                      />
                     </div>
 
                     {/* Logo List */}
