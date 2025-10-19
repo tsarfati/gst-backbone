@@ -718,7 +718,7 @@ export default function TimecardReports() {
         }
       };
 
-      await exportTimecardToPDF(reportData, company);
+      await exportTimecardToPDF(reportData, company, currentCompany?.id);
       
       toast({
         title: "Export Complete",

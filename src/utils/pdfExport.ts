@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { supabase } from "@/integrations/supabase/client";
+
 export interface CompanyBranding {
   logo_url?: string;
   name: string;
@@ -11,7 +12,7 @@ export interface CompanyBranding {
   zip_code?: string;
   phone?: string;
   email?: string;
-  primaryColor?: string; // HSL color like "220, 90%, 56%"
+  primaryColor?: string;
 }
 
 export interface ReportData {
@@ -27,11 +28,32 @@ export interface ReportData {
   };
 }
 
+interface PdfTemplate {
+  header_html?: string;
+  footer_html?: string;
+  font_family: string;
+  primary_color?: string;
+  secondary_color?: string;
+  table_header_bg?: string;
+  table_border_color?: string;
+  table_stripe_color?: string;
+  auto_size_columns?: boolean;
+  header_images?: Array<{
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
+}
+
 export class PDFExporter {
   private company: CompanyBranding;
+  private template?: PdfTemplate;
 
-  constructor(company: CompanyBranding) {
+  constructor(company: CompanyBranding, template?: PdfTemplate) {
     this.company = company;
+    this.template = template;
   }
 
   async exportTimecardReport(reportData: ReportData): Promise<void> {
@@ -40,17 +62,33 @@ export class PDFExporter {
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPos = 32;
 
-    // Use Helvetica with modern styling (closest to Inter/modern sans-serif)
-    doc.setFont('helvetica', 'normal');
+    // Set font from template or use default
+    const fontFamily = this.template?.font_family || 'helvetica';
+    doc.setFont(fontFamily, 'normal');
 
-    // Modern rounded header container
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
+    // Add custom header images if defined in template
+    if (this.template?.header_images && this.template.header_images.length > 0) {
+      for (const img of this.template.header_images) {
+        try {
+          const { dataUrl } = await this.loadImageWithDimensions(img.url);
+          doc.addImage(dataUrl, 'PNG', img.x, img.y, img.width, img.height);
+        } catch (e) {
+          console.error('Failed to load header image:', e);
+        }
+      }
+    }
 
-    // Logo + Company info
-    const logoX = 36;
-    const logoY = 32;
-    let logoLoaded = false;
+    // Render custom HTML header if defined, otherwise use default
+    if (this.template?.header_html) {
+      yPos = await this.renderHtmlHeader(doc, this.template.header_html, reportData, yPos, pageWidth);
+    } else {
+      // Default header rendering
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
+
+      const logoX = 36;
+      const logoY = 32;
+      let logoLoaded = false;
     
     if (this.company.logo_url) {
       try {
@@ -146,10 +184,11 @@ export class PDFExporter {
     doc.setTextColor(71, 85, 105);
     const rangeText = `Period: ${reportData.dateRange}`;
     doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
-    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
-    doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
+      const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+      doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
 
-    yPos = 120;
+      yPos = 120;
+    }
 
     // Employee info if provided - modern rounded container
     if (reportData.employee) {
@@ -173,14 +212,19 @@ export class PDFExporter {
       record.total_hours?.toFixed(2) || '0.00'
     ]);
 
-    // Modern table styling
-    autoTable(doc, {
+    // Get colors from template or use defaults
+    const headerBgColor = this.hexToRgb(this.template?.table_header_bg || '#f1f5f9');
+    const borderColor = this.hexToRgb(this.template?.table_border_color || '#e2e8f0');
+    const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
+
+    // Table configuration with template styling
+    const tableConfig: any = {
       startY: yPos,
       head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours']],
       body: tableData,
       theme: 'plain',
       headStyles: {
-        fillColor: [241, 245, 249],
+        fillColor: headerBgColor,
         textColor: [15, 23, 42],
         fontSize: 10,
         fontStyle: 'bold',
@@ -191,13 +235,41 @@ export class PDFExporter {
         fontSize: 9,
         cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
         textColor: [51, 65, 85],
-        lineColor: [226, 232, 240],
+        lineColor: borderColor,
         lineWidth: 0.5
       },
       alternateRowStyles: {
-        fillColor: [248, 250, 252]
+        fillColor: stripeColor
       },
-      columnStyles: {
+      styles: {
+        overflow: 'ellipsize',
+        font: fontFamily
+      },
+      didDrawPage: (data) => {
+        // Render custom footer if defined
+        if (this.template?.footer_html) {
+          this.renderHtmlFooter(doc, this.template.footer_html, reportData, pageHeight - 30, pageWidth);
+        } else {
+          doc.setFontSize(8);
+          doc.setTextColor(148, 163, 184);
+          doc.text(
+            `Page ${doc.getCurrentPageInfo().pageNumber}`,
+            pageWidth / 2,
+            pageHeight - 10,
+            { align: 'center' }
+          );
+        }
+      }
+    };
+
+    // Add auto-sizing or fixed columns based on template
+    if (this.template?.auto_size_columns) {
+      tableConfig.columnStyles = {
+        5: { halign: 'right' },
+        6: { halign: 'right', fontStyle: 'bold' }
+      };
+    } else {
+      tableConfig.columnStyles = {
         0: { cellWidth: 150 },
         1: { cellWidth: 150 },
         2: { cellWidth: 160 },
@@ -205,21 +277,10 @@ export class PDFExporter {
         4: { cellWidth: 110 },
         5: { cellWidth: 70, halign: 'right' },
         6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
-      },
-      styles: {
-        overflow: 'ellipsize'
-      },
-      didDrawPage: (data) => {
-        doc.setFontSize(8);
-        doc.setTextColor(148, 163, 184);
-        doc.text(
-          `Page ${doc.getCurrentPageInfo().pageNumber}`,
-          pageWidth / 2,
-          pageHeight - 10,
-          { align: 'center' }
-        );
-      }
-    });
+      };
+    }
+
+    autoTable(doc, tableConfig);
 
     // Modern summary section
     const finalY = (doc as any).lastAutoTable.finalY + 16;
@@ -244,14 +305,82 @@ export class PDFExporter {
     const totalText = `Total Hours: ${reportData.summary.totalHours.toFixed(2)}`;
     doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), finalY + 38);
 
-    // Footer
-    doc.setFontSize(7);
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'italic');
-    const footerY = pageHeight - 12;
-    doc.text('Confidential - For Internal Use Only', pageWidth / 2, footerY, { align: 'center' });
-
     doc.save(`timecard-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  }
+
+  private async renderHtmlHeader(doc: jsPDF, html: string, reportData: ReportData, startY: number, pageWidth: number): Promise<number> {
+    // Simple HTML to PDF rendering for headers
+    // Replace placeholders
+    const rendered = this.replacePlaceholders(html, reportData);
+    
+    // Very basic HTML parsing - in production, consider using html2canvas or similar
+    const div = document.createElement('div');
+    div.innerHTML = rendered;
+    div.style.width = `${pageWidth - 80}px`;
+    div.style.position = 'absolute';
+    div.style.left = '-9999px';
+    document.body.appendChild(div);
+    
+    const lines = div.innerText.split('\n');
+    let yPos = startY + 20;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    
+    lines.forEach(line => {
+      if (line.trim()) {
+        doc.text(line, 40, yPos);
+        yPos += 16;
+      }
+    });
+    
+    document.body.removeChild(div);
+    return yPos + 20;
+  }
+
+  private renderHtmlFooter(doc: jsPDF, html: string, reportData: ReportData, yPos: number, pageWidth: number): void {
+    const rendered = this.replacePlaceholders(html, reportData);
+    
+    const div = document.createElement('div');
+    div.innerHTML = rendered;
+    div.style.width = `${pageWidth - 80}px`;
+    div.style.position = 'absolute';
+    div.style.left = '-9999px';
+    document.body.appendChild(div);
+    
+    const lines = div.innerText.split('\n');
+    
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    
+    lines.forEach((line, idx) => {
+      if (line.trim()) {
+        doc.text(line, pageWidth / 2, yPos + (idx * 12), { align: 'center' });
+      }
+    });
+    
+    document.body.removeChild(div);
+  }
+
+  private replacePlaceholders(html: string, reportData: ReportData): string {
+    return html
+      .replace(/{company_name}/g, this.company.name)
+      .replace(/{period}/g, reportData.dateRange)
+      .replace(/{date}/g, format(new Date(), 'MM/dd/yyyy'))
+      .replace(/{employee_name}/g, reportData.employee || '')
+      .replace(/{job_name}/g, '')
+      .replace(/{page}/g, '1')
+      .replace(/{pages}/g, '1')
+      .replace(/{generated_date}/g, format(new Date(), 'MM/dd/yyyy hh:mm a'));
+  }
+
+  private hexToRgb(hex: string): [number, number, number] {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16)
+    ] : [241, 245, 249];
   }
 
   private parseHSLColor(hsl: string): [number, number, number] {
@@ -313,7 +442,30 @@ export class PDFExporter {
   }
 }
 
-export const exportTimecardToPDF = async (reportData: ReportData, company: CompanyBranding) => {
-  const exporter = new PDFExporter(company);
+export const exportTimecardToPDF = async (reportData: ReportData, company: CompanyBranding, companyId?: string) => {
+  // Load template from database if company ID is provided
+  let template: PdfTemplate | undefined;
+  
+  if (companyId) {
+    try {
+      const { data } = await supabase
+        .from('pdf_templates')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('template_type', 'timecard')
+        .maybeSingle();
+      
+      if (data) {
+        template = {
+          ...data,
+          header_images: (data.header_images as any) || []
+        } as PdfTemplate;
+      }
+    } catch (error) {
+      console.error('Error loading PDF template:', error);
+    }
+  }
+  
+  const exporter = new PDFExporter(company, template);
   await exporter.exportTimecardReport(reportData);
 };

@@ -2682,19 +2682,18 @@ export type Database = {
       }
       pdf_templates: {
         Row: {
+          auto_size_columns: boolean | null
           company_id: string
           created_at: string
           created_by: string
           font_family: string
-          footer_text: string | null
-          header_text: string | null
+          footer_html: string | null
+          header_html: string | null
+          header_images: Json | null
           id: string
           notes: string | null
           primary_color: string | null
           secondary_color: string | null
-          show_company_info: boolean
-          show_contact_info: boolean
-          show_logo: boolean
           table_border_color: string | null
           table_header_bg: string | null
           table_stripe_color: string | null
@@ -2702,19 +2701,18 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_size_columns?: boolean | null
           company_id: string
           created_at?: string
           created_by: string
           font_family?: string
-          footer_text?: string | null
-          header_text?: string | null
+          footer_html?: string | null
+          header_html?: string | null
+          header_images?: Json | null
           id?: string
           notes?: string | null
           primary_color?: string | null
           secondary_color?: string | null
-          show_company_info?: boolean
-          show_contact_info?: boolean
-          show_logo?: boolean
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
@@ -2722,19 +2720,18 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_size_columns?: boolean | null
           company_id?: string
           created_at?: string
           created_by?: string
           font_family?: string
-          footer_text?: string | null
-          header_text?: string | null
+          footer_html?: string | null
+          header_html?: string | null
+          header_images?: Json | null
           id?: string
           notes?: string | null
           primary_color?: string | null
           secondary_color?: string | null
-          show_company_info?: boolean
-          show_contact_info?: boolean
-          show_logo?: boolean
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
