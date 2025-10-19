@@ -26,8 +26,16 @@ interface Job {
   address?: string;
 }
 
+interface EmployeeGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+}
+
 interface FilterState {
   employees: string[];
+  groups: string[];
   jobs: string[];
   startDate?: Date;
   endDate?: Date;
@@ -44,6 +52,7 @@ interface TimecardReportFiltersProps {
   onFiltersChange: (filters: FilterState) => void;
   employees: Employee[];
   jobs: Job[];
+  groups: EmployeeGroup[];
   onApplyFilters: () => void;
   onClearFilters: () => void;
   loading?: boolean;
@@ -54,6 +63,7 @@ export default function TimecardReportFilters({
   onFiltersChange,
   employees,
   jobs,
+  groups,
   onApplyFilters,
   onClearFilters,
   loading = false
@@ -98,9 +108,17 @@ export default function TimecardReportFilters({
     updateFilters({ status: updated });
   };
 
+  const toggleGroup = (groupId: string) => {
+    const updated = filters.groups.includes(groupId)
+      ? filters.groups.filter(id => id !== groupId)
+      : [...filters.groups, groupId];
+    updateFilters({ groups: updated });
+  };
+
   const getActiveFiltersCount = () => {
     let count = 0;
     if (filters.employees.length > 0) count++;
+    if (filters.groups.length > 0) count++;
     if (filters.jobs.length > 0) count++;
     if (filters.startDate) count++;
     if (filters.endDate) count++;
@@ -186,11 +204,60 @@ export default function TimecardReportFilters({
           </div>
         </div>
 
+        {/* Employee Groups Selection */}
+        {groups.length > 0 && (
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Employee Groups ({filters.groups.length} selected)
+            </Label>
+            <div className="flex gap-2 mb-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => updateFilters({ groups: groups.map(g => g.id) })}
+              >
+                Select All
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => updateFilters({ groups: [] })}
+              >
+                Clear All
+              </Button>
+            </div>
+            <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
+              <div className="space-y-2">
+                {groups.map((group) => (
+                  <div key={group.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`group-${group.id}`}
+                      checked={filters.groups.includes(group.id)}
+                      onCheckedChange={() => toggleGroup(group.id)}
+                    />
+                    <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2">
+                      <span 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: group.color || '#3b82f6' }}
+                      />
+                      {group.name}
+                      {group.description && (
+                        <span className="text-muted-foreground">- {group.description}</span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Employee Selection */}
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Employees ({filters.employees.length} selected)
+            Individual Employees ({filters.employees.length} selected)
           </Label>
           <div className="flex gap-2 mb-2">
             <Button 

@@ -49,8 +49,16 @@ interface TimeCardRecord {
   punch_out_location?: string;
 }
 
+interface EmployeeGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+}
+
 interface FilterState {
   employees: string[];
+  groups: string[];
   jobs: string[];
   startDate?: Date;
   endDate?: Date;
@@ -69,12 +77,14 @@ export default function TimecardReports() {
   const [records, setRecords] = useState<TimeCardRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [groups, setGroups] = useState<EmployeeGroup[]>([]);
   const [company, setCompany] = useState<CompanyBranding | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'timecards' | 'punches'>('timecards');
   const [punches, setPunches] = useState<any[]>([]);
   const [filters, setFilters] = useState<FilterState>({
     employees: [],
+    groups: [],
     jobs: [],
     startDate: startOfWeek(new Date()),
     endDate: endOfWeek(new Date()),
@@ -96,7 +106,8 @@ export default function TimecardReports() {
     await Promise.all([
       loadEmployees(),
       loadJobs(),
-      loadCompany()
+      loadCompany(),
+      loadGroups()
     ]);
     await Promise.all([
       loadTimecardRecords(),
@@ -260,6 +271,23 @@ export default function TimecardReports() {
     }
   };
 
+  const loadGroups = async () => {
+    if (!currentCompany?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('employee_groups')
+        .select('id, name, description, color')
+        .eq('company_id', currentCompany.id)
+        .order('name');
+
+      if (error) throw error;
+      setGroups(data || []);
+    } catch (error) {
+      console.error('Error loading employee groups:', error);
+    }
+  };
+
   const loadTimecardRecords = async () => {
     if (!currentCompany?.id) return;
     
@@ -289,8 +317,22 @@ export default function TimecardReports() {
         .order('punch_in_time', { ascending: false });
 
       // Apply filters
-      if (filters.employees.length > 0) {
-        query = query.in('user_id', filters.employees);
+      // Expand groups into employee IDs
+      let employeeFilter = [...filters.employees];
+      if (filters.groups.length > 0) {
+        const { data: groupMembers } = await supabase
+          .from('employee_group_members')
+          .select('user_id')
+          .in('group_id', filters.groups);
+        
+        if (groupMembers) {
+          const groupEmployeeIds = groupMembers.map(m => m.user_id);
+          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
+        }
+      }
+
+      if (employeeFilter.length > 0) {
+        query = query.in('user_id', employeeFilter);
       } else if (!isManager) {
         // Non-managers can only see their own records
         query = query.eq('user_id', user?.id);
@@ -472,6 +514,7 @@ export default function TimecardReports() {
   const handleClearFilters = () => {
     setFilters({
       employees: [],
+      groups: [],
       jobs: [],
       startDate: startOfWeek(new Date()),
       endDate: endOfWeek(new Date()),
@@ -515,8 +558,22 @@ export default function TimecardReports() {
       }
 
       // Apply employee filters if they exist
-      if (filters.employees.length > 0) {
-        query = query.in('user_id', filters.employees);
+      // Expand groups into employee IDs
+      let employeeFilter = [...filters.employees];
+      if (filters.groups.length > 0) {
+        const { data: groupMembers } = await supabase
+          .from('employee_group_members')
+          .select('user_id')
+          .in('group_id', filters.groups);
+        
+        if (groupMembers) {
+          const groupEmployeeIds = groupMembers.map(m => m.user_id);
+          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
+        }
+      }
+
+      if (employeeFilter.length > 0) {
+        query = query.in('user_id', employeeFilter);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
@@ -546,8 +603,22 @@ export default function TimecardReports() {
         .order('punch_time', { ascending: false });
 
       // Apply filters - need to handle both user_id and pin_employee_id
-      if (filters.employees.length > 0) {
-        const quotedIds = filters.employees.map((id) => `"${id}"`).join(',');
+      // Expand groups into employee IDs
+      let employeeFilter = [...filters.employees];
+      if (filters.groups.length > 0) {
+        const { data: groupMembers } = await supabase
+          .from('employee_group_members')
+          .select('user_id')
+          .in('group_id', filters.groups);
+        
+        if (groupMembers) {
+          const groupEmployeeIds = groupMembers.map(m => m.user_id);
+          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
+        }
+      }
+
+      if (employeeFilter.length > 0) {
+        const quotedIds = employeeFilter.map((id) => `"${id}"`).join(',');
         query = query.or(`user_id.in.(${quotedIds}),pin_employee_id.in.(${quotedIds})`);
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
@@ -854,6 +925,7 @@ export default function TimecardReports() {
           onFiltersChange={setFilters}
           employees={employees}
           jobs={jobs}
+          groups={groups}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
           loading={loading}
