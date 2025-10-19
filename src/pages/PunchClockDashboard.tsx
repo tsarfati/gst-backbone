@@ -169,6 +169,8 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .from('punch_records')
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
         .eq('company_id', currentCompany.id)
+        .in('user_id', companyUserIds)
+        .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
         .order('punch_time', { ascending: false });
 
       // Get the most recent punch for each user

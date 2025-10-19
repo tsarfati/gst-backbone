@@ -111,7 +111,8 @@ export default function TimecardReports() {
       const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
 
       // Get PIN employees linked to this company via settings or existing data
-      const [pinSettingsRes, tcUsersRes, punchUsersRes] = await Promise.all([
+      // Also get all PIN employees directly from company_id
+      const [pinSettingsRes, tcUsersRes, punchUsersRes, directPinEmployees] = await Promise.all([
         (supabase as any)
           .from('pin_employee_timecard_settings')
           .select('pin_employee_id')
@@ -124,14 +125,20 @@ export default function TimecardReports() {
           .from('punch_records')
           .select('user_id')
           .eq('company_id', currentCompany.id),
+        supabase
+          .from('pin_employees')
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true),
       ]);
 
       const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
       const idsFromTimeCards: string[] = (tcUsersRes.data || []).map(r => r.user_id);
       const idsFromPunches: string[] = (punchUsersRes.data || []).map(r => r.user_id);
+      const directPinIds: string[] = (directPinEmployees.data || []).map(r => r.id);
 
-      // Candidates for PIN employees are any ids seen in settings or activity
-      const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
+      // Candidates for PIN employees are any ids seen in settings, activity, or directly linked to company
+      const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches, ...directPinIds]));
       if (companyUserIds.length === 0 && candidateIds.length === 0) {
         setEmployees([]);
         return;
