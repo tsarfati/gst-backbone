@@ -322,10 +322,18 @@ export default function TimecardReports() {
 
       if (error) throw error;
 
+      // Strictly scope to this company's jobs
+      const { data: allowedJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+      const allowedJobSet = new Set((allowedJobs || []).map((j: any) => j.id));
+      const filteredData = (data || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+
       // Get additional data for display
-      const jobIds = [...new Set((data || []).map(r => r.job_id).filter(Boolean))];
-      const costCodeIds = [...new Set((data || []).map(r => r.cost_code_id).filter(Boolean))];
-      const userIds = [...new Set((data || []).map(r => r.user_id))];
+      const jobIds = [...new Set(filteredData.map((r: any) => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set(filteredData.map((r: any) => r.cost_code_id).filter(Boolean))];
+      const userIds = [...new Set(filteredData.map((r: any) => r.user_id))];
 
       const [jobsData, costCodesData, profilesData, pinEmployeesData] = await Promise.all([
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
@@ -344,7 +352,7 @@ export default function TimecardReports() {
       const pinMap = new Map((pinEmployeesData.data || []).map(emp => [emp.id, emp]));
 
       // Transform the data
-      const transformedRecords: TimeCardRecord[] = (data || []).map(record => {
+      const transformedRecords: TimeCardRecord[] = filteredData.map((record: any) => {
         const job = jobsMap.get(record.job_id);
         const costCode = costCodesMap.get(record.cost_code_id);
         const profile = profilesMap.get(record.user_id);
@@ -523,11 +531,19 @@ export default function TimecardReports() {
 
       console.log('Punch records loaded:', punchData.length, 'records');
 
-      const userIds = [...new Set((punchData || []).map((r: any) => r.user_id).filter(Boolean))];
-      const pinEmployeeIds = [...new Set((punchData || []).map((r: any) => r.pin_employee_id).filter(Boolean))];
+      // Strictly scope to this company's jobs
+      const { data: allowedJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+      const allowedJobSet = new Set((allowedJobs || []).map((j: any) => j.id));
+      const filteredPunches = (punchData || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+
+      const userIds = [...new Set(filteredPunches.map((r: any) => r.user_id).filter(Boolean))];
+      const pinEmployeeIds = [...new Set(filteredPunches.map((r: any) => r.pin_employee_id).filter(Boolean))];
       const allPossiblePinIds = [...new Set([...pinEmployeeIds, ...userIds])];
-      const jobIds = [...new Set((punchData || []).map((r: any) => r.job_id).filter(Boolean))];
-      const costCodeIds = [...new Set((punchData || []).map((r: any) => r.cost_code_id).filter(Boolean))];
+      const jobIds = [...new Set(filteredPunches.map((r: any) => r.job_id).filter(Boolean))];
+      const costCodeIds = [...new Set(filteredPunches.map((r: any) => r.cost_code_id).filter(Boolean))];
 
       const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
@@ -545,7 +561,7 @@ export default function TimecardReports() {
       const jobsMap = new Map((jobsData.data || []).map((j: any) => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map((c: any) => [c.id, c]));
 
-      const transformed = (punchData || []).map((r: any) => {
+      const transformed = filteredPunches.map((r: any) => {
         const profile = profilesMap.get(r.user_id);
         const pinEmp = pinMap.get(r.pin_employee_id) || pinMap.get(r.user_id);
         const employee_name = profile?.display_name || pinEmp?.display_name ||
