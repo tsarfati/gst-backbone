@@ -132,92 +132,77 @@ export default function TimeSheets() {
     if (!user || !currentCompany?.id) return;
 
     try {
-      // Get all unique user IDs who have time cards for this company
-      const { data: timeCardUsers } = await supabase
-        .from('time_cards')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .neq('status', 'deleted');
-      
-      const timeCardUserIds: string[] = [...new Set((timeCardUsers || []).map(u => u.user_id))];
-      
-      // Get user IDs for this company from user_company_access (regular users)
+      // Get users with access to current company
       const { data: companyUsers } = await supabase
         .from('user_company_access')
         .select('user_id')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
       
-      // Get PIN employees assigned to this company via settings
-      const { data: pinSettings } = await (supabase as any)
+      const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
+
+      // Build candidate PIN employee IDs based on settings and activity for THIS company
+      const pinSettingsRes = await supabase
         .from('pin_employee_timecard_settings')
         .select('pin_employee_id')
         .eq('company_id', currentCompany.id);
-      
-      const pinEmployeeIds = (pinSettings || []).map((s: any) => s.pin_employee_id as string).filter(Boolean);
-      
-      // Combine IDs from company access, time cards, and pin settings
-      const combinedIds = [
-        ...(companyUsers || []).map((u: any) => u.user_id as string),
-        ...timeCardUserIds,
-        ...pinEmployeeIds,
-      ];
-      const allUserIds = Array.from(new Set(combinedIds)).filter(Boolean);
-      
-      if (allUserIds.length === 0) {
-        // prevent empty IN() errors
-        allUserIds.push('00000000-0000-0000-0000-000000000000');
-      }
-      
-      // Load regular users
-      const profilesResponse = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, display_name')
-        .in('user_id', allUserIds);
-      
-      // Load PIN employees by IDs
-      const pinEmployeesResponse = await (supabase as any)
-        .from('pin_employees')
-        .select('id, first_name, last_name, display_name')
-        .in('id', allUserIds);
 
-      const employeeOptions: Array<{id: string, name: string}> = [];
+      const tcUsersRes = await supabase
+        .from('time_cards')
+        .select('user_id')
+        .eq('company_id', currentCompany.id);
+
+      const punchPinsRes = await supabase
+        .from('punch_records')
+        .select('pin_employee_id')
+        .eq('company_id', currentCompany.id);
+
+      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
+      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
+      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
+
+      if (companyUserIds.length === 0 && candidatePinIds.length === 0) {
+        setEmployees([]);
+        return;
+      }
+
+      // Load regular users from profiles
+      const profilesRes: any = await supabase
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name')
+        .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
+
+      // Load PIN employees that actually appear for this company
+      const pinRes: any = await (supabase as any)
+        .from('pin_employees')
+        .select('id, display_name, first_name, last_name')
+        .eq('is_active', true)
+        .in('id', candidatePinIds.length > 0 ? candidatePinIds : ['00000000-0000-0000-0000-000000000000']);
+
+      const list: Array<{id: string, name: string}> = [];
       const addedIds = new Set<string>();
 
-      // Add regular users
-      if (profilesResponse.data) {
-        for (const emp of profilesResponse.data) {
-          employeeOptions.push({
-            id: emp.user_id,
-            name: emp.display_name || 
-                  (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
-                   emp.first_name || emp.last_name || 'Unknown Employee')
-          });
-          addedIds.add(emp.user_id);
-        }
+      // Add regular profiles
+      for (const p of (profilesRes.data || [])) {
+        const name = p.display_name || (p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.first_name || p.last_name || 'Unknown');
+        list.push({ id: p.user_id, name });
+        addedIds.add(p.user_id);
       }
 
       // Add PIN employees
-      if (pinEmployeesResponse.data) {
-        for (const emp of pinEmployeesResponse.data) {
-          if (!addedIds.has(emp.id)) {
-            employeeOptions.push({
-              id: emp.id,
-              name: emp.display_name || 
-                    (emp.first_name && emp.last_name ? `${emp.first_name} ${emp.last_name}` : 
-                     emp.first_name || emp.last_name || 'Unknown Employee')
-            });
-            addedIds.add(emp.id);
-          }
+      for (const pe of (pinRes.data || [])) {
+        if (!addedIds.has(pe.id)) {
+          const name = pe.display_name || (pe.first_name && pe.last_name ? `${pe.first_name} ${pe.last_name}` : pe.first_name || pe.last_name || 'Unknown');
+          list.push({ id: pe.id, name });
+          addedIds.add(pe.id);
         }
       }
 
-      // Sort combined list by name
-      employeeOptions.sort((a, b) => a.name.localeCompare(b.name));
-
-      setEmployees(employeeOptions);
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      setEmployees(list);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error loading employees:', error);
     }
   };
 
