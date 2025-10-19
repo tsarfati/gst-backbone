@@ -110,26 +110,46 @@ export default function TimecardReports() {
       
       const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
 
-      // Build candidate PIN employee IDs based on activity/settings in this company
-      const [pinSettingsRes, tcUsersRes, punchUsersRes] = await Promise.all([
-        supabase
-          .from('pin_employee_timecard_settings')
-          .select('pin_employee_id')
-          .eq('company_id', currentCompany.id),
-        supabase
-          .from('time_cards')
-          .select('user_id')
-          .eq('company_id', currentCompany.id),
-        supabase
-          .from('punch_records')
-          .select('user_id, pin_employee_id')
-          .eq('company_id', currentCompany.id),
-      ]);
+      // Date range (use current filters)
+      const startISO = filters.startDate ? new Date(Date.UTC(
+        filters.startDate.getFullYear(),
+        filters.startDate.getMonth(),
+        filters.startDate.getDate(),
+        0, 0, 0, 0
+      )).toISOString() : undefined;
+      const endISO = filters.endDate ? new Date(Date.UTC(
+        filters.endDate.getFullYear(),
+        filters.endDate.getMonth(),
+        filters.endDate.getDate(),
+        23, 59, 59, 999
+      )).toISOString() : undefined;
+
+      // Build candidate PIN employee IDs based on settings and activity within date range for THIS company
+      const pinSettingsRes = await supabase
+        .from('pin_employee_timecard_settings')
+        .select('pin_employee_id')
+        .eq('company_id', currentCompany.id);
+
+      let tcQuery = supabase
+        .from('time_cards')
+        .select('user_id')
+        .eq('company_id', currentCompany.id);
+      if (startISO) tcQuery = tcQuery.gte('punch_in_time', startISO);
+      if (endISO) tcQuery = tcQuery.lte('punch_in_time', endISO);
+      const tcUsersRes = await tcQuery;
+
+      let punchQuery = supabase
+        .from('punch_records')
+        .select('pin_employee_id')
+        .eq('company_id', currentCompany.id);
+      if (startISO) punchQuery = punchQuery.gte('punch_time', startISO);
+      if (endISO) punchQuery = punchQuery.lte('punch_time', endISO);
+      const punchPinsRes = await punchQuery;
 
       const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
-      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
-      const idsFromPunches: string[] = (punchUsersRes.data || []).flatMap((r: any) => [r.pin_employee_id, r.user_id]).filter(Boolean);
-      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
+      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
+      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
 
       if (companyUserIds.length === 0 && candidatePinIds.length === 0) {
         setEmployees([]);
@@ -142,10 +162,11 @@ export default function TimecardReports() {
         .select('user_id, display_name, first_name, last_name')
         .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
 
-      // Load PIN employees that actually appear in this company's activity/settings
+      // Load PIN employees that actually appear for this company within the date range
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
         .select('id, display_name, first_name, last_name')
+        .eq('is_active', true)
         .in('id', candidatePinIds.length > 0 ? candidatePinIds : ['00000000-0000-0000-0000-000000000000']);
 
       const list: Employee[] = [];
@@ -391,7 +412,7 @@ export default function TimecardReports() {
   };
 
   const handleApplyFilters = () => {
-    Promise.all([loadTimecardRecords(), loadPunchRecords()]);
+    Promise.all([loadEmployees(), loadTimecardRecords(), loadPunchRecords()]);
   };
 
   const handleClearFilters = () => {
@@ -407,7 +428,7 @@ export default function TimecardReports() {
       showDeleted: false
     });
     // Reload after clearing
-    Promise.all([loadTimecardRecords(), loadPunchRecords()]);
+    Promise.all([loadEmployees(), loadTimecardRecords(), loadPunchRecords()]);
   };
 
   const checkForUnapprovedPunches = async (): Promise<boolean> => {
