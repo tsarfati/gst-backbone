@@ -293,7 +293,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
                     </Badge>
                   </TableCell>
                   <TableCell>{record.job_name || "-"}</TableCell>
-                  <TableCell>{record.cost_code || "-"}</TableCell>
+                  <TableCell className="text-muted-foreground">{record.cost_code || "-"}</TableCell>
                   <TableCell>
                     {record.latitude && record.longitude ? (
                       <div className="flex items-center gap-1 text-green-600">

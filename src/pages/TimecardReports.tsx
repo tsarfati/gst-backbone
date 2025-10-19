@@ -575,6 +575,26 @@ export default function TimecardReports() {
       const jobsMap = new Map((jobsData.data || []).map((j: any) => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map((c: any) => [c.id, c]));
 
+      // Group punches by employee/job to apply punch-out cost code to punch-in
+      const groupedPunches = filteredPunches.reduce((acc: any, r: any) => {
+        const key = `${r.user_id || r.pin_employee_id}_${r.job_id}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(r);
+        return acc;
+      }, {});
+
+      // Sort each group by time and propagate cost codes from punch-out to punch-in
+      Object.values(groupedPunches).forEach((group: any) => {
+        group.sort((a: any, b: any) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime());
+        for (let i = 0; i < group.length - 1; i++) {
+          if (group[i].punch_type === 'punched_in' && group[i + 1].punch_type === 'punched_out') {
+            if (!group[i].cost_code_id && group[i + 1].cost_code_id) {
+              group[i].cost_code_id = group[i + 1].cost_code_id;
+            }
+          }
+        }
+      });
+
       const transformed = filteredPunches.map((r: any) => {
         const profile = profilesMap.get(r.user_id);
         const pinEmp = pinMap.get(r.pin_employee_id) || pinMap.get(r.user_id);
@@ -591,7 +611,7 @@ export default function TimecardReports() {
           job_id: r.job_id,
           job_name: job?.name || 'Unknown Job',
           cost_code_id: r.cost_code_id,
-          cost_code: code ? `${code.code} - ${code.description}` : 'Unknown Code',
+          cost_code: code ? `${code.code} - ${code.description}` : null,
           punch_time: r.punch_time,
           punch_type: r.punch_type,
           latitude: r.latitude,
@@ -645,7 +665,8 @@ export default function TimecardReports() {
           ? employees.find(e => e.user_id === filters.employees[0])?.display_name 
           : undefined,
         data,
-        totals: {
+        summary: {
+          totalRecords: data.length,
           totalHours: summary.totalHours,
           overtimeHours: summary.totalOvertimeHours,
           regularHours: summary.totalRegularHours
