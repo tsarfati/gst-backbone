@@ -43,87 +43,83 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
   const [creating, setCreating] = useState(false);
   const [selectedPunch, setSelectedPunch] = useState<any>(null);
   const [showPunchDetail, setShowPunchDetail] = useState(false);
-  const handleExportPDF = () => {
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+  
+  const handleExportPDF = async () => {
+    // Import the PDF export utility that uses templates
+    const { exportTimecardToPDF } = await import('@/utils/pdfExport');
     
-    doc.setFont('helvetica', 'normal');
-
-    // Modern header container
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(20, 20, pageWidth - 40, 70, 8, 8, 'F');
-
-    doc.setTextColor(15, 23, 42);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Punch Tracking Report', 36, 48);
+    // Get current company info
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(71, 85, 105);
-    doc.text(`Generated: ${format(new Date(), 'PPpp')}`, 36, 68);
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('current_company_id')
+      .eq('user_id', user.id)
+      .single();
     
-    const totalText = `Total Punches: ${records.length}`;
-    doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), 68);
+    const { data: company } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('id', profile?.current_company_id)
+      .single();
+    
+    if (!company) {
+      toast({
+        title: "Error",
+        description: "Company information not available",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    const tableData = records.map(record => [
-      record.employee_name,
-      format(new Date(record.punch_time), 'MM/dd/yyyy hh:mm a'),
-      record.punch_type === 'punched_in' ? 'In' : 'Out',
-      record.job_name || '-',
-      record.cost_code || '-',
-      record.latitude && record.longitude ? 'Yes' : 'No',
-      record.photo_url ? 'Yes' : 'No',
-      record.notes || '-'
-    ]);
-
-    autoTable(doc, {
-      startY: 110,
-      head: [['Employee', 'Time', 'Type', 'Job', 'Cost Code', 'Location', 'Photo', 'Notes']],
-      body: tableData,
-      theme: 'plain',
-      headStyles: { 
-        fillColor: [241, 245, 249], 
-        textColor: [15, 23, 42], 
-        fontSize: 10, 
-        fontStyle: 'bold',
-        cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
-      },
-      bodyStyles: {
-        fontSize: 9,
-        cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
-        textColor: [51, 65, 85],
-        lineColor: [226, 232, 240],
-        lineWidth: 0.5
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      styles: { overflow: 'ellipsize' },
-      columnStyles: {
-        0: { cellWidth: 130 },
-        1: { cellWidth: 130 },
-        2: { cellWidth: 50 },
-        3: { cellWidth: 150 },
-        4: { cellWidth: 150 },
-        5: { cellWidth: 70 },
-        6: { cellWidth: 60 },
-        7: { cellWidth: 240 }
-      },
-      didDrawPage: () => {
-        doc.setFontSize(7);
-        doc.setTextColor(148, 163, 184);
-        doc.text(
-          `Page ${doc.getCurrentPageInfo().pageNumber}`,
-          pageWidth / 2,
-          pageHeight - 12,
-          { align: 'center' }
-        );
+    // Convert punch records to report format
+    const reportData = {
+      title: 'Punch Tracking Report',
+      dateRange: `Generated: ${format(new Date(), 'PPpp')}`,
+      data: records.map(record => ({
+        employee_name: record.employee_name,
+        punch_in_time: record.punch_type === 'punched_in' ? record.punch_time : null,
+        punch_out_time: record.punch_type === 'punched_out' ? record.punch_time : null,
+        job_name: record.job_name || '-',
+        cost_code: record.cost_code || '-',
+        total_hours: 0,
+        break_minutes: 0,
+        notes: record.notes
+      })),
+      summary: {
+        totalRecords: records.length,
+        totalHours: 0,
+        overtimeHours: 0,
+        regularHours: 0
       }
-    });
+    };
 
-    doc.save(`punch-tracking-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const companyBranding = {
+      name: company.name,
+      logo_url: company.logo_url,
+      address: company.address,
+      city: company.city,
+      state: company.state,
+      zip_code: company.zip_code,
+      phone: company.phone,
+      email: company.email
+    };
+
+    try {
+      await exportTimecardToPDF(reportData, companyBranding, company.id);
+      toast({
+        title: "Export Complete",
+        description: "PDF report downloaded successfully"
+      });
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast({
+        title: "Export Error",
+        description: "Failed to generate PDF",
+        variant: "destructive"
+      });
+    }
   };
 
   const getPunchTypeColor = (punchType: string) => {
