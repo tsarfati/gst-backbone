@@ -3,6 +3,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface PdfTemplateConfig {
+  font_family?: string;
+  header_html?: string;
+  footer_html?: string;
+  table_header_bg?: string; // hex like #f1f5f9
+  table_border_color?: string; // hex
+  table_stripe_color?: string; // hex
+  auto_size_columns?: boolean;
+}
+
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
   theme: 'light' | 'dark' | 'system';
@@ -32,6 +42,7 @@ export interface AppSettings {
   };
   companyLogo?: string;
   headerLogo?: string;
+  pdfTemplateTimecard?: PdfTemplateConfig;
   companySettings?: {
     checkPickupLocations?: Array<{
       id: string;
@@ -206,8 +217,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           .upsert({
             company_id: currentCompany.id,
             user_id: user.id,
-            settings: settingsForStorage
-          }, {
+            settings: settingsForStorage as any,
+          } as any, {
             onConflict: 'company_id,user_id'
           });
 
