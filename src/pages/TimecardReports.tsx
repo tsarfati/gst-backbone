@@ -825,6 +825,8 @@ export default function TimecardReports() {
                   <div><span className="text-primary">{'{employee_name}'}</span> - Employee name (if filtered)</div>
                   <div><span className="text-primary">{'{job_name}'}</span> - Job name (if filtered)</div>
                   <div><span className="text-primary">{'{generated_date}'}</span> - Generation timestamp</div>
+                  <div><span className="text-primary">{'{page}'}</span> - Current page number</div>
+                  <div><span className="text-primary">{'{pages}'}</span> - Total pages</div>
                 </div>
               </div>
             </div>
