@@ -594,107 +594,164 @@ export default function PdfTemplateSettings() {
                   {loading ? 'Saving...' : 'Save Template'}
                 </Button>
               </div>
+
+              {/* Full Template Preview with Logo Placement */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Template Preview
+                  </CardTitle>
+                  <CardDescription>
+                    Preview your complete timecard template with logo placement (A4 Landscape: 842×595pt)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative w-full bg-white rounded-lg overflow-hidden shadow-lg" style={{ aspectRatio: '842/595' }}>
+                    {/* Grid background */}
+                    <div className="absolute inset-0" style={{
+                      backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)',
+                      backgroundSize: '50px 50px'
+                    }} />
+                    
+                    {/* Reference dimensions */}
+                    <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-10">
+                      842pt × 595pt
+                    </div>
+
+                    {/* Template Content */}
+                    <div className="relative w-full h-full flex flex-col p-6">
+                      {/* Header Section */}
+                      <div 
+                        className="prose prose-sm max-w-none mb-4"
+                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
+                      />
+
+                      {/* Sample Body Content */}
+                      <div className="flex-1 overflow-hidden">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr style={{ backgroundColor: timecardTemplate.table_header_bg }}>
+                              <th className="border p-2 text-left">Employee</th>
+                              <th className="border p-2 text-left">Date</th>
+                              <th className="border p-2 text-left">Job</th>
+                              <th className="border p-2 text-center">Hours</th>
+                              <th className="border p-2 text-right">Rate</th>
+                              <th className="border p-2 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="bg-muted/20">
+                              <td className="border p-2">John Doe</td>
+                              <td className="border p-2">01/15/2025</td>
+                              <td className="border p-2">Main Street Project</td>
+                              <td className="border p-2 text-center">8.0</td>
+                              <td className="border p-2 text-right">$45.00</td>
+                              <td className="border p-2 text-right">$360.00</td>
+                            </tr>
+                            <tr>
+                              <td className="border p-2">Jane Smith</td>
+                              <td className="border p-2">01/15/2025</td>
+                              <td className="border p-2">Downtown Building</td>
+                              <td className="border p-2 text-center">7.5</td>
+                              <td className="border p-2 text-right">$50.00</td>
+                              <td className="border p-2 text-right">$375.00</td>
+                            </tr>
+                            <tr className="bg-muted/20">
+                              <td className="border p-2">Mike Johnson</td>
+                              <td className="border p-2">01/15/2025</td>
+                              <td className="border p-2">Bridge Repair</td>
+                              <td className="border p-2 text-center">9.0</td>
+                              <td className="border p-2 text-right">$55.00</td>
+                              <td className="border p-2 text-right">$495.00</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Footer Section */}
+                      <div 
+                        className="prose prose-sm max-w-none mt-4"
+                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
+                      />
+                    </div>
+
+                    {/* Render logo images with positioning overlay */}
+                    {timecardTemplate.header_images && timecardTemplate.header_images.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className="absolute border-2 border-primary bg-primary/5 rounded group hover:shadow-xl transition-all z-20"
+                        style={{
+                          left: `${(img.x / 842) * 100}%`,
+                          top: `${(img.y / 595) * 100}%`,
+                          width: `${(img.width / 842) * 100}%`,
+                          height: `${(img.height / 595) * 100}%`,
+                        }}
+                      >
+                        <img 
+                          src={img.url} 
+                          alt={`Logo ${idx + 1}`} 
+                          className="w-full h-full object-contain"
+                        />
+                        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Logo {idx + 1} ({Math.round(img.x)}, {Math.round(img.y)})
+                        </div>
+                        
+                        {/* Position adjustment controls */}
+                        <div className="absolute -bottom-24 left-0 right-0 bg-background border border-primary rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-xl z-30 min-w-max">
+                          <div className="grid grid-cols-4 gap-1 text-xs">
+                            <div>
+                              <Label className="text-[10px]">X (pt)</Label>
+                              <Input
+                                type="number"
+                                value={Math.round(img.x)}
+                                onChange={(e) => updateImagePosition(idx, 'x', parseFloat(e.target.value) || 0)}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Y (pt)</Label>
+                              <Input
+                                type="number"
+                                value={Math.round(img.y)}
+                                onChange={(e) => updateImagePosition(idx, 'y', parseFloat(e.target.value) || 0)}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Width</Label>
+                              <Input
+                                type="number"
+                                value={Math.round(img.width)}
+                                onChange={(e) => updateImagePosition(idx, 'width', parseFloat(e.target.value) || 10)}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Height</Label>
+                              <Input
+                                type="number"
+                                value={Math.round(img.height)}
+                                onChange={(e) => updateImagePosition(idx, 'height', parseFloat(e.target.value) || 10)}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
+                      ? 'Hover over logo images to adjust their position and size. Values are in PDF points (pt).'
+                      : 'Upload logo images in the Header Images section above to see them positioned on the template.'}
+                  </p>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
-
-      {/* Live Preview Section */}
-      {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Header Preview & Positioning
-            </CardTitle>
-            <CardDescription>
-              Adjust image positions using the controls below (landscape view: 842×595pt)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="relative w-full bg-white border-2 border-dashed border-muted rounded-lg overflow-hidden" style={{ height: '400px' }}>
-              {/* Grid background */}
-              <div className="absolute inset-0" style={{
-                backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px)',
-                backgroundSize: '50px 50px'
-              }} />
-              
-              {/* Reference dimensions */}
-              <div className="absolute top-2 left-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-                842pt wide × 595pt tall (A4 Landscape)
-              </div>
-
-              {/* Render images with positioning */}
-              {timecardTemplate.header_images.map((img, idx) => (
-                <div
-                  key={idx}
-                  className="absolute border-2 border-primary bg-white/90 rounded group hover:shadow-lg transition-shadow"
-                  style={{
-                    left: `${(img.x / 842) * 100}%`,
-                    top: `${(img.y / 595) * 100}%`,
-                    width: `${(img.width / 842) * 100}%`,
-                    height: `${(img.height / 595) * 100}%`,
-                  }}
-                >
-                  <img 
-                    src={img.url} 
-                    alt={`Header ${idx + 1}`} 
-                    className="w-full h-full object-contain"
-                  />
-                  <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                    Image {idx + 1}
-                  </div>
-                  
-                  {/* Position adjustment controls */}
-                  <div className="absolute -bottom-24 left-0 right-0 bg-background border border-border rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10">
-                    <div className="grid grid-cols-4 gap-1 text-xs">
-                      <div>
-                        <Label className="text-[10px]">X</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(img.x)}
-                          onChange={(e) => updateImagePosition(idx, 'x', parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px]">Y</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(img.y)}
-                          onChange={(e) => updateImagePosition(idx, 'y', parseFloat(e.target.value) || 0)}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px]">W</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(img.width)}
-                          onChange={(e) => updateImagePosition(idx, 'width', parseFloat(e.target.value) || 10)}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-[10px]">H</Label>
-                        <Input
-                          type="number"
-                          value={Math.round(img.height)}
-                          onChange={(e) => updateImagePosition(idx, 'height', parseFloat(e.target.value) || 10)}
-                          className="h-7 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Hover over images to see positioning controls. Values are in PDF points (pt).
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
