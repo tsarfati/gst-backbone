@@ -8,10 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Info, Eye, Upload, X, Save } from 'lucide-react';
+import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface TemplateSettings {
   id?: string;
@@ -36,16 +37,49 @@ interface TemplateSettings {
   notes?: string;
 }
 
+const TEMPLATE_PRESETS = {
+  professional: {
+    name: 'Professional',
+    header_html: '<div style="border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 20px;">\n  <div style="font-size: 28px; font-weight: bold; color: #1e3a8a; margin-bottom: 8px;">{company_name}</div>\n  <div style="font-size: 16px; color: #475569;">Timecard Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Report Period: {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 15px; border-top: 1px solid #e2e8f0;">\n  <div>Confidential - For Internal Use Only</div>\n  <div style="margin-top: 5px;">Generated on {generated_date} | Page {page} of {pages}</div>\n</div>',
+    primary_color: '#1e40af',
+    table_header_bg: '#dbeafe',
+  },
+  modern: {
+    name: 'Modern',
+    header_html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; margin: -20px -20px 20px -20px; border-radius: 8px;">\n  <div style="font-size: 32px; font-weight: bold; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 9px; color: #9ca3af; padding-top: 12px;">\n  <div style="font-weight: 600; margin-bottom: 3px;">CONFIDENTIAL DOCUMENT</div>\n  <div>Page {page} • Generated {generated_date}</div>\n</div>',
+    primary_color: '#667eea',
+    table_header_bg: '#ede9fe',
+  },
+  minimal: {
+    name: 'Minimal',
+    header_html: '<div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 24px; font-weight: 300; color: #111827; letter-spacing: 2px;">{company_name}</div>\n  <div style="font-size: 11px; color: #6b7280; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px;">Timecard Report — {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 8px; color: #9ca3af; padding-top: 15px;">{page} / {pages}</div>',
+    primary_color: '#111827',
+    table_header_bg: '#f9fafb',
+  },
+  classic: {
+    name: 'Classic',
+    header_html: '<table width="100%" style="border-collapse: collapse; margin-bottom: 20px;">\n  <tr>\n    <td style="width: 70%; vertical-align: top;">\n      <div style="font-size: 26px; font-weight: bold; color: #0f172a; margin-bottom: 5px;">{company_name}</div>\n      <div style="font-size: 13px; color: #334155;">Weekly Timecard Summary</div>\n    </td>\n    <td style="width: 30%; text-align: right; vertical-align: top;">\n      <div style="font-size: 11px; color: #64748b;">Period: {period}</div>\n      <div style="font-size: 11px; color: #64748b;">Date: {date}</div>\n    </td>\n  </tr>\n</table>\n<div style="border-top: 2px solid #1e293b; margin-bottom: 15px;"></div>',
+    footer_html: '<div style="border-top: 2px solid #1e293b; padding-top: 10px; margin-top: 20px;">\n  <table width="100%" style="font-size: 9px; color: #475569;">\n    <tr>\n      <td>Confidential Document</td>\n      <td style="text-align: right;">Page {page} of {pages}</td>\n    </tr>\n  </table>\n</div>',
+    primary_color: '#0f172a',
+    table_header_bg: '#f1f5f9',
+  }
+};
+
 export default function PdfTemplateSettings() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<string>('');
+  const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
   const [timecardTemplate, setTimecardTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'timecard',
     font_family: 'helvetica',
-    header_html: '<div style="text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 10px;">{company_name}</div>\n<div style="text-align: center; font-size: 14px; color: #666;">Timecard Report - {period}</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; color: #666; margin-top: 10px;">Confidential - For Internal Use Only</div>',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
     primary_color: '#1e40af',
     secondary_color: '#3b82f6',
     table_header_bg: '#f1f5f9',
@@ -192,6 +226,24 @@ export default function PdfTemplateSettings() {
     setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
   };
 
+  const applyPreset = (presetKey: string) => {
+    const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
+    if (preset) {
+      setTimecardTemplate({
+        ...timecardTemplate,
+        header_html: preset.header_html,
+        footer_html: preset.footer_html,
+        primary_color: preset.primary_color,
+        table_header_bg: preset.table_header_bg,
+      });
+      setSelectedPreset(presetKey);
+      toast({
+        title: "Template applied",
+        description: `${preset.name} template has been applied. You can customize it further.`,
+      });
+    }
+  };
+
   const renderPreview = (html: string) => {
     return html
       .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
@@ -232,29 +284,97 @@ export default function PdfTemplateSettings() {
             </TabsList>
 
             <TabsContent value="timecard" className="space-y-6">
+              {/* Template Preset Gallery */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layout className="h-4 w-4" />
+                    Choose a Template
+                  </CardTitle>
+                  <CardDescription>
+                    Start with a pre-designed template or create your own from scratch
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <RadioGroup value={selectedPreset} onValueChange={applyPreset} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                      <div key={key} className="relative">
+                        <RadioGroupItem value={key} id={key} className="peer sr-only" />
+                        <Label
+                          htmlFor={key}
+                          className="flex flex-col items-center justify-between rounded-lg border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-all"
+                        >
+                          <div className="mb-3 w-full aspect-[4/3] bg-gradient-to-br from-background to-muted rounded border flex items-center justify-center relative overflow-hidden">
+                            <div className="absolute inset-0 flex flex-col p-2 text-[6px]">
+                              <div 
+                                className="text-center font-bold mb-1" 
+                                style={{ color: preset.primary_color }}
+                                dangerouslySetInnerHTML={{ __html: renderPreview(preset.header_html.substring(0, 100) + '...') }}
+                              />
+                              <div className="flex-1 border rounded bg-white/50" />
+                            </div>
+                          </div>
+                          <div className="text-sm font-medium">{preset.name}</div>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+
+              {/* Editor Mode Toggle */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label>Edit Mode</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Visual mode for images and colors, Code mode for HTML editing
+                      </p>
+                    </div>
+                    <RadioGroup value={editMode} onValueChange={(value) => setEditMode(value as 'visual' | 'code')} className="flex gap-2">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="visual" id="visual" />
+                        <Label htmlFor="visual" className="cursor-pointer flex items-center gap-1">
+                          <ImageIcon className="h-3 w-3" />
+                          Visual
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="code" id="code" />
+                        <Label htmlFor="code" className="cursor-pointer flex items-center gap-1">
+                          <Code className="h-3 w-3" />
+                          Code
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Editor Section */}
                 <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Header HTML</CardTitle>
-                      <CardDescription>Design the top section of your PDF report</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Textarea
-                        value={timecardTemplate.header_html || ''}
-                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, header_html: e.target.value })}
-                        rows={8}
-                        className="font-mono text-sm"
-                        placeholder="<div>Your HTML here...</div>"
-                      />
-                      
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label>Header Images</Label>
-                          <Button size="sm" variant="outline" disabled={uploadingImage} onClick={() => document.getElementById('header-image-upload')?.click()}>
+                  {editMode === 'visual' && (
+                    <>
+                      {/* Header Images Section */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <ImageIcon className="h-4 w-4" />
+                            Header Images
+                          </CardTitle>
+                          <CardDescription>Upload logos or images to display in your PDF header</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <Button 
+                            variant="outline" 
+                            className="w-full" 
+                            disabled={uploadingImage} 
+                            onClick={() => document.getElementById('header-image-upload')?.click()}
+                          >
                             <Upload className="h-4 w-4 mr-2" />
-                            {uploadingImage ? 'Uploading...' : 'Add Image'}
+                            {uploadingImage ? 'Uploading...' : 'Upload Image'}
                           </Button>
                           <input
                             id="header-image-upload"
@@ -263,184 +383,221 @@ export default function PdfTemplateSettings() {
                             className="hidden"
                             onChange={handleImageUpload}
                           />
-                        </div>
-                        
-                        {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+                          
+                          {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+                            <div className="space-y-3">
+                              {timecardTemplate.header_images.map((img, idx) => (
+                                <Card key={idx} className="p-4">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-16 h-16 border rounded overflow-hidden bg-muted flex items-center justify-center">
+                                        <img src={img.url} alt={`Header ${idx + 1}`} className="w-full h-full object-contain" />
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-sm">Image {idx + 1}</div>
+                                        <div className="text-xs text-muted-foreground">Position and size</div>
+                                      </div>
+                                    </div>
+                                    <Button size="sm" variant="ghost" onClick={() => removeHeaderImage(idx)}>
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <Label className="text-xs">X Position (pt)</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.x}
+                                        onChange={(e) => updateImagePosition(idx, 'x', parseInt(e.target.value))}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs">Y Position (pt)</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.y}
+                                        onChange={(e) => updateImagePosition(idx, 'y', parseInt(e.target.value))}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs">Width (pt)</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.width}
+                                        onChange={(e) => updateImagePosition(idx, 'width', parseInt(e.target.value))}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-xs">Height (pt)</Label>
+                                      <Input
+                                        type="number"
+                                        value={img.height}
+                                        onChange={(e) => updateImagePosition(idx, 'height', parseInt(e.target.value))}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Tip: 1 inch = 72 points. Standard page width is ~800pt
+                                  </p>
+                                </Card>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Styling Options */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Colors & Fonts</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                           <div className="space-y-2">
-                            {timecardTemplate.header_images.map((img, idx) => (
-                              <div key={idx} className="p-3 border rounded-lg space-y-2">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium">Image {idx + 1}</span>
-                                  <Button size="sm" variant="ghost" onClick={() => removeHeaderImage(idx)}>
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs">X Position (pt)</Label>
-                                    <Input
-                                      type="number"
-                                      value={img.x}
-                                      onChange={(e) => updateImagePosition(idx, 'x', parseInt(e.target.value))}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Y Position (pt)</Label>
-                                    <Input
-                                      type="number"
-                                      value={img.y}
-                                      onChange={(e) => updateImagePosition(idx, 'y', parseInt(e.target.value))}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Width (pt)</Label>
-                                    <Input
-                                      type="number"
-                                      value={img.width}
-                                      onChange={(e) => updateImagePosition(idx, 'width', parseInt(e.target.value))}
-                                      className="h-8"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Height (pt)</Label>
-                                    <Input
-                                      type="number"
-                                      value={img.height}
-                                      onChange={(e) => updateImagePosition(idx, 'height', parseInt(e.target.value))}
-                                      className="h-8"
-                                    />
-                                  </div>
+                            <Label>Font Family</Label>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              value={timecardTemplate.font_family}
+                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
+                            >
+                              <option value="helvetica">Helvetica</option>
+                              <option value="times">Times New Roman</option>
+                              <option value="courier">Courier</option>
+                            </select>
+                          </div>
+
+                          <Separator />
+
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-sm">Document Colors</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label className="text-xs">Primary Color</Label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="color"
+                                    value={timecardTemplate.primary_color || '#1e40af'}
+                                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                                    className="h-10 w-16 rounded border cursor-pointer"
+                                  />
+                                  <Input
+                                    type="text"
+                                    value={timecardTemplate.primary_color || '#1e40af'}
+                                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
+                                    className="flex-1 h-10"
+                                  />
                                 </div>
                               </div>
-                            ))}
+                              <div className="space-y-2">
+                                <Label className="text-xs">Secondary Color</Label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="color"
+                                    value={timecardTemplate.secondary_color || '#3b82f6'}
+                                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
+                                    className="h-10 w-16 rounded border cursor-pointer"
+                                  />
+                                  <Input
+                                    type="text"
+                                    value={timecardTemplate.secondary_color || '#3b82f6'}
+                                    onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
+                                    className="flex-1 h-10"
+                                  />
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Footer HTML</CardTitle>
-                      <CardDescription>Design the bottom section of your PDF report</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Textarea
-                        value={timecardTemplate.footer_html || ''}
-                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, footer_html: e.target.value })}
-                        rows={6}
-                        className="font-mono text-sm"
-                        placeholder="<div>Your footer HTML...</div>"
-                      />
-                    </CardContent>
-                  </Card>
+                          <Separator />
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Styling Options</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Font Family</Label>
-                        <select
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={timecardTemplate.font_family}
-                          onChange={(e) => setTimecardTemplate({ ...timecardTemplate, font_family: e.target.value })}
-                        >
-                          <option value="helvetica">Helvetica</option>
-                          <option value="times">Times New Roman</option>
-                          <option value="courier">Courier</option>
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label>Primary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={timecardTemplate.primary_color || '#1e40af'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={timecardTemplate.primary_color || '#1e40af'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
-                              className="flex-1"
-                            />
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-sm">Table Colors</h4>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Header</Label>
+                                <input
+                                  type="color"
+                                  value={timecardTemplate.table_header_bg || '#f1f5f9'}
+                                  onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
+                                  className="h-9 w-full rounded border cursor-pointer"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Border</Label>
+                                <input
+                                  type="color"
+                                  value={timecardTemplate.table_border_color || '#e2e8f0'}
+                                  onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_border_color: e.target.value })}
+                                  className="h-9 w-full rounded border cursor-pointer"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Alt Rows</Label>
+                                <input
+                                  type="color"
+                                  value={timecardTemplate.table_stripe_color || '#f8fafc'}
+                                  onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_stripe_color: e.target.value })}
+                                  className="h-9 w-full rounded border cursor-pointer"
+                                />
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Secondary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={timecardTemplate.secondary_color || '#3b82f6'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={timecardTemplate.secondary_color || '#3b82f6'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, secondary_color: e.target.value })}
-                              className="flex-1"
+
+                          <Separator />
+
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label>Auto-size Columns</Label>
+                              <p className="text-xs text-muted-foreground">Automatically fit columns to content</p>
+                            </div>
+                            <Switch
+                              checked={timecardTemplate.auto_size_columns || false}
+                              onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, auto_size_columns: checked })}
                             />
                           </div>
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
 
-                      <Separator />
+                  {editMode === 'code' && (
+                    <>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Header HTML</CardTitle>
+                          <CardDescription>Advanced: Edit the HTML for your PDF header</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <Textarea
+                            value={timecardTemplate.header_html || ''}
+                            onChange={(e) => setTimecardTemplate({ ...timecardTemplate, header_html: e.target.value })}
+                            rows={10}
+                            className="font-mono text-sm"
+                            placeholder="<div>Your HTML here...</div>"
+                          />
+                        </CardContent>
+                      </Card>
 
-                      <div className="space-y-3">
-                        <h4 className="font-medium text-sm">Table Styling</h4>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Header BG</Label>
-                            <input
-                              type="color"
-                              value={timecardTemplate.table_header_bg || '#f1f5f9'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
-                              className="h-9 w-full rounded border cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Border</Label>
-                            <input
-                              type="color"
-                              value={timecardTemplate.table_border_color || '#e2e8f0'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_border_color: e.target.value })}
-                              className="h-9 w-full rounded border cursor-pointer"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Alt Rows</Label>
-                            <input
-                              type="color"
-                              value={timecardTemplate.table_stripe_color || '#f8fafc'}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_stripe_color: e.target.value })}
-                              className="h-9 w-full rounded border cursor-pointer"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label>Auto-size Columns</Label>
-                          <p className="text-xs text-muted-foreground">Automatically fit columns to content width</p>
-                        </div>
-                        <Switch
-                          checked={timecardTemplate.auto_size_columns || false}
-                          onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, auto_size_columns: checked })}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Footer HTML</CardTitle>
+                          <CardDescription>Advanced: Edit the HTML for your PDF footer</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <Textarea
+                            value={timecardTemplate.footer_html || ''}
+                            onChange={(e) => setTimecardTemplate({ ...timecardTemplate, footer_html: e.target.value })}
+                            rows={6}
+                            className="font-mono text-sm"
+                            placeholder="<div>Your footer HTML...</div>"
+                          />
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
                 </div>
 
                 {/* Preview Section */}
