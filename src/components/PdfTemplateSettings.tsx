@@ -48,68 +48,68 @@ const TEMPLATE_PRESETS = {
     primary_color: '#1e40af',
     table_header_bg: '#dbeafe',
   },
+  gradient: {
+    name: 'Gradient Flow',
+    header_html: '<div style="background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 16px; box-shadow: 0 20px 40px rgba(99,102,241,0.3);">\n  <div style="font-size: 36px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 20px rgba(0,0,0,0.3);">{company_name}</div>\n  <div style="font-size: 16px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">TIMECARD REPORT • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; padding-top: 15px;">\n  <div style="background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 700;">Page {page} of {pages} • {generated_date}</div>\n</div>',
+    primary_color: '#6366f1',
+    table_header_bg: '#f5f3ff',
+  },
+  neon: {
+    name: 'Neon Dark',
+    header_html: '<div style="background: #0a0a0a; color: #00ff88; padding: 28px; margin: -20px -20px 25px -20px; border: 2px solid #00ff88; border-radius: 10px; box-shadow: 0 0 30px rgba(0,255,136,0.4), inset 0 0 20px rgba(0,255,136,0.1);">\n  <div style="font-size: 34px; font-weight: 900; margin-bottom: 10px; text-shadow: 0 0 15px #00ff88, 0 0 30px #00ff88;">{company_name}</div>\n  <div style="font-size: 15px; font-weight: 700; letter-spacing: 2px;">TIMECARD // {period}</div>\n</div>',
+    footer_html: '<div style="background: #0a0a0a; color: #00ff88; padding: 12px; margin: 20px -20px -20px -20px; text-align: center; font-size: 10px; border-top: 2px solid #00ff88; box-shadow: 0 0 20px rgba(0,255,136,0.3);">\n  <div style="font-weight: 800; letter-spacing: 1px;">CONFIDENTIAL</div>\n  <div style="margin-top: 3px; opacity: 0.9;">Page {page}/{pages} // {generated_date}</div>\n</div>',
+    primary_color: '#00ff88',
+    table_header_bg: '#1a2f23',
+  },
+  glass: {
+    name: 'Glassmorphism',
+    header_html: '<div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); padding: 28px; margin-bottom: 25px; border-radius: 16px; box-shadow: 0 8px 32px rgba(31,38,135,0.15);">\n  <div style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #475569; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.08);">\n  <div style="font-weight: 600;">Page {page} of {pages} • Generated {generated_date}</div>\n</div>',
+    primary_color: '#0ea5e9',
+    table_header_bg: 'rgba(14,165,233,0.12)',
+  },
   modern: {
-    name: 'Modern',
-    header_html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; margin: -20px -20px 20px -20px; border-radius: 8px;">\n  <div style="font-size: 32px; font-weight: bold; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95;">Timecard Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 9px; color: #9ca3af; padding-top: 12px;">\n  <div style="font-weight: 600; margin-bottom: 3px;">CONFIDENTIAL DOCUMENT</div>\n  <div>Page {page} • Generated {generated_date}</div>\n</div>',
+    name: 'Modern Minimal',
+    header_html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 32px; margin: -20px -20px 25px -20px; border-radius: 12px;">\n  <div style="font-size: 38px; font-weight: 800; margin-bottom: 12px; letter-spacing: -1px;">{company_name}</div>\n  <div style="font-size: 16px; opacity: 0.95; font-weight: 500;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; color: #9ca3af; padding-top: 15px;">\n  <div style="font-weight: 600; margin-bottom: 3px;">CONFIDENTIAL DOCUMENT</div>\n  <div>Page {page} • Generated {generated_date}</div>\n</div>',
     primary_color: '#667eea',
     table_header_bg: '#ede9fe',
   },
-  minimal: {
-    name: 'Minimal',
-    header_html: '<div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 24px; font-weight: 300; color: #111827; letter-spacing: 2px;">{company_name}</div>\n  <div style="font-size: 11px; color: #6b7280; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px;">Timecard Report — {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 8px; color: #9ca3af; padding-top: 15px;">{page} / {pages}</div>',
-    primary_color: '#111827',
-    table_header_bg: '#f9fafb',
-  },
-  classic: {
-    name: 'Classic',
-    header_html: '<table width="100%" style="border-collapse: collapse; margin-bottom: 20px;">\n  <tr>\n    <td style="width: 70%; vertical-align: top;">\n      <div style="font-size: 26px; font-weight: bold; color: #0f172a; margin-bottom: 5px;">{company_name}</div>\n      <div style="font-size: 13px; color: #334155;">Weekly Timecard Summary</div>\n    </td>\n    <td style="width: 30%; text-align: right; vertical-align: top;">\n      <div style="font-size: 11px; color: #64748b;">Period: {period}</div>\n      <div style="font-size: 11px; color: #64748b;">Date: {date}</div>\n    </td>\n  </tr>\n</table>\n<div style="border-top: 2px solid #1e293b; margin-bottom: 15px;"></div>',
-    footer_html: '<div style="border-top: 2px solid #1e293b; padding-top: 10px; margin-top: 20px;">\n  <table width="100%" style="font-size: 9px; color: #475569;">\n    <tr>\n      <td>Confidential Document</td>\n      <td style="text-align: right;">Page {page} of {pages}</td>\n    </tr>\n  </table>\n</div>',
-    primary_color: '#0f172a',
-    table_header_bg: '#f1f5f9',
-  },
-  corporate: {
-    name: 'Corporate',
-    header_html: '<div style="background: #f8fafc; border-left: 5px solid #0ea5e9; padding: 20px; margin-bottom: 20px;">\n  <div style="font-size: 22px; font-weight: 600; color: #0c4a6e; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #64748b;">Employee Time Report</div>\n  <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">Period: {period} | Generated: {date}</div>\n</div>',
-    footer_html: '<div style="background: #f8fafc; padding: 10px; text-align: center; font-size: 9px; color: #64748b;">\n  <div>© {company_name} - Internal Use Only</div>\n  <div style="margin-top: 3px;">Page {page} of {pages}</div>\n</div>',
-    primary_color: '#0ea5e9',
-    table_header_bg: '#e0f2fe',
-  },
-  executive: {
-    name: 'Executive',
-    header_html: '<div style="border: 2px solid #78716c; padding: 15px; margin-bottom: 20px;">\n  <div style="text-align: center; font-size: 20px; font-weight: 700; color: #292524; letter-spacing: 3px; margin-bottom: 10px;">{company_name}</div>\n  <div style="text-align: center; font-size: 12px; color: #57534e; font-weight: 500;">TIMECARD REPORT</div>\n  <div style="text-align: center; font-size: 10px; color: #78716c; margin-top: 8px;">{period}</div>\n</div>',
-    footer_html: '<div style="border-top: 2px solid #78716c; padding-top: 10px; font-size: 8px; color: #78716c;">\n  <table width="100%"><tr>\n    <td>CONFIDENTIAL</td>\n    <td style="text-align: center;">Page {page}/{pages}</td>\n    <td style="text-align: right;">{date}</td>\n  </tr></table>\n</div>',
-    primary_color: '#78716c',
-    table_header_bg: '#f5f5f4',
-  },
-  bold: {
-    name: 'Bold',
-    header_html: '<div style="background: #dc2626; color: white; padding: 20px; margin: -20px -20px 25px -20px;">\n  <div style="font-size: 30px; font-weight: 900; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 13px; font-weight: 600; opacity: 0.9;">TIMECARD REPORT | {period}</div>\n</div>',
-    footer_html: '<div style="background: #dc2626; color: white; padding: 8px; margin: 20px -20px -20px -20px; text-align: center; font-size: 9px;">\n  <div style="font-weight: 600;">CONFIDENTIAL & PROPRIETARY</div>\n  <div style="margin-top: 3px; opacity: 0.8;">Page {page} of {pages} | {generated_date}</div>\n</div>',
-    primary_color: '#dc2626',
-    table_header_bg: '#fecaca',
-  },
   elegant: {
-    name: 'Elegant',
-    header_html: '<div style="text-align: center; padding-bottom: 25px; margin-bottom: 20px; background: linear-gradient(to bottom, #fafaf9 0%, #ffffff 100%);">\n  <div style="font-size: 32px; font-family: serif; font-weight: 300; color: #57534e; margin-bottom: 8px; letter-spacing: 1px;">{company_name}</div>\n  <div style="width: 60px; height: 2px; background: #a8a29e; margin: 0 auto 12px;"></div>\n  <div style="font-size: 13px; color: #78716c; font-style: italic;">Timecard Report</div>\n  <div style="font-size: 11px; color: #a8a29e; margin-top: 5px;">{period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; padding-top: 20px; margin-top: 20px; border-top: 1px solid #e7e5e4; font-size: 9px; color: #a8a29e;">\n  <div style="font-style: italic;">Page {page} of {pages}</div>\n  <div style="margin-top: 5px;">{generated_date}</div>\n</div>',
+    name: 'Elegant Serif',
+    header_html: '<div style="text-align: center; padding: 30px 0; margin-bottom: 25px; background: linear-gradient(to bottom, #fafaf9 0%, #ffffff 100%); border-bottom: 2px solid #e7e5e4;">\n  <div style="font-size: 36px; font-family: Georgia, serif; font-weight: 400; color: #292524; margin-bottom: 12px; letter-spacing: 1px;">{company_name}</div>\n  <div style="width: 80px; height: 3px; background: linear-gradient(90deg, transparent, #a8a29e, transparent); margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #78716c; font-style: italic; font-weight: 500;">Timecard Report</div>\n  <div style="font-size: 12px; color: #a8a29e; margin-top: 6px;">{period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; padding-top: 25px; margin-top: 25px; border-top: 2px solid #e7e5e4; font-size: 10px; color: #a8a29e;">\n  <div style="font-style: italic; font-family: Georgia, serif;">Page {page} of {pages}</div>\n  <div style="margin-top: 5px; font-size: 9px;">{generated_date}</div>\n</div>',
     primary_color: '#78716c',
     table_header_bg: '#fafaf9',
   },
+  bold: {
+    name: 'Bold Impact',
+    header_html: '<div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 28px; margin: -20px -20px 28px -20px; border-bottom: 4px solid #7f1d1d; box-shadow: 0 10px 30px rgba(220,38,38,0.3);">\n  <div style="font-size: 36px; font-weight: 900; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">{company_name}</div>\n  <div style="font-size: 15px; font-weight: 700; opacity: 0.95; letter-spacing: 2px;">TIMECARD REPORT | {period}</div>\n</div>',
+    footer_html: '<div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 12px; margin: 25px -20px -20px -20px; text-align: center; font-size: 10px; border-top: 4px solid #7f1d1d;">\n  <div style="font-weight: 800; letter-spacing: 1.5px;">CONFIDENTIAL & PROPRIETARY</div>\n  <div style="margin-top: 4px; opacity: 0.9; font-weight: 600;">Page {page} of {pages} | {generated_date}</div>\n</div>',
+    primary_color: '#dc2626',
+    table_header_bg: '#fee2e2',
+  },
   tech: {
-    name: 'Tech',
-    header_html: '<div style="font-family: monospace; border: 1px solid #10b981; padding: 15px; margin-bottom: 20px; background: #f0fdf4;">\n  <div style="font-size: 20px; font-weight: bold; color: #047857;">// {company_name}</div>\n  <div style="font-size: 12px; color: #059669; margin-top: 5px;">/* Timecard Report */</div>\n  <div style="font-size: 11px; color: #10b981; margin-top: 8px;">Period: {period}</div>\n</div>',
-    footer_html: '<div style="font-family: monospace; border-top: 1px solid #10b981; padding-top: 10px; font-size: 9px; color: #059669;">\n  <table width="100%"><tr>\n    <td>// End of report</td>\n    <td style="text-align: right;">Page {page}/{pages}</td>\n  </tr></table>\n</div>',
+    name: 'Tech Mono',
+    header_html: '<div style="font-family: \'Courier New\', monospace; border: 2px solid #10b981; padding: 20px; margin-bottom: 25px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 8px;">\n  <div style="font-size: 22px; font-weight: bold; color: #047857; margin-bottom: 8px;">// {company_name}</div>\n  <div style="font-size: 13px; color: #059669; margin-top: 6px; font-weight: 600;">/* Timecard Report */</div>\n  <div style="font-size: 12px; color: #10b981; margin-top: 10px;">const period = "{period}";</div>\n</div>',
+    footer_html: '<div style="font-family: \'Courier New\', monospace; border-top: 2px solid #10b981; padding-top: 12px; font-size: 10px; color: #059669;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">// End of report</td>\n    <td style="text-align: right; font-weight: 600;">Page {page}/{pages}</td>\n  </tr></table>\n</div>',
     primary_color: '#10b981',
     table_header_bg: '#d1fae5',
   },
-  simple: {
-    name: 'Simple',
-    header_html: '<div style="margin-bottom: 20px;">\n  <div style="font-size: 26px; font-weight: 600; color: #18181b; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #71717a;">Timecard Report</div>\n  <div style="font-size: 12px; color: #a1a1aa; margin-top: 5px;">{period}</div>\n  <div style="height: 2px; background: #e4e4e7; margin-top: 15px;"></div>\n</div>',
-    footer_html: '<div style="margin-top: 20px; padding-top: 15px; border-top: 2px solid #e4e4e7; font-size: 10px; color: #a1a1aa;">\n  <table width="100%"><tr>\n    <td>{generated_date}</td>\n    <td style="text-align: right;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
-    primary_color: '#18181b',
-    table_header_bg: '#f4f4f5',
+  minimal: {
+    name: 'Ultra Minimal',
+    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #6b7280; font-weight: 500;">Timecard Report</div>\n  <div style="font-size: 13px; color: #9ca3af; margin-top: 6px;">{period}</div>\n</div>',
+    footer_html: '<div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af;">\n  <table width="100%"><tr>\n    <td style="font-weight: 500;">{generated_date}</td>\n    <td style="text-align: right; font-weight: 500;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
+    primary_color: '#111827',
+    table_header_bg: '#f9fafb',
+  },
+  ocean: {
+    name: 'Ocean Wave',
+    header_html: '<div style="background: linear-gradient(135deg, #0891b2 0%, #06b6d4 50%, #22d3ee 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 14px; box-shadow: 0 20px 40px rgba(8,145,178,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; color: #0891b2; padding-top: 15px; font-weight: 600;">\n  <div>Page {page} of {pages} • {generated_date}</div>\n</div>',
+    primary_color: '#0891b2',
+    table_header_bg: '#cffafe',
   },
 };
 
@@ -665,49 +665,50 @@ export default function PdfTemplateSettings() {
                 </Button>
               </div>
 
-              {/* Interactive Logo Placement Canvas */}
+              {/* Full Template Preview with Interactive Logo Placement */}
               <Card className="mt-6">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
                     <Move className="h-4 w-4" />
-                    Interactive Logo Placement
+                    Interactive Template Preview
                   </CardTitle>
                   <CardDescription>
-                    Drag and resize logos directly on the canvas (A4 Landscape: 842×595pt)
+                    Drag and resize logos directly on the template preview
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="relative w-full bg-gradient-to-br from-muted/30 to-muted/10 rounded-lg p-4 shadow-lg">
-                      <canvas 
-                        ref={canvasRef} 
-                        className="border-2 border-border rounded shadow-inner w-full"
-                      />
-                    </div>
-                    
                     <Alert>
                       <Info className="h-4 w-4" />
                       <AlertDescription className="text-xs">
                         {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
-                          ? <span><strong>Click and drag</strong> logos to reposition them. <strong>Drag corners</strong> to resize. Changes are saved automatically.</span>
-                          : 'Upload logo images in the Header Images section above, then drag and position them here.'}
+                          ? <span><strong>Click and drag</strong> logos to reposition. <strong>Drag corners</strong> to resize. Changes save automatically.</span>
+                          : 'Upload logo images above, then position them directly on this preview.'}
                       </AlertDescription>
                     </Alert>
 
-                    {/* Image List */}
+                    {/* Canvas-based Interactive Preview */}
+                    <div className="relative w-full bg-gradient-to-br from-muted/10 to-muted/5 rounded-lg p-4 shadow-xl">
+                      <canvas 
+                        ref={canvasRef} 
+                        className="border-2 border-border rounded shadow-lg w-full bg-white"
+                      />
+                    </div>
+
+                    {/* Logo List */}
                     {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Positioned Logos</Label>
-                        <div className="space-y-2">
+                        <div className="grid gap-2">
                           {timecardTemplate.header_images.map((img, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
                               <div className="flex items-center gap-3">
-                                <img src={img.url} alt={`Logo ${index + 1}`} className="w-12 h-12 object-contain border rounded" />
+                                <img src={img.url} alt={`Logo ${index + 1}`} className="w-12 h-12 object-contain border rounded bg-white p-1" />
                                 <div className="text-xs space-y-0.5">
-                                  <div className="font-medium">Logo {index + 1}</div>
-                                  <div className="text-muted-foreground">
-                                    Position: ({Math.round(img.x)}, {Math.round(img.y)}) • 
-                                    Size: {Math.round(img.width)}×{Math.round(img.height)}pt
+                                  <div className="font-semibold">Logo {index + 1}</div>
+                                  <div className="text-muted-foreground font-mono">
+                                    ({Math.round(img.x)}, {Math.round(img.y)}) • {Math.round(img.width)}×{Math.round(img.height)}pt
                                   </div>
                                 </div>
                               </div>
@@ -715,6 +716,7 @@ export default function PdfTemplateSettings() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => removeHeaderImage(index)}
+                                className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -724,113 +726,6 @@ export default function PdfTemplateSettings() {
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Full Template Preview */}
-              <Card className="mt-6">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Full Template Preview
-                  </CardTitle>
-                  <CardDescription>
-                    Preview your complete timecard template with all elements
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="relative w-full bg-white rounded-lg overflow-hidden shadow-lg" style={{ aspectRatio: '842/595' }}>
-                    {/* Grid background */}
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)',
-                      backgroundSize: '50px 50px'
-                    }} />
-                    
-                    {/* Reference dimensions */}
-                    <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-10">
-                      842pt × 595pt
-                    </div>
-
-                    {/* Template Content */}
-                    <div className="relative w-full h-full flex flex-col p-6">
-                      {/* Header Section */}
-                      <div 
-                        className="prose prose-sm max-w-none mb-4"
-                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
-                      />
-
-                      {/* Sample Body Content */}
-                      <div className="flex-1 overflow-hidden">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr style={{ backgroundColor: timecardTemplate.table_header_bg }}>
-                              <th className="border p-2 text-left">Employee</th>
-                              <th className="border p-2 text-left">Date</th>
-                              <th className="border p-2 text-left">Job</th>
-                              <th className="border p-2 text-center">Hours</th>
-                              <th className="border p-2 text-right">Rate</th>
-                              <th className="border p-2 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="bg-muted/20">
-                              <td className="border p-2">John Doe</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Main Street Project</td>
-                              <td className="border p-2 text-center">8.0</td>
-                              <td className="border p-2 text-right">$45.00</td>
-                              <td className="border p-2 text-right">$360.00</td>
-                            </tr>
-                            <tr>
-                              <td className="border p-2">Jane Smith</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Downtown Building</td>
-                              <td className="border p-2 text-center">7.5</td>
-                              <td className="border p-2 text-right">$50.00</td>
-                              <td className="border p-2 text-right">$375.00</td>
-                            </tr>
-                            <tr className="bg-muted/20">
-                              <td className="border p-2">Mike Johnson</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Bridge Repair</td>
-                              <td className="border p-2 text-center">9.0</td>
-                              <td className="border p-2 text-right">$55.00</td>
-                              <td className="border p-2 text-right">$495.00</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Footer Section */}
-                      <div 
-                        className="prose prose-sm max-w-none mt-4"
-                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
-                      />
-                    </div>
-
-                    {/* Render logo images overlay */}
-                    {timecardTemplate.header_images && timecardTemplate.header_images.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className="absolute pointer-events-none"
-                        style={{
-                          left: `${(img.x / 842) * 100}%`,
-                          top: `${(img.y / 595) * 100}%`,
-                          width: `${(img.width / 842) * 100}%`,
-                          height: `${(img.height / 595) * 100}%`,
-                        }}
-                      >
-                        <img 
-                          src={img.url} 
-                          alt={`Logo ${idx + 1}`} 
-                          className="w-full h-full object-contain opacity-90"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-4">
-                    This preview shows how your template will look in the final PDF with all logos positioned.
-                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
