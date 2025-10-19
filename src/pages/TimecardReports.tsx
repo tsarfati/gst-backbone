@@ -31,7 +31,9 @@ interface Job {
 interface TimeCardRecord {
   id: string;
   user_id: string;
+  employee_id: string;
   employee_name: string;
+  job_id: string;
   job_name: string;
   cost_code: string;
   punch_in_time: string;
@@ -415,7 +417,9 @@ export default function TimecardReports() {
         return {
           id: record.id,
           user_id: record.user_id,
+          employee_id: record.user_id,
           employee_name: displayName,
+          job_id: record.job_id,
           job_name: job?.name || 'Unknown Job',
           cost_code: costCode ? `${costCode.code} - ${costCode.description}` : 'Unknown Code',
           punch_in_time: record.punch_in_time,
