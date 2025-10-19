@@ -1,19 +1,21 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BarChart3, Clock, User, MapPin, FileText, Download, TrendingUp, Eye } from 'lucide-react';
-import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import PunchDetailView from '@/components/PunchDetailView';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, BarChart3, Clock, MapPin, Eye } from "lucide-react";
+import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import PunchDetailView from "@/components/PunchDetailView";
 
 interface TimeCardRecord {
   id: string;
   user_id: string;
+  employee_id: string;
   employee_name: string;
+  job_id: string;
   job_name: string;
   cost_code: string;
   punch_in_time: string;
@@ -30,8 +32,8 @@ interface TimeCardRecord {
 interface ReportSummary {
   totalRecords: number;
   totalHours: number;
-  totalOvertimeHours: number;
   totalRegularHours: number;
+  totalOvertimeHours: number;
   uniqueEmployees: number;
   uniqueJobs: number;
   averageHoursPerDay: number;
@@ -42,13 +44,15 @@ interface TimecardReportViewsProps {
   summary: ReportSummary;
   loading: boolean;
   onExportPDF: (reportType: string, data: any) => void;
+  onExportExcel?: (reportType: string, data: any) => void;
 }
 
 export default function TimecardReportViews({
   records,
   summary,
   loading,
-  onExportPDF
+  onExportPDF,
+  onExportExcel
 }: TimecardReportViewsProps) {
   const [selectedView, setSelectedView] = useState('detailed');
   const [selectedPunch, setSelectedPunch] = useState<any>(null);
@@ -57,10 +61,14 @@ export default function TimecardReportViews({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'default';
-      case 'pending': return 'secondary';
-      case 'corrected': return 'outline';
-      default: return 'outline';
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -72,155 +80,120 @@ export default function TimecardReportViews({
 
   const handleViewPunchDetails = async (record: TimeCardRecord) => {
     try {
-      // Fetch punch records and the time card (for job and photos)
-      const [{ data: punchRecords, error }, { data: timeCard, error: tcError }] = await Promise.all([
-        supabase
-          .from('punch_records')
-          .select('id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent, notes, cost_code_id')
-          .eq('user_id', record.user_id)
-          .gte('punch_time', record.punch_in_time)
-          .lte('punch_time', record.punch_out_time)
-          .order('punch_time', { ascending: true }),
-        supabase
-          .from('time_cards')
-          .select('job_id, cost_code_id, punch_in_photo_url, punch_out_photo_url')
-          .eq('id', record.id)
-          .maybeSingle()
-      ]);
+      const { data: timecard } = await supabase
+        .from('time_cards')
+        .select('*')
+        .eq('id', record.id)
+        .single();
 
-      if (error) throw error;
-      if (tcError) console.warn('Timecard fetch warning:', tcError);
-
-      if (punchRecords && punchRecords.length > 0) {
-        // Prefer a punch that has a photo; otherwise use the last punch in the range
-        const withPhoto = punchRecords.find(p => !!p.photo_url);
-        const selected = withPhoto || punchRecords[punchRecords.length - 1];
-
-        // Decide the best available photo URL (prefer time card photos if present)
-        const bestPhotoUrl = (timeCard?.punch_out_photo_url as string | null)
-          || (timeCard?.punch_in_photo_url as string | null)
-          || (selected.photo_url as string | null)
-          || undefined;
-
-        // Fetch job site details to link the job pin to the job address
-        let job_latitude: number | undefined;
-        let job_longitude: number | undefined;
-        let job_address: string | undefined;
-        if (timeCard?.job_id) {
+      if (timecard) {
+        let jobData = null;
+        if (timecard.job_id) {
           const { data: job } = await supabase
             .from('jobs')
-            .select('address, latitude, longitude, name')
-            .eq('id', timeCard.job_id)
-            .maybeSingle();
-          job_latitude = job?.latitude ?? undefined;
-          job_longitude = job?.longitude ?? undefined;
-          job_address = job?.address ?? undefined;
+            .select('job_name, job_number, address, city, state, zip_code')
+            .eq('id', timecard.job_id)
+            .single();
+          jobData = job;
         }
 
-        const punchData = {
-          id: selected.id,
-          punch_time: selected.punch_time,
-          punch_type: selected.punch_type,
+        setSelectedPunch({
+          id: record.id,
+          punch_time: timecard.punch_in_time,
+          punch_type: 'punched_in',
           employee_name: record.employee_name,
           job_name: record.job_name,
+          job_data: jobData,
           cost_code: record.cost_code,
-          latitude: selected.latitude,
-          longitude: selected.longitude,
-          photo_url: bestPhotoUrl,
-          ip_address: selected.ip_address,
-          user_agent: selected.user_agent,
-          notes: selected.notes,
-          job_latitude,
-          job_longitude,
-          job_address,
-          user_id: record.user_id,
-          job_id: timeCard?.job_id,
-          cost_code_id: (timeCard?.cost_code_id as string | undefined) || (selected.cost_code_id as string | undefined),
-        };
-
-        setSelectedPunch(punchData);
-        setShowPunchDetail(true);
-      } else {
-        toast({
-          title: 'No Details Found',
-          description: 'No punch records found for this timecard entry.',
-          variant: 'destructive'
+          latitude: timecard.punch_in_location_lat,
+          longitude: timecard.punch_in_location_lng,
+          photo_url: timecard.punch_in_photo_url,
+          notes: timecard.notes,
+          punch_out_time: timecard.punch_out_time,
+          punch_out_latitude: timecard.punch_out_location_lat,
+          punch_out_longitude: timecard.punch_out_location_lng,
+          punch_out_photo_url: timecard.punch_out_photo_url,
+          total_hours: timecard.total_hours,
+          overtime_hours: timecard.overtime_hours,
+          status: timecard.status
         });
+        setShowPunchDetail(true);
       }
     } catch (error) {
-      console.error('Error fetching punch details:', error);
+      console.error('Error loading punch details:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to load punch details.',
-        variant: 'destructive'
+        title: "Error",
+        description: "Failed to load punch details",
+        variant: "destructive"
       });
     }
   };
 
-  // Employee Summary Data
   const employeeSummary = records.reduce((acc, record) => {
-    const employeeId = record.user_id;
-    if (!acc[employeeId]) {
-      acc[employeeId] = {
+    const key = record.employee_name;
+    if (!acc[key]) {
+      acc[key] = {
         employee_name: record.employee_name,
         total_hours: 0,
         overtime_hours: 0,
-        regular_hours: 0,
         total_records: 0,
-        jobs: new Set()
       };
     }
-    acc[employeeId].total_hours += record.total_hours;
-    acc[employeeId].overtime_hours += record.overtime_hours;
-    acc[employeeId].regular_hours += (record.total_hours - record.overtime_hours);
-    acc[employeeId].total_records += 1;
-    acc[employeeId].jobs.add(record.job_name);
+    acc[key].total_hours += record.total_hours;
+    acc[key].overtime_hours += record.overtime_hours;
+    acc[key].total_records += 1;
     return acc;
   }, {} as Record<string, any>);
 
-  // Job Summary Data
   const jobSummary = records.reduce((acc, record) => {
-    const jobName = record.job_name;
-    if (!acc[jobName]) {
-      acc[jobName] = {
-        job_name: jobName,
+    const key = record.job_name;
+    if (!acc[key]) {
+      acc[key] = {
+        job_name: record.job_name,
         total_hours: 0,
         overtime_hours: 0,
         total_records: 0,
-        unique_employees: new Set()
       };
     }
-    acc[jobName].total_hours += record.total_hours;
-    acc[jobName].overtime_hours += record.overtime_hours;
-    acc[jobName].total_records += 1;
-    acc[jobName].unique_employees.add(record.user_id);
+    acc[key].total_hours += record.total_hours;
+    acc[key].overtime_hours += record.overtime_hours;
+    acc[key].total_records += 1;
     return acc;
   }, {} as Record<string, any>);
 
-  // Date Range Summary
   const dateRangeSummary = records.reduce((acc, record) => {
     const date = format(new Date(record.punch_in_time), 'yyyy-MM-dd');
     if (!acc[date]) {
       acc[date] = {
-        date,
+        date: date,
         total_hours: 0,
         overtime_hours: 0,
         total_records: 0,
-        unique_employees: new Set()
       };
     }
     acc[date].total_hours += record.total_hours;
     acc[date].overtime_hours += record.overtime_hours;
     acc[date].total_records += 1;
-    acc[date].unique_employees.add(record.user_id);
     return acc;
   }, {} as Record<string, any>);
 
   if (loading) {
     return (
       <Card>
-        <CardContent className="p-8 text-center">
-          <div className="text-muted-foreground">Loading report data...</div>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">Loading timecard records...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (records.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            No timecard records found for the selected criteria.
+          </div>
         </CardContent>
       </Card>
     );
@@ -229,44 +202,37 @@ export default function TimecardReportViews({
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <div className="text-sm font-medium">Total Records</div>
-            </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Records</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="text-2xl font-bold">{summary.totalRecords}</div>
           </CardContent>
         </Card>
-        
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <div className="text-sm font-medium">Total Hours</div>
-            </div>
-            <div className="text-2xl font-bold">{summary.totalHours.toFixed(1)}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatDuration(summary.totalHours)}</div>
           </CardContent>
         </Card>
-        
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-orange-500" />
-              <div className="text-sm font-medium">Overtime Hours</div>
-            </div>
-            <div className="text-2xl font-bold text-orange-600">{summary.totalOvertimeHours.toFixed(1)}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Regular Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatDuration(summary.totalRegularHours)}</div>
           </CardContent>
         </Card>
-        
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <div className="text-sm font-medium">Employees</div>
-            </div>
-            <div className="text-2xl font-bold">{summary.uniqueEmployees}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Overtime Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatDuration(summary.totalOvertimeHours)}</div>
           </CardContent>
         </Card>
       </div>
@@ -279,29 +245,45 @@ export default function TimecardReportViews({
               <BarChart3 className="h-5 w-5" />
               Timecard Reports
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => onExportPDF(selectedView, selectedView === 'detailed' ? records : 
-                selectedView === 'employee' ? Object.values(employeeSummary) :
-                selectedView === 'job' ? Object.values(jobSummary) :
-                Object.values(dateRangeSummary))}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => onExportPDF(selectedView, selectedView === 'detailed' ? records : 
+                  selectedView === 'employee' ? Object.values(employeeSummary) :
+                  selectedView === 'job' ? Object.values(jobSummary) :
+                  Object.values(dateRangeSummary))}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </Button>
+              {onExportExcel && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => onExportExcel(selectedView, selectedView === 'detailed' ? records : 
+                    selectedView === 'employee' ? Object.values(employeeSummary) :
+                    selectedView === 'job' ? Object.values(jobSummary) :
+                    Object.values(dateRangeSummary))}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={selectedView} onValueChange={setSelectedView}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="detailed">Detailed Report</TabsTrigger>
-              <TabsTrigger value="employee">By Employee</TabsTrigger>
-              <TabsTrigger value="job">By Job</TabsTrigger>
-              <TabsTrigger value="date">By Date Range</TabsTrigger>
+            <TabsList className="w-full mb-4">
+              <TabsTrigger value="detailed" className="flex-1">Detailed View</TabsTrigger>
+              <TabsTrigger value="employee" className="flex-1">By Employee</TabsTrigger>
+              <TabsTrigger value="job" className="flex-1">By Job</TabsTrigger>
+              <TabsTrigger value="date" className="flex-1">By Date</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="detailed" className="space-y-4">
+            {/* Detailed View */}
+            <TabsContent value="detailed">
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -309,50 +291,47 @@ export default function TimecardReportViews({
                       <TableHead>Employee</TableHead>
                       <TableHead>Job</TableHead>
                       <TableHead>Cost Code</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>In Time</TableHead>
-                      <TableHead>Out Time</TableHead>
-                      <TableHead>Total Hours</TableHead>
-                      <TableHead>Break Time</TableHead>
+                      <TableHead>Punch In</TableHead>
+                      <TableHead>Punch Out</TableHead>
+                      <TableHead>Hours</TableHead>
                       <TableHead>Overtime</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {records.map((record) => (
-                      <TableRow key={record.id}>
+                      <TableRow 
+                        key={record.id}
+                        className="cursor-pointer hover:bg-primary/10 transition-colors"
+                        onClick={() => handleViewPunchDetails(record)}
+                      >
                         <TableCell className="font-medium">{record.employee_name}</TableCell>
                         <TableCell>{record.job_name}</TableCell>
-                        <TableCell>{record.cost_code}</TableCell>
-                        <TableCell>{format(new Date(record.punch_in_time), 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>{format(new Date(record.punch_in_time), 'h:mm a')}</TableCell>
-                        <TableCell>{format(new Date(record.punch_out_time), 'h:mm a')}</TableCell>
-                        <TableCell>{formatDuration(record.total_hours)}</TableCell>
-                        <TableCell className="text-blue-600">
-                          {record.break_minutes > 0 ? `${record.break_minutes}m` : '-'}
-                        </TableCell>
-                        <TableCell className={record.overtime_hours > 0 ? 'text-orange-600 font-medium' : ''}>
-                          {record.overtime_hours > 0 ? formatDuration(record.overtime_hours) : '-'}
+                        <TableCell className="text-muted-foreground text-sm">{record.cost_code}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            {format(new Date(record.punch_in_time), "MM/dd hh:mm a")}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getStatusColor(record.status)}>
-                            {record.status.toUpperCase()}
+                          {record.punch_out_time ? (
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              {format(new Date(record.punch_out_time), "MM/dd hh:mm a")}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">{formatDuration(record.total_hours)}</TableCell>
+                        <TableCell className="text-orange-600">
+                          {record.overtime_hours > 0 ? formatDuration(record.overtime_hours) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(record.status)}>
+                            {record.status}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {record.notes || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewPunchDetails(record)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -361,30 +340,29 @@ export default function TimecardReportViews({
               </div>
             </TabsContent>
 
-            <TabsContent value="employee" className="space-y-4">
+            {/* Employee Summary View */}
+            <TabsContent value="employee">
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Employee</TableHead>
-                      <TableHead>Total Records</TableHead>
-                      <TableHead>Regular Hours</TableHead>
-                      <TableHead>Overtime Hours</TableHead>
+                      <TableHead>Records</TableHead>
                       <TableHead>Total Hours</TableHead>
-                      <TableHead>Jobs Worked</TableHead>
+                      <TableHead>Overtime Hours</TableHead>
+                      <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Object.values(employeeSummary).map((employee: any) => (
-                      <TableRow key={employee.employee_name}>
-                        <TableCell className="font-medium">{employee.employee_name}</TableCell>
-                        <TableCell>{employee.total_records}</TableCell>
-                        <TableCell>{formatDuration(employee.regular_hours)}</TableCell>
-                        <TableCell className={employee.overtime_hours > 0 ? 'text-orange-600 font-medium' : ''}>
-                          {employee.overtime_hours > 0 ? formatDuration(employee.overtime_hours) : '-'}
+                    {Object.values(employeeSummary).map((emp: any) => (
+                      <TableRow key={emp.employee_name}>
+                        <TableCell className="font-medium">{emp.employee_name}</TableCell>
+                        <TableCell>{emp.total_records}</TableCell>
+                        <TableCell className="font-medium">{formatDuration(emp.total_hours)}</TableCell>
+                        <TableCell className="text-orange-600">
+                          {emp.overtime_hours > 0 ? formatDuration(emp.overtime_hours) : "-"}
                         </TableCell>
-                        <TableCell className="font-medium">{formatDuration(employee.total_hours)}</TableCell>
-                        <TableCell>{employee.jobs.size}</TableCell>
+                        <TableCell>{formatDuration(emp.total_hours / emp.total_records)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -392,17 +370,17 @@ export default function TimecardReportViews({
               </div>
             </TabsContent>
 
-            <TabsContent value="job" className="space-y-4">
+            {/* Job Summary View */}
+            <TabsContent value="job">
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Job</TableHead>
-                      <TableHead>Total Records</TableHead>
-                      <TableHead>Employees</TableHead>
+                      <TableHead>Records</TableHead>
                       <TableHead>Total Hours</TableHead>
                       <TableHead>Overtime Hours</TableHead>
-                      <TableHead>Avg Hours/Day</TableHead>
+                      <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -410,12 +388,11 @@ export default function TimecardReportViews({
                       <TableRow key={job.job_name}>
                         <TableCell className="font-medium">{job.job_name}</TableCell>
                         <TableCell>{job.total_records}</TableCell>
-                        <TableCell>{job.unique_employees.size}</TableCell>
                         <TableCell className="font-medium">{formatDuration(job.total_hours)}</TableCell>
-                        <TableCell className={job.overtime_hours > 0 ? 'text-orange-600 font-medium' : ''}>
-                          {job.overtime_hours > 0 ? formatDuration(job.overtime_hours) : '-'}
+                        <TableCell className="text-orange-600">
+                          {job.overtime_hours > 0 ? formatDuration(job.overtime_hours) : "-"}
                         </TableCell>
-                        <TableCell>{(job.total_hours / job.total_records).toFixed(1)}h</TableCell>
+                        <TableCell>{formatDuration(job.total_hours / job.total_records)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -423,17 +400,17 @@ export default function TimecardReportViews({
               </div>
             </TabsContent>
 
-            <TabsContent value="date" className="space-y-4">
+            {/* Date Range Summary View */}
+            <TabsContent value="date">
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Records</TableHead>
-                      <TableHead>Employees</TableHead>
                       <TableHead>Total Hours</TableHead>
                       <TableHead>Overtime Hours</TableHead>
-                      <TableHead>Avg Hours/Employee</TableHead>
+                      <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -442,15 +419,14 @@ export default function TimecardReportViews({
                       .map((day: any) => (
                         <TableRow key={day.date}>
                           <TableCell className="font-medium">
-                            {format(new Date(day.date), 'MMM dd, yyyy')}
+                            {format(new Date(day.date), "EEEE, MMMM d, yyyy")}
                           </TableCell>
                           <TableCell>{day.total_records}</TableCell>
-                          <TableCell>{day.unique_employees.size}</TableCell>
                           <TableCell className="font-medium">{formatDuration(day.total_hours)}</TableCell>
-                          <TableCell className={day.overtime_hours > 0 ? 'text-orange-600 font-medium' : ''}>
-                            {day.overtime_hours > 0 ? formatDuration(day.overtime_hours) : '-'}
+                          <TableCell className="text-orange-600">
+                            {day.overtime_hours > 0 ? formatDuration(day.overtime_hours) : "-"}
                           </TableCell>
-                          <TableCell>{(day.total_hours / day.unique_employees.size).toFixed(1)}h</TableCell>
+                          <TableCell>{formatDuration(day.total_hours / day.total_records)}</TableCell>
                         </TableRow>
                       ))}
                   </TableBody>

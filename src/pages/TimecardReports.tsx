@@ -11,6 +11,7 @@ import TimecardReportFilters from '@/components/TimecardReportFilters';
 import TimecardReportViews from '@/components/TimecardReportViews';
 import { PunchTrackingReport } from '@/components/PunchTrackingReport';
 import { exportTimecardToPDF, ReportData, CompanyBranding } from '@/utils/pdfExport';
+import { exportTimecardToExcel, ExcelReportData } from '@/utils/excelExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Employee {
@@ -293,6 +294,19 @@ export default function TimecardReports() {
         query = query.in('job_id', filters.jobs);
       }
 
+      // Load punch clock settings to get calculate_overtime setting
+      const { data: settingsData } = await supabase
+        .from('job_punch_clock_settings')
+        .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null)
+        .maybeSingle();
+
+      const calculateOvertime = settingsData?.calculate_overtime !== false;
+      const overtimeThreshold = settingsData?.overtime_threshold || 8;
+      const autoBreakDuration = settingsData?.auto_break_duration || 30;
+      const autoBreakWaitHours = settingsData?.auto_break_wait_hours || 6;
+
       // Normalize date range to full days in UTC to avoid timezone gaps
       const startISO = filters.startDate ? new Date(Date.UTC(
         filters.startDate.getFullYear(),
@@ -365,7 +379,7 @@ export default function TimecardReports() {
       const profilesMap = new Map((profilesData.data || []).map(profile => [profile.user_id, profile]));
       const pinMap = new Map((pinEmployeesData.data || []).map(emp => [emp.id, emp]));
 
-      // Transform the data
+      // Transform the data with recalculated hours
       const transformedRecords: TimeCardRecord[] = filteredData.map((record: any) => {
         const job = jobsMap.get(record.job_id);
         const costCode = costCodesMap.get(record.cost_code_id);
@@ -375,6 +389,29 @@ export default function TimecardReports() {
           ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
            (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
         
+        // Recalculate hours based on current settings
+        let totalHours = record.total_hours || 0;
+        let overtimeHours = 0;
+
+        if (record.punch_in_time && record.punch_out_time) {
+          const punchIn = new Date(record.punch_in_time);
+          const punchOut = new Date(record.punch_out_time);
+          const rawHours = (punchOut.getTime() - punchIn.getTime()) / (1000 * 60 * 60);
+          
+          // Apply auto break if applicable
+          let adjustedHours = rawHours;
+          if (rawHours > autoBreakWaitHours) {
+            adjustedHours = rawHours - (autoBreakDuration / 60);
+          }
+
+          totalHours = adjustedHours;
+
+          // Calculate overtime only if enabled
+          if (calculateOvertime) {
+            overtimeHours = Math.max(0, adjustedHours - overtimeThreshold);
+          }
+        }
+
         return {
           id: record.id,
           user_id: record.user_id,
@@ -383,8 +420,8 @@ export default function TimecardReports() {
           cost_code: costCode ? `${costCode.code} - ${costCode.description}` : 'Unknown Code',
           punch_in_time: record.punch_in_time,
           punch_out_time: record.punch_out_time,
-          total_hours: parseFloat(record.total_hours.toString()) || 0,
-          overtime_hours: parseFloat(record.overtime_hours.toString()) || 0,
+          total_hours: totalHours,
+          overtime_hours: overtimeHours,
           break_minutes: record.break_minutes || 0,
           status: record.status,
           notes: record.notes,
@@ -689,6 +726,50 @@ export default function TimecardReports() {
     }
   };
 
+  const handleExportExcel = async (reportType: string, data: any) => {
+    if (!company) {
+      toast({
+        title: "Error",
+        description: "Company information not available for Excel export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const reportData: ExcelReportData = {
+        title: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Timecard Report`,
+        dateRange: filters.startDate && filters.endDate 
+          ? `${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
+          : 'All Time',
+        employee: filters.employees.length === 1 
+          ? employees.find(e => e.user_id === filters.employees[0])?.display_name 
+          : undefined,
+        data,
+        summary: {
+          totalRecords: data.length,
+          totalHours: summary.totalHours,
+          overtimeHours: summary.totalOvertimeHours,
+          regularHours: summary.totalRegularHours
+        }
+      };
+
+      exportTimecardToExcel(reportData, company.name);
+      
+      toast({
+        title: "Export Complete",
+        description: "Excel report has been downloaded successfully",
+      });
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to generate Excel report",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Calculate summary data
   const summary = {
     totalRecords: records.length,
@@ -752,12 +833,14 @@ export default function TimecardReports() {
               summary={summary}
               loading={loading}
               onExportPDF={handleExportPDF}
+              onExportExcel={handleExportExcel}
             />
           </TabsContent>
           <TabsContent value="punches">
             <PunchTrackingReport
               records={punches}
               loading={loading}
+              companyName={company?.name}
               onTimecardCreated={() => {
                 loadTimecardRecords();
                 loadPunchRecords();

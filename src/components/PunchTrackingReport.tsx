@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download, Clock, MapPin, Camera, Link as LinkIcon } from "lucide-react";
+import { Download, Clock, MapPin, Camera, Link as LinkIcon, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import PunchDetailView from "@/components/PunchDetailView";
+import { exportPunchTrackingToExcel } from "@/utils/excelExport";
 
 interface PunchRecord {
   id: string;
@@ -33,9 +34,10 @@ interface PunchTrackingReportProps {
   records: PunchRecord[];
   loading: boolean;
   onTimecardCreated?: () => void;
+  companyName?: string;
 }
 
-export function PunchTrackingReport({ records, loading, onTimecardCreated }: PunchTrackingReportProps) {
+export function PunchTrackingReport({ records, loading, onTimecardCreated, companyName }: PunchTrackingReportProps) {
   const { toast } = useToast();
   const [selectedPunches, setSelectedPunches] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
@@ -43,13 +45,27 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
   const [showPunchDetail, setShowPunchDetail] = useState(false);
   const handleExportPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
     doc.setFont('helvetica', 'normal');
 
+    // Modern header container
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(20, 20, pageWidth - 40, 70, 8, 8, 'F');
+
+    doc.setTextColor(15, 23, 42);
     doc.setFontSize(18);
-    doc.text('Punch Tracking Report', 20, 28);
-    doc.setFontSize(10);
-    doc.text(`Generated: ${format(new Date(), 'PPpp')}`, 20, 44);
-    doc.text(`Total Punches: ${records.length}`, 20, 58);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Punch Tracking Report', 36, 48);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Generated: ${format(new Date(), 'PPpp')}`, 36, 68);
+    
+    const totalText = `Total Punches: ${records.length}`;
+    doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), 68);
 
     const tableData = records.map(record => [
       record.employee_name,
@@ -63,12 +79,28 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
     ]);
 
     autoTable(doc, {
-      startY: 76,
+      startY: 110,
       head: [['Employee', 'Time', 'Type', 'Job', 'Cost Code', 'Location', 'Photo', 'Notes']],
       body: tableData,
       theme: 'plain',
-      headStyles: { fillColor: [245, 245, 245], textColor: [33, 37, 41], fontSize: 10, fontStyle: 'bold' },
-      styles: { fontSize: 9, overflow: 'ellipsize' },
+      headStyles: { 
+        fillColor: [241, 245, 249], 
+        textColor: [15, 23, 42], 
+        fontSize: 10, 
+        fontStyle: 'bold',
+        cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
+        textColor: [51, 65, 85],
+        lineColor: [226, 232, 240],
+        lineWidth: 0.5
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      },
+      styles: { overflow: 'ellipsize' },
       columnStyles: {
         0: { cellWidth: 130 },
         1: { cellWidth: 130 },
@@ -78,6 +110,16 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
         5: { cellWidth: 70 },
         6: { cellWidth: 60 },
         7: { cellWidth: 240 }
+      },
+      didDrawPage: () => {
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+          `Page ${doc.getCurrentPageInfo().pageNumber}`,
+          pageWidth / 2,
+          pageHeight - 12,
+          { align: 'center' }
+        );
       }
     });
 
@@ -230,6 +272,14 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
             <Button onClick={handleExportPDF} variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export PDF
+            </Button>
+            <Button 
+              onClick={() => exportPunchTrackingToExcel(records, companyName || 'Company')} 
+              variant="outline" 
+              size="sm"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export Excel
             </Button>
           </div>
         </div>

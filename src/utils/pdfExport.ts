@@ -38,58 +38,75 @@ export class PDFExporter {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPos = 24;
+    let yPos = 32;
 
-    // Use Arial-like font (Helvetica)
     doc.setFont('helvetica', 'normal');
 
-    // Header: Logo + Company info (no heavy background)
+    // Modern rounded header container
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
+
+    // Logo + Company info
+    const logoX = 36;
+    const logoY = 32;
+    
     if (this.company.logo_url) {
       try {
         const logoData = await this.loadImage(this.company.logo_url);
-        doc.addImage(logoData, 'PNG', 20, 12, 48, 48);
+        doc.addImage(logoData, 'PNG', logoX, logoY, 56, 56);
       } catch (e) {
-        console.warn('Logo failed to load, continuing without image');
+        console.error('Logo failed to load:', e);
+        console.log('Logo URL:', this.company.logo_url);
       }
     }
 
-    doc.setTextColor(33, 37, 41);
-    doc.setFontSize(18);
+    const textStartX = this.company.logo_url ? logoX + 68 : logoX;
+    
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text(this.company.name, this.company.logo_url ? 80 : 20, 28);
+    doc.text(this.company.name, textStartX, logoY + 12);
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    
     const addressLine = [
       this.company.address,
       [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
     ].filter(Boolean).join(', ');
-    if (addressLine) doc.text(addressLine, this.company.logo_url ? 80 : 20, 44);
+    if (addressLine) doc.text(addressLine, textStartX, logoY + 30);
+    
     const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
-    if (contactLine) doc.text(contactLine, this.company.logo_url ? 80 : 20, 58);
+    if (contactLine) doc.text(contactLine, textStartX, logoY + 44);
 
-    // Report meta on right
+    // Report info on right
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
     const titleText = reportData.title;
     const titleWidth = doc.getTextWidth(titleText);
-    doc.text(titleText, pageWidth - 20 - titleWidth, 28);
+    doc.text(titleText, pageWidth - 36 - titleWidth, logoY + 12);
+    
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
     const rangeText = `Period: ${reportData.dateRange}`;
-    doc.text(rangeText, pageWidth - 20 - doc.getTextWidth(rangeText), 44);
-    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy')}`;
-    doc.text(genText, pageWidth - 20 - doc.getTextWidth(genText), 58);
+    doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
+    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+    doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
 
-    yPos = 80;
+    yPos = 120;
 
-    // Employee info if provided
+    // Employee info if provided - modern rounded container
     if (reportData.employee) {
-      doc.setFillColor(245, 245, 245);
-      doc.rect(20, yPos, pageWidth - 40, 18, 'F');
-      doc.setTextColor(33, 37, 41);
-      doc.setFontSize(11);
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(20, yPos, pageWidth - 40, 28, 6, 6, 'F');
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Employee: ${reportData.employee}`, 28, yPos + 12);
-      yPos += 26;
+      doc.text(`Employee: ${reportData.employee}`, 32, yPos + 18);
+      yPos += 40;
     }
 
     // Prepare table data - exclude ID columns and format properly
@@ -102,27 +119,29 @@ export class PDFExporter {
       record.total_hours?.toFixed(2) || '0.00'
     ]);
 
-    // Add data table with modern styling
+    // Modern table styling
     autoTable(doc, {
       startY: yPos,
       head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Hours']],
       body: tableData,
       theme: 'plain',
       headStyles: {
-        fillColor: [245, 245, 245],
-        textColor: [33, 37, 41],
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
         fontSize: 10,
         fontStyle: 'bold',
         halign: 'left',
-        cellPadding: 4
+        cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
       },
       bodyStyles: {
         fontSize: 9,
-        cellPadding: 3,
-        textColor: [50, 50, 50]
+        cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
+        textColor: [51, 65, 85],
+        lineColor: [226, 232, 240],
+        lineWidth: 0.5
       },
       alternateRowStyles: {
-        fillColor: [252, 252, 252]
+        fillColor: [248, 250, 252]
       },
       columnStyles: {
         0: { cellWidth: 160 },
@@ -130,17 +149,14 @@ export class PDFExporter {
         2: { cellWidth: 180 },
         3: { cellWidth: 120 },
         4: { cellWidth: 120 },
-        5: { cellWidth: 60, halign: 'right' }
+        5: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
       },
       styles: {
-        lineColor: [220, 220, 220],
-        lineWidth: 0.1,
         overflow: 'ellipsize'
       },
       didDrawPage: (data) => {
-        // Add page numbers
         doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
+        doc.setTextColor(148, 163, 184);
         doc.text(
           `Page ${doc.getCurrentPageInfo().pageNumber}`,
           pageWidth / 2,
@@ -150,33 +166,34 @@ export class PDFExporter {
       }
     });
 
-    // Summary section
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    // Modern summary section
+    const finalY = (doc as any).lastAutoTable.finalY + 16;
     
-    // Summary box (subtle)
-    doc.setFillColor(245, 245, 245);
-    doc.roundedRect(20, finalY, pageWidth - 40, 44, 4, 4, 'F');
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(20, finalY, pageWidth - 40, 56, 8, 8, 'F');
     
-    doc.setTextColor(33, 37, 41);
-    doc.setFontSize(12);
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text('Summary Totals', 28, finalY + 16);
+    doc.text('Summary Totals', 36, finalY + 20);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Total Records: ${reportData.summary.totalRecords}`, 28, finalY + 30);
-    doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 220, finalY + 30);
-    doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 420, finalY + 30);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Total Records: ${reportData.summary.totalRecords}`, 36, finalY + 38);
+    doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 240, finalY + 38);
+    doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 440, finalY + 38);
     
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
     const totalText = `Total Hours: ${reportData.summary.totalHours.toFixed(2)}`;
-    doc.text(totalText, pageWidth - 20 - doc.getTextWidth(totalText), finalY + 30);
+    doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), finalY + 38);
 
     // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
     doc.setFont('helvetica', 'italic');
-    const footerY = pageHeight - 15;
+    const footerY = pageHeight - 12;
     doc.text('Confidential - For Internal Use Only', pageWidth / 2, footerY, { align: 'center' });
 
     doc.save(`timecard-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
