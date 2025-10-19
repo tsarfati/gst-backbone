@@ -325,9 +325,15 @@ export default function PdfTemplateSettings() {
           }
           (async () => {
             try {
-              const resolvedUrl = await resolveStorageUrl(img.url);
-              console.log('[PdfTemplateSettings] Loading header image URL:', resolvedUrl);
-              const fabricImg = await FabricImage.fromURL(resolvedUrl, { crossOrigin: 'anonymous' });
+              let resolvedUrl: string | undefined;
+              try {
+                resolvedUrl = await resolveStorageUrl(img.url);
+              } catch (e) {
+                console.warn('[PdfTemplateSettings] resolveStorageUrl failed, using raw url:', img.url, e);
+              }
+              const urlToUse = resolvedUrl || img.url;
+              console.log('[PdfTemplateSettings] Loading header image URL:', urlToUse);
+              const fabricImg = await FabricImage.fromURL(urlToUse, { crossOrigin: 'anonymous' });
               (fabricImg as any)._originalUrl = img.url;
               fabricImg.set({
                 left: img.x,
@@ -952,7 +958,7 @@ export default function PdfTemplateSettings() {
                         </div>
 
                         {/* Template Content - lower z-index so canvas is on top */}
-                        <div className="relative w-full h-full flex flex-col p-6 z-10">
+                        <div className="relative w-full h-full flex flex-col p-6 pointer-events-none z-10">
                           {/* Header Section */}
                           <div 
                             className="prose prose-sm max-w-none mb-4"
@@ -1021,6 +1027,28 @@ export default function PdfTemplateSettings() {
                             pointerEvents: 'auto'
                           }}
                         />
+
+                        {/* Fallback positioned logos (HTML) only if canvas has no images yet */}
+                        {(!fabricImagesRef.current || fabricImagesRef.current.length === 0) &&
+                          timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+                          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 80 }}>
+                            {timecardTemplate.header_images.map((img, idx) => (
+                              <img
+                                key={`fallback-${idx}`}
+                                src={img.url}
+                                alt={`Logo ${idx + 1}`}
+                                style={{
+                                  position: 'absolute',
+                                  left: `${(img.x / 842) * 100}%`,
+                                  top: `${(img.y / 595) * 100}%`,
+                                  width: `${(img.width / 842) * 100}%`,
+                                  height: 'auto',
+                                  objectFit: 'contain'
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
 
                       </div>
                     </div>
