@@ -666,46 +666,30 @@ export class PDFExporter {
 }
 
 export const exportTimecardToPDF = async (reportData: ReportData, company: CompanyBranding, companyId?: string) => {
-  // Load template and header logo from company_ui_settings for current user/company
+  // Load template from database if company ID is provided
   let template: PdfTemplate | undefined;
-  let brand: CompanyBranding = { ...company };
-
+  
   if (companyId) {
     try {
-      const { data: userRes } = await supabase.auth.getUser();
-      const uid = userRes.user?.id;
-      if (uid) {
-        const { data } = await supabase
-          .from('company_ui_settings')
-          .select('settings')
-          .eq('company_id', companyId)
-          .eq('user_id', uid)
-          .maybeSingle();
-
-        const settings = (data?.settings as any) || {};
-        if (settings.headerLogo) {
-          brand.logo_url = settings.headerLogo;
-        }
-        const t = settings.pdfTemplateTimecard || settings.pdf_template_timecard || null;
-        if (t) {
-          template = {
-            font_family: t.font_family || t.fontFamily || 'helvetica',
-            header_html: t.header_html || t.headerHtml,
-            footer_html: t.footer_html || t.footerHtml,
-            table_header_bg: t.table_header_bg || t.tableHeaderBg,
-            table_border_color: t.table_border_color || t.tableBorderColor,
-            table_stripe_color: t.table_stripe_color || t.tableStripeColor,
-            auto_size_columns: typeof t.auto_size_columns === 'boolean' ? t.auto_size_columns : t.autoSizeColumns,
-            header_images: t.header_images || []
-          } as PdfTemplate;
-        }
+      const { data } = await supabase
+        .from('pdf_templates')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('template_type', 'timecard')
+        .maybeSingle();
+      
+      if (data) {
+        template = {
+          ...data,
+          header_images: (data.header_images as any) || []
+        } as PdfTemplate;
       }
     } catch (error) {
-      console.error('Error loading PDF template settings:', error);
+      console.error('Error loading PDF template:', error);
     }
   }
   
-  const exporter = new PDFExporter(brand, template);
+  const exporter = new PDFExporter(company, template);
 
   // If multiple employees are present in detailed rows, group by employee
   const hasDetailedRows = (reportData.data || []).some((r: any) => r.punch_in_time || r.punch_out_time);
