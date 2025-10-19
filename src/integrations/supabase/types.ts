@@ -2692,11 +2692,13 @@ export type Database = {
           header_images: Json | null
           id: string
           notes: string | null
+          pages: Json | null
           primary_color: string | null
           secondary_color: string | null
           table_border_color: string | null
           table_header_bg: string | null
           table_stripe_color: string | null
+          template_name: string | null
           template_type: string
           updated_at: string
         }
@@ -2711,11 +2713,13 @@ export type Database = {
           header_images?: Json | null
           id?: string
           notes?: string | null
+          pages?: Json | null
           primary_color?: string | null
           secondary_color?: string | null
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
+          template_name?: string | null
           template_type: string
           updated_at?: string
         }
@@ -2730,11 +2734,13 @@ export type Database = {
           header_images?: Json | null
           id?: string
           notes?: string | null
+          pages?: Json | null
           primary_color?: string | null
           secondary_color?: string | null
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
+          template_name?: string | null
           template_type?: string
           updated_at?: string
         }
@@ -3678,6 +3684,7 @@ export type Database = {
           job_id: string
           name: string
           retainage_percentage: number | null
+          scope_of_work: string | null
           start_date: string | null
           status: string
           total_distributed_amount: number | null
@@ -3697,6 +3704,7 @@ export type Database = {
           job_id: string
           name: string
           retainage_percentage?: number | null
+          scope_of_work?: string | null
           start_date?: string | null
           status?: string
           total_distributed_amount?: number | null
@@ -3716,6 +3724,7 @@ export type Database = {
           job_id?: string
           name?: string
           retainage_percentage?: number | null
+          scope_of_work?: string | null
           start_date?: string | null
           status?: string
           total_distributed_amount?: number | null

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, FileText, X, AlertCircle } from "lucide-react";
+import { ArrowLeft, Upload, FileText, X, AlertCircle, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +32,7 @@ export default function AddSubcontract() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    scope_of_work: "",
     job_id: jobId || "",
     vendor_id: vendorId || "",
     contract_amount: "",
@@ -58,6 +59,8 @@ export default function AddSubcontract() {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<File | null>(null);
   const [requiredFields, setRequiredFields] = useState<string[]>(["name", "job_id", "vendor_id", "contract_amount"]);
+  const [availableTemplates, setAvailableTemplates] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('default');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -418,6 +421,7 @@ export default function AddSubcontract() {
         .insert({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
+          scope_of_work: formData.scope_of_work.trim() || null,
           job_id: formData.job_id,
           vendor_id: formData.vendor_id,
           contract_amount: parseFloat(formData.contract_amount),
@@ -538,6 +542,20 @@ export default function AddSubcontract() {
                   placeholder="Enter subcontract description"
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="scope_of_work">Scope of Work</Label>
+                <Textarea
+                  id="scope_of_work"
+                  value={formData.scope_of_work}
+                  onChange={(e) => handleInputChange("scope_of_work", e.target.value)}
+                  placeholder="Enter detailed scope of work for this subcontract"
+                  rows={5}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This will be used in the generated contract document
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
