@@ -112,7 +112,7 @@ export default function TimecardReports() {
 
       // Get PIN employees linked to this company via settings or existing data
       // Also get all PIN employees directly from company_id
-      const [pinSettingsRes, tcUsersRes, punchUsersRes, directPinEmployees] = await Promise.all([
+      const [pinSettingsRes, tcUsersRes, punchUsersRes] = await Promise.all([
         (supabase as any)
           .from('pin_employee_timecard_settings')
           .select('pin_employee_id')
@@ -125,19 +125,14 @@ export default function TimecardReports() {
           .from('punch_records')
           .select('user_id, pin_employee_id')
           .eq('company_id', currentCompany.id),
-        supabase
-          .from('pin_employees')
-          .select('id')
-          .eq('company_id', currentCompany.id),
       ]);
 
       const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
-      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map(r => r.user_id);
+      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
       const idsFromPunches: string[] = (punchUsersRes.data || []).flatMap((r: any) => [r.user_id, r.pin_employee_id]).filter(Boolean);
-      const directPinIds: string[] = (directPinEmployees.data || []).map((r: any) => r.id);
 
-      // Candidates for PIN employees are any ids seen in settings, activity, or directly linked to company
-      const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches, ...directPinIds]));
+      // Candidates for PIN employees are any ids seen in settings or activity in this company
+      const candidateIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
       if (companyUserIds.length === 0 && candidateIds.length === 0) {
         setEmployees([]);
         return;
@@ -203,6 +198,7 @@ export default function TimecardReports() {
         .from('jobs')
         .select('id, name, address')
         .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
