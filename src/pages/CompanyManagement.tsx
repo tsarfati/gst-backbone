@@ -10,9 +10,11 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera, Share2 } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera, Share2, FileText } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
+import PdfTemplateSettings from '@/components/PdfTemplateSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -487,6 +489,20 @@ export default function CompanyManagement() {
         </div>
       </div>
 
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">
+            <Building2 className="h-4 w-4 mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="templates">
+            <FileText className="h-4 w-4 mr-2" />
+            PDF Templates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+
       {/* Company Info Card */}
       <Card>
         <CardHeader>
@@ -817,6 +833,14 @@ export default function CompanyManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      </TabsContent>
+
+      <TabsContent value="templates">
+        <PdfTemplateSettings />
+      </TabsContent>
+
+      </Tabs>
 
       {/* Add User Dialog */}
       <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>

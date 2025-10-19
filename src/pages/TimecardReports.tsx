@@ -14,7 +14,7 @@ import { exportTimecardToPDF, ReportData, CompanyBranding } from '@/utils/pdfExp
 import { exportTimecardToExcel, ExcelReportData } from '@/utils/excelExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, Settings } from "lucide-react";
+import { Info } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -813,8 +813,8 @@ export default function TimecardReports() {
         {/* PDF Template Placeholders Info */}
         <Alert className="border-info/50 bg-info/5">
           <Info className="h-4 w-4 text-info" />
-          <AlertDescription className="flex items-start justify-between gap-4">
-            <div className="space-y-2 flex-1">
+          <AlertDescription>
+            <div className="space-y-2">
               <div className="font-medium text-sm">PDF Template Placeholders</div>
               <div className="text-xs text-muted-foreground space-y-1">
                 <div>You can customize PDF report headers and footers using these placeholders:</div>
@@ -830,15 +830,6 @@ export default function TimecardReports() {
                 </div>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.href = '/settings/company?tab=templates'}
-              className="flex-shrink-0"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Edit Templates
-            </Button>
           </AlertDescription>
         </Alert>
 
