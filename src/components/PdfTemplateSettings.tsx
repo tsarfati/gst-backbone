@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
+import { Canvas as FabricCanvas, FabricImage } from 'fabric';
 
 interface TemplateSettings {
   id?: string;
@@ -133,12 +134,81 @@ export default function PdfTemplateSettings() {
     header_images: []
   });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<FabricCanvas | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
     if (currentCompany?.id) {
       loadTemplate('timecard');
     }
   }, [currentCompany?.id]);
+
+  // Initialize fabric canvas
+  useEffect(() => {
+    if (!canvasRef.current || fabricCanvasRef.current) return;
+
+    const canvas = new FabricCanvas(canvasRef.current, {
+      width: 842,
+      height: 595,
+      backgroundColor: '#ffffff',
+    });
+
+    fabricCanvasRef.current = canvas;
+    setCanvasReady(true);
+
+    return () => {
+      canvas.dispose();
+      fabricCanvasRef.current = null;
+    };
+  }, []);
+
+  // Update canvas with logos
+  useEffect(() => {
+    if (!fabricCanvasRef.current || !canvasReady || !timecardTemplate.header_images) return;
+
+    const canvas = fabricCanvasRef.current;
+    canvas.clear();
+    canvas.backgroundColor = '#ffffff';
+
+    // Load each image onto the canvas
+    timecardTemplate.header_images.forEach((img, idx) => {
+      FabricImage.fromURL(img.url, {
+        crossOrigin: 'anonymous'
+      }).then((fabricImg) => {
+        fabricImg.set({
+          left: img.x,
+          top: img.y,
+          scaleX: img.width / (fabricImg.width || 1),
+          scaleY: img.height / (fabricImg.height || 1),
+        });
+
+        // Add border and controls
+        fabricImg.set({
+          borderColor: 'hsl(var(--primary))',
+          cornerColor: 'hsl(var(--primary))',
+          cornerSize: 8,
+          transparentCorners: false,
+        });
+
+        // Save position when moved or scaled
+        fabricImg.on('modified', () => {
+          const newImages = [...(timecardTemplate.header_images || [])];
+          newImages[idx] = {
+            url: img.url,
+            x: Math.round(fabricImg.left || 0),
+            y: Math.round(fabricImg.top || 0),
+            width: Math.round((fabricImg.width || 0) * (fabricImg.scaleX || 1)),
+            height: Math.round((fabricImg.height || 0) * (fabricImg.scaleY || 1)),
+          };
+          setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+        });
+
+        canvas.add(fabricImg);
+        canvas.renderAll();
+      });
+    });
+  }, [timecardTemplate.header_images, canvasReady]);
 
   const loadTemplate = async (templateType: string) => {
     if (!currentCompany?.id) return;
@@ -599,153 +669,61 @@ export default function PdfTemplateSettings() {
               <Card className="mt-6">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Template Preview
+                    <Move className="h-4 w-4" />
+                    Interactive Logo Placement
                   </CardTitle>
                   <CardDescription>
-                    Preview your complete timecard template with logo placement (A4 Landscape: 842×595pt)
+                    Drag and resize logos directly on the canvas (A4 Landscape: 842×595pt)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="relative w-full bg-white rounded-lg overflow-hidden shadow-lg" style={{ aspectRatio: '842/595' }}>
-                    {/* Grid background */}
-                    <div className="absolute inset-0" style={{
-                      backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.03) 1px, transparent 1px)',
-                      backgroundSize: '50px 50px'
-                    }} />
+                  <div className="space-y-4">
+                    <div className="relative w-full bg-gradient-to-br from-muted/30 to-muted/10 rounded-lg p-4 shadow-lg">
+                      <canvas 
+                        ref={canvasRef} 
+                        className="border-2 border-border rounded shadow-inner w-full"
+                      />
+                    </div>
                     
-                    {/* Reference dimensions */}
-                    <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-10">
-                      842pt × 595pt
-                    </div>
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
+                          ? <span><strong>Click and drag</strong> logos to reposition them. <strong>Drag corners</strong> to resize. Changes are saved automatically.</span>
+                          : 'Upload logo images in the Header Images section above, then drag and position them here.'}
+                      </AlertDescription>
+                    </Alert>
 
-                    {/* Template Content */}
-                    <div className="relative w-full h-full flex flex-col p-6">
-                      {/* Header Section */}
-                      <div 
-                        className="prose prose-sm max-w-none mb-4"
-                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
-                      />
-
-                      {/* Sample Body Content */}
-                      <div className="flex-1 overflow-hidden">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr style={{ backgroundColor: timecardTemplate.table_header_bg }}>
-                              <th className="border p-2 text-left">Employee</th>
-                              <th className="border p-2 text-left">Date</th>
-                              <th className="border p-2 text-left">Job</th>
-                              <th className="border p-2 text-center">Hours</th>
-                              <th className="border p-2 text-right">Rate</th>
-                              <th className="border p-2 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="bg-muted/20">
-                              <td className="border p-2">John Doe</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Main Street Project</td>
-                              <td className="border p-2 text-center">8.0</td>
-                              <td className="border p-2 text-right">$45.00</td>
-                              <td className="border p-2 text-right">$360.00</td>
-                            </tr>
-                            <tr>
-                              <td className="border p-2">Jane Smith</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Downtown Building</td>
-                              <td className="border p-2 text-center">7.5</td>
-                              <td className="border p-2 text-right">$50.00</td>
-                              <td className="border p-2 text-right">$375.00</td>
-                            </tr>
-                            <tr className="bg-muted/20">
-                              <td className="border p-2">Mike Johnson</td>
-                              <td className="border p-2">01/15/2025</td>
-                              <td className="border p-2">Bridge Repair</td>
-                              <td className="border p-2 text-center">9.0</td>
-                              <td className="border p-2 text-right">$55.00</td>
-                              <td className="border p-2 text-right">$495.00</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Footer Section */}
-                      <div 
-                        className="prose prose-sm max-w-none mt-4"
-                        dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
-                      />
-                    </div>
-
-                    {/* Render logo images with positioning overlay */}
-                    {timecardTemplate.header_images && timecardTemplate.header_images.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className="absolute border-2 border-primary bg-primary/5 rounded group hover:shadow-xl transition-all z-20"
-                        style={{
-                          left: `${(img.x / 842) * 100}%`,
-                          top: `${(img.y / 595) * 100}%`,
-                          width: `${(img.width / 842) * 100}%`,
-                          height: `${(img.height / 595) * 100}%`,
-                        }}
-                      >
-                        <img 
-                          src={img.url} 
-                          alt={`Logo ${idx + 1}`} 
-                          className="w-full h-full object-contain"
-                        />
-                        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                          Logo {idx + 1} ({Math.round(img.x)}, {Math.round(img.y)})
-                        </div>
-                        
-                        {/* Position adjustment controls */}
-                        <div className="absolute -bottom-24 left-0 right-0 bg-background border border-primary rounded p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-xl z-30 min-w-max">
-                          <div className="grid grid-cols-4 gap-1 text-xs">
-                            <div>
-                              <Label className="text-[10px]">X (pt)</Label>
-                              <Input
-                                type="number"
-                                value={Math.round(img.x)}
-                                onChange={(e) => updateImagePosition(idx, 'x', parseFloat(e.target.value) || 0)}
-                                className="h-7 text-xs"
-                              />
+                    {/* Image List */}
+                    {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Positioned Logos</Label>
+                        <div className="space-y-2">
+                          {timecardTemplate.header_images.map((img, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+                              <div className="flex items-center gap-3">
+                                <img src={img.url} alt={`Logo ${index + 1}`} className="w-12 h-12 object-contain border rounded" />
+                                <div className="text-xs space-y-0.5">
+                                  <div className="font-medium">Logo {index + 1}</div>
+                                  <div className="text-muted-foreground">
+                                    Position: ({Math.round(img.x)}, {Math.round(img.y)}) • 
+                                    Size: {Math.round(img.width)}×{Math.round(img.height)}pt
+                                  </div>
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeHeaderImage(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </div>
-                            <div>
-                              <Label className="text-[10px]">Y (pt)</Label>
-                              <Input
-                                type="number"
-                                value={Math.round(img.y)}
-                                onChange={(e) => updateImagePosition(idx, 'y', parseFloat(e.target.value) || 0)}
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-[10px]">Width</Label>
-                              <Input
-                                type="number"
-                                value={Math.round(img.width)}
-                                onChange={(e) => updateImagePosition(idx, 'width', parseFloat(e.target.value) || 10)}
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <Label className="text-[10px]">Height</Label>
-                              <Input
-                                type="number"
-                                value={Math.round(img.height)}
-                                onChange={(e) => updateImagePosition(idx, 'height', parseFloat(e.target.value) || 10)}
-                                className="h-7 text-xs"
-                              />
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-4">
-                    {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
-                      ? 'Hover over logo images to adjust their position and size. Values are in PDF points (pt).'
-                      : 'Upload logo images in the Header Images section above to see them positioned on the template.'}
-                  </p>
                 </CardContent>
               </Card>
             </TabsContent>
