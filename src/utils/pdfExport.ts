@@ -40,6 +40,7 @@ export class PDFExporter {
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPos = 32;
 
+    // Use Helvetica with modern styling (closest to Inter/modern sans-serif)
     doc.setFont('helvetica', 'normal');
 
     // Modern rounded header container
@@ -49,18 +50,34 @@ export class PDFExporter {
     // Logo + Company info
     const logoX = 36;
     const logoY = 32;
+    let logoLoaded = false;
     
     if (this.company.logo_url) {
       try {
-        const logoData = await this.loadImage(this.company.logo_url);
+        // Handle Supabase storage URLs
+        let logoUrl = this.company.logo_url;
+        
+        // If it's a relative path, make it absolute
+        if (logoUrl.startsWith('/')) {
+          logoUrl = window.location.origin + logoUrl;
+        }
+        
+        // Add timestamp to bust cache
+        const separator = logoUrl.includes('?') ? '&' : '?';
+        logoUrl = `${logoUrl}${separator}t=${Date.now()}`;
+        
+        console.log('Loading logo from:', logoUrl);
+        const logoData = await this.loadImage(logoUrl);
         doc.addImage(logoData, 'PNG', logoX, logoY, 56, 56);
+        logoLoaded = true;
+        console.log('Logo loaded successfully');
       } catch (e) {
         console.error('Logo failed to load:', e);
-        console.log('Logo URL:', this.company.logo_url);
+        console.log('Logo URL attempted:', this.company.logo_url);
       }
     }
 
-    const textStartX = this.company.logo_url ? logoX + 68 : logoX;
+    const textStartX = logoLoaded ? logoX + 68 : logoX;
     
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(20);
