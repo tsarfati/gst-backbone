@@ -369,6 +369,7 @@ export default function PdfTemplateSettings() {
 
               fabricImagesRef.current[idx] = fabricImg;
               canvas.add(fabricImg);
+              (fabricImg as any).moveTo?.(999);
               canvas.setActiveObject(fabricImg);
               canvas.requestRenderAll();
             } catch (err) {
@@ -400,17 +401,21 @@ export default function PdfTemplateSettings() {
         .select('*')
         .eq('company_id', currentCompany.id)
         .eq('template_type', templateType)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (error) throw error;
       
-      if (data) {
+      const row = Array.isArray(data) ? data[0] : undefined;
+      
+      if (row) {
         // Parse header_images properly
-        let headerImages = [];
+        let headerImages: any[] = [];
         try {
-          headerImages = typeof data.header_images === 'string' 
-            ? JSON.parse(data.header_images) 
-            : (data.header_images || []);
+          headerImages = typeof (row as any).header_images === 'string' 
+            ? JSON.parse((row as any).header_images) 
+            : ((row as any).header_images || []);
         } catch (e) {
           console.error('Error parsing header_images:', e);
           headerImages = [];
@@ -426,7 +431,7 @@ export default function PdfTemplateSettings() {
         }
 
         setTimecardTemplate({
-          ...data,
+          ...(row as any),
           header_images: finalHeaderImages
         });
       } else {
