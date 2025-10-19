@@ -18,6 +18,7 @@ import PdfInlinePreview from "@/components/PdfInlinePreview";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import JobCostingDistribution from "@/components/JobCostingDistribution";
 import QuickAddVendor from "@/components/QuickAddVendor";
+import { generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
@@ -121,6 +122,19 @@ export default function AddSubcontract() {
 
         if (vendorsError) throw vendorsError;
         setVendors(vendorsData || []);
+
+        // Fetch available subcontract PDF templates
+        const { data: templatesData } = await supabase
+          .from('pdf_templates')
+          .select('template_name')
+          .eq('company_id', companyId)
+          .eq('template_type', 'subcontract');
+        
+        if (templatesData && templatesData.length > 0) {
+          setAvailableTemplates(templatesData.map(t => t.template_name));
+        } else {
+          setAvailableTemplates(['default']);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         toast({
@@ -416,7 +430,7 @@ export default function AddSubcontract() {
 
       const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
 
-      const { error } = await supabase
+      const { data: newSubcontract, error } = await supabase
         .from('subcontracts')
         .insert({
           name: formData.name.trim(),
@@ -434,7 +448,9 @@ export default function AddSubcontract() {
           cost_distribution: costDistribution.length > 0 ? JSON.stringify(costDistribution) : null,
           total_distributed_amount: totalDistributedAmount,
           created_by: user.id
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -454,6 +470,79 @@ export default function AddSubcontract() {
       toast({
         title: "Error",
         description: "Failed to create subcontract",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateContract = async () => {
+    if (!formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount) {
+      toast({
+        title: "Cannot Generate",
+        description: "Please fill in required fields (name, job, vendor, contract amount) before generating contract",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // First save the subcontract
+    setIsSubmitting(true);
+    try {
+      // Upload files if present
+      let fileData: {path: string, name: string}[] = [];
+      if (contractFiles.length > 0) {
+        const uploadedFiles = await uploadFilesToStorage();
+        fileData = uploadedFiles;
+      }
+
+      const fileDataString = fileData.length > 0 ? JSON.stringify(fileData) : formData.contract_file_url || null;
+      const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+
+      const { data: newSubcontract, error } = await supabase
+        .from('subcontracts')
+        .insert({
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          scope_of_work: formData.scope_of_work.trim() || null,
+          job_id: formData.job_id,
+          vendor_id: formData.vendor_id,
+          contract_amount: parseFloat(formData.contract_amount),
+          start_date: formData.start_date || null,
+          end_date: formData.end_date || null,
+          status: formData.status,
+          contract_file_url: fileDataString,
+          apply_retainage: formData.apply_retainage,
+          retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
+          cost_distribution: costDistribution.length > 0 ? JSON.stringify(costDistribution) : null,
+          total_distributed_amount: totalDistributedAmount,
+          created_by: user.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Generate PDF
+      await generateSubcontractPDF(newSubcontract.id, selectedTemplate);
+
+      toast({
+        title: "Success",
+        description: "Subcontract created and contract document generated",
+      });
+
+      // Navigate back
+      if (jobId) {
+        navigate(`/jobs/${jobId}`);
+      } else {
+        navigate(`/subcontracts`);
+      }
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate contract",
         variant: "destructive",
       });
     } finally {
@@ -913,6 +1002,46 @@ export default function AddSubcontract() {
                   Enter the URL to the contract file (optional)
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Generate Contract Document */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileDown className="h-5 w-5" />
+                Generate Contract Document
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="template_select">Contract Template</Label>
+                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTemplates.map(template => (
+                      <SelectItem key={template} value={template}>
+                        {template.charAt(0).toUpperCase() + template.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select a template for the generated contract. Configure templates in PDF Template Settings.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleGenerateContract}
+                disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                {isSubmitting ? 'Generating...' : 'Save & Generate Contract PDF'}
+              </Button>
             </CardContent>
           </Card>
 
