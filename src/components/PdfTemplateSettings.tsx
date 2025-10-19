@@ -97,6 +97,34 @@ const TEMPLATE_PRESETS = {
     primary_color: '#111827',
     table_header_bg: '#f9fafb',
   },
+  construction: {
+    name: 'Construction Orange',
+    header_html: '<div style="border-top: 6px solid #ea580c; border-bottom: 2px solid #ea580c; padding: 20px 0; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 800; color: #9a3412; margin-bottom: 8px; text-transform: uppercase;">{company_name}</div>\n  <div style="font-size: 14px; color: #c2410c; font-weight: 700; letter-spacing: 1px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 600;">{period}</div>\n</div>',
+    footer_html: '<div style="border-top: 2px solid #ea580c; padding-top: 15px; font-size: 10px; color: #78716c;">\n  <table width="100%"><tr>\n    <td style="font-weight: 700; color: #9a3412;">CONFIDENTIAL REPORT</td>\n    <td style="text-align: right; font-weight: 600;">Page {page} of {pages} | {generated_date}</td>\n  </tr></table>\n</div>',
+    primary_color: '#ea580c',
+    table_header_bg: '#fed7aa',
+  },
+  healthcare: {
+    name: 'Healthcare Teal',
+    header_html: '<div style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: white; padding: 28px; margin: -20px -20px 25px -20px; border-radius: 10px;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="padding-top: 15px; border-top: 2px solid #5eead4; font-size: 10px; color: #0f766e; text-align: center;">\n  <div style="font-weight: 600; margin-bottom: 3px;">Confidential Medical Records</div>\n  <div style="font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
+    primary_color: '#0d9488',
+    table_header_bg: '#ccfbf1',
+  },
+  luxury: {
+    name: 'Luxury Gold',
+    header_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 28px; margin: -20px -20px 25px -20px; border-top: 3px solid #fbbf24; border-bottom: 3px solid #fbbf24;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.95; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;">Timecard Report</div>\n  <div style="font-size: 12px; opacity: 0.9; margin-top: 8px;">{period}</div>\n</div>',
+    footer_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 15px; margin: 25px -20px -20px -20px; border-top: 3px solid #fbbf24; text-align: center; font-size: 10px;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 3px;">PRIVATE & CONFIDENTIAL</div>\n  <div style="opacity: 0.9; font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
+    primary_color: '#92400e',
+    table_header_bg: '#fef3c7',
+  },
+  creative: {
+    name: 'Creative Purple',
+    header_html: '<div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(124,58,237,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; font-size: 10px; padding-top: 15px; border-top: 2px solid #e9d5ff; color: #6b21a8;">\n  <div style="font-weight: 600;">Page {page} of {pages} • {generated_date}</div>\n</div>',
+    primary_color: '#7c3aed',
+    table_header_bg: '#f3e8ff',
+  },
 };
 
 export default function PdfTemplateSettings() {
@@ -772,6 +800,7 @@ export default function PdfTemplateSettings() {
                           style={{ zIndex: 50, background: 'transparent', cursor: 'move' }}
                         />
                       </div>
+                    </div>
 
                     {/* Logo List */}
                     {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
