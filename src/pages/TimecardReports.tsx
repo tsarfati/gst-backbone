@@ -304,7 +304,8 @@ export default function TimecardReports() {
         .is('job_id', null)
         .maybeSingle();
 
-      const calculateOvertime = settingsData?.calculate_overtime !== false;
+      // Only calculate overtime if explicitly enabled in settings
+      const calculateOvertime = settingsData?.calculate_overtime === true;
       const overtimeThreshold = settingsData?.overtime_threshold || 8;
       const autoBreakDuration = settingsData?.auto_break_duration || 30;
       const autoBreakWaitHours = settingsData?.auto_break_wait_hours || 6;
