@@ -35,81 +35,61 @@ export class PDFExporter {
   }
 
   async exportTimecardReport(reportData: ReportData): Promise<void> {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPos = 20;
+    let yPos = 24;
 
-    // Parse company color or use default blue
-    const primaryRGB = this.parseHSLColor((this.company as any).primaryColor || '220, 90%, 56%');
-    const lightRGB = this.lightenColor(primaryRGB, 0.95);
-    const accentRGB = this.lightenColor(primaryRGB, 0.85);
+    // Use Arial-like font (Helvetica)
+    doc.setFont('helvetica', 'normal');
 
-    // Add modern header with gradient effect
-    doc.setFillColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
-    doc.rect(0, 0, pageWidth, 50, 'F');
-    
-    // Add company logo
+    // Header: Logo + Company info (no heavy background)
     if (this.company.logo_url) {
       try {
         const logoData = await this.loadImage(this.company.logo_url);
-        doc.addImage(logoData, 'PNG', 15, 10, 30, 30);
-        yPos = 15;
-      } catch (error) {
-        console.error('Error loading logo:', error);
-        yPos = 15;
+        doc.addImage(logoData, 'PNG', 20, 12, 48, 48);
+      } catch (e) {
+        console.warn('Logo failed to load, continuing without image');
       }
-    } else {
-      yPos = 15;
     }
 
-    // Company name and details (white text on colored background)
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
+    doc.setTextColor(33, 37, 41);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text(this.company.name, this.company.logo_url ? 50 : 15, yPos + 5);
-    
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    if (this.company.address) {
-      const fullAddress = [
-        this.company.address,
-        [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
-      ].filter(Boolean).join(', ');
-      doc.text(fullAddress, this.company.logo_url ? 50 : 15, yPos + 12);
-    }
-    if (this.company.phone || this.company.email) {
-      const contact = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
-      doc.text(contact, this.company.logo_url ? 50 : 15, yPos + 18);
-    }
+    doc.text(this.company.name, this.company.logo_url ? 80 : 20, 28);
 
-    // Report title and metadata on right side
-    doc.setFontSize(16);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const addressLine = [
+      this.company.address,
+      [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
+    ].filter(Boolean).join(', ');
+    if (addressLine) doc.text(addressLine, this.company.logo_url ? 80 : 20, 44);
+    const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
+    if (contactLine) doc.text(contactLine, this.company.logo_url ? 80 : 20, 58);
+
+    // Report meta on right
     doc.setFont('helvetica', 'bold');
-    const titleWidth = doc.getTextWidth(reportData.title);
-    doc.text(reportData.title, pageWidth - 15 - titleWidth, yPos + 5);
-    
-    doc.setFontSize(9);
+    const titleText = reportData.title;
+    const titleWidth = doc.getTextWidth(titleText);
+    doc.text(titleText, pageWidth - 20 - titleWidth, 28);
     doc.setFont('helvetica', 'normal');
-    const dateRangeText = `Period: ${reportData.dateRange}`;
-    const dateWidth = doc.getTextWidth(dateRangeText);
-    doc.text(dateRangeText, pageWidth - 15 - dateWidth, yPos + 12);
-    
-    const generatedText = `Generated: ${format(new Date(), 'MM/dd/yyyy')}`;
-    const genWidth = doc.getTextWidth(generatedText);
-    doc.text(generatedText, pageWidth - 15 - genWidth, yPos + 18);
+    const rangeText = `Period: ${reportData.dateRange}`;
+    doc.text(rangeText, pageWidth - 20 - doc.getTextWidth(rangeText), 44);
+    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy')}`;
+    doc.text(genText, pageWidth - 20 - doc.getTextWidth(genText), 58);
 
-    yPos = 55;
+    yPos = 80;
 
     // Employee info if provided
     if (reportData.employee) {
-      doc.setFillColor(lightRGB[0], lightRGB[1], lightRGB[2]);
-      doc.rect(10, yPos, pageWidth - 20, 10, 'F');
-      doc.setTextColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+      doc.setFillColor(245, 245, 245);
+      doc.rect(20, yPos, pageWidth - 40, 18, 'F');
+      doc.setTextColor(33, 37, 41);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Employee: ${reportData.employee}`, 15, yPos + 7);
-      yPos += 15;
+      doc.text(`Employee: ${reportData.employee}`, 28, yPos + 12);
+      yPos += 26;
     }
 
     // Prepare table data - exclude ID columns and format properly
@@ -129,8 +109,8 @@ export class PDFExporter {
       body: tableData,
       theme: 'plain',
       headStyles: {
-        fillColor: primaryRGB,
-        textColor: [255, 255, 255],
+        fillColor: [245, 245, 245],
+        textColor: [33, 37, 41],
         fontSize: 10,
         fontStyle: 'bold',
         halign: 'left',
@@ -142,19 +122,20 @@ export class PDFExporter {
         textColor: [50, 50, 50]
       },
       alternateRowStyles: {
-        fillColor: lightRGB
+        fillColor: [252, 252, 252]
       },
       columnStyles: {
-        0: { cellWidth: 35 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 32 },
-        4: { cellWidth: 32 },
-        5: { cellWidth: 16, halign: 'right' }
+        0: { cellWidth: 160 },
+        1: { cellWidth: 160 },
+        2: { cellWidth: 180 },
+        3: { cellWidth: 120 },
+        4: { cellWidth: 120 },
+        5: { cellWidth: 60, halign: 'right' }
       },
       styles: {
         lineColor: [220, 220, 220],
-        lineWidth: 0.1
+        lineWidth: 0.1,
+        overflow: 'ellipsize'
       },
       didDrawPage: (data) => {
         // Add page numbers
@@ -172,23 +153,24 @@ export class PDFExporter {
     // Summary section
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     
-    // Summary box with accent color
-    doc.setFillColor(accentRGB[0], accentRGB[1], accentRGB[2]);
-    doc.roundedRect(10, finalY, pageWidth - 20, 35, 3, 3, 'F');
+    // Summary box (subtle)
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(20, finalY, pageWidth - 40, 44, 4, 4, 'F');
     
-    doc.setTextColor(primaryRGB[0], primaryRGB[1], primaryRGB[2]);
+    doc.setTextColor(33, 37, 41);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Summary Totals', 15, finalY + 7);
+    doc.text('Summary Totals', 28, finalY + 16);
     
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Total Records: ${reportData.summary.totalRecords}`, 15, finalY + 15);
-    doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 15, finalY + 22);
-    doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 15, finalY + 29);
+    doc.text(`Total Records: ${reportData.summary.totalRecords}`, 28, finalY + 30);
+    doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 220, finalY + 30);
+    doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 420, finalY + 30);
     
     doc.setFont('helvetica', 'bold');
-    doc.text(`Total Hours: ${reportData.summary.totalHours.toFixed(2)}`, pageWidth - 15 - doc.getTextWidth(`Total Hours: ${reportData.summary.totalHours.toFixed(2)}`), finalY + 22);
+    const totalText = `Total Hours: ${reportData.summary.totalHours.toFixed(2)}`;
+    doc.text(totalText, pageWidth - 20 - doc.getTextWidth(totalText), finalY + 30);
 
     // Footer
     doc.setFontSize(8);

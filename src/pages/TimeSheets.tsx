@@ -138,16 +138,23 @@ export default function TimeSheets() {
         .select('pin_employee_id')
         .eq('company_id', currentCompany.id);
 
+      // Only consider recent activity (last 21 days)
+      const since = new Date();
+      since.setUTCDate(since.getUTCDate() - 21);
+      const sinceISO = since.toISOString();
+
       const tcUsersRes = await supabase
         .from('time_cards')
         .select('user_id')
         .eq('company_id', currentCompany.id)
+        .gte('punch_in_time', sinceISO)
         .neq('status', 'deleted');
 
       const punchUsersRes = await supabase
         .from('punch_records')
         .select('user_id, pin_employee_id')
-        .eq('company_id', currentCompany.id);
+        .eq('company_id', currentCompany.id)
+        .gte('punch_time', sinceISO);
 
       const idsFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
       const idsFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id).filter(Boolean);

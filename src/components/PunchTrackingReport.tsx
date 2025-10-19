@@ -42,45 +42,46 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated }: Pun
   const [selectedPunch, setSelectedPunch] = useState<any>(null);
   const [showPunchDetail, setShowPunchDetail] = useState(false);
   const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+    doc.setFont('helvetica', 'normal');
+
     doc.setFontSize(18);
-    doc.text("Punch Tracking Report", 14, 20);
-    doc.setFontSize(11);
-    doc.text(`Generated: ${format(new Date(), "PPpp")}`, 14, 28);
-    doc.text(`Total Punches: ${records.length}`, 14, 34);
+    doc.text('Punch Tracking Report', 20, 28);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${format(new Date(), 'PPpp')}`, 20, 44);
+    doc.text(`Total Punches: ${records.length}`, 20, 58);
 
     const tableData = records.map(record => [
       record.employee_name,
-      format(new Date(record.punch_time), "MM/dd/yyyy hh:mm a"),
-      record.punch_type === "punched_in" ? "In" : "Out",
-      record.job_name || "-",
-      record.cost_code || "-",
-      record.latitude && record.longitude ? "Yes" : "No",
-      record.photo_url ? "Yes" : "No",
-      record.notes || "-"
+      format(new Date(record.punch_time), 'MM/dd/yyyy hh:mm a'),
+      record.punch_type === 'punched_in' ? 'In' : 'Out',
+      record.job_name || '-',
+      record.cost_code || '-',
+      record.latitude && record.longitude ? 'Yes' : 'No',
+      record.photo_url ? 'Yes' : 'No',
+      record.notes || '-'
     ]);
 
     autoTable(doc, {
-      startY: 40,
-      head: [["Employee", "Time", "Type", "Job", "Cost Code", "Location", "Photo", "Notes"]],
+      startY: 76,
+      head: [['Employee', 'Time', 'Type', 'Job', 'Cost Code', 'Location', 'Photo', 'Notes']],
       body: tableData,
-      theme: "striped",
-      headStyles: { fillColor: [59, 130, 246] },
-      styles: { fontSize: 8 },
+      theme: 'plain',
+      headStyles: { fillColor: [245, 245, 245], textColor: [33, 37, 41], fontSize: 10, fontStyle: 'bold' },
+      styles: { fontSize: 9, overflow: 'ellipsize' },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 32 },
-        2: { cellWidth: 12 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 20 },
-        5: { cellWidth: 15 },
-        6: { cellWidth: 15 },
-        7: { cellWidth: 30 }
+        0: { cellWidth: 130 },
+        1: { cellWidth: 130 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 150 },
+        4: { cellWidth: 150 },
+        5: { cellWidth: 70 },
+        6: { cellWidth: 60 },
+        7: { cellWidth: 240 }
       }
     });
 
-    doc.save(`punch-tracking-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    doc.save(`punch-tracking-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const getPunchTypeColor = (punchType: string) => {
