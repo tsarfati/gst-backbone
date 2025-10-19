@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
 import { Canvas as FabricCanvas, FabricImage } from 'fabric';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface TemplateSettings {
   id?: string;
@@ -187,6 +188,8 @@ export default function PdfTemplateSettings() {
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const fabricImagesRef = useRef<FabricImage[]>([]);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [saveAsPresetDialogOpen, setSaveAsPresetDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState('');
 
   // Resolve storage or relative URLs to loadable image URLs (uses signed URLs if needed)
   const resolveStorageUrl = async (rawUrl: string): Promise<string> => {
@@ -577,6 +580,52 @@ export default function PdfTemplateSettings() {
     }
   };
 
+  const saveTemplateAsPreset = async () => {
+    setSaveAsPresetDialogOpen(true);
+  };
+
+  const confirmSaveAsPreset = async () => {
+    if (!presetName.trim() || !currentCompany?.id) return;
+
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Save as a new template with template_name
+      const templateData = {
+        ...timecardTemplate,
+        template_name: presetName,
+        company_id: currentCompany.id,
+        created_by: user.id,
+        id: undefined // Remove id to create new record
+      };
+
+      const { error } = await supabase
+        .from('pdf_templates')
+        .insert([templateData]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Preset saved",
+        description: `Template preset "${presetName}" has been saved successfully.`,
+      });
+
+      setSaveAsPresetDialogOpen(false);
+      setPresetName('');
+    } catch (error: any) {
+      console.error('Error saving preset:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save preset.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderPreview = (html: string) => {
     return html
       .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
@@ -838,8 +887,16 @@ export default function PdfTemplateSettings() {
                 </>
               )}
 
-              {/* Save Button */}
-              <div className="flex justify-end">
+              {/* Save Buttons */}
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => saveTemplateAsPreset()} 
+                  disabled={loading}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Save as Preset
+                </Button>
                 <Button onClick={() => saveTemplate(timecardTemplate)} disabled={loading}>
                   <Save className="h-4 w-4 mr-2" />
                   {loading ? 'Saving...' : 'Save Template'}
@@ -874,18 +931,18 @@ export default function PdfTemplateSettings() {
                       {/* Static HTML Preview */}
                       <div className="relative w-full bg-white rounded shadow-lg overflow-hidden" style={{ aspectRatio: '842/595' }}>
                         {/* Grid background */}
-                        <div className="absolute inset-0 pointer-events-none" style={{
+                        <div className="absolute inset-0 pointer-events-none z-0" style={{
                           backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)',
                           backgroundSize: '50px 50px'
                         }} />
                         
                         {/* Reference dimensions */}
-                        <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-10">
+                        <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-[100]">
                           842pt × 595pt
                         </div>
 
-                        {/* Template Content */}
-                        <div className="relative w-full h-full flex flex-col p-6">
+                        {/* Template Content - lower z-index so canvas is on top */}
+                        <div className="relative w-full h-full flex flex-col p-6 pointer-events-none z-10">
                           {/* Header Section */}
                           <div 
                             className="prose prose-sm max-w-none mb-4"
@@ -941,12 +998,18 @@ export default function PdfTemplateSettings() {
                           />
 
                         </div>
+                        {/* Canvas on top for logo manipulation */}
                         <canvas
                           ref={canvasRef}
                           width={842}
                           height={595}
                           className="absolute inset-0 w-full h-full"
-                          style={{ zIndex: 50, background: 'transparent', cursor: 'move' }}
+                          style={{ 
+                            zIndex: 90, 
+                            background: 'transparent', 
+                            cursor: 'move',
+                            pointerEvents: 'auto'
+                          }}
                         />
                       </div>
                     </div>
@@ -987,6 +1050,37 @@ export default function PdfTemplateSettings() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Save as Preset Dialog */}
+      <Dialog open={saveAsPresetDialogOpen} onOpenChange={setSaveAsPresetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save as Template Preset</DialogTitle>
+            <DialogDescription>
+              Save your current template settings as a reusable preset
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="preset-name">Preset Name</Label>
+              <Input
+                id="preset-name"
+                placeholder="e.g., My Custom Template"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveAsPresetDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmSaveAsPreset} disabled={!presetName.trim() || loading}>
+              {loading ? 'Saving...' : 'Save Preset'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
