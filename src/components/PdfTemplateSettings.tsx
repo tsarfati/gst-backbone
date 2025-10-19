@@ -125,6 +125,41 @@ const TEMPLATE_PRESETS = {
     primary_color: '#7c3aed',
     table_header_bg: '#f3e8ff',
   },
+  split_header: {
+    name: 'Split Header (Logo Left)',
+    header_html: '<div style="display:flex; align-items:center; gap:20px; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb;">\n  <div style="flex:1">\n    <div style="font-size:28px; font-weight:700; color:#111827; letter-spacing:-0.4px">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:6px">{period}</div>\n  </div>\n  <div style="width:2px; height:48px; background:#e5e7eb"></div>\n  <div style="text-align:right; min-width:220px">\n    <div style="font-size:12px; color:#374151; font-weight:600">Timecard Report</div>\n    <div style="font-size:11px; color:#6b7280; margin-top:4px">Page {page} of {pages}</div>\n  </div>\n</div>',
+    footer_html: '<div style="text-align:right; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">Generated: {generated_date}</div>',
+    primary_color: '#111827',
+    table_header_bg: '#f3f4f6',
+  },
+  centered_logo: {
+    name: 'Centered Title (Logo Center)',
+    header_html: '<div style="text-align:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="font-size:30px; font-weight:800; color:#111827">{company_name}</div>\n  <div style="margin-top:4px; font-size:12px; color:#6b7280">Timecard Report • {period}</div>\n</div>',
+    footer_html: '<div style="text-align:center; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">{generated_date} • Page {page}/{pages}</div>',
+    primary_color: '#111827',
+    table_header_bg: '#eef2f7',
+  },
+  right_aligned: {
+    name: 'Right-Aligned (Logo Right)',
+    header_html: '<div style="padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="display:flex; justify-content:space-between; align-items:flex-end">\n    <div>\n      <div style="font-size:28px; font-weight:700; color:#111827">{company_name}</div>\n      <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n    </div>\n    <div style="font-size:13px; color:#374151; font-weight:600">Timecard Report</div>\n  </div>\n</div>',
+    footer_html: '<div style="font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between">\n  <span>Confidential</span><span>Page {page} of {pages}</span>\n</div>',
+    primary_color: '#111827',
+    table_header_bg: '#f3f4f6',
+  },
+  banner_top: {
+    name: 'Banner Top',
+    header_html: '<div style="background:#111827; color:white; padding:18px 24px; margin:-20px -20px 20px -20px">\n  <div style="display:flex; justify-content:space-between; align-items:center">\n    <div style="font-size:18px; opacity:.9; font-weight:600; letter-spacing:1px">TIMECARD REPORT</div>\n    <div style="font-size:11px; opacity:.85">{period}</div>\n  </div>\n</div>',
+    footer_html: '<div style="background:#111827; color:white; padding:10px 16px; margin:20px -20px -20px -20px; font-size:10px; text-align:center">Page {page}/{pages} • {generated_date}</div>',
+    primary_color: '#111827',
+    table_header_bg: '#e5e7eb',
+  },
+  sidebar_accent: {
+    name: 'Sidebar Accent',
+    header_html: '<div style="display:grid; grid-template-columns: 8px 1fr; gap:16px; align-items:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="background:#3b82f6; height:48px; border-radius:4px"></div>\n  <div>\n    <div style="font-size:28px; font-weight:800; color:#111827">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n  </div>\n</div>',
+    footer_html: '<div style="font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb; text-align:right">Page {page}/{pages}</div>',
+    primary_color: '#3b82f6',
+    table_header_bg: '#eff6ff',
+  },
 };
 
 export default function PdfTemplateSettings() {
@@ -183,11 +218,44 @@ export default function PdfTemplateSettings() {
     return rawUrl;
   };
 
+  const getCompanyLogoPublicUrl = async (): Promise<string | undefined> => {
+    const raw = (currentCompany as any)?.logo_url as string | undefined;
+    if (!raw) return undefined;
+    try {
+      if (/^https?:\/\//i.test(raw)) return raw;
+      if (raw.startsWith('/')) return window.location.origin + raw;
+      const [bucket, ...rest] = raw.split('/');
+      const objectPath = rest.join('/');
+      if (bucket && objectPath) {
+        const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+        return data?.publicUrl || undefined;
+      }
+    } catch (e) {
+      console.error('getCompanyLogoPublicUrl error:', e);
+    }
+    return undefined;
+  };
   useEffect(() => {
     if (currentCompany?.id) {
       loadTemplate('timecard');
     }
   }, [currentCompany?.id]);
+
+  // Auto-add company logo to header images if none present
+  useEffect(() => {
+    const maybeAddLogo = async () => {
+      if (!currentCompany?.logo_url) return;
+      const hasImages = (timecardTemplate.header_images || []).length > 0;
+      if (hasImages) return;
+      const url = await getCompanyLogoPublicUrl();
+      if (!url) return;
+      setTimecardTemplate(prev => ({
+        ...prev,
+        header_images: prev.header_images && prev.header_images.length > 0 ? prev.header_images : [{ url, x: 36, y: 28, width: 140, height: 56 }]
+      }));
+    };
+    maybeAddLogo();
+  }, [currentCompany?.logo_url]);
 
   // Initialize fabric canvas with proper sizing
   useEffect(() => {
@@ -449,14 +517,32 @@ export default function PdfTemplateSettings() {
   const applyPreset = (presetKey: string) => {
     const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
     if (preset) {
-      setTimecardTemplate({
-        ...timecardTemplate,
+      setTimecardTemplate(prev => ({
+        ...prev,
         header_html: preset.header_html,
         footer_html: preset.footer_html,
         primary_color: preset.primary_color,
         table_header_bg: preset.table_header_bg,
-      });
+      }));
       setSelectedPreset(presetKey);
+      // If no logos positioned yet, auto-place company logo depending on layout
+      getCompanyLogoPublicUrl().then((logoUrl) => {
+        if (!logoUrl) return;
+        setTimecardTemplate(prev => {
+          if ((prev.header_images || []).length > 0) return prev;
+          // Default positions for a few layouts (A4 landscape 842x595)
+          const placements: Record<string, { x: number; y: number; width: number; height: number }> = {
+            split_header: { x: 36, y: 28, width: 140, height: 56 },
+            centered_logo: { x: (842 - 140) / 2, y: 24, width: 140, height: 56 },
+            right_aligned: { x: 842 - 36 - 140, y: 28, width: 140, height: 56 },
+            banner_top: { x: 36, y: 26, width: 120, height: 48 },
+            sidebar_accent: { x: 24, y: 28, width: 120, height: 48 },
+          };
+          const fallback = { x: 36, y: 28, width: 140, height: 56 };
+          const pos = placements[presetKey] || fallback;
+          return { ...prev, header_images: [{ url: logoUrl, ...pos }] };
+        });
+      });
       toast({
         title: "Template applied",
         description: `${preset.name} template has been applied. You can customize it further.`,
