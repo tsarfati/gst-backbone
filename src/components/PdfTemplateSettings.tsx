@@ -1,18 +1,155 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function PdfTemplateSettings() {
   const { settings, updateSettings } = useSettings();
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const tpl = settings.pdfTemplateTimecard || {};
+
+  useEffect(() => {
+    if (currentCompany?.id) {
+      loadTemplates();
+    }
+  }, [currentCompany?.id]);
+
+  const loadTemplates = async () => {
+    if (!currentCompany?.id) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('pdf_templates')
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('template_type', 'timecard')
+        .order('template_name');
+
+      if (error) throw error;
+      
+      setTemplates(data || []);
+      
+      if (data && data.length > 0 && !selectedTemplateId) {
+        setSelectedTemplateId(data[0].id);
+        loadTemplateSettings(data[0]);
+      }
+    } catch (error: any) {
+      console.error('Error loading templates:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTemplateSettings = (template: any) => {
+    updateSettings({
+      pdfTemplateTimecard: {
+        font_family: template.font_family || 'helvetica',
+        header_html: template.header_html || '',
+        footer_html: template.footer_html || '',
+        table_header_bg: template.primary_color || '#f1f5f9',
+        table_border_color: template.table_border_color || '#e2e8f0',
+        table_stripe_color: template.table_stripe_color || '#f8fafc',
+        auto_size_columns: template.auto_size_columns ?? true,
+      }
+    });
+  };
+
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (templateId !== 'new') {
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        loadTemplateSettings(template);
+      }
+    }
+  };
+
+  const handleCreateNew = async () => {
+    if (!newTemplateName.trim() || !currentCompany?.id || !user?.id) {
+      toast({
+        title: "Template name required",
+        description: "Please enter a name for the new template",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('pdf_templates')
+        .insert([{
+          company_id: currentCompany.id,
+          template_type: 'timecard',
+          template_name: newTemplateName,
+          font_family: 'helvetica',
+          primary_color: '#f1f5f9',
+          created_by: user.id,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({ title: "Template created", description: "New timecard template created successfully" });
+      setNewTemplateName('');
+      setSelectedTemplateId(data.id);
+      await loadTemplates();
+    } catch (error: any) {
+      toast({
+        title: "Error creating template",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedTemplateId || selectedTemplateId === 'new' || !currentCompany?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('pdf_templates')
+        .update({
+          font_family: tpl.font_family,
+          header_html: tpl.header_html,
+          footer_html: tpl.footer_html,
+          primary_color: tpl.table_header_bg,
+          table_border_color: tpl.table_border_color,
+          table_stripe_color: tpl.table_stripe_color,
+          auto_size_columns: tpl.auto_size_columns,
+        })
+        .eq('id', selectedTemplateId);
+
+      if (error) throw error;
+
+      toast({ title: "Template saved", description: "Timecard template updated successfully" });
+      await loadTemplates();
+    } catch (error: any) {
+      toast({
+        title: "Error saving template",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
 
   const applyPreset = (preset: 'clean' | 'contrast' | 'striped') => {
     const presets = {
@@ -62,6 +199,40 @@ export default function PdfTemplateSettings() {
           <CardTitle>Timecard PDF Template</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <Label>Select Template</Label>
+              <Select value={selectedTemplateId} onValueChange={handleTemplateChange} disabled={loading}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder={loading ? "Loading templates..." : "Select a template"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.template_name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="new">+ Create New Template</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedTemplateId === 'new' && (
+              <div className="flex-1">
+                <Label>New Template Name</Label>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="e.g., Weekly Report Template"
+                    value={newTemplateName}
+                    onChange={(e) => setNewTemplateName(e.target.value)}
+                  />
+                  <Button onClick={handleCreateNew}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label>Font Family</Label>
@@ -140,6 +311,11 @@ export default function PdfTemplateSettings() {
             <Button type="button" variant="outline" onClick={() => applyPreset('clean')}>Clean</Button>
             <Button type="button" variant="outline" onClick={() => applyPreset('contrast')}>Contrast</Button>
             <Button type="button" variant="outline" onClick={() => applyPreset('striped')}>Striped</Button>
+            {selectedTemplateId && selectedTemplateId !== 'new' && (
+              <Button type="button" onClick={handleSaveTemplate}>
+                Save Template
+              </Button>
+            )}
           </div>
 
           <div className="border rounded-md p-4 bg-muted">

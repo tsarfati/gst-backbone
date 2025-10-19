@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
 import PdfTemplateSettings from '@/components/PdfTemplateSettings';
+import PdfTemplateSettingsSubcontract from '@/components/PdfTemplateSettingsSubcontract';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -837,7 +838,18 @@ export default function CompanyManagement() {
       </TabsContent>
 
       <TabsContent value="templates">
-        <PdfTemplateSettings />
+        <Tabs defaultValue="timecard" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="timecard">Timecard Templates</TabsTrigger>
+            <TabsTrigger value="subcontract">Subcontract Templates</TabsTrigger>
+          </TabsList>
+          <TabsContent value="timecard">
+            <PdfTemplateSettings />
+          </TabsContent>
+          <TabsContent value="subcontract">
+            <PdfTemplateSettingsSubcontract />
+          </TabsContent>
+        </Tabs>
       </TabsContent>
 
       </Tabs>
