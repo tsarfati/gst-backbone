@@ -110,14 +110,28 @@ export default function TimecardReports() {
       
       const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
 
-      // Get PIN employees who belong to this company directly
-      const { data: pinEmployees } = await supabase
-        .from('pin_employees')
-        .select('id, display_name, first_name, last_name')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+      // Build candidate PIN employee IDs based on activity/settings in this company
+      const [pinSettingsRes, tcUsersRes, punchUsersRes] = await Promise.all([
+        supabase
+          .from('pin_employee_timecard_settings')
+          .select('pin_employee_id')
+          .eq('company_id', currentCompany.id),
+        supabase
+          .from('time_cards')
+          .select('user_id')
+          .eq('company_id', currentCompany.id),
+        supabase
+          .from('punch_records')
+          .select('user_id, pin_employee_id')
+          .eq('company_id', currentCompany.id),
+      ]);
 
-      if (companyUserIds.length === 0 && (!pinEmployees || pinEmployees.length === 0)) {
+      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
+      const idsFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
+      const idsFromPunches: string[] = (punchUsersRes.data || []).flatMap((r: any) => [r.pin_employee_id, r.user_id]).filter(Boolean);
+      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...idsFromTimeCards, ...idsFromPunches]));
+
+      if (companyUserIds.length === 0 && candidatePinIds.length === 0) {
         setEmployees([]);
         return;
       }
@@ -128,13 +142,19 @@ export default function TimecardReports() {
         .select('user_id, display_name, first_name, last_name')
         .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
 
+      // Load PIN employees that actually appear in this company's activity/settings
+      const pinRes: any = await (supabase as any)
+        .from('pin_employees')
+        .select('id, display_name, first_name, last_name')
+        .in('id', candidatePinIds.length > 0 ? candidatePinIds : ['00000000-0000-0000-0000-000000000000']);
+
       const list: Employee[] = [];
 
       // Sort profiles and PIN employees before adding to list
       const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) => 
         (a.display_name || '').localeCompare(b.display_name || '')
       );
-      const sortedPins = (pinEmployees || []).sort((a: any, b: any) => 
+      const sortedPins = (pinRes.data || []).sort((a: any, b: any) => 
         (a.display_name || '').localeCompare(b.display_name || '')
       );
 
