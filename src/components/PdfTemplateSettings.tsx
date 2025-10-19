@@ -952,7 +952,7 @@ export default function PdfTemplateSettings() {
                         </div>
 
                         {/* Template Content - lower z-index so canvas is on top */}
-                        <div className="relative w-full h-full flex flex-col p-6 pointer-events-none z-10">
+                        <div className="relative w-full h-full flex flex-col p-6 z-10">
                           {/* Header Section */}
                           <div 
                             className="prose prose-sm max-w-none mb-4"
@@ -1022,26 +1022,6 @@ export default function PdfTemplateSettings() {
                           }}
                         />
 
-                        {/* Fallback positioned logos (HTML) for visibility */}
-                        {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
-                          <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 80 }}>
-                            {timecardTemplate.header_images.map((img, idx) => (
-                              <img
-                                key={`fallback-${idx}`}
-                                src={img.url}
-                                alt={`Logo ${idx + 1}`}
-                                style={{
-                                  position: 'absolute',
-                                  left: `${(img.x / 842) * 100}%`,
-                                  top: `${(img.y / 595) * 100}%`,
-                                  width: `${(img.width / 842) * 100}%`,
-                                  height: 'auto',
-                                  objectFit: 'contain'
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
 
