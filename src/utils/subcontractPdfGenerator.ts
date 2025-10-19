@@ -65,7 +65,7 @@ export const generateSubcontractPDF = async (
     if (templateError) throw templateError;
 
     if (!template) {
-      throw new Error(`Template "${templateName}" not found. Please create it in PDF Template Settings.`);
+      throw new Error(`Template "${templateName}" not found. Please create it in PDF Template Settings (Company Settings > PDF Templates).`);
     }
 
     const pdf = new jsPDF();
@@ -117,51 +117,73 @@ export const generateSubcontractPDF = async (
     // Main content area
     let yPos = margin + 30;
 
-    // Contract Title
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('SUBCONTRACT AGREEMENT', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 15;
-
-    // Contract details
-    pdf.setFontSize(11);
-    pdf.setFont(undefined, 'normal');
-    
-    const details = [
-      `Contract Name: ${placeholderValues['{contract_name}']}`,
-      `Contract Amount: ${placeholderValues['{contract_amount}']}`,
-      ``,
-      `Between:`,
-      `${placeholderValues['{company_name}']}`,
-      `${placeholderValues['{company_address}']}`,
-      ``,
-      `And:`,
-      `${placeholderValues['{contractor_name}']}`,
-      `${placeholderValues['{contractor_address}']}`,
-      ``,
-      `For Project:`,
-      `${placeholderValues['{job_name}']}`,
-      ``,
-      `Start Date: ${placeholderValues['{start_date}']}`,
-      `End Date: ${placeholderValues['{end_date}']}`,
-      ``,
-      `SCOPE OF WORK:`,
-      placeholderValues['{scope_of_work}'] || 'Not specified',
-      ``,
-      `Payment Terms: ${placeholderValues['{payment_terms}']}`,
-    ];
-
-    details.forEach(line => {
-      if (yPos > pageHeight - margin - 20) {
-        pdf.addPage();
-        yPos = margin;
-      }
-      const textLines = pdf.splitTextToSize(line, pageWidth - 2 * margin);
-      textLines.forEach((textLine: string) => {
-        pdf.text(textLine, margin, yPos);
-        yPos += 6;
+    // Use body_html if it exists, otherwise fallback to default layout
+    if (template.body_html) {
+      const bodyHtml = replacePlaceholders(template.body_html);
+      // Simple HTML to text conversion - in production use proper HTML parser
+      const bodyText = bodyHtml.replace(/<[^>]*>/g, '\n').split('\n').filter(line => line.trim());
+      
+      pdf.setFontSize(11);
+      pdf.setFont(undefined, 'normal');
+      
+      bodyText.forEach(line => {
+        if (yPos > pageHeight - margin - 20) {
+          pdf.addPage();
+          yPos = margin;
+        }
+        const textLines = pdf.splitTextToSize(line, pageWidth - 2 * margin);
+        textLines.forEach((textLine: string) => {
+          pdf.text(textLine, margin, yPos);
+          yPos += 6;
+        });
       });
-    });
+    } else {
+      // Default layout if no body template
+      pdf.setFontSize(18);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('SUBCONTRACT AGREEMENT', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
+
+      // Contract details
+      pdf.setFontSize(11);
+      pdf.setFont(undefined, 'normal');
+      
+      const details = [
+        `Contract Name: ${placeholderValues['{contract_name}']}`,
+        `Contract Amount: ${placeholderValues['{contract_amount}']}`,
+        ``,
+        `Between:`,
+        `${placeholderValues['{company_name}']}`,
+        `${placeholderValues['{company_address}']}`,
+        ``,
+        `And:`,
+        `${placeholderValues['{contractor_name}']}`,
+        `${placeholderValues['{contractor_address}']}`,
+        ``,
+        `For Project:`,
+        `${placeholderValues['{job_name}']}`,
+        ``,
+        `Start Date: ${placeholderValues['{start_date}']}`,
+        `End Date: ${placeholderValues['{end_date}']}`,
+        ``,
+        `SCOPE OF WORK:`,
+        placeholderValues['{scope_of_work}'] || 'Not specified',
+        ``,
+        `Payment Terms: ${placeholderValues['{payment_terms}']}`,
+      ];
+
+      details.forEach(line => {
+        if (yPos > pageHeight - margin - 20) {
+          pdf.addPage();
+          yPos = margin;
+        }
+        const textLines = pdf.splitTextToSize(line, pageWidth - 2 * margin);
+        textLines.forEach((textLine: string) => {
+          pdf.text(textLine, margin, yPos);
+          yPos += 6;
+        });
+      });
+    }
 
     // Render footer if exists
     if (template.footer_html) {

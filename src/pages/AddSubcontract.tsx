@@ -128,12 +128,19 @@ export default function AddSubcontract() {
           .from('pdf_templates')
           .select('template_name')
           .eq('company_id', companyId)
-          .eq('template_type', 'subcontract');
+          .eq('template_type', 'subcontract')
+          .order('template_name');
         
         if (templatesData && templatesData.length > 0) {
           setAvailableTemplates(templatesData.map(t => t.template_name));
+          setSelectedTemplate(templatesData[0].template_name);
         } else {
-          setAvailableTemplates(['default']);
+          setAvailableTemplates([]);
+          toast({
+            title: "No templates found",
+            description: "Please create a subcontract template in PDF Template Settings before generating contracts.",
+            variant: "destructive"
+          });
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -1021,15 +1028,21 @@ export default function AddSubcontract() {
                     <SelectValue placeholder="Select template" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableTemplates.map(template => (
-                      <SelectItem key={template} value={template}>
-                        {template.charAt(0).toUpperCase() + template.slice(1)}
-                      </SelectItem>
-                    ))}
+                    {availableTemplates.length > 0 ? (
+                      availableTemplates.map(template => (
+                        <SelectItem key={template} value={template}>
+                          {template}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>No templates available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select a template for the generated contract. Configure templates in PDF Template Settings.
+                  {availableTemplates.length > 0 
+                    ? 'Select a template for the generated contract. Configure templates in Company Settings > PDF Template Settings.'
+                    : 'No templates found. Please create one in Company Settings > PDF Template Settings.'}
                 </p>
               </div>
               <Button
@@ -1037,11 +1050,16 @@ export default function AddSubcontract() {
                 variant="outline"
                 className="w-full"
                 onClick={handleGenerateContract}
-                disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount}
+                disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount || availableTemplates.length === 0}
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 {isSubmitting ? 'Generating...' : 'Save & Generate Contract PDF'}
               </Button>
+              {availableTemplates.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  Please create a subcontract template in PDF Template Settings before generating contracts.
+                </p>
+              )}
             </CardContent>
           </Card>
 

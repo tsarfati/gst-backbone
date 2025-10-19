@@ -67,7 +67,49 @@ const TEMPLATE_PRESETS = {
     footer_html: '<div style="border-top: 2px solid #1e293b; padding-top: 10px; margin-top: 20px;">\n  <table width="100%" style="font-size: 9px; color: #475569;">\n    <tr>\n      <td>Confidential Document</td>\n      <td style="text-align: right;">Page {page} of {pages}</td>\n    </tr>\n  </table>\n</div>',
     primary_color: '#0f172a',
     table_header_bg: '#f1f5f9',
-  }
+  },
+  corporate: {
+    name: 'Corporate',
+    header_html: '<div style="background: #f8fafc; border-left: 5px solid #0ea5e9; padding: 20px; margin-bottom: 20px;">\n  <div style="font-size: 22px; font-weight: 600; color: #0c4a6e; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #64748b;">Employee Time Report</div>\n  <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">Period: {period} | Generated: {date}</div>\n</div>',
+    footer_html: '<div style="background: #f8fafc; padding: 10px; text-align: center; font-size: 9px; color: #64748b;">\n  <div>© {company_name} - Internal Use Only</div>\n  <div style="margin-top: 3px;">Page {page} of {pages}</div>\n</div>',
+    primary_color: '#0ea5e9',
+    table_header_bg: '#e0f2fe',
+  },
+  executive: {
+    name: 'Executive',
+    header_html: '<div style="border: 2px solid #78716c; padding: 15px; margin-bottom: 20px;">\n  <div style="text-align: center; font-size: 20px; font-weight: 700; color: #292524; letter-spacing: 3px; margin-bottom: 10px;">{company_name}</div>\n  <div style="text-align: center; font-size: 12px; color: #57534e; font-weight: 500;">TIMECARD REPORT</div>\n  <div style="text-align: center; font-size: 10px; color: #78716c; margin-top: 8px;">{period}</div>\n</div>',
+    footer_html: '<div style="border-top: 2px solid #78716c; padding-top: 10px; font-size: 8px; color: #78716c;">\n  <table width="100%"><tr>\n    <td>CONFIDENTIAL</td>\n    <td style="text-align: center;">Page {page}/{pages}</td>\n    <td style="text-align: right;">{date}</td>\n  </tr></table>\n</div>',
+    primary_color: '#78716c',
+    table_header_bg: '#f5f5f4',
+  },
+  bold: {
+    name: 'Bold',
+    header_html: '<div style="background: #dc2626; color: white; padding: 20px; margin: -20px -20px 25px -20px;">\n  <div style="font-size: 30px; font-weight: 900; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 13px; font-weight: 600; opacity: 0.9;">TIMECARD REPORT | {period}</div>\n</div>',
+    footer_html: '<div style="background: #dc2626; color: white; padding: 8px; margin: 20px -20px -20px -20px; text-align: center; font-size: 9px;">\n  <div style="font-weight: 600;">CONFIDENTIAL & PROPRIETARY</div>\n  <div style="margin-top: 3px; opacity: 0.8;">Page {page} of {pages} | {generated_date}</div>\n</div>',
+    primary_color: '#dc2626',
+    table_header_bg: '#fecaca',
+  },
+  elegant: {
+    name: 'Elegant',
+    header_html: '<div style="text-align: center; padding-bottom: 25px; margin-bottom: 20px; background: linear-gradient(to bottom, #fafaf9 0%, #ffffff 100%);">\n  <div style="font-size: 32px; font-family: serif; font-weight: 300; color: #57534e; margin-bottom: 8px; letter-spacing: 1px;">{company_name}</div>\n  <div style="width: 60px; height: 2px; background: #a8a29e; margin: 0 auto 12px;"></div>\n  <div style="font-size: 13px; color: #78716c; font-style: italic;">Timecard Report</div>\n  <div style="font-size: 11px; color: #a8a29e; margin-top: 5px;">{period}</div>\n</div>',
+    footer_html: '<div style="text-align: center; padding-top: 20px; margin-top: 20px; border-top: 1px solid #e7e5e4; font-size: 9px; color: #a8a29e;">\n  <div style="font-style: italic;">Page {page} of {pages}</div>\n  <div style="margin-top: 5px;">{generated_date}</div>\n</div>',
+    primary_color: '#78716c',
+    table_header_bg: '#fafaf9',
+  },
+  tech: {
+    name: 'Tech',
+    header_html: '<div style="font-family: monospace; border: 1px solid #10b981; padding: 15px; margin-bottom: 20px; background: #f0fdf4;">\n  <div style="font-size: 20px; font-weight: bold; color: #047857;">// {company_name}</div>\n  <div style="font-size: 12px; color: #059669; margin-top: 5px;">/* Timecard Report */</div>\n  <div style="font-size: 11px; color: #10b981; margin-top: 8px;">Period: {period}</div>\n</div>',
+    footer_html: '<div style="font-family: monospace; border-top: 1px solid #10b981; padding-top: 10px; font-size: 9px; color: #059669;">\n  <table width="100%"><tr>\n    <td>// End of report</td>\n    <td style="text-align: right;">Page {page}/{pages}</td>\n  </tr></table>\n</div>',
+    primary_color: '#10b981',
+    table_header_bg: '#d1fae5',
+  },
+  simple: {
+    name: 'Simple',
+    header_html: '<div style="margin-bottom: 20px;">\n  <div style="font-size: 26px; font-weight: 600; color: #18181b; margin-bottom: 5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #71717a;">Timecard Report</div>\n  <div style="font-size: 12px; color: #a1a1aa; margin-top: 5px;">{period}</div>\n  <div style="height: 2px; background: #e4e4e7; margin-top: 15px;"></div>\n</div>',
+    footer_html: '<div style="margin-top: 20px; padding-top: 15px; border-top: 2px solid #e4e4e7; font-size: 10px; color: #a1a1aa;">\n  <table width="100%"><tr>\n    <td>{generated_date}</td>\n    <td style="text-align: right;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
+    primary_color: '#18181b',
+    table_header_bg: '#f4f4f5',
+  },
 };
 
 export default function PdfTemplateSettings() {

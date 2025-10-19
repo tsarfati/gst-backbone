@@ -2683,6 +2683,7 @@ export type Database = {
       pdf_templates: {
         Row: {
           auto_size_columns: boolean | null
+          body_html: string | null
           company_id: string
           created_at: string
           created_by: string
@@ -2704,6 +2705,7 @@ export type Database = {
         }
         Insert: {
           auto_size_columns?: boolean | null
+          body_html?: string | null
           company_id: string
           created_at?: string
           created_by: string
@@ -2725,6 +2727,7 @@ export type Database = {
         }
         Update: {
           auto_size_columns?: boolean | null
+          body_html?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
