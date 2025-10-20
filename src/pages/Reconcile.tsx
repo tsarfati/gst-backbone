@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 import { 
   ArrowLeft,
   Search,
@@ -460,12 +462,16 @@ export default function Reconcile() {
     .reduce((sum, p) => sum + p.amount, 0);
 
   const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
-  // Book balance on system ledger regardless of cleared status
+  
+  // Adjusted Cash Balance = Book Balance - Uncleared Deposits + Uncleared Checks
   const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
   const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
-  const adjustedBalance = beginningBalance + totalDeposits - totalPayments;
+  const bookBalance = beginningBalance + totalDeposits - totalPayments;
+  const adjustedBalance = bookBalance - unclearedDepositsTotal + unclearedPaymentsTotal;
+  
+  // Balanced when Cleared Balance = Adjusted Cash Balance
+  const isBalanced = endingBalance !== null && Math.abs(clearedBalance - adjustedBalance) < 0.01;
   const difference = endingBalance !== null ? clearedBalance - endingBalance : 0;
-  const isBalanced = endingBalance !== null && Math.abs(difference) < 0.01;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -609,40 +615,94 @@ export default function Reconcile() {
           <CardTitle>Reconciliation Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className={`p-4 border-l-4 ${isBalanced ? 'border-green-500 bg-green-50' : 'border-muted'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold">{formatCurrency(endingBalance || 0)}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Ending Balance</div>
-                </div>
-                {isBalanced && <CheckCircle className="h-6 w-6 text-green-600" />}
-              </div>
-            </div>
-            
-            <div className={`p-4 border-l-4 ${!isBalanced && difference !== 0 ? 'border-destructive bg-destructive/30 text-destructive-foreground' : 'border-muted'}`}>
-              <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Cleared Balance Card */}
+            <div className={`p-4 border-l-4 rounded ${!isBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(clearedBalance)}</div>
-                  <div className="text-sm opacity-90 mt-1">Cleared Balance</div>
-                  {!isBalanced && difference !== 0 && (
-                    <div className="text-sm text-destructive-foreground mt-1">
-                      {difference > 0 ? 'Over' : 'Under'} {formatCurrency(Math.abs(difference))}
+                  <div className="text-sm font-medium mt-1">Cleared Balance</div>
+                </div>
+                {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
+              </div>
+              
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between">
+                    View Calculation Details
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Bank Statement Balance on Start Date</span>
+                    <span className="font-medium">{formatCurrency(beginningBalance)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(+) Cleared Deposits and Other Increases</span>
+                    <span className="font-medium">{formatCurrency(clearedDepositsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Cleared Checks and Other Decreases</span>
+                    <span className="font-medium">{formatCurrency(clearedPaymentsTotal)}</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between py-1 font-semibold">
+                    <span>Cleared Balance</span>
+                    <span>{formatCurrency(clearedBalance)}</span>
+                  </div>
+                  {!isBalanced && (
+                    <div className="flex justify-between py-1 text-destructive font-semibold">
+                      <span>Out of Balance:</span>
+                      <span>{formatCurrency(Math.abs(clearedBalance - adjustedBalance))}</span>
                     </div>
                   )}
-                </div>
-                {!isBalanced && difference !== 0 && <XCircle className="h-6 w-6 text-destructive-foreground" />}
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
 
-            <div className={`p-4 border-l-4 ${isBalanced ? 'border-green-500 bg-green-50' : 'border-muted'}`}>
-              <div className="flex items-center justify-between">
+            {/* Adjusted Cash Balance Card */}
+            <div className={`p-4 border-l-4 rounded ${!isBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(adjustedBalance)}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Adjusted Cash Balance</div>
+                  <div className="text-sm font-medium mt-1">Adjusted Cash Balance</div>
                 </div>
-                {isBalanced && <CheckCircle className="h-6 w-6 text-green-600" />}
+                {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
+              
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between">
+                    View Calculation Details
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Total Cash Balance (Books)</span>
+                    <span className="font-medium">{formatCurrency(bookBalance)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Unreconciled Deposits</span>
+                    <span className="font-medium">{formatCurrency(unclearedDepositsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(+) Unreconciled Checks</span>
+                    <span className="font-medium">{formatCurrency(unclearedPaymentsTotal)}</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="flex justify-between py-1 font-semibold">
+                    <span>Total Adjusted Balance</span>
+                    <span>{formatCurrency(adjustedBalance)}</span>
+                  </div>
+                  {isBalanced && (
+                    <div className="text-success font-semibold text-center mt-2">
+                      Balanced ✓
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           </div>
           
