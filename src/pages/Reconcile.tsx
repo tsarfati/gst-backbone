@@ -134,12 +134,12 @@ export default function Reconcile() {
   };
 
   const loadTransactions = async () => {
-    if (!accountId || !currentCompany || !account?.chart_account_id) return;
+    if (!accountId || !currentCompany) return;
     
     try {
       setLoading(true);
-      console.log("Loading transactions for account:", accountId, "chart account:", account.chart_account_id);
-      
+      console.log("Loading transactions for account:", accountId, "chart account:", account?.chart_account_id);
+
       // Get IDs of completed reconciliations for this account
       const { data: reconciliations, error: recError } = await supabase
         .from("bank_reconciliations")
@@ -183,45 +183,59 @@ export default function Reconcile() {
       if (paymentsError) throw paymentsError;
       console.log("Payments loaded:", paymentsData?.length || 0);
 
-      // Load withdrawals (debits to cash account) from journal entries (e.g., wires)
-      const { data: withdrawalsJournalData, error: withdrawalsJournalError } = await supabase
-        .from("journal_entry_lines")
-        .select(`
-          id,
-          credit_amount,
-          debit_amount,
-          description,
-          journal_entries!inner(
-            entry_date,
-            reference
-          )
-        `)
-        .eq("account_id", account.chart_account_id)
-        .gt("credit_amount", 0)
-        .order("journal_entries.entry_date", { ascending: false });
+      // Prepare journal-based transactions arrays
+      let withdrawalsJournalData: any[] = [];
+      let depositsData: any[] = [];
 
-      if (withdrawalsJournalError) throw withdrawalsJournalError;
-      console.log("Journal withdrawals loaded:", withdrawalsJournalData?.length || 0);
+      if (account?.chart_account_id) {
+        try {
+          // Load withdrawals (credits to cash account)
+          const { data, error } = await supabase
+            .from("journal_entry_lines")
+            .select(`
+              id,
+              credit_amount,
+              debit_amount,
+              description,
+              journal_entries!inner(
+                entry_date,
+                reference
+              )
+            `)
+            .eq("account_id", account.chart_account_id)
+            .gt("credit_amount", 0)
+            .order("journal_entries.entry_date", { ascending: false });
+          if (error) throw error;
+          withdrawalsJournalData = data || [];
+          console.log("Journal withdrawals loaded:", withdrawalsJournalData.length);
+        } catch (e) {
+          console.warn("Withdrawals journal load failed, continuing without:", e);
+        }
 
-      // Load deposits (debits to cash account) from journal entries
-      const { data: depositsData, error: depositsError } = await supabase
-        .from("journal_entry_lines")
-        .select(`
-          id,
-          credit_amount,
-          debit_amount,
-          description,
-          journal_entries!inner(
-            entry_date,
-            reference
-          )
-        `)
-        .eq("account_id", account.chart_account_id)
-        .gt("debit_amount", 0)
-        .order("journal_entries.entry_date", { ascending: false });
-
-      if (depositsError) throw depositsError;
-      console.log("Journal deposits loaded:", depositsData?.length || 0);
+        try {
+          // Load deposits (debits to cash account)
+          const { data, error } = await supabase
+            .from("journal_entry_lines")
+            .select(`
+              id,
+              credit_amount,
+              debit_amount,
+              description,
+              journal_entries!inner(
+                entry_date,
+                reference
+              )
+            `)
+            .eq("account_id", account.chart_account_id)
+            .gt("debit_amount", 0)
+            .order("journal_entries.entry_date", { ascending: false });
+          if (error) throw error;
+          depositsData = data || [];
+          console.log("Journal deposits loaded:", depositsData.length);
+        } catch (e) {
+          console.warn("Deposits journal load failed, continuing without:", e);
+        }
+      }
 
       // Format payments and filter out already reconciled ones
       const apPayments: Transaction[] = (paymentsData || [])
