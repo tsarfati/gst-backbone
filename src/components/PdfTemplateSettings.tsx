@@ -178,9 +178,25 @@ export default function PdfTemplateSettings() {
   const [loading, setLoading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
+  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt'>('timecard');
   const [timecardTemplate, setTimecardTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'timecard',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: []
+  });
+  const [commitmentTemplate, setCommitmentTemplate] = useState<TemplateSettings>({
+    company_id: currentCompany?.id || '',
+    template_type: 'commitment',
     font_family: 'helvetica',
     header_html: TEMPLATE_PRESETS.professional.header_html,
     footer_html: TEMPLATE_PRESETS.professional.footer_html,
@@ -794,15 +810,86 @@ export default function PdfTemplateSettings() {
             </AlertDescription>
           </Alert>
 
-          <Tabs defaultValue="timecard" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="timecard">Timecard Reports</TabsTrigger>
-              <TabsTrigger value="purchase-order" disabled>Purchase Orders (Coming Soon)</TabsTrigger>
+              <TabsTrigger value="commitment">Commitment Status</TabsTrigger>
+              <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
+              <TabsTrigger value="receipt">Receipt Reports</TabsTrigger>
               <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
             </TabsList>
 
             <TabsContent value="subcontract" className="space-y-6">
               <SubcontractTemplateSettings onSave={() => loadTemplate('subcontract')} />
+            </TabsContent>
+
+            <TabsContent value="commitment" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layout className="h-4 w-4" />
+                    Commitment Status Report Template
+                  </CardTitle>
+                  <CardDescription>Customize the template for commitment status reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Configure the PDF template for commitment status reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{job_name}'}</code>, <code className="text-xs">{'{contract_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>
+                      </AlertDescription>
+                    </Alert>
+                    <p className="text-sm text-muted-foreground">Template settings for commitment status reports coming soon...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="invoice" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Invoice Report Template
+                  </CardTitle>
+                  <CardDescription>Customize the template for invoice reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Configure the PDF template for invoice reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{invoice_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>
+                      </AlertDescription>
+                    </Alert>
+                    <p className="text-sm text-muted-foreground">Template settings for invoice reports coming soon...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="receipt" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Receipt Report Template
+                  </CardTitle>
+                  <CardDescription>Customize the template for receipt reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Configure the PDF template for receipt reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{date_range}'}</code>, <code className="text-xs">{'{total_amount}'}</code>
+                      </AlertDescription>
+                    </Alert>
+                    <p className="text-sm text-muted-foreground">Template settings for receipt reports coming soon...</p>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="timecard" className="space-y-6">
