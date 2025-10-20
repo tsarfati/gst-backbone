@@ -125,7 +125,32 @@ export default function Reconcile() {
     try {
       setLoading(true);
       
-      // Load payments (debits/checks)
+      // Get already reconciled transaction IDs from completed reconciliations
+      const { data: reconciledItems, error: reconciledError } = await supabase
+        .from("bank_reconciliation_items")
+        .select(`
+          transaction_id,
+          transaction_type,
+          bank_reconciliations!inner(status, bank_account_id)
+        `)
+        .eq("bank_reconciliations.bank_account_id", accountId)
+        .eq("bank_reconciliations.status", "completed");
+
+      if (reconciledError) throw reconciledError;
+
+      const reconciledPaymentIds = new Set(
+        (reconciledItems || [])
+          .filter((item: any) => item.transaction_type === 'payment')
+          .map((item: any) => item.transaction_id)
+      );
+
+      const reconciledDepositIds = new Set(
+        (reconciledItems || [])
+          .filter((item: any) => item.transaction_type === 'deposit')
+          .map((item: any) => item.transaction_id)
+      );
+      
+      // Load all payments (debits/checks) for this bank account
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
         .select(`
@@ -137,7 +162,6 @@ export default function Reconcile() {
           invoices!inner(vendor_id, vendors(name))
         `)
         .eq("bank_account_id", accountId)
-        .eq("status", "cleared")
         .order("payment_date", { ascending: false });
 
       if (paymentsError) throw paymentsError;
@@ -155,33 +179,37 @@ export default function Reconcile() {
             reference
           )
         `)
-        .eq("account_id", account?.id)
+        .eq("account_id", accountId)
         .gt("credit_amount", 0)
         .order("journal_entries.entry_date", { ascending: false });
 
       if (depositsError) throw depositsError;
 
-      // Format payments
-      const formattedPayments: Transaction[] = (paymentsData || []).map((p: any) => ({
-        id: p.id,
-        date: p.payment_date,
-        description: `Payment to ${p.invoices?.vendors?.name || 'Unknown'}`,
-        reference: p.payment_number || '',
-        amount: p.amount,
-        type: 'payment' as const,
-        is_cleared: false
-      }));
+      // Format payments and filter out already reconciled ones
+      const formattedPayments: Transaction[] = (paymentsData || [])
+        .filter((p: any) => !reconciledPaymentIds.has(p.id))
+        .map((p: any) => ({
+          id: p.id,
+          date: p.payment_date,
+          description: `Payment to ${p.invoices?.vendors?.name || 'Unknown'}`,
+          reference: p.payment_number || '',
+          amount: p.amount,
+          type: 'payment' as const,
+          is_cleared: false
+        }));
 
-      // Format deposits
-      const formattedDeposits: Transaction[] = (depositsData || []).map((d: any) => ({
-        id: d.id,
-        date: d.journal_entries?.entry_date || '',
-        description: d.description || 'Deposit',
-        reference: d.journal_entries?.reference || '',
-        amount: d.credit_amount,
-        type: 'deposit' as const,
-        is_cleared: false
-      }));
+      // Format deposits and filter out already reconciled ones
+      const formattedDeposits: Transaction[] = (depositsData || [])
+        .filter((d: any) => !reconciledDepositIds.has(d.id))
+        .map((d: any) => ({
+          id: d.id,
+          date: d.journal_entries?.entry_date || '',
+          description: d.description || 'Deposit',
+          reference: d.journal_entries?.reference || '',
+          amount: d.credit_amount,
+          type: 'deposit' as const,
+          is_cleared: false
+        }));
 
       setPayments(formattedPayments);
       setDeposits(formattedDeposits);
