@@ -635,8 +635,8 @@ export default function Reconcile() {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Bank Statement Balance on start date</span>
-                    <span className="font-medium">{formatCurrency(beginningBalance)}</span>
+                    <span className="text-muted-foreground">Book Balance (from app)</span>
+                    <span className="font-medium">{formatCurrency(account?.current_balance || 0)}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(+) Cleared Deposits and other Increases</span>
