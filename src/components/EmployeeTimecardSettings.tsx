@@ -85,7 +85,7 @@ export default function EmployeeTimecardSettings({
           .from('pin_employees')
           .select('id, first_name, last_name, display_name')
           .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
+          .order('display_name', { ascending: true })
       ]);
 
       const regularEmployees = (profilesResponse.data || []).map(p => ({

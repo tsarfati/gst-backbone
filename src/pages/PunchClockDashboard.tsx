@@ -202,7 +202,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         const [profilesResponse, pinEmployeesResponse] = await Promise.all([
           outUserIds.length ? supabase
             .from('profiles')
-            .select('user_id, display_name, avatar_url')
+            .select('user_id, display_name, avatar_url, first_name, last_name')
             .in('user_id', outUserIds) : Promise.resolve({ data: [], error: null }),
           outPinIds.length ? supabase
             .from('pin_employees')
@@ -320,7 +320,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       id: row.id,
       punch_time: row.punch_in_time,
       punch_type: 'punched_in',
-      employee_name: prof?.display_name || 'Employee',
+      employee_name: prof?.display_name || ((prof?.first_name && prof?.last_name) ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee'),
       job_name: job?.name || 'Job',
       cost_code: row.cost_code_id && costCodes[row.cost_code_id]
         ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
@@ -349,7 +349,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       id: row.id,
       punch_time: row.punch_time,
       punch_type: row.punch_type,
-      employee_name: prof?.display_name || 'Employee',
+      employee_name: prof?.display_name || ((prof?.first_name && prof?.last_name) ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee'),
       job_name: job?.name || 'Job',
       cost_code: row.cost_code_id && costCodes[row.cost_code_id]
         ? `${costCodes[row.cost_code_id].code} - ${costCodes[row.cost_code_id].description}`
@@ -758,7 +758,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   </div>
                 )}
                 {recentOuts.slice(0, 8).map((row) => {
-                  const prof = profiles[row.user_id];
+                  const prof = profiles[row.user_id || row.pin_employee_id || ''];
                   const job = row.job_id ? jobs[row.job_id] : undefined;
                   return (
                      <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
