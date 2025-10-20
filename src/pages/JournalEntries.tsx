@@ -316,7 +316,7 @@ export default function JournalEntries() {
                           {line.cost_code_id && line.job_id
                             ? (() => {
                                 const code = (costCodes[line.job_id] || []).find(c => c.id === line.cost_code_id);
-                                return code ? `${code.category} - ${code.code} - ${code.description}` : 'Select cost code';
+                                return code ? `${code.code} - ${code.description} - ${code.category}` : 'Select cost code';
                               })()
                             : 'Select cost code'}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -331,7 +331,7 @@ export default function JournalEntries() {
                               {line.job_id && (costCodes[line.job_id] || []).map((code) => (
                                 <CommandItem
                                   key={code.id}
-                                  value={`${code.category} ${code.code} ${code.description}`}
+                                  value={`${code.code} ${code.description} ${code.category}`}
                                   onSelect={() => {
                                     updateLine(index, { cost_code_id: code.id });
                                     setOpenPopovers(prev => ({ 
@@ -346,7 +346,7 @@ export default function JournalEntries() {
                                       line.cost_code_id === code.id ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  {code.category} - {code.code} - {code.description}
+                                  {code.code} - {code.description} - {code.category}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
