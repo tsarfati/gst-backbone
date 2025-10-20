@@ -216,6 +216,7 @@ export type Database = {
         Row: {
           adjusted_balance: number | null
           bank_account_id: string
+          bank_statement_id: string | null
           beginning_balance: number
           beginning_date: string
           cleared_balance: number | null
@@ -234,6 +235,7 @@ export type Database = {
         Insert: {
           adjusted_balance?: number | null
           bank_account_id: string
+          bank_statement_id?: string | null
           beginning_balance: number
           beginning_date: string
           cleared_balance?: number | null
@@ -252,6 +254,7 @@ export type Database = {
         Update: {
           adjusted_balance?: number | null
           bank_account_id?: string
+          bank_statement_id?: string | null
           beginning_balance?: number
           beginning_date?: string
           cleared_balance?: number | null
@@ -273,6 +276,13 @@ export type Database = {
             columns: ["bank_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_bank_statement_id_fkey"
+            columns: ["bank_statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
             referencedColumns: ["id"]
           },
           {

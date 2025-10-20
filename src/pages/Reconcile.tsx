@@ -65,6 +65,11 @@ export default function Reconcile() {
   const [endingDate, setEndingDate] = useState<Date>(new Date());
   const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
+  // Bank statement upload state
+  const [statementFile, setStatementFile] = useState<File | null>(null);
+  const [statementUploading, setStatementUploading] = useState(false);
+  const [uploadedStatementId, setUploadedStatementId] = useState<string | null>(null);
+  const [uploadedStatementName, setUploadedStatementName] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentCompany && accountId) {
@@ -131,30 +136,38 @@ export default function Reconcile() {
     try {
       setLoading(true);
       
-      // Get already reconciled transaction IDs from completed reconciliations
-      const { data: reconciledItems, error: reconciledError } = await supabase
-        .from("bank_reconciliation_items")
-        .select(`
-          transaction_id,
-          transaction_type,
-          bank_reconciliations!inner(status, bank_account_id)
-        `)
-        .eq("bank_reconciliations.bank_account_id", accountId)
-        .eq("bank_reconciliations.status", "completed");
+      // Get IDs of completed reconciliations for this account
+      const { data: reconciliations, error: recError } = await supabase
+        .from("bank_reconciliations")
+        .select("id")
+        .eq("bank_account_id", accountId)
+        .eq("company_id", currentCompany.id)
+        .eq("status", "completed");
 
-      if (reconciledError) throw reconciledError;
+      if (recError) throw recError;
+      const recIds = (reconciliations || []).map((r: any) => r.id);
 
-      const reconciledPaymentIds = new Set(
-        (reconciledItems || [])
-          .filter((item: any) => item.transaction_type === 'payment')
-          .map((item: any) => item.transaction_id)
-      );
+      let reconciledPaymentIds = new Set<string>();
+      let reconciledDepositIds = new Set<string>();
 
-      const reconciledDepositIds = new Set(
-        (reconciledItems || [])
-          .filter((item: any) => item.transaction_type === 'deposit')
-          .map((item: any) => item.transaction_id)
-      );
+      if (recIds.length > 0) {
+        const { data: items, error: itemsError } = await supabase
+          .from("bank_reconciliation_items")
+          .select("transaction_id, transaction_type, reconciliation_id")
+          .in("reconciliation_id", recIds);
+        if (itemsError) throw itemsError;
+
+        reconciledPaymentIds = new Set(
+          (items || [])
+            .filter((i: any) => i.transaction_type === 'payment')
+            .map((i: any) => i.transaction_id)
+        );
+        reconciledDepositIds = new Set(
+          (items || [])
+            .filter((i: any) => i.transaction_type === 'deposit')
+            .map((i: any) => i.transaction_id)
+        );
+      }
       
       // Load all payments (debits/checks) for this bank account
       const { data: paymentsData, error: paymentsError } = await supabase
@@ -307,6 +320,7 @@ export default function Reconcile() {
           created_by: user.id,
           reconciled_by: clearedBalance === endingBalance ? user.id : null,
           reconciled_at: clearedBalance === endingBalance ? new Date().toISOString() : null,
+          bank_statement_id: uploadedStatementId
         })
         .select()
         .single();
