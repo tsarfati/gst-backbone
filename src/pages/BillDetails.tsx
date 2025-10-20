@@ -416,6 +416,13 @@ export default function BillDetails() {
             Edit Bill
           </Button>
           
+          {bill?.status === 'approved' && (
+            <Button onClick={() => navigate(`/invoices/${id}/payment`)}>
+              <DollarSign className="h-4 w-4 mr-2" />
+              Make Payment
+            </Button>
+          )}
+          
           {(bill?.status === 'pending_approval' || bill?.status === 'pending') && (
             <>
               <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
@@ -480,13 +487,6 @@ export default function BillDetails() {
                 Reject Bill
               </Button>
             </>
-          )}
-
-          {bill?.file_url && (
-            <Button variant="outline" onClick={() => window.open(bill.file_url, '_blank')}>
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
           )}
         </div>
       </div>

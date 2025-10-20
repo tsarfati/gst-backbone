@@ -372,7 +372,11 @@ export default function Bills() {
         </div>
 
         {/* Bulk Actions */}
-        {selectedBills.length > 0 && (
+        {selectedBills.length > 0 && (() => {
+          const selectedBillsData = bills.filter(b => selectedBills.includes(b.id));
+          const hasUnapprovedBills = selectedBillsData.some(b => b.status === 'pending' || b.status === 'pending_approval');
+          
+          return (
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -386,14 +390,16 @@ export default function Bills() {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                onClick={handleBulkApprove}
-                disabled={selectedBills.length === 0}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve Selected ({selectedBills.length})
-              </Button>
+              {hasUnapprovedBills && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleBulkApprove}
+                  disabled={selectedBills.length === 0}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Approve Selected ({selectedBills.length})
+                </Button>
+              )}
               <Button 
                 variant="destructive" 
                 onClick={handleBulkDelete}
@@ -404,7 +410,8 @@ export default function Bills() {
               </Button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
       <Card>
         <CardHeader>
