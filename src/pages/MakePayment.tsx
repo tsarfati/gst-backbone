@@ -94,7 +94,6 @@ export default function MakePayment() {
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<string>("");
   const [selectedJob, setSelectedJob] = useState<string>("");
-  const [isPartialPayment, setIsPartialPayment] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [paymentDocument, setPaymentDocument] = useState<File | null>(null);
   const [payment, setPayment] = useState<Payment>({
@@ -136,10 +135,6 @@ export default function MakePayment() {
       filterInvoices();
     }
   }, [selectedVendor, selectedJob, allInvoices]);
-
-  useEffect(() => {
-    calculatePaymentAmount();
-  }, [selectedInvoices, invoices]);
 
   const loadData = async () => {
     try {
@@ -256,30 +251,6 @@ export default function MakePayment() {
     }
   };
 
-  const calculatePaymentAmount = () => {
-    if (isPartialPayment) {
-      // Don't auto-calculate if partial payment is enabled
-      return;
-    }
-    
-    const totalAmount = selectedInvoices.reduce((sum, invoiceId) => {
-      const invoice = invoices.find(inv => inv.id === invoiceId);
-      return sum + (invoice?.amount || 0);
-    }, 0);
-
-    setPayment(prev => ({ ...prev, amount: totalAmount }));
-  };
-
-  const handleInvoiceSelection = (invoiceId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedInvoices([...selectedInvoices, invoiceId]);
-    } else {
-      setSelectedInvoices(selectedInvoices.filter(id => id !== invoiceId));
-    }
-    // Reset partial payment when selection changes
-    setIsPartialPayment(false);
-  };
-
   const handleVendorChange = (vendorId: string) => {
     setSelectedVendor(vendorId);
     if (vendorId) {
@@ -364,28 +335,21 @@ export default function MakePayment() {
       return;
     }
 
-    // Validate partial payment amount
-    if (isPartialPayment) {
-      const totalInvoiceAmount = selectedInvoices.reduce((sum, invoiceId) => {
-        const invoice = invoices.find(inv => inv.id === invoiceId);
-        return sum + (invoice?.amount || 0);
-      }, 0);
-
-      if (payment.amount <= 0 || payment.amount > totalInvoiceAmount) {
-        toast({
-          title: "Invalid Amount",
-          description: `Payment amount must be between $0 and $${totalInvoiceAmount.toFixed(2)}`,
-          variant: "destructive",
-        });
-        return;
-      }
+    // Validate payment amount
+    if (payment.amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Payment amount must be greater than $0",
+        variant: "destructive",
+      });
+      return;
     }
 
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
       
-      // Create payment (without payment_document_url initially)
+      // Create payment
       const paymentToInsert = {
         payment_number: payment.payment_number,
         vendor_id: payment.vendor_id,
@@ -393,10 +357,9 @@ export default function MakePayment() {
         payment_date: payment.payment_date,
         amount: payment.amount,
         memo: payment.memo,
-        status: payment.status,
+        status: 'completed', // Mark as completed instead of draft
         check_number: payment.check_number,
         bank_account_id: payment.bank_account_id,
-        is_partial_payment: isPartialPayment,
         created_by: user.data.user?.id
       };
 
@@ -420,45 +383,25 @@ export default function MakePayment() {
         }
       }
 
-      // Create payment invoice lines
-      const paymentLines = selectedInvoices.map(invoiceId => {
-        const invoice = invoices.find(inv => inv.id === invoiceId);
-        return {
-          payment_id: paymentData.id,
-          invoice_id: invoiceId,
-          amount_paid: isPartialPayment ? payment.amount : (invoice?.amount || 0)
-        };
-      });
+      // Create payment invoice line
+      const invoice = invoices.find(inv => inv.id === selectedInvoices[0]);
+      const paymentLine = {
+        payment_id: paymentData.id,
+        invoice_id: selectedInvoices[0],
+        amount_paid: payment.amount
+      };
 
       const { error: linesError } = await supabase
         .from('payment_invoice_lines')
-        .insert(paymentLines);
+        .insert([paymentLine]);
 
       if (linesError) throw linesError;
 
-      // Update invoice statuses and amounts
-      for (const invoiceId of selectedInvoices) {
-        const invoice = invoices.find(inv => inv.id === invoiceId);
-        if (!invoice) continue;
-
-        if (isPartialPayment) {
-          // Partial payment - update amount remaining
-          const newAmount = invoice.amount - payment.amount;
-          await supabase
-            .from('invoices')
-            .update({ 
-              amount: newAmount,
-              status: newAmount > 0 ? 'approved' : 'paid' // Keep approved if balance remains
-            })
-            .eq('id', invoiceId);
-        } else {
-          // Full payment
-          await supabase
-            .from('invoices')
-            .update({ status: 'paid' })
-            .eq('id', invoiceId);
-        }
-      }
+      // Update invoice status to paid
+      await supabase
+        .from('invoices')
+        .update({ status: 'paid' })
+        .eq('id', selectedInvoices[0]);
 
       toast({
         title: "Success",
@@ -631,34 +574,16 @@ export default function MakePayment() {
               )}
 
               <div>
-                <Label htmlFor="amount">Total Amount</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="partial_payment"
-                      checked={isPartialPayment}
-                      onCheckedChange={(checked) => {
-                        setIsPartialPayment(checked as boolean);
-                        if (!checked) {
-                          calculatePaymentAmount();
-                        }
-                      }}
-                      disabled={selectedInvoices.length === 0}
-                    />
-                    <Label htmlFor="partial_payment" className="text-sm font-normal cursor-pointer">
-                      Make Partial Payment
-                    </Label>
-                  </div>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    value={payment.amount}
-                    onChange={(e) => setPayment(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                    disabled={!isPartialPayment}
-                    className={isPartialPayment ? '' : 'bg-muted'}
-                  />
-                </div>
+                <Label htmlFor="amount">Payment Amount</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  value={payment.amount}
+                  onChange={(e) => setPayment(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+                  disabled={selectedInvoices.length === 0}
+                  className={selectedInvoices.length === 0 ? 'bg-muted' : ''}
+                />
               </div>
 
               <div>
@@ -691,90 +616,90 @@ export default function MakePayment() {
           </Card>
         </div>
 
-        {/* Invoices and Receipts */}
+        {/* Invoices */}
         <div className="lg:col-span-2">
-          <Tabs defaultValue="invoices" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="invoices">Pending Invoices</TabsTrigger>
-              <TabsTrigger value="receipts">Coded Receipts</TabsTrigger>
-            </TabsList>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Select Invoice to Pay
+              </CardTitle>
+            </CardHeader>
 
-            <TabsContent value="invoices">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Select Invoices to Pay
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {invoices.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      <div className="mb-2">No approved unpaid invoices found</div>
-                      <div className="text-sm">Select vendor or job filters to narrow results</div>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12"></TableHead>
-                          <TableHead>Invoice #</TableHead>
-                          <TableHead>Vendor</TableHead>
-                          <TableHead>Job</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Amount</TableHead>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <div className="mb-2">No approved unpaid invoices found</div>
+                  <div className="text-sm">Select vendor or job filters to narrow results</div>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Invoice #</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Job</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.map(invoice => {
+                      const isSelected = selectedInvoices.includes(invoice.id);
+                      return (
+                        <TableRow 
+                          key={invoice.id}
+                          className={isSelected ? "bg-muted/50" : "cursor-pointer hover:bg-muted/30"}
+                          onClick={() => {
+                            // Only allow selecting one invoice at a time
+                            if (isSelected) {
+                              setSelectedInvoices([]);
+                              setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
+                            } else {
+                              setSelectedInvoices([invoice.id]);
+                              setPayment(prev => ({ 
+                                ...prev, 
+                                vendor_id: invoice.vendor_id,
+                                amount: invoice.amount 
+                              }));
+                            }
+                          }}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedInvoices([invoice.id]);
+                                  setPayment(prev => ({ 
+                                    ...prev, 
+                                    vendor_id: invoice.vendor_id,
+                                    amount: invoice.amount 
+                                  }));
+                                } else {
+                                  setSelectedInvoices([]);
+                                  setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>{invoice.invoice_number || 'N/A'}</TableCell>
+                          <TableCell>{invoice.vendor?.name || 'N/A'}</TableCell>
+                          <TableCell>{invoice.jobs?.name || 'N/A'}</TableCell>
+                          <TableCell className="max-w-xs truncate">{invoice.description}</TableCell>
+                          <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
+                          <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {invoices.map(invoice => {
-                          // Set vendor_id from the first selected invoice
-                          const isFirstSelected = selectedInvoices.length === 0 || selectedInvoices[0] === invoice.id;
-                          return (
-                            <TableRow key={invoice.id}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedInvoices.includes(invoice.id)}
-                                  onCheckedChange={(checked) => {
-                                    handleInvoiceSelection(invoice.id, checked as boolean);
-                                    if (checked && !payment.vendor_id) {
-                                      setPayment(prev => ({ ...prev, vendor_id: invoice.vendor_id }));
-                                    }
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell>{invoice.invoice_number || 'N/A'}</TableCell>
-                              <TableCell>{invoice.vendor?.name || 'N/A'}</TableCell>
-                              <TableCell>{invoice.jobs?.name || 'N/A'}</TableCell>
-                              <TableCell className="max-w-xs truncate">{invoice.description}</TableCell>
-                              <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
-                              <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
 
-            <TabsContent value="receipts">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Coded Receipts (Payment Suggestions)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center text-muted-foreground py-8">
-                    Coded receipts integration coming soon - receipts will suggest payment amounts based on coding
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
         </div>
       </div>
 
