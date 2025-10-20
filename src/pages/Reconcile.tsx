@@ -30,6 +30,7 @@ interface BankAccount {
   account_name: string;
   bank_name: string;
   current_balance: number;
+  chart_account_id?: string | null;
 }
 
 interface Transaction {
@@ -69,9 +70,14 @@ export default function Reconcile() {
     if (currentCompany && accountId) {
       loadBankAccount();
       loadLastReconciliation();
-      loadTransactions();
     }
   }, [currentCompany, accountId]);
+
+  useEffect(() => {
+    if (currentCompany && accountId && account) {
+      loadTransactions();
+    }
+  }, [currentCompany, accountId, account]);
 
   const loadBankAccount = async () => {
     if (!accountId || !currentCompany) return;
@@ -79,7 +85,7 @@ export default function Reconcile() {
     try {
       const { data, error } = await supabase
         .from("bank_accounts")
-        .select("id, account_name, bank_name, current_balance")
+        .select("id, account_name, bank_name, current_balance, chart_account_id")
         .eq("id", accountId)
         .eq("company_id", currentCompany.id)
         .single();
@@ -166,6 +172,25 @@ export default function Reconcile() {
 
       if (paymentsError) throw paymentsError;
 
+      // Load withdrawals (credits) from journal entries (e.g., wires)
+      const { data: withdrawalsJournalData, error: withdrawalsJournalError } = await supabase
+        .from("journal_entry_lines")
+        .select(`
+          id,
+          credit_amount,
+          debit_amount,
+          description,
+          journal_entries!inner(
+            entry_date,
+            reference
+          )
+        `)
+        .eq("account_id", account?.chart_account_id)
+        .gt("credit_amount", 0)
+        .order("journal_entries.entry_date", { ascending: false });
+
+      if (withdrawalsJournalError) throw withdrawalsJournalError;
+
       // Load deposits (credits) from journal entries
       const { data: depositsData, error: depositsError } = await supabase
         .from("journal_entry_lines")
@@ -179,14 +204,14 @@ export default function Reconcile() {
             reference
           )
         `)
-        .eq("account_id", accountId)
-        .gt("credit_amount", 0)
+        .eq("account_id", account?.chart_account_id)
+        .gt("debit_amount", 0)
         .order("journal_entries.entry_date", { ascending: false });
 
       if (depositsError) throw depositsError;
 
       // Format payments and filter out already reconciled ones
-      const formattedPayments: Transaction[] = (paymentsData || [])
+      const apPayments: Transaction[] = (paymentsData || [])
         .filter((p: any) => !reconciledPaymentIds.has(p.id))
         .map((p: any) => ({
           id: p.id,
@@ -200,6 +225,20 @@ export default function Reconcile() {
           is_cleared: false
         }));
 
+      const journalPayments: Transaction[] = (withdrawalsJournalData || [])
+        .filter((d: any) => !reconciledPaymentIds.has(d.id))
+        .map((d: any) => ({
+          id: d.id,
+          date: d.journal_entries?.entry_date || '',
+          description: d.description || 'Bank withdrawal',
+          reference: d.journal_entries?.reference || '',
+          amount: d.credit_amount,
+          type: 'payment' as const,
+          is_cleared: false
+        }));
+
+      const formattedPayments: Transaction[] = [...apPayments, ...journalPayments];
+
       // Format deposits and filter out already reconciled ones
       const formattedDeposits: Transaction[] = (depositsData || [])
         .filter((d: any) => !reconciledDepositIds.has(d.id))
@@ -208,7 +247,7 @@ export default function Reconcile() {
           date: d.journal_entries?.entry_date || '',
           description: d.description || 'Deposit',
           reference: d.journal_entries?.reference || '',
-          amount: d.credit_amount,
+          amount: d.debit_amount,
           type: 'deposit' as const,
           is_cleared: false
         }));
