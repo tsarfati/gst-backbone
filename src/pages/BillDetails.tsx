@@ -358,7 +358,10 @@ export default function BillDetails() {
     <div className="p-6 max-w-6xl mx-auto">
       {/* Overdue Banner */}
       {billIsOverdue && (
-        <div className="mb-6 bg-destructive/20 border-2 border-destructive rounded-lg p-6 animate-pulse">
+        <div 
+          className="mb-6 bg-destructive/20 border-2 border-destructive rounded-lg p-6"
+          style={{ animation: 'pulse-red 2s infinite' }}
+        >
           <div className="flex items-center gap-4">
             <AlertTriangle className="h-12 w-12 text-destructive flex-shrink-0" />
             <div>

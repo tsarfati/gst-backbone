@@ -468,8 +468,9 @@ export default function Bills() {
                     <TableRow 
                       key={bill.id} 
                       className={`cursor-pointer hover:bg-primary/10 hover:shadow-sm hover:scale-[1.005] transition-all duration-200 ${
-                        billIsOverdue ? 'animate-pulse bg-destructive/10' : ''
+                        billIsOverdue ? 'bg-destructive/10 border-l-4 border-l-destructive' : ''
                       }`}
+                      style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
@@ -531,8 +532,9 @@ export default function Bills() {
                   <div 
                     key={bill.id} 
                     className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
-                      billIsOverdue ? 'animate-pulse bg-destructive/10 border-destructive' : ''
+                      billIsOverdue ? 'bg-destructive/10 border-destructive' : ''
                     }`}
+                    style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                     onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -582,8 +584,9 @@ export default function Bills() {
                   <div 
                     key={bill.id} 
                     className={`flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
-                      billIsOverdue ? 'animate-pulse bg-destructive/10 border-destructive' : ''
+                      billIsOverdue ? 'bg-destructive/10 border-destructive' : ''
                     }`}
+                    style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                     onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
