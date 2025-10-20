@@ -129,6 +129,7 @@ export default function JournalEntries() {
       .eq('job_id', jobId)
       .eq('company_id', currentCompany?.id || '')
       .eq('is_active', true)
+      .eq('is_dynamic_group', false)
       .order('code');
     
     if (error) {
