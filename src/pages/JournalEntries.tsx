@@ -116,9 +116,14 @@ export default function JournalEntries() {
   }, [currentCompany?.id]);
 
   const loadCostCodesForJob = async (jobId: string) => {
-    if (costCodes[jobId]) return;
+    if (costCodes[jobId]) {
+      console.log('Cost codes already loaded for job:', jobId);
+      return;
+    }
 
-    const { data } = await supabase
+    console.log('Loading cost codes for job:', jobId, 'company:', currentCompany?.id);
+
+    const { data, error } = await supabase
       .from('cost_codes')
       .select('id, code, description, category')
       .eq('job_id', jobId)
@@ -126,7 +131,12 @@ export default function JournalEntries() {
       .eq('is_active', true)
       .order('code');
     
-    setCostCodes(prev => ({ ...prev, [jobId]: (data as any) || [] }));
+    if (error) {
+      console.error('Error loading cost codes:', error);
+    } else {
+      console.log('Loaded cost codes:', data?.length, data);
+      setCostCodes(prev => ({ ...prev, [jobId]: (data as any) || [] }));
+    }
   };
 
   const addLine = () => {
