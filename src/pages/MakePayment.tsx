@@ -129,6 +129,8 @@ export default function MakePayment() {
       if (bill) {
         setSelectedVendor(bill.vendor_id);
         setSelectedInvoices([bill.id]);
+        setIsPartialPayment(false);
+        setPayment(prev => ({ ...prev, vendor_id: bill.vendor_id, amount: bill.amount }));
       }
     }
   }, [location.state, allInvoices]);
@@ -333,7 +335,7 @@ export default function MakePayment() {
     }
 
     // Validate bank account for certain payment methods
-    const requiresBankAccount = ['check', 'ach', 'wire', 'debit_card'].includes(payment.payment_method);
+    const requiresBankAccount = ['check', 'ach', 'wire'].includes(payment.payment_method);
     if (requiresBankAccount && !payment.bank_account_id) {
       toast({
         title: "Invalid Payment",
@@ -547,13 +549,13 @@ export default function MakePayment() {
                     <SelectItem value="check">Check</SelectItem>
                     <SelectItem value="ach">ACH</SelectItem>
                     <SelectItem value="wire">Wire Transfer</SelectItem>
-                    <SelectItem value="debit_card">Debit Card</SelectItem>
+                    
                     <SelectItem value="cash">Cash</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {['check', 'ach', 'wire', 'debit_card'].includes(payment.payment_method) && (
+              {['check', 'ach', 'wire'].includes(payment.payment_method) && (
                 <div>
                   <Label htmlFor="bank_account_id">Pay From Account *</Label>
                   <Select 
