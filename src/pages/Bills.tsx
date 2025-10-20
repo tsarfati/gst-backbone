@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import PayablesViewSelector from "@/components/PayablesViewSelector";
 import VendorAvatar from "@/components/VendorAvatar";
 import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
@@ -111,7 +113,11 @@ export default function Bills() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [jobFilter, setJobFilter] = useState("all");
+  const [vendorFilter, setVendorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showPaidBills, setShowPaidBills] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -195,12 +201,32 @@ export default function Bills() {
     statusFilteredBills = overdueBills;
   }
 
+  // Apply paid bills filter
+  if (!showPaidBills) {
+    statusFilteredBills = statusFilteredBills.filter(bill => bill.status !== 'paid');
+  }
+
   // Apply job filter
-  const filteredBills = jobFilter === "all" 
+  let jobFilteredBills = jobFilter === "all" 
     ? statusFilteredBills 
     : statusFilteredBills.filter(bill => bill.job_name === jobFilter);
 
+  // Apply vendor filter
+  let vendorFilteredBills = vendorFilter === "all"
+    ? jobFilteredBills
+    : jobFilteredBills.filter(bill => bill.vendor_name === vendorFilter);
+
+  // Apply date filter
+  let filteredBills = vendorFilteredBills;
+  if (startDate) {
+    filteredBills = filteredBills.filter(bill => new Date(bill.issue_date) >= new Date(startDate));
+  }
+  if (endDate) {
+    filteredBills = filteredBills.filter(bill => new Date(bill.issue_date) <= new Date(endDate));
+  }
+
   const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
+  const uniqueVendors = [...new Set(bills.map(bill => bill.vendor_name))];
 
   const totalPendingApproval = pendingApprovalBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalAwaitingPayment = awaitingPaymentBills.reduce((sum, bill) => sum + bill.amount, 0);
@@ -415,11 +441,23 @@ export default function Bills() {
 
       <Card>
         <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>All Bills</CardTitle>
-              {uniqueJobs.length > 0 && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <CardTitle>All Bills</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="show-paid" className="text-sm">Show Paid Bills</Label>
+                  <Switch
+                    id="show-paid"
+                    checked={showPaidBills}
+                    onCheckedChange={setShowPaidBills}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                
+                {uniqueJobs.length > 0 && (
                   <Select value={jobFilter} onValueChange={setJobFilter}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Filter by job" />
@@ -431,8 +469,55 @@ export default function Bills() {
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+
+                {uniqueVendors.length > 0 && (
+                  <Select value={vendorFilter} onValueChange={setVendorFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Vendors</SelectItem>
+                      {uniqueVendors.map(vendor => (
+                        <SelectItem key={vendor} value={vendor}>{vendor}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    placeholder="Start Date"
+                    className="w-40"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    placeholder="End Date"
+                    className="w-40"
+                  />
                 </div>
-              )}
+
+                {(jobFilter !== "all" || vendorFilter !== "all" || startDate || endDate) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setJobFilter("all");
+                      setVendorFilter("all");
+                      setStartDate("");
+                      setEndDate("");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
           </div>
         </CardHeader>
         <CardContent>
