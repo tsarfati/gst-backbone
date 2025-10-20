@@ -77,6 +77,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   // Get user's role for the current company
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
   const isManager = currentUserRole === 'admin' || currentUserRole === 'controller' || currentUserRole === 'project_manager';
+  const canEdit = currentUserRole === 'admin' || currentUserRole === 'controller';
   
   console.log('TimeCardDetailView - Current user role:', currentUserRole);
   console.log('TimeCardDetailView - isManager:', isManager);
@@ -580,13 +581,27 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Time Card Details
-          </DialogTitle>
-          <DialogDescription>
-            {formatDate(timeCard.punch_in_time)}
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Time Card Details
+              </DialogTitle>
+              <DialogDescription>
+                {formatDate(timeCard.punch_in_time)}
+              </DialogDescription>
+            </div>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditDialogOpen(true)}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Change Request Alert - Show prominently if there's a pending change request */}
@@ -913,18 +928,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </Button>
         </div>
 
-        <EditTimeCardDialog
-          open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          timeCardId={timeCard.id}
-          onSave={() => {
-            loadTimeCardDetails();
-            setEditDialogOpen(false);
-          }}
-        />
-
-        {/* Edit Dialog */}
-        {isManager && (
+        {canEdit && (
           <EditTimeCardDialog
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
