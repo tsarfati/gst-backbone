@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Clock, MapPin, Camera, Save, Bell, Shield, Users, Smartphone } from 'lucide-react';
+import { Settings, Clock, MapPin, Camera, Save, Bell, Shield, Users, Smartphone, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -87,6 +87,8 @@ interface PunchClockSettings {
   count_early_punch_time: boolean;
   count_late_punch_in: boolean;
   late_grace_period_minutes: number;
+  flag_timecards_over_12hrs?: boolean;
+  flag_timecards_over_24hrs?: boolean;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -125,6 +127,8 @@ const defaultSettings: PunchClockSettings = {
   count_early_punch_time: false,
   count_late_punch_in: true,
   late_grace_period_minutes: 5,
+  flag_timecards_over_12hrs: true,
+  flag_timecards_over_24hrs: true,
 };
 
 export default function PunchClockSettings() {
@@ -135,6 +139,7 @@ export default function PunchClockSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [recalculating, setRecalculating] = useState(false);
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -209,6 +214,8 @@ export default function PunchClockSettings() {
           punch_rounding_direction: (data.punch_rounding_direction as 'up' | 'down' | 'nearest') || 'nearest',
           auto_break_wait_hours: parseFloat((data.auto_break_wait_hours ?? 6).toString()),
           calculate_overtime: data.calculate_overtime !== false,
+          flag_timecards_over_12hrs: (data as any).flag_timecards_over_12hrs ?? true,
+          flag_timecards_over_24hrs: (data as any).flag_timecards_over_24hrs ?? true,
           enable_distance_warnings: true, // Default value since not in DB
           max_distance_from_job_meters: 200, // Default value since not in DB
           pwa_icon_192_url: data.pwa_icon_192_url ? `${data.pwa_icon_192_url}?t=${Date.now()}` : '',
@@ -262,6 +269,8 @@ export default function PunchClockSettings() {
           punch_rounding_direction: settings.punch_rounding_direction,
           auto_break_wait_hours: settings.auto_break_wait_hours,
           calculate_overtime: settings.calculate_overtime,
+          flag_timecards_over_12hrs: settings.flag_timecards_over_12hrs,
+          flag_timecards_over_24hrs: settings.flag_timecards_over_24hrs,
           pwa_icon_192_url: settings.pwa_icon_192_url,
           pwa_icon_512_url: settings.pwa_icon_512_url,
           enable_install_prompt: settings.enable_install_prompt,
@@ -303,6 +312,34 @@ export default function PunchClockSettings() {
     }));
   };
 
+  const handleRecalculate = async () => {
+    if (!currentCompany) return;
+
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'controller';
+    if (!isAdmin) {
+      toast({
+        title: 'Access Denied',
+        description: 'Only admins and controllers can recalculate time cards',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      const { data, error } = await supabase.functions.invoke('recalculate-timecards', {
+        body: { company_id: currentCompany.id }
+      });
+      if (error) throw error;
+      toast({ title: 'Success', description: `Recalculated ${data.updated_count} of ${data.total_processed} time cards` });
+    } catch (error: any) {
+      console.error('Recalculation error:', error);
+      toast({ title: 'Error', description: 'Failed to recalculate time cards', variant: 'destructive' });
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-6 text-center">Loading punch clock settings...</div>;
   }
@@ -339,11 +376,17 @@ export default function PunchClockSettings() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          <div className="flex justify-end mb-4">
+          <div className="flex gap-4 justify-end mb-4">
             <Button onClick={saveSettings} disabled={saving}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
+            {(profile?.role === 'admin' || profile?.role === 'controller') && (
+              <Button onClick={handleRecalculate} disabled={recalculating} variant="outline">
+                <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? 'Recalculating...' : 'Recalculate Time Cards'}
+              </Button>
+            )}
           </div>
 
           {/* Time Tracking Settings */}
@@ -423,31 +466,6 @@ export default function PunchClockSettings() {
                   <p className="text-xs text-muted-foreground">Hours worked before automatic break deduction</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="time-window-start">Punch Window Start</Label>
-                  <Input
-                    id="time-window-start"
-                    type="time"
-                    value={settings.punch_time_window_start}
-                    onChange={(e) => updateSetting('punch_time_window_start', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Earliest time employees can punch in each day (blocks punches before this time)
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="time-window-end">Punch Window End</Label>
-                  <Input
-                    id="time-window-end"
-                    type="time"
-                    value={settings.punch_time_window_end}
-                    onChange={(e) => updateSetting('punch_time_window_end', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Latest time employees can punch out each day (blocks punches after this time)
-                  </p>
-                </div>
               </div>
 
               <Separator />
@@ -466,57 +484,34 @@ export default function PunchClockSettings() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Enable Punch Rounding</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Round punch times to nearest interval
-                    </p>
+                {/* Timecard Flagging */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Flag Time Cards Over 12 Hours</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Highlight time cards exceeding 12 hours with pulsating badge
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.flag_timecards_over_12hrs || false}
+                      onCheckedChange={(checked) => updateSetting('flag_timecards_over_12hrs', checked)}
+                    />
                   </div>
-                  <Switch
-                    checked={settings.enable_punch_rounding}
-                    onCheckedChange={(checked) => updateSetting('enable_punch_rounding', checked)}
-                  />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-base">Flag Time Cards Over 24 Hours</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Highlight time cards exceeding 24 hours with pulsating badge
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.flag_timecards_over_24hrs || false}
+                      onCheckedChange={(checked) => updateSetting('flag_timecards_over_24hrs', checked)}
+                    />
+                  </div>
                 </div>
-
-                {settings.enable_punch_rounding && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-4 p-4 border rounded-lg bg-muted/50">
-                    <div className="space-y-2">
-                      <Label htmlFor="rounding-minutes">Rounding Interval (minutes)</Label>
-                      <Select
-                        value={settings.punch_rounding_minutes.toString()}
-                        onValueChange={(value) => updateSetting('punch_rounding_minutes', parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5 minutes</SelectItem>
-                          <SelectItem value="10">10 minutes</SelectItem>
-                          <SelectItem value="15">15 minutes</SelectItem>
-                          <SelectItem value="30">30 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="rounding-direction">Rounding Direction</Label>
-                      <Select
-                        value={settings.punch_rounding_direction}
-                        onValueChange={(value) => updateSetting('punch_rounding_direction', value as 'up' | 'down' | 'nearest')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="up">Round Up</SelectItem>
-                          <SelectItem value="down">Round Down</SelectItem>
-                          <SelectItem value="nearest">Round to Nearest</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -735,155 +730,6 @@ export default function PunchClockSettings() {
             </CardContent>
           </Card>
 
-          {/* Shift Time Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Shift Time Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Time Display Format</Label>
-                <Select
-                  value={settings.time_display_format}
-                  onValueChange={(value) => updateSetting('time_display_format', value as 'hours_minutes' | 'decimal')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hours_minutes">Hours and Minutes (e.g., 1h 15m)</SelectItem>
-                    <SelectItem value="decimal">Decimal Hours (e.g., 1.25)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Choose how time is displayed throughout the app
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Shift Start Time</Label>
-                  <Input
-                    type="time"
-                    value={settings.shift_start_time}
-                    onChange={(e) => updateSetting('shift_start_time', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    When hours begin counting
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Shift End Time</Label>
-                  <Input
-                    type="time"
-                    value={settings.shift_end_time}
-                    onChange={(e) => updateSetting('shift_end_time', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Official end of shift
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Standard Shift Hours</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  min="1"
-                  max="16"
-                  value={settings.shift_hours}
-                  onChange={(e) => updateSetting('shift_hours', parseFloat(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Full shift duration (e.g., 8 hours). Employees punching in early will have hours capped at this value.
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <Label>Overtime Grace Period (minutes)</Label>
-                <Input
-                  type="number"
-                  step="5"
-                  min="0"
-                  max="60"
-                  value={settings.overtime_grace_period_minutes}
-                  onChange={(e) => updateSetting('overtime_grace_period_minutes', parseInt(e.target.value))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Grace period before overtime starts counting after shift end time
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Count Early Punch-In as Paid Time</Label>
-                  <p className="text-sm text-muted-foreground">
-                    If enabled, time before shift start counts as paid time
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.count_early_punch_time}
-                  onCheckedChange={(checked) => updateSetting('count_early_punch_time', checked)}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Count Late Punch-In as Paid Time</Label>
-                  <p className="text-sm text-muted-foreground">
-                    If enabled, late arrivals count as paid from actual punch time
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.count_late_punch_in}
-                  onCheckedChange={(checked) => updateSetting('count_late_punch_in', checked)}
-                />
-              </div>
-
-              {!settings.count_late_punch_in && (
-                <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
-                  <Label>Late Arrival Grace Period (minutes)</Label>
-                  <Input
-                    type="number"
-                    step="5"
-                    min="0"
-                    max="60"
-                    value={settings.late_grace_period_minutes}
-                    onChange={(e) => updateSetting('late_grace_period_minutes', parseInt(e.target.value))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Employees arriving within this grace period won't be penalized
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Example Calculation</h4>
-                <p className="text-sm text-muted-foreground">
-                  Shift: {settings.shift_start_time} - {settings.shift_end_time} ({settings.shift_hours} hours, automatic 30 min lunch)
-                  <br />
-                  • Early arrival: If employee punches at 6:55 AM, they get {settings.count_early_punch_time ? 'paid from 6:55 AM' : `${settings.shift_hours} hours (starts at ${settings.shift_start_time})`}
-                  <br />
-                  • Late arrival: If employee arrives at 7:10 AM, they {settings.count_late_punch_in ? 'get paid from 7:10 AM' : `have ${settings.late_grace_period_minutes} min grace period`}
-                  <br />
-                  • Overtime: Starts at {settings.overtime_grace_period_minutes} min after {settings.shift_end_time}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
