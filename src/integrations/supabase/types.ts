@@ -2670,6 +2670,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          bank_account_id: string | null
           check_number: string | null
           created_at: string
           created_by: string
@@ -2687,6 +2688,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bank_account_id?: string | null
           check_number?: string | null
           created_at?: string
           created_by: string
@@ -2704,6 +2706,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bank_account_id?: string | null
           check_number?: string | null
           created_at?: string
           created_by?: string
@@ -2720,6 +2723,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
