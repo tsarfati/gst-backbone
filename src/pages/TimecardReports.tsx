@@ -13,8 +13,6 @@ import { PunchTrackingReport } from '@/components/PunchTrackingReport';
 import { exportTimecardToPDF, ReportData, CompanyBranding } from '@/utils/pdfExport';
 import { exportTimecardToExcel, ExcelReportData } from '@/utils/excelExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -917,29 +915,6 @@ export default function TimecardReports() {
       </div>
 
       <div className="space-y-6">
-        {/* PDF Template Placeholders Info */}
-        <Alert className="border-info/50 bg-info/5">
-          <Info className="h-4 w-4 text-info" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <div className="font-medium text-sm">PDF Template Placeholders</div>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <div>You can customize PDF report headers and footers using these placeholders:</div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-2 font-mono">
-                  <div><span className="text-primary">{'{company_name}'}</span> - Company name</div>
-                  <div><span className="text-primary">{'{period}'}</span> - Report date range</div>
-                  <div><span className="text-primary">{'{date}'}</span> - Current date</div>
-                  <div><span className="text-primary">{'{employee_name}'}</span> - Employee name (if filtered)</div>
-                  <div><span className="text-primary">{'{job_name}'}</span> - Job name (if filtered)</div>
-                  <div><span className="text-primary">{'{generated_date}'}</span> - Generation timestamp</div>
-                  <div><span className="text-primary">{'{page}'}</span> - Current page number</div>
-                  <div><span className="text-primary">{'{pages}'}</span> - Total pages</div>
-                </div>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
-
         {/* Filters */}
         <TimecardReportFilters
           filters={filters}
