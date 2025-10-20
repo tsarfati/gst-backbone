@@ -63,37 +63,65 @@ export default function JournalEntries() {
 
   useEffect(() => {
     const loadData = async () => {
-      // Get current company
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        // Get current company
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.log('No user found');
+          return;
+        }
 
-      const { data: companyData } = await supabase
-        .from('user_company_access')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .single();
+        const { data: companyData, error: companyError } = await supabase
+          .from('user_company_access')
+          .select('company_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
 
-      if (!companyData) return;
+        if (companyError) {
+          console.error('Error fetching company:', companyError);
+          return;
+        }
 
-      // Load jobs for this company
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('id, name')
-        .eq('company_id', companyData.company_id)
-        .eq('status', 'active')
-        .order('name');
-      setJobs(jobsData || []);
+        if (!companyData) {
+          console.log('No company data found');
+          return;
+        }
 
-      // Load expense accounts for this company
-      const { data: accountsData } = await supabase
-        .from('chart_of_accounts')
-        .select('id, account_number, account_name, account_type, normal_balance')
-        .eq('company_id', companyData.company_id)
-        .eq('is_active', true)
-        .eq('account_type', 'Expense')
-        .order('account_number');
-      setAccounts(accountsData || []);
+        console.log('Loading data for company:', companyData.company_id);
+
+        // Load jobs for this company
+        const { data: jobsData, error: jobsError } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .eq('company_id', companyData.company_id)
+          .order('name');
+        
+        if (jobsError) {
+          console.error('Error loading jobs:', jobsError);
+        } else {
+          console.log('Loaded jobs:', jobsData?.length);
+          setJobs(jobsData || []);
+        }
+
+        // Load expense accounts for this company
+        const { data: accountsData, error: accountsError } = await supabase
+          .from('chart_of_accounts')
+          .select('id, account_number, account_name, account_type, normal_balance')
+          .eq('company_id', companyData.company_id)
+          .eq('is_active', true)
+          .eq('account_type', 'Expense')
+          .order('account_number');
+        
+        if (accountsError) {
+          console.error('Error loading accounts:', accountsError);
+        } else {
+          console.log('Loaded accounts:', accountsData?.length);
+          setAccounts(accountsData || []);
+        }
+      } catch (error) {
+        console.error('Error in loadData:', error);
+      }
     };
     loadData();
   }, []);
