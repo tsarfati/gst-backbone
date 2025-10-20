@@ -31,6 +31,7 @@ interface Account {
 }
 
 interface JournalEntryLine {
+  line_type: 'controller' | 'job';
   account_id: string;
   debit_amount: number;
   credit_amount: number;
@@ -58,6 +59,7 @@ export default function NewJournalEntry() {
 
   const [lines, setLines] = useState<JournalEntryLine[]>([
     {
+      line_type: 'controller',
       account_id: '',
       debit_amount: 0,
       credit_amount: 0,
@@ -68,6 +70,7 @@ export default function NewJournalEntry() {
       line_order: 1
     },
     {
+      line_type: 'controller',
       account_id: '',
       debit_amount: 0,
       credit_amount: 0,
@@ -107,6 +110,7 @@ export default function NewJournalEntry() {
 
   const addLine = () => {
     const newLine: JournalEntryLine = {
+      line_type: 'controller',
       account_id: '',
       debit_amount: 0,
       credit_amount: 0,
@@ -295,24 +299,57 @@ export default function NewJournalEntry() {
             {lines.map((line, index) => (
               <div key={index} className="border rounded-lg p-4">
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
-                  <div className="md:col-span-2">
-                    <Label>Account</Label>
+                  <div>
+                    <Label>Type</Label>
                     <Select 
-                      value={line.account_id} 
-                      onValueChange={(value) => updateLine(index, { account_id: value })}
+                      value={line.line_type} 
+                      onValueChange={(value: 'controller' | 'job') => updateLine(index, { 
+                        line_type: value,
+                        job_id: value === 'controller' ? undefined : line.job_id,
+                        cost_code_id: value === 'controller' ? undefined : line.cost_code_id
+                      })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select account" />
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
-                        {accounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.account_number} - {account.account_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="controller">Controller</SelectItem>
+                        <SelectItem value="job">Job</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  {line.line_type === 'controller' ? (
+                    <div className="md:col-span-2">
+                      <Label>Account</Label>
+                      <Select 
+                        value={line.account_id} 
+                        onValueChange={(value) => updateLine(index, { account_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.account_number} - {account.account_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <AccountingJobCostSelector
+                        selectedJobId={line.job_id}
+                        selectedCostCodeId={line.cost_code_id}
+                        onJobChange={(jobId) => updateLine(index, { job_id: jobId })}
+                        onCostCodeChange={(costCodeId) => updateLine(index, { cost_code_id: costCodeId })}
+                        showCreateButton={false}
+                      />
+                    </div>
+                  )}
+                  
                   <div>
                     <Label>Debit</Label>
                     <CurrencyInput
@@ -335,7 +372,7 @@ export default function NewJournalEntry() {
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <Label>Description</Label>
                     <Input
                       value={line.description}
@@ -345,15 +382,7 @@ export default function NewJournalEntry() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <AccountingJobCostSelector
-                      selectedJobId={line.job_id}
-                      selectedCostCodeId={line.cost_code_id}
-                      onJobChange={(jobId) => updateLine(index, { job_id: jobId })}
-                      onCostCodeChange={(costCodeId) => updateLine(index, { cost_code_id: costCodeId })}
-                    />
-                  </div>
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       checked={line.billable}
@@ -361,16 +390,14 @@ export default function NewJournalEntry() {
                     />
                     <Label>Billable</Label>
                   </div>
-                  <div className="flex justify-end items-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeLine(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeLine(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))}
