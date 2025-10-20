@@ -132,7 +132,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         const [profilesResponse, pinEmployeesResponse] = await Promise.all([
           supabase
             .from('profiles')
-            .select('user_id, display_name, avatar_url')
+            .select('user_id, display_name, avatar_url, first_name, last_name')
             .in('user_id', userIds),
           supabase
             .from('pin_employees')

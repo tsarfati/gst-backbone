@@ -405,7 +405,81 @@ export default function PunchClockSettingsComponent() {
                 />
               </div>
 
+          {/* Location Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Location Requirements
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Require Location for Punch</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Employees must share location when punching in/out
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.require_location}
+                  onCheckedChange={(checked) => updateSetting('require_location', checked)}
+                />
+              </div>
 
+              {settings.require_location && (
+                <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
+                  <Label htmlFor="location-accuracy">Location Accuracy (meters)</Label>
+                  <Input
+                    id="location-accuracy"
+                    type="number"
+                    value={settings.location_accuracy_meters}
+                    onChange={(e) => updateSetting('location_accuracy_meters', parseInt(e.target.value))}
+                    min="50"
+                    max="500"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Photo Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Camera className="h-5 w-5" />
+                Photo Requirements
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Require Photo for Punch</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Employees must take a photo when punching in/out
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.require_photo}
+                  onCheckedChange={(checked) => updateSetting('require_photo', checked)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Photo Required for Corrections</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Require photo when making time corrections
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.photo_required_for_corrections}
+                  onCheckedChange={(checked) => updateSetting('photo_required_for_corrections', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
               <div className="space-y-2">
                 <Label htmlFor="company-policies">Company Policies</Label>
                 <Textarea
