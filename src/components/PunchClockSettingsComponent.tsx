@@ -307,58 +307,18 @@ export default function PunchClockSettingsComponent() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          {/* Time Tracking Settings */}
+          {/* Break Settings (Auto Lunch Deduction) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Time Tracking Rules
+                Break Settings
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="overtime-threshold">Overtime Threshold (hours)</Label>
-                  <Input
-                    id="overtime-threshold"
-                    type="number"
-                    value={settings.overtime_threshold}
-                    onChange={(e) => updateSetting('overtime_threshold', parseFloat(e.target.value))}
-                    min="8"
-                    max="12"
-                    step="0.5"
-                  />
-                  <p className="text-xs text-muted-foreground">Hours worked per day before overtime applies</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="overtime-past-window">Punch Out Grace Period to Count Time Past Punch Time Window (minutes)</Label>
-                  <Input
-                    id="overtime-past-window"
-                    type="number"
-                    value={settings.overtime_past_window_threshold_minutes}
-                    onChange={(e) => updateSetting('overtime_past_window_threshold_minutes', parseInt(e.target.value))}
-                    min="0"
-                    max="120"
-                  />
-                  <p className="text-xs text-muted-foreground">Minutes past punch window end before overtime starts. All time past window end counts as OT once threshold is reached.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="grace-period">Grace Period (minutes)</Label>
-                  <Input
-                    id="grace-period"
-                    type="number"
-                    value={settings.grace_period_minutes}
-                    onChange={(e) => updateSetting('grace_period_minutes', parseInt(e.target.value))}
-                    min="0"
-                    max="15"
-                  />
-                  <p className="text-xs text-muted-foreground">Late punch tolerance before penalty</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="auto-break">Auto Break Duration (minutes)</Label>
+                  <Label htmlFor="auto-break">Auto Lunch Deduction (minutes)</Label>
                   <Input
                     id="auto-break"
                     type="number"
@@ -367,113 +327,8 @@ export default function PunchClockSettingsComponent() {
                     min="15"
                     max="60"
                   />
-                  <p className="text-xs text-muted-foreground">Automatic break deduction for shifts over 6 hours</p>
+                  <p className="text-xs text-muted-foreground">Automatic lunch deduction for longer shifts</p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="auto-break-wait">Auto Break Wait (hours)</Label>
-                  <Input
-                    id="auto-break-wait"
-                    type="number"
-                    value={settings.auto_break_wait_hours}
-                    onChange={(e) => updateSetting('auto_break_wait_hours', parseFloat(e.target.value))}
-                    min="4"
-                    max="8"
-                    step="0.5"
-                  />
-                  <p className="text-xs text-muted-foreground">Hours worked before automatic break deduction</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="time-window-start">Punch Time Window Start</Label>
-                  <Input
-                    id="time-window-start"
-                    type="time"
-                    value={settings.punch_time_window_start}
-                    onChange={(e) => updateSetting('punch_time_window_start', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Earliest time employees can punch in</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="time-window-end">Punch Time Window End</Label>
-                  <Input
-                    id="time-window-end"
-                    type="time"
-                    value={settings.punch_time_window_end}
-                    onChange={(e) => updateSetting('punch_time_window_end', e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Latest time employees can punch out</p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Calculate Overtime</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable overtime calculation for hours over threshold
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.calculate_overtime}
-                    onCheckedChange={(checked) => updateSetting('calculate_overtime', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Enable Punch Rounding</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Round punch times to nearest interval
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.enable_punch_rounding}
-                    onCheckedChange={(checked) => updateSetting('enable_punch_rounding', checked)}
-                  />
-                </div>
-
-                {settings.enable_punch_rounding && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-4 p-4 border rounded-lg bg-muted/50">
-                    <div className="space-y-2">
-                      <Label htmlFor="rounding-minutes">Rounding Interval (minutes)</Label>
-                      <Select
-                        value={settings.punch_rounding_minutes.toString()}
-                        onValueChange={(value) => updateSetting('punch_rounding_minutes', parseInt(value))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="5">5 minutes</SelectItem>
-                          <SelectItem value="10">10 minutes</SelectItem>
-                          <SelectItem value="15">15 minutes</SelectItem>
-                          <SelectItem value="30">30 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="rounding-direction">Rounding Direction</Label>
-                      <Select
-                        value={settings.punch_rounding_direction}
-                        onValueChange={(value) => updateSetting('punch_rounding_direction', value as 'up' | 'down' | 'nearest')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="up">Round Up</SelectItem>
-                          <SelectItem value="down">Round Down</SelectItem>
-                          <SelectItem value="nearest">Round to Nearest</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
