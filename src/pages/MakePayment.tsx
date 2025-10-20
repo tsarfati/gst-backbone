@@ -465,7 +465,7 @@ export default function MakePayment() {
         description: "Payment created successfully",
       });
 
-      navigate('/banking');
+      navigate('/invoices/payments');
     } catch (error) {
       console.error('Error saving payment:', error);
       toast({
@@ -494,7 +494,7 @@ export default function MakePayment() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate('/banking')}>
+          <Button variant="ghost" onClick={() => navigate('/invoices/payments')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
