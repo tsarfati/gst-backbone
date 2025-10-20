@@ -359,8 +359,8 @@ export default function BillDetails() {
       {/* Overdue Banner */}
       {billIsOverdue && (
         <div 
-          className="mb-6 bg-destructive/20 border-2 border-destructive rounded-lg p-6"
-          style={{ animation: 'pulse-red 2s infinite' }}
+          className="mb-6 border-2 border-destructive rounded-lg p-6"
+          style={{ animation: 'pulse-red 2s ease-in-out infinite' }}
         >
           <div className="flex items-center gap-4">
             <AlertTriangle className="h-12 w-12 text-destructive flex-shrink-0" />

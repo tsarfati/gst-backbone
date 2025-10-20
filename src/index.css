@@ -8,10 +8,14 @@ All colors MUST be HSL.
 
 @keyframes pulse-red {
   0%, 100% {
-    box-shadow: 0 0 0 0 hsla(0, 84%, 60%, 0.7);
+    background-color: hsla(0, 84%, 60%, 0.1);
+    border-color: hsla(0, 84%, 60%, 0.5);
+    box-shadow: 0 0 0 0 hsla(0, 84%, 60%, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 8px hsla(0, 84%, 60%, 0);
+    background-color: hsla(0, 84%, 60%, 0.2);
+    border-color: hsla(0, 84%, 60%, 1);
+    box-shadow: 0 0 20px 0 hsla(0, 84%, 60%, 0.6);
   }
 }
 
