@@ -460,7 +460,10 @@ export default function Reconcile() {
     .reduce((sum, p) => sum + p.amount, 0);
 
   const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
-  const adjustedBalance = clearedBalance;
+  // Book balance on system ledger regardless of cleared status
+  const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+  const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
+  const adjustedBalance = beginningBalance + totalDeposits - totalPayments;
   const difference = endingBalance !== null ? clearedBalance - endingBalance : 0;
   const isBalanced = endingBalance !== null && Math.abs(difference) < 0.01;
 
@@ -617,18 +620,18 @@ export default function Reconcile() {
               </div>
             </div>
             
-            <div className={`p-4 border-l-4 ${!isBalanced && difference !== 0 ? 'border-red-500 bg-red-50' : 'border-muted'}`}>
+            <div className={`p-4 border-l-4 ${!isBalanced && difference !== 0 ? 'border-destructive bg-destructive/30 text-destructive-foreground' : 'border-muted'}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(clearedBalance)}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Cleared Balance</div>
+                  <div className="text-sm opacity-90 mt-1">Cleared Balance</div>
                   {!isBalanced && difference !== 0 && (
-                    <div className="text-sm text-red-600 mt-1">
+                    <div className="text-sm text-destructive-foreground mt-1">
                       {difference > 0 ? 'Over' : 'Under'} {formatCurrency(Math.abs(difference))}
                     </div>
                   )}
                 </div>
-                {!isBalanced && difference !== 0 && <XCircle className="h-6 w-6 text-red-600" />}
+                {!isBalanced && difference !== 0 && <XCircle className="h-6 w-6 text-destructive-foreground" />}
               </div>
             </div>
 
