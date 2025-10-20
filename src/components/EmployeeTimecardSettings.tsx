@@ -20,6 +20,7 @@ interface Employee {
   first_name: string;
   last_name: string;
   role: string;
+  is_pin?: boolean;
 }
 
 interface EmployeeTimecardSettings {
@@ -64,128 +65,108 @@ export default function EmployeeTimecardSettings({
   const loadEmployees = async () => {
     if (!currentCompany?.id) return;
     try {
-      const { data: accessData, error: accessError } = await supabase
-        .from('user_company_access')
-        .select('user_id, role')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-
-      if (accessError) throw accessError;
-      const userIds = (accessData || []).map(a => a.user_id);
-      const roleMap = new Map((accessData || []).map((a: any) => [a.user_id, a.role]));
-
-      const filterIds = userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'];
-
-      const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name')
-          .in('user_id', filterIds),
-        supabase
-          .from('pin_employees')
-          .select('id, first_name, last_name, display_name')
-          .eq('company_id', currentCompany.id)
-          .order('display_name', { ascending: true })
-      ]);
-
-      const regularEmployees = (profilesResponse.data || []).map(p => ({
-        id: p.user_id,
-        user_id: p.user_id,
-        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-        first_name: p.first_name || '',
-        last_name: p.last_name || '',
-        role: roleMap.get(p.user_id) || 'employee'
-      }));
-
-      const pinEmployees = (pinEmployeesResponse.data || []).map(p => ({
-        id: p.id,
-        user_id: p.id,
-        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-        first_name: p.first_name || '',
-        last_name: p.last_name || '',
-        role: 'employee'
-      }));
-
-      setEmployees([...regularEmployees, ...pinEmployees].sort((a, b) => 
-        a.display_name.localeCompare(b.display_name)
-      ));
+      const { data, error } = await supabase.functions.invoke('get-company-employees', {
+        body: { company_id: currentCompany.id }
+      });
+      if (error) throw error;
+      const list = (data?.employees || []) as any[];
+      setEmployees(list.map((e) => ({
+        id: e.id,
+        user_id: e.user_id,
+        display_name: e.display_name,
+        first_name: e.first_name || '',
+        last_name: e.last_name || '',
+        role: e.role || 'employee',
+        is_pin: !!e.is_pin,
+      })));
     } catch (error) {
       console.error('Error loading employees:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load employees",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to load employees", variant: "destructive" });
     }
   };
 
   const loadEmployeeSettings = async (userId: string) => {
     if (!currentCompany?.id) return;
-    
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('employee_timecard_settings')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
+      const isPin = employees.some(e => e.user_id === userId && e.is_pin);
 
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      if (data) {
-        // Convert flat assigned_cost_codes array to job_cost_codes structure
-        const jobCostCodesMap = new Map<string, string[]>();
-        
-        if (data.assigned_cost_codes) {
-          // Fetch cost codes to get their job_id
-          const { data: costCodeData } = await supabase
-            .from('cost_codes')
-            .select('id, job_id')
-            .in('id', data.assigned_cost_codes);
-          
-          costCodeData?.forEach(cc => {
-            if (cc.job_id) {
-              if (!jobCostCodesMap.has(cc.job_id)) {
-                jobCostCodesMap.set(cc.job_id, []);
+      if (isPin) {
+        const { data, error } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('*')
+          .eq('pin_employee_id', userId)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data) {
+          const jobCostCodesMap = new Map<string, string[]>();
+          if ((data as any).assigned_cost_codes) {
+            const { data: costCodeData } = await supabase
+              .from('cost_codes')
+              .select('id, job_id')
+              .in('id', (data as any).assigned_cost_codes);
+            costCodeData?.forEach(cc => {
+              if (cc.job_id) {
+                if (!jobCostCodesMap.has(cc.job_id)) jobCostCodesMap.set(cc.job_id, []);
+                jobCostCodesMap.get(cc.job_id)!.push(cc.id);
               }
-              jobCostCodesMap.get(cc.job_id)!.push(cc.id);
-            }
+            });
+          }
+          const job_cost_codes = Array.from(jobCostCodesMap.entries()).map(([jobId, costCodeIds]) => ({ jobId, costCodeIds }));
+          setSettings({
+            user_id: userId,
+            assigned_jobs: (data as any).assigned_jobs || [],
+            job_cost_codes,
+            require_location: true,
+            require_photo: true,
+            auto_lunch_deduction: true,
+            notes: undefined,
           });
+        } else {
+          setSettings({ user_id: userId, assigned_jobs: [], job_cost_codes: [], require_location: true, require_photo: true, auto_lunch_deduction: true });
         }
-        
-        const job_cost_codes = Array.from(jobCostCodesMap.entries()).map(([jobId, costCodeIds]) => ({
-          jobId,
-          costCodeIds
-        }));
-
-        setSettings({
-          user_id: data.user_id,
-          assigned_jobs: data.assigned_jobs || [],
-          job_cost_codes,
-          require_location: data.require_location ?? true,
-          require_photo: data.require_photo ?? true,
-          auto_lunch_deduction: data.auto_lunch_deduction ?? true,
-          notes: data.notes
-        });
       } else {
-        const defaultSettings: EmployeeTimecardSettings = {
-          user_id: userId,
-          assigned_jobs: [],
-          job_cost_codes: [],
-          require_location: true,
-          require_photo: true,
-          auto_lunch_deduction: true
-        };
-        setSettings(defaultSettings);
+        const { data, error } = await supabase
+          .from('employee_timecard_settings')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data) {
+          const jobCostCodesMap = new Map<string, string[]>();
+          if (data.assigned_cost_codes) {
+            const { data: costCodeData } = await supabase
+              .from('cost_codes')
+              .select('id, job_id')
+              .in('id', data.assigned_cost_codes);
+            costCodeData?.forEach(cc => {
+              if (cc.job_id) {
+                if (!jobCostCodesMap.has(cc.job_id)) jobCostCodesMap.set(cc.job_id, []);
+                jobCostCodesMap.get(cc.job_id)!.push(cc.id);
+              }
+            });
+          }
+          const job_cost_codes = Array.from(jobCostCodesMap.entries()).map(([jobId, costCodeIds]) => ({ jobId, costCodeIds }));
+          setSettings({
+            user_id: data.user_id,
+            assigned_jobs: data.assigned_jobs || [],
+            job_cost_codes,
+            require_location: data.require_location ?? true,
+            require_photo: data.require_photo ?? true,
+            auto_lunch_deduction: data.auto_lunch_deduction ?? true,
+            notes: data.notes
+          });
+        } else {
+          setSettings({ user_id: userId, assigned_jobs: [], job_cost_codes: [], require_location: true, require_photo: true, auto_lunch_deduction: true });
+        }
       }
     } catch (error) {
       console.error('Error loading employee settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load employee settings",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to load employee settings", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -196,51 +177,61 @@ export default function EmployeeTimecardSettings({
 
     try {
       setSaving(true);
-      
+      const isPin = employees.some(e => e.user_id === settings.user_id && e.is_pin);
+
       // Flatten job_cost_codes back to assigned_cost_codes array
       const assigned_cost_codes = settings.job_cost_codes.flatMap(jcc => jcc.costCodeIds);
-      
-      const settingsData = {
-        user_id: settings.user_id,
-        company_id: currentCompany.id,
-        assigned_jobs: settings.assigned_jobs,
-        assigned_cost_codes,
-        require_location: settings.require_location,
-        require_photo: settings.require_photo,
-        auto_lunch_deduction: settings.auto_lunch_deduction,
-        notes: settings.notes,
-        created_by: profile?.user_id
-      };
 
-      const { data: existing } = await supabase
-        .from('employee_timecard_settings')
-        .select('id')
-        .eq('user_id', settings.user_id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
+      if (isPin) {
+        const { data: existing } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('id')
+          .eq('pin_employee_id', settings.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
 
-      const { error } = existing
-        ? await supabase
-            .from('employee_timecard_settings')
-            .update(settingsData)
-            .eq('id', existing.id)
-        : await supabase
-            .from('employee_timecard_settings')
-            .insert(settingsData);
+        const payload: any = {
+          pin_employee_id: settings.user_id,
+          company_id: currentCompany.id,
+          assigned_jobs: settings.assigned_jobs,
+          assigned_cost_codes,
+          updated_at: new Date().toISOString(),
+        };
 
-      if (error) throw error;
-      
-      toast({
-        title: "Settings Saved",
-        description: "Employee timecard settings have been updated successfully.",
-      });
+        const { error } = existing
+          ? await supabase.from('pin_employee_timecard_settings').update(payload).eq('id', existing.id)
+          : await supabase.from('pin_employee_timecard_settings').insert({ ...payload, created_by: profile?.user_id });
+        if (error) throw error;
+      } else {
+        const settingsData = {
+          user_id: settings.user_id,
+          company_id: currentCompany.id,
+          assigned_jobs: settings.assigned_jobs,
+          assigned_cost_codes,
+          require_location: settings.require_location,
+          require_photo: settings.require_photo,
+          auto_lunch_deduction: settings.auto_lunch_deduction,
+          notes: settings.notes,
+          created_by: profile?.user_id
+        };
+
+        const { data: existing } = await supabase
+          .from('employee_timecard_settings')
+          .select('id')
+          .eq('user_id', settings.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+
+        const { error } = existing
+          ? await supabase.from('employee_timecard_settings').update(settingsData).eq('id', existing.id)
+          : await supabase.from('employee_timecard_settings').insert(settingsData);
+        if (error) throw error;
+      }
+
+      toast({ title: "Settings Saved", description: "Employee timecard settings have been updated successfully." });
     } catch (error) {
       console.error('Error saving employee settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save employee settings",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save employee settings", variant: "destructive" });
     } finally {
       setSaving(false);
     }

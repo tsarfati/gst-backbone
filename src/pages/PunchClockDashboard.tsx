@@ -128,31 +128,17 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       const jobIds = Array.from(new Set((activeData || []).map(a => a.job_id).filter(Boolean))) as string[];
 
       if (userIds.length) {
-        // Load both regular profiles and PIN employees
-        const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('user_id, display_name, avatar_url, first_name, last_name')
-            .in('user_id', userIds),
-          supabase
-            .from('pin_employees')
-            .select('id, first_name, last_name, display_name, avatar_url')
-            .eq('company_id', currentCompany.id)
-            .in('id', userIds)
-        ]);
-        
-        const profMap: Record<string, Profile> = {};
-        // Regular profiles
-        (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
-        // PIN employees
-        (pinEmployeesResponse.data || []).forEach(p => { 
-          profMap[p.id] = {
-            user_id: p.id,
-            display_name: p.display_name || `${p.first_name} ${p.last_name}`,
-            avatar_url: p.avatar_url
-          };
+        // Robustly fetch names using edge function (handles regular + PIN)
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke('get-employee-profiles', {
+          body: { user_ids: userIds }
         });
-        setProfiles(prev => ({ ...prev, ...profMap }));
+        if (!fnErr && fnData?.profiles) {
+          const profMap: Record<string, any> = {};
+          (fnData.profiles as any[]).forEach((p) => {
+            profMap[p.user_id] = p;
+          });
+          setProfiles(prev => ({ ...prev, ...profMap }));
+        }
       }
 
       if (jobIds.length) {
@@ -199,30 +185,19 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       const outJobIds = Array.from(new Set(recentOuts.map(r => r.job_id).filter(Boolean))) as string[];
       
       if (outUserIds.length || outPinIds.length) {
-        const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-          outUserIds.length ? supabase
-            .from('profiles')
-            .select('user_id, display_name, avatar_url, first_name, last_name')
-            .in('user_id', outUserIds) : Promise.resolve({ data: [], error: null }),
-          outPinIds.length ? supabase
-            .from('pin_employees')
-            .select('id, first_name, last_name, display_name, avatar_url')
-            .eq('company_id', currentCompany.id)
-            .in('id', outPinIds) : Promise.resolve({ data: [], error: null })
-        ]);
-        
-        const profMap: Record<string, Profile> = {};
-        // Regular profiles
-        (profilesResponse.data || []).forEach((p: any) => { profMap[p.user_id] = p; });
-        // PIN employees
-        (pinEmployeesResponse.data || []).forEach((p: any) => { 
-          profMap[p.id] = {
-            user_id: p.id,
-            display_name: p.display_name || `${p.first_name} ${p.last_name}`,
-            avatar_url: p.avatar_url
-          };
-        });
-        setProfiles(prev => ({ ...prev, ...profMap }));
+        const ids = Array.from(new Set([...(outUserIds || []), ...(outPinIds || [])]));
+        if (ids.length) {
+          const { data: fnData, error: fnErr } = await supabase.functions.invoke('get-employee-profiles', {
+            body: { user_ids: ids }
+          });
+          if (!fnErr && fnData?.profiles) {
+            const profMap: Record<string, any> = {};
+            (fnData.profiles as any[]).forEach((p) => {
+              profMap[p.user_id] = p;
+            });
+            setProfiles(prev => ({ ...prev, ...profMap }));
+          }
+        }
       }
 
       if (outJobIds.length) {
