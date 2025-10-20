@@ -522,6 +522,8 @@ export default function TimecardReports() {
           punch_out_location: record.punch_out_location_lat && record.punch_out_location_lng 
             ? `${record.punch_out_location_lat}, ${record.punch_out_location_lng}` 
             : undefined,
+          over_12h: over12,
+          over_24h: over24,
         };
       });
 

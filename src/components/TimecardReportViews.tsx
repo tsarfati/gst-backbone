@@ -27,6 +27,8 @@ interface TimeCardRecord {
   notes?: string;
   punch_in_location?: string;
   punch_out_location?: string;
+  over_12h?: boolean;
+  over_24h?: boolean;
 }
 
 interface ReportSummary {
@@ -331,7 +333,17 @@ export default function TimecardReportViews({
                         <TableCell className="text-sm text-muted-foreground">
                           {record.break_minutes ? `${record.break_minutes} min` : "-"}
                         </TableCell>
-                        <TableCell className="font-medium">{formatDuration(record.total_hours)}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {formatDuration(record.total_hours)}
+                            {record.over_24h && (
+                              <Badge variant="destructive" className="text-xs">24h+</Badge>
+                            )}
+                            {!record.over_24h && record.over_12h && (
+                              <Badge variant="secondary" className="text-xs">12h+</Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-orange-600">
                           {record.overtime_hours > 0 ? formatDuration(record.overtime_hours) : "-"}
                         </TableCell>

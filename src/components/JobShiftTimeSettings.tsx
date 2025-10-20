@@ -186,7 +186,7 @@ export const JobShiftTimeSettings = ({ jobId }: JobShiftTimeSettingsProps) => {
                   <div className="space-y-0.5">
                     <Label htmlFor="count-late">Count Late Punch-Out Time</Label>
                     <p className="text-sm text-muted-foreground">
-                      If enabled, time after shift end (within grace period) counts as work time
+                      When enabled, time after shift end is counted as work time only if beyond grace period (all late time including grace period is then counted)
                     </p>
                   </div>
                   <Switch
@@ -207,10 +207,7 @@ export const JobShiftTimeSettings = ({ jobId }: JobShiftTimeSettingsProps) => {
                     onChange={(e) => setLatePunchOutGraceMinutes(Number(e.target.value))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Employees can punch out up to this many minutes late.{" "}
-                    {countLatePunchOut
-                      ? "Late time will be counted."
-                      : "Time ends at shift end."}
+                    Within grace period: no late time counted. Beyond grace period: all late time (including grace period) is counted if enabled.
                   </p>
                 </div>
               </div>

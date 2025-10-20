@@ -65,20 +65,58 @@ export default function EmployeeTimecardSettings({
   const loadEmployees = async () => {
     if (!currentCompany?.id) return;
     try {
-      const { data, error } = await supabase.functions.invoke('get-company-employees', {
-        body: { company_id: currentCompany.id }
+      // Get regular users for this company
+      const { data: companyUsers } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      const userIds = (companyUsers || []).map((u: any) => u.user_id);
+
+      // Fetch regular profiles and PIN employees in parallel
+      const [profilesData, pinData] = await Promise.all([
+        userIds.length > 0 ? supabase
+          .from('profiles')
+          .select('user_id, display_name, first_name, last_name, role')
+          .in('user_id', userIds) : Promise.resolve({ data: [] }),
+        supabase
+          .from('pin_employees')
+          .select('id, display_name, first_name, last_name, is_active')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true)
+      ]);
+
+      const list: Employee[] = [];
+      
+      // Add regular profiles
+      (profilesData.data || []).forEach((p: any) => {
+        list.push({
+          id: p.user_id,
+          user_id: p.user_id,
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          role: p.role || 'employee',
+          is_pin: false,
+        });
       });
-      if (error) throw error;
-      const list = (data?.employees || []) as any[];
-      setEmployees(list.map((e) => ({
-        id: e.id,
-        user_id: e.user_id,
-        display_name: e.display_name,
-        first_name: e.first_name || '',
-        last_name: e.last_name || '',
-        role: e.role || 'employee',
-        is_pin: !!e.is_pin,
-      })));
+
+      // Add PIN employees
+      (pinData.data || []).forEach((p: any) => {
+        list.push({
+          id: p.id,
+          user_id: p.id,
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          role: 'employee',
+          is_pin: true,
+        });
+      });
+
+      list.sort((a, b) => a.display_name.localeCompare(b.display_name));
+      setEmployees(list);
     } catch (error) {
       console.error('Error loading employees:', error);
       toast({ title: "Error", description: "Failed to load employees", variant: "destructive" });
