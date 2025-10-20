@@ -19,7 +19,7 @@ import {
   Eye
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import AccountingJobCostSelector from "@/components/AccountingJobCostSelector";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface Account {
   id: string;
@@ -52,6 +52,7 @@ interface JournalEntryLine {
 
 export default function JournalEntries() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { currentCompany } = useCompany();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -64,67 +65,48 @@ export default function JournalEntries() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Get current company
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          console.log('No user found');
+        if (!currentCompany?.id) {
+          console.log('No current company, skipping load');
           return;
         }
 
-        const { data: companyData, error: companyError } = await supabase
-          .from('user_company_access')
-          .select('company_id')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
+        console.log('Loading data for company:', currentCompany.id);
 
-        if (companyError) {
-          console.error('Error fetching company:', companyError);
-          return;
-        }
-
-        if (!companyData) {
-          console.log('No company data found');
-          return;
-        }
-
-        console.log('Loading data for company:', companyData.company_id);
-
-        // Load jobs for this company
+        // Load jobs for this company (active first if status exists)
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
           .select('id, name')
-          .eq('company_id', companyData.company_id)
+          .eq('company_id', currentCompany.id)
           .order('name');
-        
+
         if (jobsError) {
           console.error('Error loading jobs:', jobsError);
         } else {
           console.log('Loaded jobs:', jobsData?.length);
-          setJobs(jobsData || []);
+          setJobs((jobsData as any) || []);
         }
 
         // Load expense accounts for this company
         const { data: accountsData, error: accountsError } = await supabase
           .from('chart_of_accounts')
           .select('id, account_number, account_name, account_type, normal_balance')
-          .eq('company_id', companyData.company_id)
+          .eq('company_id', currentCompany.id)
           .eq('is_active', true)
           .eq('account_type', 'Expense')
           .order('account_number');
-        
+
         if (accountsError) {
           console.error('Error loading accounts:', accountsError);
         } else {
           console.log('Loaded accounts:', accountsData?.length);
-          setAccounts(accountsData || []);
+          setAccounts((accountsData as any) || []);
         }
       } catch (error) {
         console.error('Error in loadData:', error);
       }
     };
     loadData();
-  }, []);
+  }, [currentCompany?.id]);
 
   const loadCostCodesForJob = async (jobId: string) => {
     if (costCodes[jobId]) return;
@@ -133,10 +115,11 @@ export default function JournalEntries() {
       .from('cost_codes')
       .select('id, code, description')
       .eq('job_id', jobId)
+      .eq('company_id', currentCompany?.id || '')
       .eq('is_active', true)
       .order('code');
     
-    setCostCodes(prev => ({ ...prev, [jobId]: data || [] }));
+    setCostCodes(prev => ({ ...prev, [jobId]: (data as any) || [] }));
   };
 
   const addLine = () => {
