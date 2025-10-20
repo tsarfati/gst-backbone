@@ -292,6 +292,17 @@ export default function TimecardReports() {
     try {
       setLoading(true);
       
+      // Load punch clock settings to check flagging rules
+      const { data: punchSettings } = await supabase
+        .from('job_punch_clock_settings')
+        .select('flag_timecards_over_12hrs, flag_timecards_over_24hrs')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null)
+        .maybeSingle();
+      
+      const flagOver12 = punchSettings?.flag_timecards_over_12hrs ?? false;
+      const flagOver24 = punchSettings?.flag_timecards_over_24hrs ?? false;
+      
       let query = supabase
         .from('time_cards')
         .select(`
@@ -446,7 +457,7 @@ export default function TimecardReports() {
       const profilesMap = new Map((profilesData.data || []).map(profile => [profile.user_id, profile]));
       const pinMap = new Map((pinEmployeesData.data || []).map(emp => [emp.id, emp]));
 
-      // Transform the data with recalculated hours
+      // Transform the data with recalculated hours and flagging
       const transformedRecords: TimeCardRecord[] = filteredData.map((record: any) => {
         const job = jobsMap.get(record.job_id);
         const costCode = costCodesMap.get(record.cost_code_id);
@@ -478,6 +489,13 @@ export default function TimecardReports() {
             overtimeHours = Math.max(0, adjustedHours - overtimeThreshold);
           }
         }
+        
+        // Check if time card should be flagged
+        const shouldFlag = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12 && totalHours <= 24);
+        let statusWithFlag = record.status;
+        if (shouldFlag && statusWithFlag !== 'approved' && statusWithFlag !== 'rejected') {
+          statusWithFlag = 'pending';
+        }
 
         return {
           id: record.id,
@@ -492,7 +510,7 @@ export default function TimecardReports() {
           total_hours: totalHours,
           overtime_hours: overtimeHours,
           break_minutes: record.break_minutes || 0,
-          status: record.status,
+          status: statusWithFlag,
           notes: record.notes,
           punch_in_location: record.punch_in_location_lat && record.punch_in_location_lng 
             ? `${record.punch_in_location_lat}, ${record.punch_in_location_lng}` 

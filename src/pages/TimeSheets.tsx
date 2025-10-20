@@ -220,6 +220,17 @@ export default function TimeSheets() {
     try {
       setLoading(true);
       
+      // Load punch clock settings to check flagging rules
+      const { data: punchSettings } = await supabase
+        .from('job_punch_clock_settings')
+        .select('flag_timecards_over_12hrs, flag_timecards_over_24hrs')
+        .eq('company_id', currentCompany.id)
+        .is('job_id', null)
+        .maybeSingle();
+      
+      const flagOver12 = punchSettings?.flag_timecards_over_12hrs ?? false;
+      const flagOver24 = punchSettings?.flag_timecards_over_24hrs ?? false;
+      
       let query = supabase
         .from('time_cards')
         .select(`
@@ -319,7 +330,7 @@ export default function TimeSheets() {
       const jobsMap = new Map((jobsData.data || []).map(j => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
 
-      // Transform data with relationships
+      // Transform data with relationships and apply flagging
       const transformedData: TimeCard[] = (timeCardData || []).map(tc => {
         const profile = profilesMap.get(tc.user_id);
         const pinEmployee = pinEmployeesMap.get(tc.user_id);
@@ -328,11 +339,15 @@ export default function TimeSheets() {
 
         // Use either profile or PIN employee data
         const employeeData = profile || pinEmployee;
+        
+        // Check if time card should be flagged
+        const shouldFlag = (flagOver24 && tc.total_hours > 24) || (flagOver12 && tc.total_hours > 12 && tc.total_hours <= 24);
 
         return {
           ...tc,
           punch_in_photo_url: tc.punch_in_photo_url,
           punch_out_photo_url: tc.punch_out_photo_url,
+          requires_approval: shouldFlag || tc.status === 'pending',
           jobs: job ? { name: job.name } : null,
           cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
           profiles: employeeData ? {
