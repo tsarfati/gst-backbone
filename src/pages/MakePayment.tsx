@@ -374,6 +374,7 @@ export default function MakePayment() {
       const paymentToInsert = {
         payment_number: payment.payment_number,
         vendor_id: payment.vendor_id,
+        company_id: currentCompany.id,
         payment_method: payment.payment_method,
         payment_date: payment.payment_date,
         amount: payment.amount,
