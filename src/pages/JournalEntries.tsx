@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { 
   FileText, 
   Plus, 
@@ -16,10 +18,13 @@ import {
   DollarSign,
   Edit,
   Trash2,
-  Eye
+  Eye,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import { cn } from "@/lib/utils";
 
 interface Account {
   id: string;
@@ -62,6 +67,7 @@ export default function JournalEntries() {
     { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' },
     { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
   ]);
+  const [openPopovers, setOpenPopovers] = useState<Record<number, { jobControl: boolean; costCode: boolean }>>({});
 
   useEffect(() => {
     const loadData = async () => {
@@ -195,67 +201,159 @@ export default function JournalEntries() {
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                   <div className="md:col-span-2">
                     <Label>Job/Control</Label>
-                    <Select 
-                      value={line.line_type === 'job' && line.job_id ? `job-${line.job_id}` : line.account_id}
-                      onValueChange={(value) => {
-                        if (value.startsWith('job-')) {
-                          const jobId = value.replace('job-', '');
-                          updateLine(index, {
-                            line_type: 'job',
-                            job_id: jobId,
-                            account_id: '',
-                            cost_code_id: undefined
-                          });
-                          loadCostCodesForJob(jobId);
-                        } else {
-                          updateLine(index, {
-                            line_type: 'controller',
-                            account_id: value,
-                            job_id: undefined,
-                            cost_code_id: undefined
-                          });
-                        }
-                      }}
+                    <Popover 
+                      open={openPopovers[index]?.jobControl} 
+                      onOpenChange={(open) => setOpenPopovers(prev => ({ 
+                        ...prev, 
+                        [index]: { ...prev[index], jobControl: open } 
+                      }))}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select job or account" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {jobs.map((job) => (
-                          <SelectItem key={`job-${job.id}`} value={`job-${job.id}`}>
-                            {job.name}
-                          </SelectItem>
-                        ))}
-                        {jobs.length > 0 && accounts.length > 0 && (
-                          <SelectItem value="divider" disabled>──────────</SelectItem>
-                        )}
-                        {accounts.map((account) => (
-                          <SelectItem key={account.id} value={account.id}>
-                            {account.account_number} - {account.account_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                        >
+                          {line.line_type === 'job' && line.job_id 
+                            ? jobs.find(j => j.id === line.job_id)?.name
+                            : line.account_id
+                            ? accounts.find(a => a.id === line.account_id)
+                              ? `${accounts.find(a => a.id === line.account_id)?.account_number} - ${accounts.find(a => a.id === line.account_id)?.account_name}`
+                              : 'Select job or account'
+                            : 'Select job or account'}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search jobs or accounts..." />
+                          <CommandList>
+                            <CommandEmpty>No results found.</CommandEmpty>
+                            {jobs.length > 0 && (
+                              <CommandGroup heading="Jobs">
+                                {jobs.map((job) => (
+                                  <CommandItem
+                                    key={`job-${job.id}`}
+                                    value={job.name}
+                                    onSelect={() => {
+                                      updateLine(index, {
+                                        line_type: 'job',
+                                        job_id: job.id,
+                                        account_id: '',
+                                        cost_code_id: undefined
+                                      });
+                                      loadCostCodesForJob(job.id);
+                                      setOpenPopovers(prev => ({ 
+                                        ...prev, 
+                                        [index]: { ...prev[index], jobControl: false } 
+                                      }));
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        line.line_type === 'job' && line.job_id === job.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {job.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            {jobs.length > 0 && accounts.length > 0 && <CommandSeparator />}
+                            {accounts.length > 0 && (
+                              <CommandGroup heading="Expense Accounts">
+                                {accounts.map((account) => (
+                                  <CommandItem
+                                    key={account.id}
+                                    value={`${account.account_number} ${account.account_name}`}
+                                    onSelect={() => {
+                                      updateLine(index, {
+                                        line_type: 'controller',
+                                        account_id: account.id,
+                                        job_id: undefined,
+                                        cost_code_id: undefined
+                                      });
+                                      setOpenPopovers(prev => ({ 
+                                        ...prev, 
+                                        [index]: { ...prev[index], jobControl: false } 
+                                      }));
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        line.line_type === 'controller' && line.account_id === account.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {account.account_number} - {account.account_name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>
                     <Label>Cost Code</Label>
-                    <Select
-                      value={line.cost_code_id || ''}
-                      onValueChange={(value) => updateLine(index, { cost_code_id: value })}
-                      disabled={line.line_type !== 'job' || !line.job_id}
+                    <Popover 
+                      open={openPopovers[index]?.costCode} 
+                      onOpenChange={(open) => setOpenPopovers(prev => ({ 
+                        ...prev, 
+                        [index]: { ...prev[index], costCode: open } 
+                      }))}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cost code" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {line.job_id && (costCodes[line.job_id] || []).map((code) => (
-                          <SelectItem key={code.id} value={code.id}>
-                            {code.category} - {code.code} - {code.description}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                          disabled={line.line_type !== 'job' || !line.job_id}
+                        >
+                          {line.cost_code_id && line.job_id
+                            ? (() => {
+                                const code = (costCodes[line.job_id] || []).find(c => c.id === line.cost_code_id);
+                                return code ? `${code.category} - ${code.code} - ${code.description}` : 'Select cost code';
+                              })()
+                            : 'Select cost code'}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Search cost codes..." />
+                          <CommandList>
+                            <CommandEmpty>No cost codes found.</CommandEmpty>
+                            <CommandGroup>
+                              {line.job_id && (costCodes[line.job_id] || []).map((code) => (
+                                <CommandItem
+                                  key={code.id}
+                                  value={`${code.category} ${code.code} ${code.description}`}
+                                  onSelect={() => {
+                                    updateLine(index, { cost_code_id: code.id });
+                                    setOpenPopovers(prev => ({ 
+                                      ...prev, 
+                                      [index]: { ...prev[index], costCode: false } 
+                                    }));
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      line.cost_code_id === code.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {code.category} - {code.code} - {code.description}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>
