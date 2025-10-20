@@ -1850,6 +1850,8 @@ export type Database = {
           enable_distance_warning: boolean | null
           enable_install_prompt: boolean | null
           enable_punch_rounding: boolean | null
+          flag_timecards_over_12hrs: boolean | null
+          flag_timecards_over_24hrs: boolean | null
           grace_period_minutes: number | null
           id: string
           job_id: string | null
@@ -1900,6 +1902,8 @@ export type Database = {
           enable_distance_warning?: boolean | null
           enable_install_prompt?: boolean | null
           enable_punch_rounding?: boolean | null
+          flag_timecards_over_12hrs?: boolean | null
+          flag_timecards_over_24hrs?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           job_id?: string | null
@@ -1950,6 +1954,8 @@ export type Database = {
           enable_distance_warning?: boolean | null
           enable_install_prompt?: boolean | null
           enable_punch_rounding?: boolean | null
+          flag_timecards_over_12hrs?: boolean | null
+          flag_timecards_over_24hrs?: boolean | null
           grace_period_minutes?: number | null
           id?: string
           job_id?: string | null

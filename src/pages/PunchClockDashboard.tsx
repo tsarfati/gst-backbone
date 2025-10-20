@@ -30,6 +30,8 @@ interface Profile {
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface Job { id: string; name: string; latitude?: number | null; longitude?: number | null; address?: string | null }
@@ -648,7 +650,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                           <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-lg truncate">{prof?.display_name || 'Employee'}</div>
+                          <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
                           <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
                           {tc?.punch_in_time && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
@@ -716,7 +718,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                            <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                          </Avatar>
                            <div className="min-w-0 flex-1">
-                            <div className="font-semibold truncate">{prof?.display_name || 'Employee'}</div>
+                            <div className="font-semibold truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span className="truncate">{job?.name || 'Job'}</span>
                               <span className="inline-flex items-center gap-1 shrink-0">
@@ -774,7 +776,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                             <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                          <div className="min-w-0 flex-1">
-                           <div className="font-semibold truncate">{prof?.display_name || 'Employee'}</div>
+                           <div className="font-semibold truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                              <span className="truncate">{job?.name || 'Unknown Job'}</span>
                              <span className="inline-flex items-center gap-1 shrink-0">

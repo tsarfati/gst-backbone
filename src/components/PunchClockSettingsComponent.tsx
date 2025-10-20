@@ -70,6 +70,8 @@ interface PunchClockSettings {
   overtime_past_window_threshold_minutes: number;
   sms_punchout_reminder_enabled?: boolean;
   sms_punchout_reminder_minutes?: number;
+  flag_timecards_over_12hrs?: boolean;
+  flag_timecards_over_24hrs?: boolean;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -99,6 +101,8 @@ const defaultSettings: PunchClockSettings = {
   overtime_past_window_threshold_minutes: 30,
   sms_punchout_reminder_enabled: false,
   sms_punchout_reminder_minutes: 30,
+  flag_timecards_over_12hrs: true,
+  flag_timecards_over_24hrs: true,
 };
 
 export default function PunchClockSettingsComponent() {
@@ -168,6 +172,8 @@ export default function PunchClockSettingsComponent() {
           overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30,
           sms_punchout_reminder_enabled: data.sms_punchout_reminder_enabled ?? false,
           sms_punchout_reminder_minutes: data.sms_punchout_reminder_minutes ?? 30,
+          flag_timecards_over_12hrs: data.flag_timecards_over_12hrs ?? true,
+          flag_timecards_over_24hrs: data.flag_timecards_over_24hrs ?? true,
         });
       }
       
@@ -215,6 +221,8 @@ export default function PunchClockSettingsComponent() {
           overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
           sms_punchout_reminder_enabled: settings.sms_punchout_reminder_enabled,
           sms_punchout_reminder_minutes: settings.sms_punchout_reminder_minutes,
+          flag_timecards_over_12hrs: settings.flag_timecards_over_12hrs,
+          flag_timecards_over_24hrs: settings.flag_timecards_over_24hrs,
           created_by: user?.id
         }, { onConflict: 'job_id,company_id' });
 
@@ -307,132 +315,57 @@ export default function PunchClockSettingsComponent() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          {/* Break Settings (Auto Lunch Deduction) */}
+          {/* Break and Flagging Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Break Settings
+                Time Tracking Settings
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="auto-break">Auto Lunch Deduction (minutes)</Label>
-                  <Input
-                    id="auto-break"
-                    type="number"
-                    value={settings.auto_break_duration}
-                    onChange={(e) => updateSetting('auto_break_duration', parseInt(e.target.value))}
-                    min="15"
-                    max="60"
+              <div className="space-y-2">
+                <Label htmlFor="auto-break">Auto Lunch Deduction (minutes)</Label>
+                <Input
+                  id="auto-break"
+                  type="number"
+                  value={settings.auto_break_duration}
+                  onChange={(e) => updateSetting('auto_break_duration', parseInt(e.target.value))}
+                  min="15"
+                  max="60"
+                />
+                <p className="text-xs text-muted-foreground">Automatic lunch deduction for longer shifts</p>
+              </div>
+
+              <Separator />
+
+              {/* Timecard Flagging */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Flag Time Cards Over 12 Hours</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Highlight time cards exceeding 12 hours with pulsating badge
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.flag_timecards_over_12hrs || false}
+                    onCheckedChange={(checked) => updateSetting('flag_timecards_over_12hrs', checked)}
                   />
-                  <p className="text-xs text-muted-foreground">Automatic lunch deduction for longer shifts</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Location Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Location Requirements
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Require Location for Punch</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Employees must share location when punching in/out
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.require_location}
-                  onCheckedChange={(checked) => updateSetting('require_location', checked)}
-                />
-              </div>
-
-              {settings.require_location && (
-                <div className="space-y-4 ml-4 p-4 border rounded-lg bg-muted/50">
-                  <div className="space-y-2">
-                    <Label htmlFor="location-accuracy">Location Accuracy (meters)</Label>
-                    <Input
-                      id="location-accuracy"
-                      type="number"
-                      value={settings.location_accuracy_meters}
-                      onChange={(e) => updateSetting('location_accuracy_meters', parseInt(e.target.value))}
-                      min="50"
-                      max="500"
-                    />
-                    <p className="text-xs text-muted-foreground">Required accuracy for location data</p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Flag Time Cards Over 24 Hours</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Highlight time cards exceeding 24 hours with pulsating badge
+                    </p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="max-distance">Max Distance from Job (meters)</Label>
-                    <Input
-                      id="max-distance"
-                      type="number"
-                      value={settings.max_distance_from_job_meters}
-                      onChange={(e) => updateSetting('max_distance_from_job_meters', parseInt(e.target.value))}
-                      min="100"
-                      max="1000"
-                    />
-                    <p className="text-xs text-muted-foreground">Maximum allowed distance from job site</p>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Enable Distance Warnings</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Warn employees when they're too far from job site
-                      </p>
-                    </div>
-                    <Switch
-                      checked={settings.enable_distance_warnings}
-                      onCheckedChange={(checked) => updateSetting('enable_distance_warnings', checked)}
-                    />
-                  </div>
+                  <Switch
+                    checked={settings.flag_timecards_over_24hrs || false}
+                    onCheckedChange={(checked) => updateSetting('flag_timecards_over_24hrs', checked)}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Photo Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="h-5 w-5" />
-                Photo Requirements
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Require Photo for Punch</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Employees must take a photo when punching in/out
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.require_photo}
-                  onCheckedChange={(checked) => updateSetting('require_photo', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Photo Required for Corrections</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Require photo when making time corrections
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.photo_required_for_corrections}
-                  onCheckedChange={(checked) => updateSetting('photo_required_for_corrections', checked)}
-                />
               </div>
             </CardContent>
           </Card>
@@ -471,6 +404,7 @@ export default function PunchClockSettingsComponent() {
                   onCheckedChange={(checked) => updateSetting('manager_approval_required', checked)}
                 />
               </div>
+
 
               <div className="space-y-2">
                 <Label htmlFor="company-policies">Company Policies</Label>
