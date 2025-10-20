@@ -68,6 +68,8 @@ export default function Reconcile() {
   const [endingDate, setEndingDate] = useState<Date>(new Date());
   const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
+  const [glCashBalance, setGlCashBalance] = useState<number>(0);
+  
   
   // Bank statement upload state
   const [statementFile, setStatementFile] = useState<File | null>(null);
@@ -86,8 +88,9 @@ export default function Reconcile() {
   useEffect(() => {
     if (currentCompany && accountId && account) {
       loadTransactions();
+      loadGLBalance();
     }
-  }, [currentCompany, accountId, account]);
+  }, [currentCompany, accountId, account, endingDate]);
 
   const loadBankAccount = async () => {
     if (!accountId || !currentCompany) return;
@@ -132,6 +135,26 @@ export default function Reconcile() {
       }
     } catch (error: any) {
       console.error("Error loading last reconciliation:", error);
+    }
+  };
+
+  const loadGLBalance = async () => {
+    if (!account?.chart_account_id || !currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("current_balance")
+        .eq("id", account.chart_account_id)
+        .eq("company_id", currentCompany.id)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setGlCashBalance(data.current_balance || 0);
+      }
+    } catch (error: any) {
+      console.error("Error loading GL balance:", error);
     }
   };
 
@@ -461,7 +484,7 @@ export default function Reconcile() {
     .filter(p => !p.is_cleared)
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
+  const clearedBalance = glCashBalance + clearedDepositsTotal - clearedPaymentsTotal;
   
   // Adjusted Cash Balance = Total Cash Balance - Unreconciled Deposits + Unreconciled Checks
   const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
@@ -617,28 +640,57 @@ export default function Reconcile() {
           <CardTitle>Reconciliation Summary</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             {/* Cleared Balance Card */}
             <div className={`p-4 border-l-4 rounded ${!isClearedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(clearedBalance)}</div>
                   <div className="text-sm font-medium mt-1">Cleared Balance</div>
                 </div>
                 {!isClearedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
-              
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full justify-between">
-                    {!isClearedBalanced ? 'View Calculation Details' : 'Hide Details'}
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3 space-y-2 text-sm">
+            </div>
+
+            {/* Adjusted Cash Balance Card */}
+            <div className={`p-4 border-l-4 rounded ${!isAdjustedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{formatCurrency(adjustedBalance)}</div>
+                  <div className="text-sm font-medium mt-1">Adjusted Cash Balance</div>
+                </div>
+                {!isAdjustedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
+              </div>
+            </div>
+
+            {/* Ending Balance Card */}
+            <div className={`p-4 border-l-4 rounded ${endingBalance === null ? 'border-muted bg-muted/20' : isClearedBalanced && isAdjustedBalanced ? 'border-success bg-success/20' : 'border-destructive bg-destructive/20'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</div>
+                  <div className="text-sm font-medium mt-1">Ending Balance</div>
+                </div>
+                {endingBalance === null ? <XCircle className="h-6 w-6 text-muted-foreground" /> : isClearedBalanced && isAdjustedBalanced ? <CheckCircle className="h-6 w-6 text-success" /> : <XCircle className="h-6 w-6 text-destructive" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Shared Expand Section */}
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full justify-between">
+                View Calculation Details
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Cleared Balance Details */}
+                <div className="space-y-2 text-sm">
+                  <div className="font-semibold mb-3">Cleared Balance</div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">Bank statement Balance on start date</span>
-                    <span className="font-medium">{formatCurrency(beginningBalance)}</span>
+                    <span className="font-medium">{formatCurrency(glCashBalance)}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(+) Cleared Deposits and other Increases</span>
@@ -663,28 +715,11 @@ export default function Reconcile() {
                       <span>{formatCurrency(Math.abs(clearedBalance - endingBalance))}</span>
                     </div>
                   )}
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-
-            {/* Adjusted Cash Balance Card */}
-            <div className={`p-4 border-l-4 rounded ${!isAdjustedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="text-3xl font-bold">{formatCurrency(adjustedBalance)}</div>
-                  <div className="text-sm font-medium mt-1">Adjusted Cash Balance</div>
                 </div>
-                {!isAdjustedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
-              </div>
-              
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full justify-between">
-                    {!isAdjustedBalanced ? 'View Calculation Details' : 'Hide Details'}
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3 space-y-2 text-sm">
+
+                {/* Adjusted Cash Balance Details */}
+                <div className="space-y-2 text-sm">
+                  <div className="font-semibold mb-3">Adjusted Cash Balance</div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">Total Cash Balance</span>
                     <span className="font-medium">{formatCurrency(totalCashBalance)}</span>
@@ -694,8 +729,32 @@ export default function Reconcile() {
                     <span className="font-medium">{formatCurrency(unclearedDepositsTotal)}</span>
                   </div>
                   <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Unreconciled Receipts Deposited after Reconciliation</span>
+                    <span className="font-medium">$0.00</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Receipts Reversed after Reconciliation Which Have Not Been Deposited</span>
+                    <span className="font-medium">$0.00</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Pending Online Receipts Which Have Not Been Deposited</span>
+                    <span className="font-medium">$0.00</span>
+                  </div>
+                  <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(+) Unreconciled Checks</span>
                     <span className="font-medium">{formatCurrency(unclearedPaymentsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(+) Unreconciled ACH Batches and Reversals</span>
+                    <span className="font-medium">$0.00</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(+) Unreconciled Payments from ACH Batches Generated after Reconciliation</span>
+                    <span className="font-medium">$0.00</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(+) Unreconciled Checks Voided after Reconciliation Period</span>
+                    <span className="font-medium">$0.00</span>
                   </div>
                   <Separator className="my-2" />
                   <div className="flex justify-between py-1 font-semibold">
@@ -713,10 +772,23 @@ export default function Reconcile() {
                       Balanced ✓
                     </div>
                   )}
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          </div>
+                </div>
+
+                {/* Ending Balance Details */}
+                <div className="space-y-2 text-sm">
+                  <div className="font-semibold mb-3">Ending Balance</div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Ending Balance (from statement)</span>
+                    <span className="font-medium">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="text-xs text-muted-foreground mt-2">
+                    This is the ending balance from your bank statement on {format(endingDate, 'MM/dd/yyyy')}.
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
           
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="outline" onClick={() => navigate(`/banking/accounts/${accountId}`)}>
