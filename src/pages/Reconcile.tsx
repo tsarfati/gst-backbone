@@ -159,7 +159,7 @@ export default function Reconcile() {
           payment_number,
           amount,
           payment_method,
-          invoices!inner(vendor_id, vendors(name))
+          invoices(vendor_id, vendors(name))
         `)
         .eq("bank_account_id", accountId)
         .order("payment_date", { ascending: false });
@@ -191,7 +191,9 @@ export default function Reconcile() {
         .map((p: any) => ({
           id: p.id,
           date: p.payment_date,
-          description: `Payment to ${p.invoices?.vendors?.name || 'Unknown'}`,
+          description: p.invoices?.vendors?.name 
+            ? `Payment to ${p.invoices.vendors.name}`
+            : `${p.payment_method || 'Payment'} - ${p.payment_number || 'No reference'}`,
           reference: p.payment_number || '',
           amount: p.amount,
           type: 'payment' as const,
