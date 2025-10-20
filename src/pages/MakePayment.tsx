@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +81,7 @@ interface CodedReceipt {
 
 export default function MakePayment() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   
@@ -118,6 +119,17 @@ export default function MakePayment() {
       generatePaymentNumber();
     }
   }, [currentCompany]);
+
+  // Handle pre-selected bill from navigation state
+  useEffect(() => {
+    if (location.state?.billId && allInvoices.length > 0) {
+      const bill = allInvoices.find(inv => inv.id === location.state.billId);
+      if (bill) {
+        setSelectedVendor(bill.vendor_id);
+        setSelectedInvoices([bill.id]);
+      }
+    }
+  }, [location.state, allInvoices]);
 
   useEffect(() => {
     if (selectedVendor || selectedJob) {

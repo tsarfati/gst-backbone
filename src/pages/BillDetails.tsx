@@ -417,7 +417,7 @@ export default function BillDetails() {
           </Button>
           
           {bill?.status === 'approved' && (
-            <Button onClick={() => navigate(`/invoices/${id}/payment`)}>
+            <Button onClick={() => navigate('/payables/make-payment', { state: { billId: id } })}>
               <DollarSign className="h-4 w-4 mr-2" />
               Make Payment
             </Button>
@@ -693,14 +693,24 @@ export default function BillDetails() {
                       <FileText className="h-4 w-4" />
                       <span className="font-medium">{doc.file_name}</span>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => window.open(doc.file_url, '_blank')}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Open Document
-                    </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    if (doc.file_url) {
+                      window.open(doc.file_url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      toast({
+                        title: "Error",
+                        description: "Document URL not available",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Open Document
+                </Button>
                   </div>
                   {doc.file_url.endsWith('.pdf') ? (
                     <div className="max-h-[800px] overflow-y-auto bg-muted/20">
@@ -726,7 +736,17 @@ export default function BillDetails() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => window.open(bill.file_url, '_blank')}
+                  onClick={() => {
+                    if (bill.file_url) {
+                      window.open(bill.file_url, '_blank', 'noopener,noreferrer');
+                    } else {
+                      toast({
+                        title: "Error",
+                        description: "Document URL not available",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
                 >
                   <Eye className="h-4 w-4 mr-2" />
                   Open Document
