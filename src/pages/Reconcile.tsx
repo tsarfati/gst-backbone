@@ -485,7 +485,7 @@ export default function Reconcile() {
     .filter(p => !p.is_cleared)
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const clearedBalance = glCashBalance + clearedDepositsTotal - clearedPaymentsTotal;
+  const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
   
   // Adjusted Cash Balance = Total Cash Balance - Unreconciled Deposits + Unreconciled Checks
   const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
@@ -700,7 +700,7 @@ export default function Reconcile() {
                   <div className="font-semibold mb-3">Cleared Balance</div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">Bank statement Balance on start date</span>
-                    <span className="font-medium">{formatCurrency(glCashBalance)}</span>
+                    <span className="font-medium">{formatCurrency(beginningBalance)}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(+) Cleared Deposits and other Increases</span>
