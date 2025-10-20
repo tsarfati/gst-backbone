@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +23,13 @@ export function useSearchIndex() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Build index on mount if user is available and index is empty
+  useEffect(() => {
+    if (user && indexedItems.length === 0) {
+      buildSearchIndex();
+    }
+  }, [user]);
+
   const buildSearchIndex = useCallback(async () => {
     if (!user) return;
     
@@ -34,7 +41,6 @@ export function useSearchIndex() {
       const { data: vendors, error: vendorsError } = await supabase
         .from('vendors')
         .select('*')
-        .eq('company_id', user.id)
         .eq('is_active', true);
 
       if (vendorsError) {
@@ -57,8 +63,7 @@ export function useSearchIndex() {
       // Index jobs
       const { data: jobs, error: jobsError } = await supabase
         .from('jobs')
-        .select('*')
-        .eq('created_by', user.id);
+        .select('*');
 
       if (jobsError) {
         console.error('Error fetching jobs for search:', jobsError);
