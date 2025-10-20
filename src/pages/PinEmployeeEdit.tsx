@@ -8,14 +8,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, User, Key, Camera, Briefcase, Code, Building2, Shield } from 'lucide-react';
+import { ArrowLeft, Save, User, Key, Camera, Shield, Building2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import PinEmployeeCompanyAccess from '@/components/PinEmployeeCompanyAccess';
+import JobCostCodeAssignments, { JobCostCodes } from '@/components/JobCostCodeAssignments';
 
 interface PinEmployee {
   id: string;
@@ -47,13 +48,8 @@ export default function PinEmployeeEdit() {
   
   const [employee, setEmployee] = useState<PinEmployee | null>(null);
   const [groups, setGroups] = useState<EmployeeGroup[]>([]);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [costCodes, setCostCodes] = useState<any[]>([]);
   const [assignedJobs, setAssignedJobs] = useState<string[]>([]);
-  const [assignedCostCodes, setAssignedCostCodes] = useState<string[]>([]);
-  const [allAssignedCostCodes, setAllAssignedCostCodes] = useState<string[]>([]); // Track all cost codes across all jobs
-  const [selectedJobId, setSelectedJobId] = useState<string>('');
-  const [costCodeSearch, setCostCodeSearch] = useState('');
+  const [jobCostCodes, setJobCostCodes] = useState<JobCostCodes[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -64,28 +60,9 @@ export default function PinEmployeeEdit() {
     if (employeeId && currentCompany) {
       fetchEmployee();
       fetchGroups();
-      fetchJobs();
       fetchAssignments();
     }
   }, [employeeId, currentCompany]);
-
-  useEffect(() => {
-    if (selectedJobId) {
-      fetchCostCodes();
-    } else {
-      setCostCodes([]);
-      setAssignedCostCodes([]);
-    }
-  }, [selectedJobId]);
-
-  // Sync current job's assigned codes when cost codes or master list changes
-  useEffect(() => {
-    if (!selectedJobId) return;
-    const jobSpecificCodes = costCodes
-      .filter(cc => allAssignedCostCodes.includes(cc.id))
-      .map(cc => cc.id);
-    setAssignedCostCodes(jobSpecificCodes);
-  }, [costCodes, allAssignedCostCodes, selectedJobId]);
 
   const fetchEmployee = async () => {
     if (!employeeId) return;
@@ -126,47 +103,6 @@ export default function PinEmployeeEdit() {
     }
   };
 
-  const fetchJobs = async () => {
-    if (!currentCompany) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id, name, client, status')
-        .eq('company_id', currentCompany.id)
-        .order('name');
-
-      if (error) throw error;
-      setJobs(data || []);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-    }
-  };
-
-  const fetchCostCodes = async () => {
-    if (!currentCompany || !selectedJobId) {
-      setCostCodes([]);
-      return;
-    }
-    
-    try {
-      // Fetch job-specific labor cost codes
-      const { data, error } = await supabase
-        .from('cost_codes')
-        .select('id, code, description, type')
-        .eq('company_id', currentCompany.id)
-        .eq('job_id', selectedJobId)
-        .eq('type', 'labor')
-        .eq('is_active', true)
-        .order('code');
-
-      if (error) throw error;
-      setCostCodes(data || []);
-    } catch (error) {
-      console.error('Error fetching cost codes:', error);
-    }
-  };
-
   const fetchAssignments = async () => {
     if (!employeeId || !currentCompany) return;
     
@@ -181,37 +117,36 @@ export default function PinEmployeeEdit() {
       if (settingsError) throw settingsError;
 
       setAssignedJobs(settingsData?.assigned_jobs || []);
+      
+      // Convert flat assigned_cost_codes to job_cost_codes structure
       if (settingsData?.assigned_cost_codes) {
-        setAllAssignedCostCodes(settingsData.assigned_cost_codes);
+        const { data: costCodeData } = await supabase
+          .from('cost_codes')
+          .select('id, job_id')
+          .in('id', settingsData.assigned_cost_codes);
+        
+        const jobCostCodesMap = new Map<string, string[]>();
+        costCodeData?.forEach(cc => {
+          if (cc.job_id) {
+            if (!jobCostCodesMap.has(cc.job_id)) {
+              jobCostCodesMap.set(cc.job_id, []);
+            }
+            jobCostCodesMap.get(cc.job_id)!.push(cc.id);
+          }
+        });
+        
+        const jobCostCodesArray = Array.from(jobCostCodesMap.entries()).map(([jobId, costCodeIds]) => ({
+          jobId,
+          costCodeIds
+        }));
+        
+        setJobCostCodes(jobCostCodesArray);
       }
     } catch (error) {
       console.error('Error fetching assignments:', error);
     }
   };
 
-  const fetchAssignedCostCodesForJob = async (jobId: string) => {
-    if (!employeeId) return;
-    
-    try {
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('employee_timecard_settings')
-        .select('assigned_cost_codes, assigned_jobs')
-        .eq('user_id', employeeId)
-        .maybeSingle();
-
-      if (settingsError) throw settingsError;
-      
-      // Filter cost codes to only those for the selected job
-      const allAssignedCodes = settingsData?.assigned_cost_codes || [];
-      const jobCodes = costCodes
-        .filter(cc => allAssignedCodes.includes(cc.id))
-        .map(cc => cc.id);
-      
-      setAssignedCostCodes(jobCodes);
-    } catch (error) {
-      console.error('Error fetching assigned cost codes:', error);
-    }
-  };
 
   const handleSave = async () => {
     if (!employee || !canManageEmployees || !currentCompany) return;
@@ -237,10 +172,8 @@ export default function PinEmployeeEdit() {
 
       if (employeeError) throw employeeError;
 
-      // Job assignments are saved via employee_timecard_settings below
-
       // Update cost code and job assignments for PIN employee
-      let settingsError: any = null;
+      const assigned_cost_codes = jobCostCodes.flatMap(jcc => jcc.costCodeIds);
 
       const { data: existingSettings, error: fetchSettingsError } = await supabase
         .from('pin_employee_timecard_settings')
@@ -256,11 +189,11 @@ export default function PinEmployeeEdit() {
           .from('pin_employee_timecard_settings')
           .update({
             assigned_jobs: assignedJobs,
-            assigned_cost_codes: allAssignedCostCodes,
+            assigned_cost_codes,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingSettings.id);
-        settingsError = error;
+        if (error) throw error;
       } else {
         const { error } = await supabase
           .from('pin_employee_timecard_settings')
@@ -268,13 +201,11 @@ export default function PinEmployeeEdit() {
             pin_employee_id: employee.id,
             company_id: currentCompany.id,
             assigned_jobs: assignedJobs,
-            assigned_cost_codes: allAssignedCostCodes,
+            assigned_cost_codes,
             created_by: profile?.user_id
           });
-        settingsError = error;
+        if (error) throw error;
       }
-
-      if (settingsError) throw settingsError;
 
       toast({
         title: 'Success',
@@ -294,29 +225,6 @@ export default function PinEmployeeEdit() {
     }
   };
 
-  const toggleJobAssignment = (jobId: string) => {
-    setAssignedJobs(prev => 
-      prev.includes(jobId) 
-        ? prev.filter(id => id !== jobId)
-        : [...prev, jobId]
-    );
-  };
-
-  const toggleCostCodeAssignment = (costCodeId: string) => {
-    // Update the current job's cost codes
-    setAssignedCostCodes(prev => 
-      prev.includes(costCodeId) 
-        ? prev.filter(id => id !== costCodeId)
-        : [...prev, costCodeId]
-    );
-    
-    // Also update the master list of all cost codes
-    setAllAssignedCostCodes(prev => 
-      prev.includes(costCodeId) 
-        ? prev.filter(id => id !== costCodeId)
-        : [...prev, costCodeId]
-    );
-  };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -605,121 +513,16 @@ export default function PinEmployeeEdit() {
             </CardContent>
           </Card>
 
-          {/* Job Assignments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Job Assignments
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select which jobs this employee can access
-              </p>
-              {jobs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No jobs available</p>
-              ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {jobs.map((job) => (
-                    <div key={job.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`job-${job.id}`}
-                        checked={assignedJobs.includes(job.id)}
-                        onCheckedChange={() => toggleJobAssignment(job.id)}
-                      />
-                      <Label
-                        htmlFor={`job-${job.id}`}
-                        className="text-sm font-normal cursor-pointer flex-1"
-                      >
-                        {job.name}
-                        {job.client && (
-                          <span className="text-muted-foreground ml-2">({job.client})</span>
-                        )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Cost Code Assignments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Code className="h-5 w-5" />
-                Cost Code Assignments (Job-Specific Labor Codes)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Select Job First</Label>
-                <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a job to view cost codes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.name}
-                        {job.client && <span className="text-muted-foreground ml-2">({job.client})</span>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Separator />
-
-              {selectedJobId && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Search Cost Codes</Label>
-                    <Input
-                      placeholder="Search by code or description..."
-                      value={costCodeSearch}
-                      onChange={(e) => setCostCodeSearch(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">
-                      Showing labor cost codes for selected job
-                    </Label>
-                    {costCodes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No labor cost codes available for this job</p>
-                    ) : (
-                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg divide-y">
-                        {costCodes
-                          .filter(costCode => 
-                            costCodeSearch === '' ||
-                            costCode.code.toLowerCase().includes(costCodeSearch.toLowerCase()) ||
-                            costCode.description.toLowerCase().includes(costCodeSearch.toLowerCase())
-                          )
-                          .map((costCode) => (
-                            <div key={costCode.id} className="flex items-center space-x-2 p-3">
-                              <Checkbox
-                                id={`costcode-${costCode.id}`}
-                                checked={assignedCostCodes.includes(costCode.id)}
-                                onCheckedChange={() => toggleCostCodeAssignment(costCode.id)}
-                              />
-                              <Label
-                                htmlFor={`costcode-${costCode.id}`}
-                                className="text-sm font-normal cursor-pointer flex-1"
-                              >
-                                <span className="font-mono font-medium">{costCode.code}</span>
-                                <span className="text-muted-foreground ml-2">- {costCode.description}</span>
-                              </Label>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {/* Job Assignments & Cost Codes */}
+          {currentCompany && (
+            <JobCostCodeAssignments
+              companyId={currentCompany.id}
+              assignedJobs={assignedJobs}
+              jobCostCodes={jobCostCodes}
+              onJobsChange={setAssignedJobs}
+              onCostCodesChange={setJobCostCodes}
+            />
+          )}
         </div>
 
         {/* Employee Info & Actions */}

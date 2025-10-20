@@ -6,11 +6,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { User, MapPin, Save, Building } from 'lucide-react';
+import { User, Save } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
+import JobCostCodeAssignments, { JobCostCodes } from './JobCostCodeAssignments';
 
 interface Employee {
   id: string;
@@ -19,25 +20,6 @@ interface Employee {
   first_name: string;
   last_name: string;
   role: string;
-}
-
-interface Job {
-  id: string;
-  name: string;
-  address?: string;
-}
-
-interface CostCode {
-  id: string;
-  code: string;
-  description: string;
-  type?: string;
-  job_id?: string;
-}
-
-interface JobCostCodes {
-  jobId: string;
-  costCodeIds: string[];
 }
 
 interface EmployeeTimecardSettings {
@@ -63,8 +45,6 @@ export default function EmployeeTimecardSettings({
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,8 +53,6 @@ export default function EmployeeTimecardSettings({
 
   useEffect(() => {
     loadEmployees();
-    loadJobs();
-    loadCostCodes();
   }, [currentCompany?.id]);
 
   useEffect(() => {
@@ -98,42 +76,39 @@ export default function EmployeeTimecardSettings({
 
       const filterIds = userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'];
 
-      const [profilesRes, pinsRes] = await Promise.all([
+      const [profilesResponse, pinEmployeesResponse] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, display_name, first_name, last_name, role')
-          .in('user_id', filterIds)
-          .order('display_name'),
+          .select('user_id, first_name, last_name, display_name')
+          .in('user_id', filterIds),
         supabase
           .from('pin_employees')
-          .select('id, display_name, first_name, last_name, is_active')
-          .in('id', filterIds)
+          .select('id, first_name, last_name, display_name')
+          .eq('company_id', currentCompany.id)
           .eq('is_active', true)
-          .order('display_name')
       ]);
 
-      if (profilesRes.error) throw profilesRes.error;
-      if (pinsRes.error && (pinsRes.error as any).code !== 'PGRST116') throw pinsRes.error;
-
-      const profileEmployees = (profilesRes.data || []).map((p: any) => ({
-        id: p.id,
+      const regularEmployees = (profilesResponse.data || []).map(p => ({
+        id: p.user_id,
         user_id: p.user_id,
-        display_name: p.display_name,
-        first_name: p.first_name,
-        last_name: p.last_name,
+        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
         role: roleMap.get(p.user_id) || 'employee'
-      } as Employee));
+      }));
 
-      const pinEmployees = (pinsRes.data || []).map((pe: any) => ({
-        id: pe.id,
-        user_id: pe.id,
-        display_name: pe.display_name,
-        first_name: pe.first_name,
-        last_name: pe.last_name,
+      const pinEmployees = (pinEmployeesResponse.data || []).map(p => ({
+        id: p.id,
+        user_id: p.id,
+        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
         role: 'employee'
-      } as Employee));
+      }));
 
-      setEmployees([...profileEmployees, ...pinEmployees]);
+      setEmployees([...regularEmployees, ...pinEmployees].sort((a, b) => 
+        a.display_name.localeCompare(b.display_name)
+      ));
     } catch (error) {
       console.error('Error loading employees:', error);
       toast({
@@ -144,81 +119,58 @@ export default function EmployeeTimecardSettings({
     }
   };
 
-  const loadJobs = async () => {
+  const loadEmployeeSettings = async (userId: string) => {
     if (!currentCompany?.id) return;
     
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id, name, address')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
-      
-      const uniqueJobs = data?.reduce((acc, job) => {
-        if (!acc.find(j => j.id === job.id)) {
-          acc.push(job);
-        }
-        return acc;
-      }, [] as Job[]);
-      
-      setJobs(uniqueJobs || []);
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-    }
-  };
-
-  const loadCostCodes = async () => {
-    if (!currentCompany?.id) return;
-    try {
-      const { data, error } = await supabase
-        .from('cost_codes')
-        .select('id, code, description, type, job_id')
-        .eq('is_active', true)
-        .eq('company_id', currentCompany.id)
-        .order('code');
-
-      if (error) throw error;
-      setCostCodes(data || []);
-    } catch (error) {
-      console.error('Error loading cost codes:', error);
-    }
-  };
-
-  const loadEmployeeSettings = async (employeeId: string) => {
-    try {
       setLoading(true);
-      
       const { data, error } = await supabase
         .from('employee_timecard_settings')
         .select('*')
-        .eq('user_id', employeeId)
-        .eq('company_id', currentCompany?.id || '')
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
+        // Convert flat assigned_cost_codes array to job_cost_codes structure
+        const jobCostCodesMap = new Map<string, string[]>();
+        
+        if (data.assigned_cost_codes) {
+          // Fetch cost codes to get their job_id
+          const { data: costCodeData } = await supabase
+            .from('cost_codes')
+            .select('id, job_id')
+            .in('id', data.assigned_cost_codes);
+          
+          costCodeData?.forEach(cc => {
+            if (cc.job_id) {
+              if (!jobCostCodesMap.has(cc.job_id)) {
+                jobCostCodesMap.set(cc.job_id, []);
+              }
+              jobCostCodesMap.get(cc.job_id)!.push(cc.id);
+            }
+          });
+        }
+        
+        const job_cost_codes = Array.from(jobCostCodesMap.entries()).map(([jobId, costCodeIds]) => ({
+          jobId,
+          costCodeIds
+        }));
+
         setSettings({
           user_id: data.user_id,
           assigned_jobs: data.assigned_jobs || [],
-          job_cost_codes: (data.assigned_cost_codes || []).map((ccId: string) => {
-            const costCode = costCodes.find(cc => cc.id === ccId);
-            return {
-              jobId: costCode?.job_id || '',
-              costCodeIds: [ccId]
-            };
-          }),
-          require_location: data.require_location,
-          require_photo: data.require_photo,
-          auto_lunch_deduction: data.auto_lunch_deduction,
+          job_cost_codes,
+          require_location: data.require_location ?? true,
+          require_photo: data.require_photo ?? true,
+          auto_lunch_deduction: data.auto_lunch_deduction ?? true,
           notes: data.notes
         });
       } else {
         const defaultSettings: EmployeeTimecardSettings = {
-          user_id: employeeId,
+          user_id: userId,
           assigned_jobs: [],
           job_cost_codes: [],
           require_location: true,
@@ -240,46 +192,41 @@ export default function EmployeeTimecardSettings({
   };
 
   const saveEmployeeSettings = async () => {
-    if (!settings || !profile?.user_id) return;
+    if (!settings || !currentCompany?.id) return;
 
     try {
       setSaving(true);
       
-      // Flatten job_cost_codes to assigned_cost_codes array
-      const assignedCostCodes = settings.job_cost_codes.flatMap(jcc => jcc.costCodeIds);
+      // Flatten job_cost_codes back to assigned_cost_codes array
+      const assigned_cost_codes = settings.job_cost_codes.flatMap(jcc => jcc.costCodeIds);
       
       const settingsData = {
         user_id: settings.user_id,
-        company_id: currentCompany?.id,
+        company_id: currentCompany.id,
         assigned_jobs: settings.assigned_jobs,
-        assigned_cost_codes: assignedCostCodes,
+        assigned_cost_codes,
         require_location: settings.require_location,
         require_photo: settings.require_photo,
         auto_lunch_deduction: settings.auto_lunch_deduction,
         notes: settings.notes,
-        created_by: profile.user_id
+        created_by: profile?.user_id
       };
 
-      const { data: existing, error: fetchErr } = await supabase
+      const { data: existing } = await supabase
         .from('employee_timecard_settings')
         .select('id')
         .eq('user_id', settings.user_id)
-        .eq('company_id', currentCompany?.id || '')
+        .eq('company_id', currentCompany.id)
         .maybeSingle();
 
-      if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
-
-      let error;
-      if (existing?.id) {
-        ({ error } = await supabase
-          .from('employee_timecard_settings')
-          .update(settingsData)
-          .eq('id', existing.id));
-      } else {
-        ({ error } = await supabase
-          .from('employee_timecard_settings')
-          .insert(settingsData));
-      }
+      const { error } = existing
+        ? await supabase
+            .from('employee_timecard_settings')
+            .update(settingsData)
+            .eq('id', existing.id)
+        : await supabase
+            .from('employee_timecard_settings')
+            .insert(settingsData);
 
       if (error) throw error;
       
@@ -303,59 +250,6 @@ export default function EmployeeTimecardSettings({
     if (settings) {
       setSettings({ ...settings, ...updates });
     }
-  };
-
-  const toggleJobAssignment = (jobId: string) => {
-    if (!settings) return;
-    
-    const updatedJobs = settings.assigned_jobs.includes(jobId)
-      ? settings.assigned_jobs.filter(id => id !== jobId)
-      : [...settings.assigned_jobs, jobId];
-    
-    // Remove cost codes for unassigned jobs
-    const updatedJobCostCodes = settings.job_cost_codes.filter(jcc => 
-      updatedJobs.includes(jcc.jobId)
-    );
-    
-    updateSettings({ 
-      assigned_jobs: updatedJobs,
-      job_cost_codes: updatedJobCostCodes
-    });
-  };
-
-  const toggleCostCodeForJob = (jobId: string, costCodeId: string) => {
-    if (!settings) return;
-    
-    const jobCostCodesIndex = settings.job_cost_codes.findIndex(jcc => jcc.jobId === jobId);
-    const updatedJobCostCodes = [...settings.job_cost_codes];
-    
-    if (jobCostCodesIndex >= 0) {
-      const currentCostCodes = updatedJobCostCodes[jobCostCodesIndex].costCodeIds;
-      if (currentCostCodes.includes(costCodeId)) {
-        updatedJobCostCodes[jobCostCodesIndex].costCodeIds = currentCostCodes.filter(id => id !== costCodeId);
-      } else {
-        updatedJobCostCodes[jobCostCodesIndex].costCodeIds.push(costCodeId);
-      }
-    } else {
-      updatedJobCostCodes.push({
-        jobId,
-        costCodeIds: [costCodeId]
-      });
-    }
-    
-    updateSettings({ job_cost_codes: updatedJobCostCodes });
-  };
-
-  const getJobCostCodes = (jobId: string) => {
-    return costCodes.filter(cc => 
-      cc.job_id === jobId && 
-      (cc.type === 'labor' || cc.type === undefined)
-    );
-  };
-
-  const isCostCodeSelectedForJob = (jobId: string, costCodeId: string) => {
-    const jobCostCode = settings?.job_cost_codes.find(jcc => jcc.jobId === jobId);
-    return jobCostCode?.costCodeIds.includes(costCodeId) || false;
   };
 
   if (loading) {
@@ -413,72 +307,16 @@ export default function EmployeeTimecardSettings({
         </CardContent>
       </Card>
 
-      {settings && (
+      {settings && currentCompany && (
         <div className="space-y-6">
           {/* Job Assignments & Cost Codes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Job Assignments & Cost Codes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {jobs.map((job) => {
-                const jobCostCodes = getJobCostCodes(job.id);
-                const isJobAssigned = settings.assigned_jobs.includes(job.id);
-                
-                return (
-                  <div key={job.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`job-${job.id}`}
-                          checked={isJobAssigned}
-                          onChange={() => toggleJobAssignment(job.id)}
-                          className="rounded"
-                        />
-                        <Label htmlFor={`job-${job.id}`} className="font-semibold">
-                          {job.name}
-                        </Label>
-                      </div>
-                      {job.address && (
-                        <div className="text-xs text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {job.address}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {isJobAssigned && jobCostCodes.length > 0 && (
-                      <div className="ml-6 space-y-2 pt-2 border-t">
-                        <Label className="text-sm text-muted-foreground">
-                          Labor Cost Codes ({jobCostCodes.filter(cc => isCostCodeSelectedForJob(job.id, cc.id)).length} selected)
-                        </Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {jobCostCodes.map((costCode) => (
-                            <div key={costCode.id} className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                id={`cc-${job.id}-${costCode.id}`}
-                                checked={isCostCodeSelectedForJob(job.id, costCode.id)}
-                                onChange={() => toggleCostCodeForJob(job.id, costCode.id)}
-                                className="rounded"
-                              />
-                              <Label htmlFor={`cc-${job.id}-${costCode.id}`} className="text-sm">
-                                {costCode.code} - {costCode.description}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+          <JobCostCodeAssignments
+            companyId={currentCompany.id}
+            assignedJobs={settings.assigned_jobs}
+            jobCostCodes={settings.job_cost_codes}
+            onJobsChange={(jobs) => updateSettings({ assigned_jobs: jobs })}
+            onCostCodesChange={(jobCostCodes) => updateSettings({ job_cost_codes: jobCostCodes })}
+          />
 
           {/* General Settings */}
           <Card>
