@@ -30,6 +30,20 @@ interface Bill {
   payment_terms: string | null;
 }
 
+const calculateDaysOverdue = (dueDate: string): number => {
+  const due = new Date(dueDate);
+  const today = new Date();
+  const diffTime = today.getTime() - due.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+};
+
+const isOverdue = (bill: Bill): boolean => {
+  const dueDate = new Date(bill.due_date);
+  const today = new Date();
+  return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
+};
+
 const getStatusVariant = (status: string) => {
   switch (status) {
     case "paid":
@@ -446,11 +460,15 @@ export default function Bills() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredBills.map((bill) => (
+                  filteredBills.map((bill) => {
+                    const billIsOverdue = isOverdue(bill);
+                    const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                    
+                    return (
                     <TableRow 
                       key={bill.id} 
                       className={`cursor-pointer hover:bg-primary/10 hover:shadow-sm hover:scale-[1.005] transition-all duration-200 ${
-                        bill.status === 'overdue' ? 'animate-pulse-red' : ''
+                        billIsOverdue ? 'animate-pulse bg-destructive/10' : ''
                       }`}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -475,15 +493,23 @@ export default function Bills() {
                        </Badge>
                      </TableCell>
                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
-                         <Badge variant={getStatusVariant(bill.status)}>
-                           {getStatusDisplayName(bill.status)}
-                         </Badge>
-                       </TableCell>
+                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getStatusVariant(bill.status)}>
+                              {getStatusDisplayName(bill.status)}
+                            </Badge>
+                            {billIsOverdue && (
+                              <Badge variant="destructive" className="animate-pulse">
+                                {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'} overdue
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                     </TableRow>
-                  ))
+                  );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -497,10 +523,16 @@ export default function Bills() {
                   <p className="text-sm">Upload your first bill to get started</p>
                 </div>
               ) : (
-                filteredBills.map((bill) => (
+                filteredBills.map((bill) => {
+                  const billIsOverdue = isOverdue(bill);
+                  const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                  
+                  return (
                   <div 
                     key={bill.id} 
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
+                    className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
+                      billIsOverdue ? 'animate-pulse bg-destructive/10 border-destructive' : ''
+                    }`}
                     onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -521,9 +553,15 @@ export default function Bills() {
                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                         {bill.job_name}
                       </Badge>
+                      {billIsOverdue && (
+                        <Badge variant="destructive" className="animate-pulse">
+                          {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'} overdue
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           ) : (
@@ -536,10 +574,16 @@ export default function Bills() {
                   <p className="text-sm">Upload your first bill to get started</p>
                 </div>
               ) : (
-                filteredBills.map((bill) => (
+                filteredBills.map((bill) => {
+                  const billIsOverdue = isOverdue(bill);
+                  const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                  
+                  return (
                   <div 
                     key={bill.id} 
-                    className="flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
+                    className={`flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
+                      billIsOverdue ? 'animate-pulse bg-destructive/10 border-destructive' : ''
+                    }`}
                     onClick={() => navigate(`/invoices/${bill.id}`)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
@@ -553,11 +597,19 @@ export default function Bills() {
                       <span className="font-medium text-foreground truncate">{bill.invoice_number || 'No Invoice #'}</span>
                       <span className="text-sm text-muted-foreground truncate">{bill.vendor_name}</span>
                     </div>
-                    <span className="font-semibold text-foreground whitespace-nowrap ml-4">
-                      ${bill.amount.toLocaleString()}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-semibold text-foreground whitespace-nowrap">
+                        ${bill.amount.toLocaleString()}
+                      </span>
+                      {billIsOverdue && (
+                        <Badge variant="destructive" className="animate-pulse text-xs">
+                          {daysOverdue}d overdue
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

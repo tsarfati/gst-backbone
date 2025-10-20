@@ -81,6 +81,21 @@ export default function BillDetails() {
   const [payNumber, setPayNumber] = useState<number>(0);
   const [documents, setDocuments] = useState<any[]>([]);
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
+  
+  const calculateDaysOverdue = (dueDate: string): number => {
+    const due = new Date(dueDate);
+    const today = new Date();
+    const diffTime = today.getTime() - due.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const isOverdue = (): boolean => {
+    if (!bill) return false;
+    const dueDate = new Date(bill.due_date);
+    const today = new Date();
+    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
+  };
 
   useEffect(() => {
     if (id) {
@@ -336,9 +351,31 @@ export default function BillDetails() {
   }
 
   const StatusIcon = getStatusIcon(bill?.status || "pending");
+  const billIsOverdue = isOverdue();
+  const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {/* Overdue Banner */}
+      {billIsOverdue && (
+        <div className="mb-6 bg-destructive/20 border-2 border-destructive rounded-lg p-6 animate-pulse">
+          <div className="flex items-center gap-4">
+            <AlertTriangle className="h-12 w-12 text-destructive flex-shrink-0" />
+            <div>
+              <h2 className="text-2xl font-bold text-destructive mb-1">
+                Bill Overdue
+              </h2>
+              <p className="text-lg font-semibold text-destructive/90">
+                This bill is overdue by {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Due date was {new Date(bill.due_date).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
