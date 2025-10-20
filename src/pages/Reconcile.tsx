@@ -70,6 +70,7 @@ export default function Reconcile() {
   const [statementUploading, setStatementUploading] = useState(false);
   const [uploadedStatementId, setUploadedStatementId] = useState<string | null>(null);
   const [uploadedStatementName, setUploadedStatementName] = useState<string | null>(null);
+  const [uploadedStatementUrl, setUploadedStatementUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentCompany && accountId) {
@@ -275,6 +276,59 @@ export default function Reconcile() {
     }
   };
 
+  const handleStatementFileChange = (e: any) => {
+    const file = e.target.files?.[0] || null;
+    setStatementFile(file);
+  };
+
+  const handleUploadStatement = async () => {
+    if (!statementFile || !currentCompany || !accountId || !user) {
+      toast.error("Select a statement PDF first");
+      return;
+    }
+    setStatementUploading(true);
+    try {
+      const path = `${currentCompany.id}/${accountId}/${Date.now()}-${statementFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('bank-statements')
+        .upload(path, statementFile);
+      if (uploadError) throw uploadError;
+
+      const { data: signed, error: signedErr } = await supabase.storage
+        .from('bank-statements')
+        .createSignedUrl(path, 315360000);
+      if (signedErr) throw signedErr;
+
+      const month = (endingDate?.getMonth?.() ?? new Date().getMonth()) + 1;
+      const year = (endingDate?.getFullYear?.() ?? new Date().getFullYear());
+      const { data: inserted, error: insertErr } = await supabase
+        .from('bank_statements')
+        .insert({
+          bank_account_id: accountId,
+          company_id: currentCompany.id,
+          statement_date: `${year}-${String(month).padStart(2,'0')}-01`,
+          statement_month: month,
+          statement_year: year,
+          file_name: statementFile.name,
+          display_name: statementFile.name.replace(/\.[^/.]+$/, ''),
+          file_url: signed.signedUrl,
+          file_size: statementFile.size,
+          uploaded_by: user.id,
+        })
+        .select('id, display_name, file_url')
+        .single();
+      if (insertErr) throw insertErr;
+
+      setUploadedStatementId(inserted.id);
+      setUploadedStatementName(inserted.display_name);
+      setUploadedStatementUrl(inserted.file_url);
+      toast.success('Bank statement uploaded');
+    } catch (err: any) {
+      console.error('Upload statement error:', err);
+      toast.error('Failed to upload bank statement');
+    } finally {
+      setStatementUploading(false);
+    }
   const handleToggleCleared = (id: string, type: 'deposit' | 'payment') => {
     if (type === 'deposit') {
       setDeposits(prev => prev.map(d => 
@@ -286,7 +340,6 @@ export default function Reconcile() {
       ));
     }
   };
-
   const handleSaveReconciliation = async () => {
     if (!currentCompany || !accountId || !user || endingBalance === null) {
       toast.error("Please fill in all required fields");
@@ -484,6 +537,32 @@ export default function Reconcile() {
               </Popover>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Bank Statement (optional) */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Bank Statement (optional)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-3">
+            <div className="space-y-2 w-full md:w-auto">
+              <Label htmlFor="statementUpload">Attach statement PDF</Label>
+              <Input id="statementUpload" type="file" accept=".pdf" onChange={handleStatementFileChange} />
+            </div>
+            <Button onClick={handleUploadStatement} disabled={!statementFile || statementUploading}>
+              {statementUploading ? 'Uploading…' : 'Upload'}
+            </Button>
+            {uploadedStatementName && uploadedStatementUrl && (
+              <a href={uploadedStatementUrl} target="_blank" rel="noreferrer" className="underline text-primary">
+                View "{uploadedStatementName}"
+              </a>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            The uploaded statement will be attached to this reconciliation and listed under Bank Statements.
+          </p>
         </CardContent>
       </Card>
 
