@@ -191,13 +191,13 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                             <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span className="text-muted-foreground">From:</span>
-                                <div className="bg-red-50 border border-red-200 rounded p-2 mt-1">
+                                <div className="bg-red-50 border border-red-200 rounded p-2 mt-1 text-foreground">
                                   {entry.old_value}
                                 </div>
                               </div>
                               <div>
                                 <span className="text-muted-foreground">To:</span>
-                                <div className="bg-green-50 border border-green-200 rounded p-2 mt-1">
+                                <div className="bg-green-50 border border-green-200 rounded p-2 mt-1 text-foreground">
                                   {entry.new_value}
                                 </div>
                               </div>
