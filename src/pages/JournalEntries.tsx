@@ -43,7 +43,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  category: string;
+  type?: string;
 }
 
 interface JournalEntryLine {
@@ -125,7 +125,7 @@ export default function JournalEntries() {
 
     const { data, error } = await supabase
       .from('cost_codes')
-      .select('id, code, description, category')
+      .select('id, code, description, type')
       .eq('job_id', jobId)
       .eq('company_id', currentCompany?.id || '')
       .eq('is_active', true)
@@ -311,10 +311,15 @@ export default function JournalEntries() {
                     <Label>Cost Code</Label>
                     <Popover 
                       open={openPopovers[index]?.costCode} 
-                      onOpenChange={(open) => setOpenPopovers(prev => ({ 
-                        ...prev, 
-                        [index]: { ...prev[index], costCode: open } 
-                      }))}
+                      onOpenChange={(open) => {
+                        setOpenPopovers(prev => ({ 
+                          ...prev, 
+                          [index]: { ...prev[index], costCode: open } 
+                        }));
+                        if (open && line.line_type === 'job' && line.job_id && !costCodes[line.job_id]) {
+                          loadCostCodesForJob(line.job_id);
+                        }
+                      }}
                     >
                       <PopoverTrigger asChild>
                         <Button
@@ -326,7 +331,7 @@ export default function JournalEntries() {
                           {line.cost_code_id && line.job_id
                             ? (() => {
                                 const code = (costCodes[line.job_id] || []).find(c => c.id === line.cost_code_id);
-                                return code ? `${code.code} - ${code.description} - ${code.category}` : 'Select cost code';
+                                return code ? `${code.code} - ${code.description} - ${code.type}` : 'Select cost code';
                               })()
                             : 'Select cost code'}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -341,7 +346,7 @@ export default function JournalEntries() {
                               {line.job_id && (costCodes[line.job_id] || []).map((code) => (
                                 <CommandItem
                                   key={code.id}
-                                  value={`${code.code} ${code.description} ${code.category}`}
+                                  value={`${code.code} ${code.description} ${code.type}`}
                                   onSelect={() => {
                                     updateLine(index, { cost_code_id: code.id });
                                     setOpenPopovers(prev => ({ 
@@ -356,7 +361,7 @@ export default function JournalEntries() {
                                       line.cost_code_id === code.id ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  {code.code} - {code.description} - {code.category}
+                                  {code.code} - {code.description} - {code.type}
                                 </CommandItem>
                               ))}
                             </CommandGroup>
