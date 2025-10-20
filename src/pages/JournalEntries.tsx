@@ -38,6 +38,7 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
+  category: string;
 }
 
 interface JournalEntryLine {
@@ -113,7 +114,7 @@ export default function JournalEntries() {
 
     const { data } = await supabase
       .from('cost_codes')
-      .select('id, code, description')
+      .select('id, code, description, category')
       .eq('job_id', jobId)
       .eq('company_id', currentCompany?.id || '')
       .eq('is_active', true)
@@ -237,26 +238,25 @@ export default function JournalEntries() {
                     </Select>
                   </div>
 
-                  {line.line_type === 'job' && line.job_id && (
-                    <div>
-                      <Label>Cost Code</Label>
-                      <Select
-                        value={line.cost_code_id || ''}
-                        onValueChange={(value) => updateLine(index, { cost_code_id: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select cost code" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(costCodes[line.job_id] || []).map((code) => (
-                            <SelectItem key={code.id} value={code.id}>
-                              {code.code} - {code.description}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <div>
+                    <Label>Cost Code</Label>
+                    <Select
+                      value={line.cost_code_id || ''}
+                      onValueChange={(value) => updateLine(index, { cost_code_id: value })}
+                      disabled={line.line_type !== 'job' || !line.job_id}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select cost code" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {line.job_id && (costCodes[line.job_id] || []).map((code) => (
+                          <SelectItem key={code.id} value={code.id}>
+                            {code.category} - {code.code} - {code.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <div>
                     <Label>Debit</Label>
