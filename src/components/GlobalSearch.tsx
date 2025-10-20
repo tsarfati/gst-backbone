@@ -29,7 +29,7 @@ export default function GlobalSearch() {
   const [filteredResults, setFilteredResults] = useState<SearchIndexItem[]>([]);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
-  const { searchItems } = useSearchIndex();
+  const { searchItems, buildSearchIndex, isIndexing } = useSearchIndex();
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -88,7 +88,7 @@ export default function GlobalSearch() {
   }, []);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (v) buildSearchIndex(); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="w-80 justify-start text-muted-foreground">
           <Search className="h-4 w-4 mr-2" />

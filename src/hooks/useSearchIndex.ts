@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 
 export interface SearchIndexItem {
@@ -16,15 +17,15 @@ export interface SearchIndexItem {
 
 export function useSearchIndex() {
   const [isIndexing, setIsIndexing] = useState(false);
-  const [indexedItems, setIndexedItems] = useState<SearchIndexItem[]>(() => {
-    const saved = localStorage.getItem('search-index');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [indexedItems, setIndexedItems] = useState<SearchIndexItem[]>([]);
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
+  const indexKey = useMemo(() => `search-index:${currentCompany?.id || 'default'}`,[currentCompany?.id]);
+
   const buildSearchIndex = useCallback(async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     setIsIndexing(true);
     const newIndex: SearchIndexItem[] = [];
@@ -34,7 +35,8 @@ export function useSearchIndex() {
       const { data: vendors, error: vendorsError } = await supabase
         .from('vendors')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('company_id', currentCompany.id);
 
       if (vendorsError) {
         console.error('Error fetching vendors for search:', vendorsError);
@@ -56,7 +58,9 @@ export function useSearchIndex() {
       // Index jobs
       const { data: jobs, error: jobsError } = await supabase
         .from('jobs')
-        .select('*');
+        .select('*')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
 
       if (jobsError) {
         console.error('Error fetching jobs for search:', jobsError);
@@ -106,7 +110,7 @@ export function useSearchIndex() {
         { title: 'Add Employee', description: 'Add a new employee', path: '/employees/add', tags: ['action', 'add', 'employee', 'create'] },
         { title: 'Upload Receipt', description: 'Upload a new receipt', path: '/upload', tags: ['action', 'upload', 'receipt', 'add'] },
         { title: 'Make Payment', description: 'Process a payment', path: '/payables/make-payment', tags: ['action', 'payment', 'pay'] },
-        { title: 'Reconcile', description: 'Reconcile bank account', path: '/banking/accounts', tags: ['action', 'reconcile', 'banking', 'bank'] },
+        { title: 'Reconcile', description: 'Reconcile bank account', path: '/banking/reconcile', tags: ['action', 'reconcile', 'banking', 'bank'] },
         { title: 'Add Subcontract', description: 'Create a new subcontract', path: '/subcontracts/add', tags: ['action', 'add', 'subcontract', 'create'] },
         { title: 'Add Purchase Order', description: 'Create a new purchase order', path: '/purchase-orders/add', tags: ['action', 'add', 'po', 'purchase order', 'create'] },
         { title: 'Print Checks', description: 'Print payment checks', path: '/banking/print-checks', tags: ['action', 'print', 'check', 'payment'] },
@@ -186,7 +190,7 @@ export function useSearchIndex() {
       });
 
       setIndexedItems(newIndex);
-      localStorage.setItem('search-index', JSON.stringify(newIndex));
+      localStorage.setItem(indexKey, JSON.stringify(newIndex));
       
       toast({
         title: 'Search Index Updated',
@@ -229,10 +233,15 @@ export function useSearchIndex() {
 
   // Build index on mount if user is available and index is empty
   useEffect(() => {
-    if (user && indexedItems.length === 0) {
+    if (!user) return;
+    const saved = localStorage.getItem(indexKey);
+    if (saved) {
+      try { setIndexedItems(JSON.parse(saved)); return; } catch {}
+    }
+    if (indexedItems.length === 0) {
       buildSearchIndex();
     }
-  }, [user, buildSearchIndex, indexedItems.length]);
+  }, [user, indexKey, buildSearchIndex, indexedItems.length]);
 
   return {
     isIndexing,
