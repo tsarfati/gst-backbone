@@ -693,18 +693,19 @@ export default function Reconcile() {
                 {filteredDeposits.map((deposit) => (
                   <TableRow 
                     key={deposit.id}
-                    className={deposit.is_cleared ? "bg-green-50" : ""}
+                    className="hover:bg-accent cursor-pointer"
+                    onClick={() => handleToggleCleared(deposit.id, 'deposit')}
                   >
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={deposit.is_cleared}
                         onCheckedChange={() => handleToggleCleared(deposit.id, 'deposit')}
                       />
                     </TableCell>
-                    <TableCell>{format(new Date(deposit.date), 'MM/dd/yyyy')}</TableCell>
-                    <TableCell>{deposit.reference}</TableCell>
-                    <TableCell>{deposit.description}</TableCell>
-                    <TableCell className="text-right font-medium text-green-600">
+                    <TableCell onClick={() => handleToggleCleared(deposit.id, 'deposit')}>{format(new Date(deposit.date), 'MM/dd/yyyy')}</TableCell>
+                    <TableCell onClick={() => handleToggleCleared(deposit.id, 'deposit')}>{deposit.reference}</TableCell>
+                    <TableCell onClick={() => handleToggleCleared(deposit.id, 'deposit')}>{deposit.description}</TableCell>
+                    <TableCell className="text-right font-medium text-green-600" onClick={() => handleToggleCleared(deposit.id, 'deposit')}>
                       {formatCurrency(deposit.amount)}
                     </TableCell>
                   </TableRow>
@@ -762,8 +763,7 @@ export default function Reconcile() {
                 {filteredPayments.map((payment) => (
                   <TableRow 
                     key={payment.id}
-                    onClick={() => navigate(`/payables/payments/${payment.id}`)}
-                    className={(payment.is_cleared ? "bg-green-50 " : "") + "cursor-pointer hover:bg-accent"}
+                    className="hover:bg-accent cursor-pointer"
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -771,10 +771,10 @@ export default function Reconcile() {
                         onCheckedChange={() => handleToggleCleared(payment.id, 'payment')}
                       />
                     </TableCell>
-                    <TableCell>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
-                    <TableCell>{payment.reference}</TableCell>
-                    <TableCell>{payment.description}</TableCell>
-                    <TableCell className="text-right font-medium text-red-600">
+                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
+                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{payment.reference}</TableCell>
+                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{payment.description}</TableCell>
+                    <TableCell className="text-right font-medium text-red-600" onClick={() => navigate(`/payables/payments/${payment.id}`)}>
                       {formatCurrency(payment.amount)}
                     </TableCell>
                   </TableRow>
