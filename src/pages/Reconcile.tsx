@@ -463,15 +463,15 @@ export default function Reconcile() {
 
   const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
   
-  // Adjusted Cash Balance = Book Balance - Uncleared Deposits + Uncleared Checks
+  // Adjusted Cash Balance = Total Cash Balance - Unreconciled Deposits + Unreconciled Checks
   const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
   const totalPayments = payments.reduce((sum, p) => sum + p.amount, 0);
-  const bookBalance = beginningBalance + totalDeposits - totalPayments;
-  const adjustedBalance = bookBalance - unclearedDepositsTotal + unclearedPaymentsTotal;
+  const totalCashBalance = beginningBalance + totalDeposits - totalPayments;
+  const adjustedBalance = totalCashBalance - unclearedDepositsTotal + unclearedPaymentsTotal;
   
   // Balanced when Cleared Balance = Adjusted Cash Balance
-  const isBalanced = endingBalance !== null && Math.abs(clearedBalance - adjustedBalance) < 0.01;
-  const difference = endingBalance !== null ? clearedBalance - endingBalance : 0;
+  const isBalanced = Math.abs(clearedBalance - adjustedBalance) < 0.01;
+  const outOfBalanceAmount = clearedBalance - adjustedBalance;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -626,25 +626,29 @@ export default function Reconcile() {
                 {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
               
-              <Collapsible>
+              <Collapsible defaultOpen>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-full justify-between">
-                    View Calculation Details
+                    {!isBalanced ? 'View Calculation Details' : 'Hide Details'}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Bank Statement Balance on Start Date</span>
+                    <span className="text-muted-foreground">Bank Statement Balance on start date</span>
                     <span className="font-medium">{formatCurrency(beginningBalance)}</span>
                   </div>
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">(+) Cleared Deposits and Other Increases</span>
+                    <span className="text-muted-foreground">(+) Cleared Deposits and other Increases</span>
                     <span className="font-medium">{formatCurrency(clearedDepositsTotal)}</span>
                   </div>
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">(−) Cleared Checks and Other Decreases</span>
+                    <span className="text-muted-foreground">(−) Cleared Checks and other decreases</span>
                     <span className="font-medium">{formatCurrency(clearedPaymentsTotal)}</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">(−) Cleared ACH batches and reversals</span>
+                    <span className="font-medium">$0.00</span>
                   </div>
                   <Separator className="my-2" />
                   <div className="flex justify-between py-1 font-semibold">
@@ -652,9 +656,9 @@ export default function Reconcile() {
                     <span>{formatCurrency(clearedBalance)}</span>
                   </div>
                   {!isBalanced && (
-                    <div className="flex justify-between py-1 text-destructive font-semibold">
+                    <div className="flex justify-between py-1 text-destructive font-semibold mt-2">
                       <span>Out of Balance:</span>
-                      <span>{formatCurrency(Math.abs(clearedBalance - adjustedBalance))}</span>
+                      <span>{formatCurrency(Math.abs(outOfBalanceAmount))}</span>
                     </div>
                   )}
                 </CollapsibleContent>
@@ -671,17 +675,17 @@ export default function Reconcile() {
                 {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
               
-              <Collapsible>
+              <Collapsible defaultOpen>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-full justify-between">
-                    View Calculation Details
+                    {!isBalanced ? 'View Calculation Details' : 'Hide Details'}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Total Cash Balance (Books)</span>
-                    <span className="font-medium">{formatCurrency(bookBalance)}</span>
+                    <span className="text-muted-foreground">Total Cash Balance</span>
+                    <span className="font-medium">{formatCurrency(totalCashBalance)}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(−) Unreconciled Deposits</span>
