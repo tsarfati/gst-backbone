@@ -26,10 +26,10 @@ serve(async (req) => {
     // Get all time cards for the company (optionally filtered by jobs)
     let query = supabaseClient
       .from('time_cards')
-      .select('*, jobs!inner(shift_start_time, shift_end_time, count_early_punch_in, early_punch_in_grace_minutes, count_late_punch_out, late_punch_out_grace_minutes)')
+      .select('*')
       .eq('company_id', company_id)
       .not('punch_out_time', 'is', null)
-      .not('deleted_at', 'is', null)
+      .is('deleted_at', null)
 
     if (job_ids && job_ids.length > 0) {
       query = query.in('job_id', job_ids)
@@ -38,6 +38,20 @@ serve(async (req) => {
     const { data: timeCards, error: fetchError } = await query
 
     if (fetchError) throw fetchError
+    
+    // Get unique job IDs from time cards
+    const uniqueJobIds = [...new Set(timeCards?.map(tc => tc.job_id).filter(Boolean))]
+    
+    // Fetch job settings for all jobs
+    const { data: jobs, error: jobsError } = await supabaseClient
+      .from('jobs')
+      .select('id, shift_start_time, shift_end_time, count_early_punch_in, early_punch_in_grace_minutes, count_late_punch_out, late_punch_out_grace_minutes')
+      .in('id', uniqueJobIds)
+    
+    if (jobsError) throw jobsError
+    
+    // Create a map for quick job lookup
+    const jobsMap = new Map(jobs?.map(job => [job.id, job]) || [])
 
     let updatedCount = 0
     const errors: any[] = []
@@ -45,7 +59,9 @@ serve(async (req) => {
     // Process each time card
     for (const card of timeCards || []) {
       try {
-        const job = card.jobs
+        if (!card.job_id) continue
+        const job = jobsMap.get(card.job_id)
+        if (!job) continue
         const punchInTime = new Date(card.punch_in_time)
         const punchOutTime = new Date(card.punch_out_time)
 

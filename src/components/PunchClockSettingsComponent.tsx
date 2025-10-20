@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, MapPin, Camera, Save, Bell, Shield, Users } from 'lucide-react';
+import { Clock, MapPin, Camera, Save, Bell, Shield, Users, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -108,6 +108,7 @@ export default function PunchClockSettingsComponent() {
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
@@ -240,6 +241,46 @@ export default function PunchClockSettingsComponent() {
       ...prev,
       [key]: value
     }));
+  };
+
+  const handleRecalculate = async () => {
+    if (!currentCompany) return;
+
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'controller';
+    if (!isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only admins and controllers can recalculate time cards",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      
+      const { data, error } = await supabase.functions.invoke('recalculate-timecards', {
+        body: {
+          company_id: currentCompany.id
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Recalculated ${data.updated_count} of ${data.total_processed} time cards`,
+      });
+    } catch (error: any) {
+      console.error('Recalculation error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to recalculate time cards",
+        variant: "destructive",
+      });
+    } finally {
+      setRecalculating(false);
+    }
   };
 
   if (loading) {
@@ -639,6 +680,25 @@ export default function PunchClockSettingsComponent() {
               </div>
             </CardContent>
           </Card>
+
+          <div className="flex gap-4">
+            <Button onClick={saveSettings} disabled={saving} className="flex-1">
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Settings'}
+            </Button>
+            
+            {(profile?.role === 'admin' || profile?.role === 'controller') && (
+              <Button 
+                onClick={handleRecalculate}
+                disabled={recalculating}
+                variant="outline"
+                className="flex-1"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? 'Recalculating...' : 'Recalculate Time Cards'}
+              </Button>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="employees" className="space-y-6">
