@@ -29,6 +29,17 @@ interface Account {
   normal_balance: string;
 }
 
+interface Job {
+  id: string;
+  name: string;
+}
+
+interface CostCode {
+  id: string;
+  code: string;
+  description: string;
+}
+
 interface JournalEntryLine {
   line_type: 'controller' | 'job';
   account_id: string;
@@ -43,23 +54,62 @@ export default function JournalEntries() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [costCodes, setCostCodes] = useState<Record<string, CostCode[]>>({});
   const [lines, setLines] = useState<JournalEntryLine[]>([
     { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' },
     { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
   ]);
 
   useEffect(() => {
-    const loadAccounts = async () => {
-      const { data } = await supabase
+    const loadData = async () => {
+      // Get current company
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: companyData } = await supabase
+        .from('user_company_access')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (!companyData) return;
+
+      // Load jobs for this company
+      const { data: jobsData } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', companyData.company_id)
+        .eq('status', 'active')
+        .order('name');
+      setJobs(jobsData || []);
+
+      // Load expense accounts for this company
+      const { data: accountsData } = await supabase
         .from('chart_of_accounts')
         .select('id, account_number, account_name, account_type, normal_balance')
+        .eq('company_id', companyData.company_id)
         .eq('is_active', true)
         .eq('account_type', 'Expense')
         .order('account_number');
-      setAccounts(data || []);
+      setAccounts(accountsData || []);
     };
-    loadAccounts();
+    loadData();
   }, []);
+
+  const loadCostCodesForJob = async (jobId: string) => {
+    if (costCodes[jobId]) return;
+
+    const { data } = await supabase
+      .from('cost_codes')
+      .select('id, code, description')
+      .eq('job_id', jobId)
+      .eq('is_active', true)
+      .order('code');
+    
+    setCostCodes(prev => ({ ...prev, [jobId]: data || [] }));
+  };
 
   const addLine = () => {
     setLines(prev => [
@@ -74,6 +124,11 @@ export default function JournalEntries() {
       next[index] = { ...next[index], ...updates } as JournalEntryLine;
       return next;
     });
+  };
+
+  const removeLine = (index: number) => {
+    if (lines.length <= 2) return;
+    setLines(prev => prev.filter((_, i) => i !== index));
   };
 
   const journalEntries: any[] = [];
@@ -126,57 +181,69 @@ export default function JournalEntries() {
             {lines.map((line, index) => (
               <div key={index} className="border rounded-lg p-4">
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                  <div>
-                    <Label>Account Type</Label>
+                  <div className="md:col-span-2">
+                    <Label>Job/Control</Label>
                     <Select 
-                      value={line.line_type}
-                      onValueChange={(value: 'controller' | 'job') =>
-                        updateLine(index, {
-                          line_type: value,
-                          job_id: value === 'controller' ? undefined : line.job_id,
-                          cost_code_id: value === 'controller' ? undefined : line.cost_code_id,
-                          account_id: value === 'job' ? '' : line.account_id,
-                        })
-                      }
+                      value={line.line_type === 'job' && line.job_id ? `job-${line.job_id}` : line.account_id}
+                      onValueChange={(value) => {
+                        if (value.startsWith('job-')) {
+                          const jobId = value.replace('job-', '');
+                          updateLine(index, {
+                            line_type: 'job',
+                            job_id: jobId,
+                            account_id: '',
+                            cost_code_id: undefined
+                          });
+                          loadCostCodesForJob(jobId);
+                        } else {
+                          updateLine(index, {
+                            line_type: 'controller',
+                            account_id: value,
+                            job_id: undefined,
+                            cost_code_id: undefined
+                          });
+                        }
+                      }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Select job or account" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="controller">Controller</SelectItem>
-                        <SelectItem value="job">Job</SelectItem>
+                        {jobs.map((job) => (
+                          <SelectItem key={`job-${job.id}`} value={`job-${job.id}`}>
+                            {job.name}
+                          </SelectItem>
+                        ))}
+                        {jobs.length > 0 && accounts.length > 0 && (
+                          <SelectItem value="divider" disabled>──────────</SelectItem>
+                        )}
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={account.id}>
+                            {account.account_number} - {account.account_name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {line.line_type === 'controller' ? (
-                    <div className="md:col-span-2">
-                      <Label>Expense Account</Label>
+                  {line.line_type === 'job' && line.job_id && (
+                    <div>
+                      <Label>Cost Code</Label>
                       <Select
-                        value={line.account_id}
-                        onValueChange={(value) => updateLine(index, { account_id: value })}
+                        value={line.cost_code_id || ''}
+                        onValueChange={(value) => updateLine(index, { cost_code_id: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select expense account" />
+                          <SelectValue placeholder="Select cost code" />
                         </SelectTrigger>
                         <SelectContent>
-                          {accounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.account_number} - {account.account_name}
+                          {(costCodes[line.job_id] || []).map((code) => (
+                            <SelectItem key={code.id} value={code.id}>
+                              {code.code} - {code.description}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                  ) : (
-                    <div className="md:col-span-2">
-                      <AccountingJobCostSelector
-                        selectedJobId={line.job_id}
-                        selectedCostCodeId={line.cost_code_id}
-                        onJobChange={(jobId) => updateLine(index, { job_id: jobId })}
-                        onCostCodeChange={(costCodeId) => updateLine(index, { cost_code_id: costCodeId })}
-                        showCreateButton={false}
-                      />
                     </div>
                   )}
 
@@ -203,6 +270,17 @@ export default function JournalEntries() {
                       onChange={(e) => updateLine(index, { description: e.target.value })}
                       placeholder="Line description"
                     />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeLine(index)}
+                      disabled={lines.length <= 2}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
