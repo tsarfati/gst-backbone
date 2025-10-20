@@ -184,9 +184,9 @@ export default function PaymentDetails() {
             )
           `)
           .eq("id", paymentData.journal_entry_id)
-          .single();
+          .maybeSingle();
 
-        if (!jeError) {
+        if (!jeError && jeData) {
           journalEntry = jeData;
           // Sort lines by line_order
           journalEntry.lines.sort((a: any, b: any) => a.line_order - b.line_order);
