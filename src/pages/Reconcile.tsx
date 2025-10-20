@@ -176,14 +176,7 @@ export default function Reconcile() {
       // Load all payments for this bank account
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
-        .select(`
-          id,
-          payment_date,
-          payment_number,
-          amount,
-          payment_method,
-          invoices(vendor_id, vendors(name))
-        `)
+        .select("id, payment_date, payment_number, amount, payment_method, status, bank_account_id")
         .eq("bank_account_id", accountId)
         .order("payment_date", { ascending: false });
 
@@ -236,9 +229,7 @@ export default function Reconcile() {
         .map((p: any) => ({
           id: p.id,
           date: p.payment_date,
-          description: p.invoices?.vendors?.name 
-            ? `Payment to ${p.invoices.vendors.name}`
-            : `${p.payment_method || 'Payment'} - ${p.payment_number || 'No reference'}`,
+          description: `${p.payment_method || 'Payment'} - ${p.payment_number || 'No reference'}`,
           reference: p.payment_number || '',
           amount: p.amount,
           type: 'payment' as const,
@@ -757,9 +748,10 @@ export default function Reconcile() {
                 {filteredPayments.map((payment) => (
                   <TableRow 
                     key={payment.id}
-                    className={payment.is_cleared ? "bg-green-50" : ""}
+                    onClick={() => navigate(`/payables/payments/${payment.id}`)}
+                    className={(payment.is_cleared ? "bg-green-50 " : "") + "cursor-pointer hover:bg-accent"}
                   >
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={payment.is_cleared}
                         onCheckedChange={() => handleToggleCleared(payment.id, 'payment')}
