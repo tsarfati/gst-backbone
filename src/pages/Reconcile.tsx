@@ -14,7 +14,8 @@ import {
   TrendingUp,
   TrendingDown,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Upload
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -65,6 +66,7 @@ export default function Reconcile() {
   const [endingDate, setEndingDate] = useState<Date>(new Date());
   const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
+  
   // Bank statement upload state
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementUploading, setStatementUploading] = useState(false);
@@ -132,10 +134,11 @@ export default function Reconcile() {
   };
 
   const loadTransactions = async () => {
-    if (!accountId || !currentCompany) return;
+    if (!accountId || !currentCompany || !account?.chart_account_id) return;
     
     try {
       setLoading(true);
+      console.log("Loading transactions for account:", accountId, "chart account:", account.chart_account_id);
       
       // Get IDs of completed reconciliations for this account
       const { data: reconciliations, error: recError } = await supabase
@@ -170,7 +173,7 @@ export default function Reconcile() {
         );
       }
       
-      // Load all payments (debits/checks) for this bank account
+      // Load all payments for this bank account
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
         .select(`
@@ -185,8 +188,9 @@ export default function Reconcile() {
         .order("payment_date", { ascending: false });
 
       if (paymentsError) throw paymentsError;
+      console.log("Payments loaded:", paymentsData?.length || 0);
 
-      // Load withdrawals (credits) from journal entries (e.g., wires)
+      // Load withdrawals (debits to cash account) from journal entries (e.g., wires)
       const { data: withdrawalsJournalData, error: withdrawalsJournalError } = await supabase
         .from("journal_entry_lines")
         .select(`
@@ -199,13 +203,14 @@ export default function Reconcile() {
             reference
           )
         `)
-        .eq("account_id", account?.chart_account_id)
+        .eq("account_id", account.chart_account_id)
         .gt("credit_amount", 0)
         .order("journal_entries.entry_date", { ascending: false });
 
       if (withdrawalsJournalError) throw withdrawalsJournalError;
+      console.log("Journal withdrawals loaded:", withdrawalsJournalData?.length || 0);
 
-      // Load deposits (credits) from journal entries
+      // Load deposits (debits to cash account) from journal entries
       const { data: depositsData, error: depositsError } = await supabase
         .from("journal_entry_lines")
         .select(`
@@ -218,11 +223,12 @@ export default function Reconcile() {
             reference
           )
         `)
-        .eq("account_id", account?.chart_account_id)
+        .eq("account_id", account.chart_account_id)
         .gt("debit_amount", 0)
         .order("journal_entries.entry_date", { ascending: false });
 
       if (depositsError) throw depositsError;
+      console.log("Journal deposits loaded:", depositsData?.length || 0);
 
       // Format payments and filter out already reconciled ones
       const apPayments: Transaction[] = (paymentsData || [])
@@ -252,6 +258,7 @@ export default function Reconcile() {
         }));
 
       const formattedPayments: Transaction[] = [...apPayments, ...journalPayments];
+      console.log("Total payments:", formattedPayments.length);
 
       // Format deposits and filter out already reconciled ones
       const formattedDeposits: Transaction[] = (depositsData || [])
@@ -265,6 +272,8 @@ export default function Reconcile() {
           type: 'deposit' as const,
           is_cleared: false
         }));
+
+      console.log("Total deposits:", formattedDeposits.length);
 
       setPayments(formattedPayments);
       setDeposits(formattedDeposits);
@@ -329,6 +338,8 @@ export default function Reconcile() {
     } finally {
       setStatementUploading(false);
     }
+  };
+
   const handleToggleCleared = (id: string, type: 'deposit' | 'payment') => {
     if (type === 'deposit') {
       setDeposits(prev => prev.map(d => 
@@ -340,6 +351,7 @@ export default function Reconcile() {
       ));
     }
   };
+
   const handleSaveReconciliation = async () => {
     if (!currentCompany || !accountId || !user || endingBalance === null) {
       toast.error("Please fill in all required fields");
@@ -540,26 +552,43 @@ export default function Reconcile() {
         </CardContent>
       </Card>
 
-      {/* Bank Statement (optional) */}
+      {/* Bank Statement Upload */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Bank Statement (optional)</CardTitle>
+          <CardTitle>Bank Statement (Optional)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row items-start md:items-end gap-3">
             <div className="space-y-2 w-full md:w-auto">
-              <Label htmlFor="statementUpload">Attach statement PDF</Label>
-              <Input id="statementUpload" type="file" accept=".pdf" onChange={handleStatementFileChange} />
+              <Label htmlFor="statementUpload">Attach Statement PDF</Label>
+              <Input 
+                id="statementUpload" 
+                type="file" 
+                accept=".pdf" 
+                onChange={handleStatementFileChange}
+              />
             </div>
-            <Button onClick={handleUploadStatement} disabled={!statementFile || statementUploading}>
-              {statementUploading ? 'Uploading…' : 'Upload'}
+            <Button 
+              onClick={handleUploadStatement} 
+              disabled={!statementFile || statementUploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {statementUploading ? 'Uploading...' : 'Upload Statement'}
             </Button>
-            {uploadedStatementName && uploadedStatementUrl && (
-              <a href={uploadedStatementUrl} target="_blank" rel="noreferrer" className="underline text-primary">
-                View "{uploadedStatementName}"
-              </a>
-            )}
           </div>
+          {uploadedStatementName && uploadedStatementUrl && (
+            <div className="mt-3 p-3 border rounded bg-accent">
+              <p className="text-sm font-medium">Statement Attached:</p>
+              <a 
+                href={uploadedStatementUrl} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-sm underline text-primary hover:text-primary/80"
+              >
+                {uploadedStatementName}
+              </a>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground mt-2">
             The uploaded statement will be attached to this reconciliation and listed under Bank Statements.
           </p>
