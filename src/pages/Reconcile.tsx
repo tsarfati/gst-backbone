@@ -61,6 +61,7 @@ export default function Reconcile() {
   const [searchPayments, setSearchPayments] = useState("");
   const [depositsExpanded, setDepositsExpanded] = useState(true);
   const [paymentsExpanded, setPaymentsExpanded] = useState(true);
+  const [calculationsExpanded, setCalculationsExpanded] = useState(true);
   
   // Reconciliation state
   const [beginningBalance, setBeginningBalance] = useState(0);
@@ -641,6 +642,17 @@ export default function Reconcile() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Ending Balance Card */}
+            <div className="p-4 border-l-4 rounded border-success bg-success/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</div>
+                  <div className="text-sm font-medium mt-1">Ending Balance</div>
+                </div>
+                <CheckCircle className="h-6 w-6 text-success" />
+              </div>
+            </div>
+
             {/* Cleared Balance Card */}
             <div className={`p-4 border-l-4 rounded ${!isClearedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
               <div className="flex items-center justify-between">
@@ -652,6 +664,7 @@ export default function Reconcile() {
               </div>
             </div>
 
+
             {/* Adjusted Cash Balance Card */}
             <div className={`p-4 border-l-4 rounded ${!isAdjustedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
               <div className="flex items-center justify-between">
@@ -662,29 +675,26 @@ export default function Reconcile() {
                 {!isAdjustedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
             </div>
-
-            {/* Ending Balance Card */}
-            <div className={`p-4 border-l-4 rounded ${endingBalance === null ? 'border-muted bg-muted/20' : isClearedBalanced && isAdjustedBalanced ? 'border-success bg-success/20' : 'border-destructive bg-destructive/20'}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-bold">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</div>
-                  <div className="text-sm font-medium mt-1">Ending Balance</div>
-                </div>
-                {endingBalance === null ? <XCircle className="h-6 w-6 text-muted-foreground" /> : isClearedBalanced && isAdjustedBalanced ? <CheckCircle className="h-6 w-6 text-success" /> : <XCircle className="h-6 w-6 text-destructive" />}
-              </div>
-            </div>
           </div>
 
+
           {/* Shared Expand Section */}
-          <Collapsible defaultOpen>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-between">
-                View Calculation Details
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Collapsible open={calculationsExpanded} onOpenChange={setCalculationsExpanded}>
+            <CollapsibleContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                {/* Ending Balance Details */}
+                <div className="space-y-2 text-sm">
+                  <div className="font-semibold mb-3">Ending Balance</div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-muted-foreground">Ending Balance (from statement)</span>
+                    <span className="font-medium">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="text-xs text-muted-foreground mt-2">
+                    This is the ending balance from your bank statement on {format(endingDate, 'MM/dd/yyyy')}.
+                  </div>
+                </div>
+
                 {/* Cleared Balance Details */}
                 <div className="space-y-2 text-sm">
                   <div className="font-semibold mb-3">Cleared Balance</div>
@@ -773,21 +783,15 @@ export default function Reconcile() {
                     </div>
                   )}
                 </div>
-
-                {/* Ending Balance Details */}
-                <div className="space-y-2 text-sm">
-                  <div className="font-semibold mb-3">Ending Balance</div>
-                  <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Ending Balance (from statement)</span>
-                    <span className="font-medium">{endingBalance !== null ? formatCurrency(endingBalance) : '--'}</span>
-                  </div>
-                  <Separator className="my-2" />
-                  <div className="text-xs text-muted-foreground mt-2">
-                    This is the ending balance from your bank statement on {format(endingDate, 'MM/dd/yyyy')}.
-                  </div>
-                </div>
               </div>
             </CollapsibleContent>
+            
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="w-auto mx-auto block mt-4">
+                {calculationsExpanded ? 'Hide Calculation Details' : 'View Calculation Details'}
+                {calculationsExpanded ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
           </Collapsible>
           
           <div className="mt-4 flex justify-end gap-2">
