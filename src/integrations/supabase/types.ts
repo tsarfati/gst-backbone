@@ -92,6 +92,7 @@ export type Database = {
           account_number: string | null
           account_type: string
           balance_date: string | null
+          bank_fee_account_id: string | null
           bank_name: string
           chart_account_id: string | null
           company_id: string
@@ -110,6 +111,7 @@ export type Database = {
           account_number?: string | null
           account_type: string
           balance_date?: string | null
+          bank_fee_account_id?: string | null
           bank_name: string
           chart_account_id?: string | null
           company_id: string
@@ -128,6 +130,7 @@ export type Database = {
           account_number?: string | null
           account_type?: string
           balance_date?: string | null
+          bank_fee_account_id?: string | null
           bank_name?: string
           chart_account_id?: string | null
           company_id?: string
@@ -142,6 +145,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bank_accounts_bank_fee_account_id_fkey"
+            columns: ["bank_fee_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bank_accounts_chart_account_id_fkey"
             columns: ["chart_account_id"]
@@ -2671,6 +2681,7 @@ export type Database = {
         Row: {
           amount: number
           bank_account_id: string | null
+          bank_fee: number | null
           check_number: string | null
           created_at: string
           created_by: string
@@ -2689,6 +2700,7 @@ export type Database = {
         Insert: {
           amount: number
           bank_account_id?: string | null
+          bank_fee?: number | null
           check_number?: string | null
           created_at?: string
           created_by: string
@@ -2707,6 +2719,7 @@ export type Database = {
         Update: {
           amount?: number
           bank_account_id?: string | null
+          bank_fee?: number | null
           check_number?: string | null
           created_at?: string
           created_by?: string

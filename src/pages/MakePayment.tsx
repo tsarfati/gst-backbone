@@ -68,6 +68,7 @@ interface Payment {
   bank_account_id?: string;
   is_partial_payment?: boolean;
   payment_document_url?: string;
+  bank_fee?: number;
 }
 
 interface CodedReceipt {
@@ -107,10 +108,12 @@ export default function MakePayment() {
     check_number: '',
     bank_account_id: '',
     is_partial_payment: false,
-    payment_document_url: ''
+    payment_document_url: '',
+    bank_fee: 0
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isPartialPayment, setIsPartialPayment] = useState(false);
 
   useEffect(() => {
     if (currentCompany) {
@@ -257,6 +260,21 @@ export default function MakePayment() {
       setPayment(prev => ({ ...prev, vendor_id: vendorId }));
     }
     setSelectedInvoices([]);
+    setIsPartialPayment(false);
+    setPayment(prev => ({ ...prev, amount: 0 }));
+  };
+  
+  const handleInvoiceSelection = (invoiceId: string) => {
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (!invoice) return;
+    
+    setSelectedInvoices([invoiceId]);
+    setPayment(prev => ({ 
+      ...prev, 
+      vendor_id: invoice.vendor_id,
+      amount: isPartialPayment ? prev.amount : invoice.amount
+    }));
+    setSelectedVendor(invoice.vendor_id);
   };
 
   const handleJobChange = (jobId: string) => {
@@ -357,9 +375,11 @@ export default function MakePayment() {
         payment_date: payment.payment_date,
         amount: payment.amount,
         memo: payment.memo,
-        status: 'completed', // Mark as completed instead of draft
+        status: 'completed',
         check_number: payment.check_number,
         bank_account_id: payment.bank_account_id,
+        is_partial_payment: isPartialPayment,
+        bank_fee: payment.bank_fee || 0,
         created_by: user.data.user?.id
       };
 
@@ -397,11 +417,13 @@ export default function MakePayment() {
 
       if (linesError) throw linesError;
 
-      // Update invoice status to paid
-      await supabase
-        .from('invoices')
-        .update({ status: 'paid' })
-        .eq('id', selectedInvoices[0]);
+      // Update invoice status to paid (only if full payment)
+      if (!isPartialPayment) {
+        await supabase
+          .from('invoices')
+          .update({ status: 'paid' })
+          .eq('id', selectedInvoices[0]);
+      }
 
       toast({
         title: "Success",
@@ -573,6 +595,26 @@ export default function MakePayment() {
                 </div>
               )}
 
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="partial_payment"
+                  checked={isPartialPayment}
+                  onCheckedChange={(checked) => {
+                    setIsPartialPayment(!!checked);
+                    if (!checked && selectedInvoices.length > 0) {
+                      const invoice = invoices.find(inv => inv.id === selectedInvoices[0]);
+                      if (invoice) {
+                        setPayment(prev => ({ ...prev, amount: invoice.amount }));
+                      }
+                    }
+                  }}
+                  disabled={selectedInvoices.length === 0}
+                />
+                <Label htmlFor="partial_payment" className="cursor-pointer">
+                  Partial Payment
+                </Label>
+              </div>
+
               <div>
                 <Label htmlFor="amount">Payment Amount</Label>
                 <Input
@@ -581,10 +623,27 @@ export default function MakePayment() {
                   step="0.01"
                   value={payment.amount}
                   onChange={(e) => setPayment(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
-                  disabled={selectedInvoices.length === 0}
-                  className={selectedInvoices.length === 0 ? 'bg-muted' : ''}
+                  disabled={selectedInvoices.length === 0 || !isPartialPayment}
+                  className={selectedInvoices.length === 0 || !isPartialPayment ? 'bg-muted' : ''}
                 />
               </div>
+
+              {['ach', 'wire'].includes(payment.payment_method) && (
+                <div>
+                  <Label htmlFor="bank_fee">Bank Fee (Optional)</Label>
+                  <Input
+                    id="bank_fee"
+                    type="number"
+                    step="0.01"
+                    value={payment.bank_fee || 0}
+                    onChange={(e) => setPayment(prev => ({ ...prev, bank_fee: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter any transaction fee charged by the bank
+                  </p>
+                </div>
+              )}
 
               <div>
                 <Label htmlFor="memo">Memo</Label>
@@ -657,30 +716,22 @@ export default function MakePayment() {
                             if (isSelected) {
                               setSelectedInvoices([]);
                               setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
+                              setIsPartialPayment(false);
                             } else {
-                              setSelectedInvoices([invoice.id]);
-                              setPayment(prev => ({ 
-                                ...prev, 
-                                vendor_id: invoice.vendor_id,
-                                amount: invoice.amount 
-                              }));
+                              handleInvoiceSelection(invoice.id);
                             }
                           }}
                         >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
+                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => {
                                 if (checked) {
-                                  setSelectedInvoices([invoice.id]);
-                                  setPayment(prev => ({ 
-                                    ...prev, 
-                                    vendor_id: invoice.vendor_id,
-                                    amount: invoice.amount 
-                                  }));
+                                  handleInvoiceSelection(invoice.id);
                                 } else {
                                   setSelectedInvoices([]);
                                   setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
+                                  setIsPartialPayment(false);
                                 }
                               }}
                             />
@@ -710,12 +761,26 @@ export default function MakePayment() {
             <CardTitle>Payment Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-between items-center text-lg font-semibold">
-              <span>Total Payment Amount:</span>
-              <span>${payment.amount.toFixed(2)}</span>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-lg font-semibold">
+                <span>Payment Amount:</span>
+                <span>${payment.amount.toFixed(2)}</span>
+              </div>
+              {payment.bank_fee && payment.bank_fee > 0 && (
+                <div className="flex justify-between items-center text-sm text-muted-foreground">
+                  <span>Bank Fee:</span>
+                  <span>${payment.bank_fee.toFixed(2)}</span>
+                </div>
+              )}
+              {payment.bank_fee && payment.bank_fee > 0 && (
+                <div className="flex justify-between items-center text-lg font-bold border-t pt-2">
+                  <span>Total Amount:</span>
+                  <span>${(payment.amount + payment.bank_fee).toFixed(2)}</span>
+                </div>
+              )}
             </div>
             <div className="text-sm text-muted-foreground mt-2">
-              Paying {selectedInvoices.length} invoice(s)
+              {isPartialPayment ? 'Partial payment' : 'Full payment'} for {selectedInvoices.length} invoice(s)
             </div>
           </CardContent>
         </Card>

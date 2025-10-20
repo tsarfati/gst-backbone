@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Building, DollarSign, CreditCard, Save, ArrowLeft, Eye, EyeOff, Calendar } from 'lucide-react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -28,12 +29,38 @@ export default function AddBankAccount() {
     initialBalance: '',
     balanceDate: new Date().toISOString().split('T')[0],
     description: '',
+    bankFeeAccountId: '',
   });
+  
+  const [chartAccounts, setChartAccounts] = useState<Array<{ id: string; account_number: string; account_name: string }>>([]);
   
   const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [showRoutingNumber, setShowRoutingNumber] = useState(false);
   
   const canViewSensitiveData = profile && ['admin', 'controller'].includes(profile.role);
+
+  useEffect(() => {
+    loadChartAccounts();
+  }, [currentCompany]);
+
+  const loadChartAccounts = async () => {
+    if (!currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_number, account_name')
+        .eq('company_id', currentCompany.id)
+        .eq('account_type', 'expense')
+        .eq('is_active', true)
+        .order('account_number');
+      
+      if (error) throw error;
+      setChartAccounts(data || []);
+    } catch (error) {
+      console.error('Error loading chart accounts:', error);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -80,6 +107,7 @@ export default function AddBankAccount() {
           initial_balance: parseFloat(formData.initialBalance) || 0,
           balance_date: formData.balanceDate,
           description: formData.description || null,
+          bank_fee_account_id: formData.bankFeeAccountId || null,
           company_id: currentCompany.id,
           created_by: user.id
         });
@@ -286,6 +314,26 @@ export default function AddBankAccount() {
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 className="min-h-[80px]"
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="bankFeeAccountId">Bank Fee GL Account (Optional)</Label>
+              <Select value={formData.bankFeeAccountId} onValueChange={(value) => handleInputChange('bankFeeAccountId', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select expense account for bank fees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {chartAccounts.map(account => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.account_number} - {account.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select which expense account to use when recording bank fees for ACH or Wire payments
+              </p>
             </div>
           </CardContent>
         </Card>
