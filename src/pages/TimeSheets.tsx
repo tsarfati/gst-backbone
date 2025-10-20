@@ -230,8 +230,8 @@ export default function TimeSheets() {
         .is('job_id', null)
         .maybeSingle();
       
-      const flagOver12 = punchSettings?.flag_timecards_over_12hrs ?? false;
-      const flagOver24 = punchSettings?.flag_timecards_over_24hrs ?? false;
+      const flagOver12 = punchSettings?.flag_timecards_over_12hrs ?? true;
+      const flagOver24 = punchSettings?.flag_timecards_over_24hrs ?? true;
       
       let query = supabase
         .from('time_cards')

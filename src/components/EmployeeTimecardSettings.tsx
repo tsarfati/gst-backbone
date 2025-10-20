@@ -74,21 +74,52 @@ export default function EmployeeTimecardSettings({
       
       const userIds = (companyUsers || []).map((u: any) => u.user_id);
 
-      // Fetch regular profiles and PIN employees in parallel
-      const [profilesData, pinData] = await Promise.all([
-        userIds.length > 0 ? supabase
-          .from('profiles')
-          .select('user_id, display_name, first_name, last_name, role')
-          .in('user_id', userIds) : Promise.resolve({ data: [] }),
+      // Build candidate PIN employee IDs from settings and recent activity (last 21 days)
+      const since = new Date();
+      since.setUTCDate(since.getUTCDate() - 21);
+      const sinceISO = since.toISOString();
+
+      const [pinSettingsRes, tcUsersRes, punchPinsRes] = await Promise.all([
         supabase
-          .from('pin_employees')
-          .select('id, display_name, first_name, last_name, is_active')
+          .from('pin_employee_timecard_settings')
+          .select('pin_employee_id')
+          .eq('company_id', currentCompany.id),
+        supabase
+          .from('time_cards')
+          .select('user_id')
           .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
+          .gte('punch_in_time', sinceISO),
+        supabase
+          .from('punch_records')
+          .select('pin_employee_id')
+          .eq('company_id', currentCompany.id)
+          .gte('punch_time', sinceISO)
+      ]);
+
+      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id).filter(Boolean);
+      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
+
+      // Fetch regular profiles and candidate PIN employees in parallel
+      const [profilesData, pinData] = await Promise.all([
+        userIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('user_id, display_name, first_name, last_name, role')
+              .in('user_id', userIds)
+          : Promise.resolve({ data: [] }),
+        candidatePinIds.length > 0
+          ? supabase
+              .from('pin_employees')
+              .select('id, display_name, first_name, last_name, is_active')
+              .eq('is_active', true)
+              .in('id', candidatePinIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const list: Employee[] = [];
-      
+
       // Add regular profiles
       (profilesData.data || []).forEach((p: any) => {
         list.push({
@@ -102,17 +133,20 @@ export default function EmployeeTimecardSettings({
         });
       });
 
-      // Add PIN employees
+      // Add PIN employees (avoid duplicates)
+      const addedIds = new Set(list.map(e => e.user_id));
       (pinData.data || []).forEach((p: any) => {
-        list.push({
-          id: p.id,
-          user_id: p.id,
-          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
-          first_name: p.first_name || '',
-          last_name: p.last_name || '',
-          role: 'employee',
-          is_pin: true,
-        });
+        if (!addedIds.has(p.id)) {
+          list.push({
+            id: p.id,
+            user_id: p.id,
+            display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
+            first_name: p.first_name || '',
+            last_name: p.last_name || '',
+            role: 'employee',
+            is_pin: true,
+          });
+        }
       });
 
       list.sort((a, b) => a.display_name.localeCompare(b.display_name));
