@@ -469,9 +469,11 @@ export default function Reconcile() {
   const totalCashBalance = beginningBalance + totalDeposits - totalPayments;
   const adjustedBalance = totalCashBalance - unclearedDepositsTotal + unclearedPaymentsTotal;
   
-  // Balanced when Cleared Balance = Adjusted Cash Balance
-  const isBalanced = Math.abs(clearedBalance - adjustedBalance) < 0.01;
-  const outOfBalanceAmount = clearedBalance - adjustedBalance;
+  // Cleared Balance is balanced when it equals the ending balance entered by user
+  const isClearedBalanced = endingBalance !== null && Math.abs(clearedBalance - endingBalance) < 0.01;
+  
+  // Adjusted Cash Balance is balanced when it equals the cleared balance
+  const isAdjustedBalanced = Math.abs(adjustedBalance - clearedBalance) < 0.01;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -617,26 +619,26 @@ export default function Reconcile() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Cleared Balance Card */}
-            <div className={`p-4 border-l-4 rounded ${!isBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
+            <div className={`p-4 border-l-4 rounded ${!isClearedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(clearedBalance)}</div>
                   <div className="text-sm font-medium mt-1">Cleared Balance</div>
                 </div>
-                {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
+                {!isClearedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
               
               <Collapsible defaultOpen>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-full justify-between">
-                    {!isBalanced ? 'View Calculation Details' : 'Hide Details'}
+                    {!isClearedBalanced ? 'View Calculation Details' : 'Hide Details'}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3 space-y-2 text-sm">
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Book Balance (from app)</span>
-                    <span className="font-medium">{formatCurrency(account?.current_balance || 0)}</span>
+                    <span className="text-muted-foreground">Bank statement Balance on start date</span>
+                    <span className="font-medium">{formatCurrency(beginningBalance)}</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-muted-foreground">(+) Cleared Deposits and other Increases</span>
@@ -655,10 +657,10 @@ export default function Reconcile() {
                     <span>Cleared Balance</span>
                     <span>{formatCurrency(clearedBalance)}</span>
                   </div>
-                  {!isBalanced && (
+                  {!isClearedBalanced && endingBalance !== null && (
                     <div className="flex justify-between py-1 text-destructive font-semibold mt-2">
                       <span>Out of Balance:</span>
-                      <span>{formatCurrency(Math.abs(outOfBalanceAmount))}</span>
+                      <span>{formatCurrency(Math.abs(clearedBalance - endingBalance))}</span>
                     </div>
                   )}
                 </CollapsibleContent>
@@ -666,19 +668,19 @@ export default function Reconcile() {
             </div>
 
             {/* Adjusted Cash Balance Card */}
-            <div className={`p-4 border-l-4 rounded ${!isBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
+            <div className={`p-4 border-l-4 rounded ${!isAdjustedBalanced ? 'border-destructive bg-destructive/20' : 'border-success bg-success/20'}`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-3xl font-bold">{formatCurrency(adjustedBalance)}</div>
                   <div className="text-sm font-medium mt-1">Adjusted Cash Balance</div>
                 </div>
-                {!isBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
+                {!isAdjustedBalanced ? <XCircle className="h-6 w-6 text-destructive" /> : <CheckCircle className="h-6 w-6 text-success" />}
               </div>
               
               <Collapsible defaultOpen>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="w-full justify-between">
-                    {!isBalanced ? 'View Calculation Details' : 'Hide Details'}
+                    {!isAdjustedBalanced ? 'View Calculation Details' : 'Hide Details'}
                     <ChevronDown className="h-4 w-4" />
                   </Button>
                 </CollapsibleTrigger>
@@ -700,7 +702,13 @@ export default function Reconcile() {
                     <span>Total Adjusted Balance</span>
                     <span>{formatCurrency(adjustedBalance)}</span>
                   </div>
-                  {isBalanced && (
+                  {!isAdjustedBalanced && (
+                    <div className="flex justify-between py-1 text-destructive font-semibold mt-2">
+                      <span>Out of Balance:</span>
+                      <span>{formatCurrency(Math.abs(adjustedBalance - clearedBalance))}</span>
+                    </div>
+                  )}
+                  {isAdjustedBalanced && (
                     <div className="text-success font-semibold text-center mt-2">
                       Balanced ✓
                     </div>
