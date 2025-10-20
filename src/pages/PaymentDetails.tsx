@@ -21,6 +21,7 @@ interface PaymentDetails {
   check_number?: string;
   reference?: string;
   created_at: string;
+  created_by: string;
   vendor?: {
     id: string;
     name: string;
@@ -28,6 +29,17 @@ interface PaymentDetails {
   bank_account?: {
     id: string;
     account_name: string;
+  };
+  created_by_user?: {
+    first_name: string;
+    last_name: string;
+  };
+  reconciliation?: {
+    reconciled_at: string;
+    reconciled_by_user?: {
+      first_name: string;
+      last_name: string;
+    };
   };
   journal_entry?: {
     id: string;
@@ -72,7 +84,7 @@ export default function PaymentDetails() {
     try {
       setLoading(true);
 
-      // Fetch payment with vendor and bank account
+      // Fetch payment with vendor, bank account, and created by user
       const { data: paymentData, error: paymentError } = await supabase
         .from("payments")
         .select(`
@@ -81,9 +93,25 @@ export default function PaymentDetails() {
           bank_account:bank_accounts(id, account_name)
         `)
         .eq("id", id)
-        .single();
+        .maybeSingle();
 
       if (paymentError) throw paymentError;
+      if (!paymentData) {
+        toast.error("Payment not found");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch created by user
+      let createdByUser = null;
+      if (paymentData.created_by) {
+        const { data: userData } = await supabase
+          .from("profiles")
+          .select("first_name, last_name")
+          .eq("user_id", paymentData.created_by)
+          .maybeSingle();
+        createdByUser = userData;
+      }
 
       // Fetch associated invoices
       const { data: invoiceLines, error: invoiceError } = await supabase
@@ -99,6 +127,42 @@ export default function PaymentDetails() {
         .eq("payment_id", id);
 
       if (invoiceError) throw invoiceError;
+
+      // Fetch reconciliation info if payment is cleared
+      let reconciliationInfo = null;
+      if (paymentData.status === 'cleared') {
+        const { data: reconData, error: reconError } = await supabase
+          .from("bank_reconciliation_items")
+          .select(`
+            cleared_at,
+            bank_reconciliations!inner(
+              reconciled_at,
+              reconciled_by,
+              status
+            )
+          `)
+          .eq("transaction_id", id)
+          .eq("transaction_type", "payment")
+          .maybeSingle();
+
+        if (!reconError && reconData) {
+          // Fetch reconciled by user
+          let reconciledByUser = null;
+          if (reconData.bank_reconciliations.reconciled_by) {
+            const { data: reconUserData } = await supabase
+              .from("profiles")
+              .select("first_name, last_name")
+              .eq("user_id", reconData.bank_reconciliations.reconciled_by)
+              .maybeSingle();
+            reconciledByUser = reconUserData;
+          }
+          
+          reconciliationInfo = {
+            reconciled_at: reconData.bank_reconciliations.reconciled_at,
+            reconciled_by_user: reconciledByUser,
+          };
+        }
+      }
 
       // Fetch journal entry if exists
       let journalEntry = null;
@@ -131,6 +195,8 @@ export default function PaymentDetails() {
 
       setPayment({
         ...paymentData,
+        created_by_user: createdByUser,
+        reconciliation: reconciliationInfo,
         journal_entry: journalEntry,
         invoices: invoiceLines?.map((line: any) => ({
           id: line.invoice.id,
@@ -379,7 +445,26 @@ export default function PaymentDetails() {
             <div>
               <p className="text-muted-foreground">Created</p>
               <p className="font-medium">{format(new Date(payment.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
+              {payment.created_by_user && (
+                <p className="text-sm text-muted-foreground">
+                  by {payment.created_by_user.first_name} {payment.created_by_user.last_name}
+                </p>
+              )}
             </div>
+            {payment.reconciliation && (
+              <div>
+                <p className="text-muted-foreground">Reconciled</p>
+                <p className="font-medium">
+                  {format(new Date(payment.reconciliation.reconciled_at), "MMM d, yyyy 'at' h:mm a")}
+                </p>
+                {payment.reconciliation.reconciled_by_user && (
+                  <p className="text-sm text-muted-foreground">
+                    by {payment.reconciliation.reconciled_by_user.first_name}{" "}
+                    {payment.reconciliation.reconciled_by_user.last_name}
+                  </p>
+                )}
+              </div>
+            )}
             {payment.reference && (
               <div>
                 <p className="text-muted-foreground">Reference</p>
