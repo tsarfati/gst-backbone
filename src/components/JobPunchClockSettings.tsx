@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Building2, Clock, Save, MapPin } from 'lucide-react';
+import { Building2, Clock, Save, MapPin, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -84,8 +84,10 @@ export default function JobPunchClockSettings() {
   const [settings, setSettings] = useState<JobSettings>(defaultJobSettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'controller';
 
   useEffect(() => {
     if (currentCompany) {
@@ -221,14 +223,57 @@ export default function JobPunchClockSettings() {
     );
   }
 
+  const handleRecalculate = async () => {
+    if (!currentCompany || !selectedJobId) return;
+
+    setRecalculating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('recalculate-timecards', {
+        body: {
+          company_id: currentCompany.id,
+          job_ids: [selectedJobId]
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Recalculation Complete',
+        description: `Updated ${data.updated_count} of ${data.total_processed} time cards based on current shift rules.`,
+      });
+    } catch (error: any) {
+      console.error('Recalculation error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to recalculate time cards',
+        variant: 'destructive',
+      });
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Select Job
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Select Job
+            </CardTitle>
+            {isAdmin && selectedJobId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRecalculate}
+                disabled={recalculating}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? 'Recalculating...' : 'Recalculate Time Cards'}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Label>Job</Label>
