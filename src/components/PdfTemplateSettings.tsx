@@ -824,24 +824,97 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="commitment" className="space-y-6">
+              {/* Template Presets */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Layout className="h-4 w-4" />
-                    Commitment Status Report Template
+                    Choose a Template Preset
                   </CardTitle>
-                  <CardDescription>Customize the template for commitment status reports</CardDescription>
+                  <CardDescription>Start with a professionally designed template for commitment status reports</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Configure the PDF template for commitment status reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{job_name}'}</code>, <code className="text-xs">{'{contract_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>
-                      </AlertDescription>
-                    </Alert>
-                    <p className="text-sm text-muted-foreground">Template settings for commitment status reports coming soon...</p>
+                  <Select value={selectedPreset} onValueChange={applyPreset}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                        <SelectItem key={key} value={key}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Configure the PDF template for commitment status reports. Available variables: <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{job_name}'}</code>, <code className="text-xs">{'{contract_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>, <code className="text-xs">{'{total_commit}'}</code>, <code className="text-xs">{'{contract_balance}'}</code>
+                </AlertDescription>
+              </Alert>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Template Configuration</CardTitle>
+                  <CardDescription>Customize how commitment status reports are generated</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="commitment-font">Font Family</Label>
+                      <Select value={commitmentTemplate.font_family} onValueChange={(value) => setCommitmentTemplate({ ...commitmentTemplate, font_family: value })}>
+                        <SelectTrigger id="commitment-font">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="helvetica">Helvetica</SelectItem>
+                          <SelectItem value="times">Times New Roman</SelectItem>
+                          <SelectItem value="courier">Courier</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="commitment-primary-color">Primary Color</Label>
+                      <Input
+                        id="commitment-primary-color"
+                        type="color"
+                        value={commitmentTemplate.primary_color || '#1e40af'}
+                        onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, primary_color: e.target.value })}
+                      />
+                    </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="commitment-header">Header HTML</Label>
+                    <Textarea
+                      id="commitment-header"
+                      value={commitmentTemplate.header_html || ''}
+                      onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, header_html: e.target.value })}
+                      rows={6}
+                      placeholder="Enter HTML for header..."
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="commitment-footer">Footer HTML</Label>
+                    <Textarea
+                      id="commitment-footer"
+                      value={commitmentTemplate.footer_html || ''}
+                      onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, footer_html: e.target.value })}
+                      rows={6}
+                      placeholder="Enter HTML for footer..."
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <Button onClick={() => saveTemplate(commitmentTemplate)} disabled={loading}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {loading ? 'Saving...' : 'Save Commitment Template'}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

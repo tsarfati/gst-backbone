@@ -73,6 +73,7 @@ import ThemeSettings from "./pages/ThemeSettings";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
+import EmailTemplatePreview from "./pages/EmailTemplatePreview";
 import ReceiptReports from "./pages/ReceiptReports";
 import AddSubcontract from "./pages/AddSubcontract";
 import AddPurchaseOrder from "./pages/AddPurchaseOrder";
@@ -222,6 +223,7 @@ function AuthenticatedRoutes() {
                 <Route path="settings/company-management" element={<CompanyManagement />} />
                 <Route path="settings/notifications" element={<NotificationSettings />} />
                 <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
+                <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
                 <Route path="settings/security" element={<SecuritySettings />} />
                 <Route path="theme-settings" element={<ThemeSettings />} />
                 
