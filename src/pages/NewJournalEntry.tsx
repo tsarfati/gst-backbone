@@ -120,7 +120,7 @@ export default function NewJournalEntry() {
       billable_amount: 0,
       line_order: lines.length + 1
     };
-    setLines([...lines, newLine]);
+    setLines((prev) => [...prev, newLine]);
   };
 
   const removeLine = (index: number) => {
@@ -152,8 +152,42 @@ export default function NewJournalEntry() {
   };
 
   const handleSave = async () => {
+    // Validate minimum lines
+    if (lines.length < 2) {
+      toast({
+        title: "Entry Needs Two Lines",
+        description: "A journal entry must have at least 2 lines.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate each line requirements
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const displayIndex = i + 1;
+      if (line.line_type === 'controller') {
+        if (!line.account_id) {
+          toast({
+            title: `Line ${displayIndex}: Missing account`,
+            description: "Select an account for controller lines.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        if (!line.job_id || !line.cost_code_id) {
+          toast({
+            title: `Line ${displayIndex}: Select job and cost code`,
+            description: "Job lines require both a job and a cost code.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     const { totalDebits, totalCredits, difference } = calculateTotals();
-    
     if (Math.abs(difference) > 0.01) {
       toast({
         title: "Unbalanced Entry",
