@@ -23,13 +23,6 @@ export function useSearchIndex() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Build index on mount if user is available and index is empty
-  useEffect(() => {
-    if (user && indexedItems.length === 0) {
-      buildSearchIndex();
-    }
-  }, [user]);
-
   const buildSearchIndex = useCallback(async () => {
     if (!user) return;
     
@@ -233,6 +226,13 @@ export function useSearchIndex() {
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
   }, [indexedItems]);
+
+  // Build index on mount if user is available and index is empty
+  useEffect(() => {
+    if (user && indexedItems.length === 0) {
+      buildSearchIndex();
+    }
+  }, [user, buildSearchIndex, indexedItems.length]);
 
   return {
     isIndexing,

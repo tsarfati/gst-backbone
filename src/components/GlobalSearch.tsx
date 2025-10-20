@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -7,6 +7,7 @@ import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase, Zap, 
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSearchIndex, SearchIndexItem } from '@/hooks/useSearchIndex';
+import { Separator } from '@/components/ui/separator';
 
 const getIconForType = (type: string) => {
   switch (type) {
@@ -45,19 +46,32 @@ export default function GlobalSearch() {
     setSearchQuery('');
   };
 
-  const getTypeColor = (type: string) => {
+  const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'receipt': return 'text-green-600';
-      case 'job': return 'text-blue-600';
-      case 'vendor': return 'text-purple-600';
-      case 'employee': return 'text-orange-600';
-      case 'announcement': return 'text-red-600';
-      case 'action': return 'text-yellow-600';
-      case 'report': return 'text-cyan-600';
-      case 'page': return 'text-gray-600';
-      default: return 'text-gray-600';
+      case 'receipt': return 'Receipts';
+      case 'job': return 'Jobs';
+      case 'vendor': return 'Vendors';
+      case 'employee': return 'Employees';
+      case 'announcement': return 'Announcements';
+      case 'action': return 'Tasks';
+      case 'report': return 'Reports';
+      case 'page': return 'Pages';
+      default: return 'Other';
     }
   };
+
+  // Group results by type
+  const groupedResults = useMemo(() => {
+    const groups: Record<string, SearchIndexItem[]> = {};
+    filteredResults.forEach((result) => {
+      const typeLabel = getTypeLabel(result.type);
+      if (!groups[typeLabel]) {
+        groups[typeLabel] = [];
+      }
+      groups[typeLabel].push(result);
+    });
+    return groups;
+  }, [filteredResults]);
 
   // Keyboard shortcut to focus search
   useEffect(() => {
@@ -84,51 +98,60 @@ export default function GlobalSearch() {
           </kbd>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-96 p-0" align="start">
+      <PopoverContent className="w-[600px] p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput
-            ref={inputRef}
-            placeholder="Search anything: data, actions, reports..."
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            className="border-none focus:ring-0"
-          />
-          <CommandList>
+          <div className="flex items-center border-b px-3">
+            <Search className="h-4 w-4 shrink-0 opacity-50" />
+            <input
+              ref={inputRef}
+              placeholder="Search anything: data, actions, reports..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex h-11 w-full rounded-md bg-transparent py-3 px-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+          <CommandList className="max-h-[400px]">
             {!searchQuery.trim() ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 Start typing to search across your workspace
               </div>
             ) : filteredResults.length === 0 ? (
-              <CommandEmpty>No results found for "{searchQuery}"</CommandEmpty>
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                No results found for "{searchQuery}"
+              </div>
             ) : (
-              <CommandGroup heading="Results">
-                {filteredResults.slice(0, 5).map((result) => {
-                  const IconComponent = getIconForType(result.type);
-                  return (
-                    <CommandItem
-                      key={result.id}
-                      onSelect={() => handleSelect(result)}
-                      className="cursor-pointer p-3"
-                    >
-                      <div className="flex items-start space-x-3 w-full">
-                        <IconComponent className={`h-5 w-5 mt-0.5 ${getTypeColor(result.type)}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{result.title}</div>
-                          <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{result.description}</div>
-                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-2 ${getTypeColor(result.type)} bg-opacity-10`}>
-                            {result.type}
+              <div className="p-2">
+                <div className="text-sm text-muted-foreground mb-3 px-2">
+                  {filteredResults.length} {filteredResults.length === 1 ? 'Result' : 'Results'}
+                </div>
+                {Object.entries(groupedResults).map(([groupLabel, items]) => (
+                  <div key={groupLabel} className="mb-3">
+                    <div className="bg-primary text-primary-foreground px-3 py-2 font-semibold text-sm rounded-md mb-1">
+                      {groupLabel}
+                    </div>
+                    {items.map((result) => {
+                      const IconComponent = getIconForType(result.type);
+                      return (
+                        <div
+                          key={result.id}
+                          onClick={() => handleSelect(result)}
+                          className="cursor-pointer p-3 hover:bg-accent rounded-md transition-colors"
+                        >
+                          <div className="flex items-start space-x-3">
+                            <IconComponent className="h-5 w-5 mt-0.5 text-primary" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">{result.title}</div>
+                              {result.description && (
+                                <div className="text-xs text-muted-foreground mt-1">{result.description}</div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CommandItem>
-                  );
-                })}
-                {filteredResults.length > 5 && (
-                  <div className="p-2 text-center text-xs text-muted-foreground border-t">
-                    {filteredResults.length - 5} more results...
+                      );
+                    })}
                   </div>
-                )}
-              </CommandGroup>
+                ))}
+              </div>
             )}
           </CommandList>
         </Command>
