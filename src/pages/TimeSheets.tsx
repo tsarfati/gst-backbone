@@ -37,6 +37,8 @@ interface TimeCard {
   punch_in_location_lng?: number | null;
   punch_out_location_lat?: number | null;
   punch_out_location_lng?: number | null;
+  over_12h?: boolean;
+  over_24h?: boolean;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
@@ -341,13 +343,17 @@ export default function TimeSheets() {
         const employeeData = profile || pinEmployee;
         
         // Check if time card should be flagged
-        const shouldFlag = (flagOver24 && tc.total_hours > 24) || (flagOver12 && tc.total_hours > 12 && tc.total_hours <= 24);
+        const over24 = flagOver24 && tc.total_hours > 24;
+        const over12 = flagOver12 && tc.total_hours > 12 && tc.total_hours <= 24;
+        const shouldFlag = over24 || over12;
 
         return {
           ...tc,
           punch_in_photo_url: tc.punch_in_photo_url,
           punch_out_photo_url: tc.punch_out_photo_url,
           requires_approval: shouldFlag || tc.status === 'pending',
+          over_12h: over12,
+          over_24h: over24,
           jobs: job ? { name: job.name } : null,
           cost_codes: costCode ? { code: costCode.code, description: costCode.description } : null,
           profiles: employeeData ? {
@@ -955,9 +961,17 @@ export default function TimeSheets() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {timeCard.total_hours.toFixed(1)}h
-                          </TableCell>
+<TableCell className="font-medium">
+  <div className="flex items-center gap-2">
+    {timeCard.total_hours.toFixed(1)}h
+    {timeCard.over_24h && (
+      <Badge variant="destructive">24h+</Badge>
+    )}
+    {!timeCard.over_24h && timeCard.over_12h && (
+      <Badge variant="secondary">12h+</Badge>
+    )}
+  </div>
+</TableCell>
                           <TableCell>
                             {timeCard.overtime_hours > 0 ? (
                               <span className="text-warning font-medium">
@@ -1057,15 +1071,17 @@ export default function TimeSheets() {
                          </div>
                        </div>
                        <div className="text-right space-y-2">
-                         <div className="font-bold text-xl flex items-center gap-2">
-                           <Clock className="h-5 w-5" />
-                           {timeCard.total_hours.toFixed(1)} hrs
-                         </div>
-                         {timeCard.overtime_hours > 0 && (
-                           <div className="text-sm text-warning font-medium">
-                             +{timeCard.overtime_hours.toFixed(1)} OT
-                           </div>
-                         )}
+<div className="font-bold text-xl flex items-center gap-2">
+  <Clock className="h-5 w-5" />
+  {timeCard.total_hours.toFixed(1)} hrs
+  {timeCard.over_24h && (<Badge variant="destructive" className="text-xs">24h+</Badge>)}
+  {!timeCard.over_24h && timeCard.over_12h && (<Badge variant="secondary" className="text-xs">12h+</Badge>)}
+</div>
+{timeCard.overtime_hours > 0 && (
+  <div className="text-sm text-warning font-medium">
+    +{timeCard.overtime_hours.toFixed(1)} OT
+  </div>
+)}
                          <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="ml-auto">
                            {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
                          </Badge>

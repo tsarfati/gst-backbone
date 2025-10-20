@@ -45,6 +45,8 @@ interface TimeCardRecord {
   notes?: string;
   punch_in_location?: string;
   punch_out_location?: string;
+  over_12h?: boolean;
+  over_24h?: boolean;
 }
 
 interface EmployeeGroup {
@@ -491,7 +493,9 @@ export default function TimecardReports() {
         }
         
         // Check if time card should be flagged
-        const shouldFlag = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12 && totalHours <= 24);
+        const over24 = flagOver24 && totalHours > 24;
+        const over12 = flagOver12 && totalHours > 12 && totalHours <= 24;
+        const shouldFlag = over24 || over12;
         let statusWithFlag = record.status;
         if (shouldFlag && statusWithFlag !== 'approved' && statusWithFlag !== 'rejected') {
           statusWithFlag = 'pending';
