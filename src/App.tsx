@@ -56,6 +56,7 @@ import TaskDeadlines from "./pages/TaskDeadlines";
 import BillDetails from "./pages/BillDetails";
 import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
+import PaymentDetails from "./pages/PaymentDetails";
 import PaymentReports from "./pages/PaymentReports";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
@@ -285,7 +286,9 @@ function AuthenticatedRoutes() {
                 <Route path="payables/make-payment" element={<MakePayment />} />
                 <Route path="payables/payment-reports" element={<PaymentReports />} />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
+                <Route path="payables/payments/:id" element={<PaymentDetails />} />
                 <Route path="bills/payments" element={<PaymentHistory />} />
+                <Route path="bills/payments/:id" element={<PaymentDetails />} />
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
                 <Route path="subcontracts" element={<Subcontracts />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />

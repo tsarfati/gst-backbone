@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const getMethodIcon = (method: string) => {
 };
 
 export default function PaymentHistory() {
+  const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
 
@@ -303,10 +305,21 @@ export default function PaymentHistory() {
                 </TableRow>
               ) : (
                 filteredPayments.map((p) => (
-                  <TableRow key={p.id} className="cursor-pointer hover:bg-primary/10">
+                  <TableRow 
+                    key={p.id} 
+                    className="cursor-pointer hover:bg-primary/10"
+                    onClick={() => navigate(`/payables/payments/${p.id}`)}
+                  >
                     <TableCell className="font-medium">{p.payment_number}</TableCell>
                     <TableCell>
-                      <Button variant="link" className="h-auto p-0 font-medium">
+                      <Button 
+                        variant="link" 
+                        className="h-auto p-0 font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (p.invoiceId) navigate(`/bills/${p.invoiceId}`);
+                        }}
+                      >
                         {p.invoiceId || "—"}
                       </Button>
                     </TableCell>
