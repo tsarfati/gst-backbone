@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase } from 'lucide-react';
+import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase, Zap, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSearchIndex, SearchIndexItem } from '@/hooks/useSearchIndex';
@@ -15,6 +15,8 @@ const getIconForType = (type: string) => {
     case 'vendor': return Building;
     case 'employee': return Users;
     case 'announcement': return Megaphone;
+    case 'action': return Zap;
+    case 'report': return BarChart3;
     case 'page': return FileText;
     default: return FileText;
   }
@@ -50,6 +52,8 @@ export default function GlobalSearch() {
       case 'vendor': return 'text-purple-600';
       case 'employee': return 'text-orange-600';
       case 'announcement': return 'text-red-600';
+      case 'action': return 'text-yellow-600';
+      case 'report': return 'text-cyan-600';
       case 'page': return 'text-gray-600';
       default: return 'text-gray-600';
     }
@@ -84,7 +88,7 @@ export default function GlobalSearch() {
         <Command shouldFilter={false}>
           <CommandInput
             ref={inputRef}
-            placeholder="Search receipts, jobs, people..."
+            placeholder="Search anything: data, actions, reports..."
             value={searchQuery}
             onValueChange={setSearchQuery}
             className="border-none focus:ring-0"
