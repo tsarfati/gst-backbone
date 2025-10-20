@@ -1,8 +1,9 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,9 +18,63 @@ import {
   Trash2,
   Eye
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import AccountingJobCostSelector from "@/components/AccountingJobCostSelector";
+
+interface Account {
+  id: string;
+  account_number: string;
+  account_name: string;
+  account_type: string;
+  normal_balance: string;
+}
+
+interface JournalEntryLine {
+  line_type: 'controller' | 'job';
+  account_id: string;
+  debit_amount: number;
+  credit_amount: number;
+  description: string;
+  job_id?: string;
+  cost_code_id?: string;
+}
 
 export default function JournalEntries() {
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [lines, setLines] = useState<JournalEntryLine[]>([
+    { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' },
+    { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
+  ]);
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      const { data } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_number, account_name, account_type, normal_balance')
+        .eq('is_active', true)
+        .eq('account_type', 'Expense')
+        .order('account_number');
+      setAccounts(data || []);
+    };
+    loadAccounts();
+  }, []);
+
+  const addLine = () => {
+    setLines(prev => [
+      ...prev,
+      { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
+    ]);
+  };
+
+  const updateLine = (index: number, updates: Partial<JournalEntryLine>) => {
+    setLines(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates } as JournalEntryLine;
+      return next;
+    });
+  };
 
   const journalEntries: any[] = [];
 
@@ -67,37 +122,98 @@ export default function JournalEntries() {
             <Textarea id="description" placeholder="Journal entry description..." />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-2">
-              <Label htmlFor="account">Account</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="checking">Checking Account</SelectItem>
-                  <SelectItem value="ar">Accounts Receivable</SelectItem>
-                  <SelectItem value="ap">Accounts Payable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="debit">Debit Amount</Label>
-              <Input id="debit" type="number" step="0.01" placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="credit">Credit Amount</Label>
-              <Input id="credit" type="number" step="0.01" placeholder="0.00" />
-            </div>
-            <div className="flex items-end">
-              <Button className="w-full">Add Line</Button>
-            </div>
-          </div>
+          <div className="space-y-4">
+            {lines.map((line, index) => (
+              <div key={index} className="border rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                  <div>
+                    <Label>Account Type</Label>
+                    <Select 
+                      value={line.line_type}
+                      onValueChange={(value: 'controller' | 'job') =>
+                        updateLine(index, {
+                          line_type: value,
+                          job_id: value === 'controller' ? undefined : line.job_id,
+                          cost_code_id: value === 'controller' ? undefined : line.cost_code_id,
+                          account_id: value === 'job' ? '' : line.account_id,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="controller">Controller</SelectItem>
+                        <SelectItem value="job">Job</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline">Save as Draft</Button>
-            <Button>Post Entry</Button>
+                  {line.line_type === 'controller' ? (
+                    <div className="md:col-span-2">
+                      <Label>Expense Account</Label>
+                      <Select
+                        value={line.account_id}
+                        onValueChange={(value) => updateLine(index, { account_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select expense account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.account_number} - {account.account_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <AccountingJobCostSelector
+                        selectedJobId={line.job_id}
+                        selectedCostCodeId={line.cost_code_id}
+                        onJobChange={(jobId) => updateLine(index, { job_id: jobId })}
+                        onCostCodeChange={(costCodeId) => updateLine(index, { cost_code_id: costCodeId })}
+                        showCreateButton={false}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label>Debit</Label>
+                    <CurrencyInput
+                      value={line.debit_amount.toString()}
+                      onChange={(value) => updateLine(index, { debit_amount: parseFloat(value) || 0, credit_amount: 0 })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <Label>Credit</Label>
+                    <CurrencyInput
+                      value={line.credit_amount.toString()}
+                      onChange={(value) => updateLine(index, { credit_amount: parseFloat(value) || 0, debit_amount: 0 })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Input
+                      value={line.description}
+                      onChange={(e) => updateLine(index, { description: e.target.value })}
+                      placeholder="Line description"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={addLine}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Line
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
