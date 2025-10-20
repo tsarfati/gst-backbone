@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,11 +18,43 @@ import {
   TrendingUp,
   TrendingDown
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
+import { toast } from "sonner";
 
 export default function Reconcile() {
+  const { currentCompany } = useCompany();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (currentCompany) {
+      loadBankAccounts();
+    }
+  }, [currentCompany]);
+
+  const loadBankAccounts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("bank_accounts")
+        .select("*")
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .order("account_name");
+
+      if (error) throw error;
+      setBankAccounts(data || []);
+    } catch (error: any) {
+      console.error("Error loading bank accounts:", error);
+      toast.error("Failed to load bank accounts");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const reconciliations: any[] = [];
   const transactions: any[] = [];
@@ -58,12 +90,14 @@ export default function Reconcile() {
               <Label htmlFor="account">Bank Account</Label>
               <Select value={selectedAccount} onValueChange={setSelectedAccount}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
+                  <SelectValue placeholder={loading ? "Loading..." : "Select account"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="checking">Main Checking</SelectItem>
-                  <SelectItem value="savings">Business Savings</SelectItem>
-                  <SelectItem value="money-market">Money Market</SelectItem>
+                  {bankAccounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.account_name} - {account.bank_name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
