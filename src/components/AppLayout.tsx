@@ -116,7 +116,6 @@ const navigationCategories = [
       { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "settings" },
       { name: "Deposits", href: "/banking/deposits", menuKey: "settings" },
       { name: "Print Checks", href: "/banking/print-checks", menuKey: "settings" },
-      { name: "Reconcile", href: "/banking/reconcile", menuKey: "settings" },
     ],
     collapsible: true,
   },

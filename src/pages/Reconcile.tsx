@@ -1,374 +1,599 @@
 import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { 
-  CheckSquare, 
-  Search, 
-  Calendar,
-  Building,
-  DollarSign,
-  AlertTriangle,
-  Download,
-  FileText,
+  ArrowLeft,
+  Search,
+  CheckCircle,
+  XCircle,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+interface BankAccount {
+  id: string;
+  account_name: string;
+  bank_name: string;
+  current_balance: number;
+}
+
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  reference: string;
+  amount: number;
+  type: 'deposit' | 'payment';
+  is_cleared: boolean;
+}
 
 export default function Reconcile() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { currentCompany } = useCompany();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedAccount, setSelectedAccount] = useState("");
-  const [selectedPeriod, setSelectedPeriod] = useState("");
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const accountId = searchParams.get("account");
+  
+  const [account, setAccount] = useState<BankAccount | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deposits, setDeposits] = useState<Transaction[]>([]);
+  const [payments, setPayments] = useState<Transaction[]>([]);
+  const [searchDeposits, setSearchDeposits] = useState("");
+  const [searchPayments, setSearchPayments] = useState("");
+  const [depositsExpanded, setDepositsExpanded] = useState(true);
+  const [paymentsExpanded, setPaymentsExpanded] = useState(true);
+  
+  // Reconciliation state
+  const [beginningBalance, setBeginningBalance] = useState(0);
+  const [endingBalance, setEndingBalance] = useState<number | null>(null);
+  const [endingDate, setEndingDate] = useState<Date>(new Date());
+  const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [reconciliationId, setReconciliationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (currentCompany) {
-      loadBankAccounts();
+    if (currentCompany && accountId) {
+      loadBankAccount();
+      loadLastReconciliation();
+      loadTransactions();
     }
-  }, [currentCompany]);
+  }, [currentCompany, accountId]);
 
-  const loadBankAccounts = async () => {
+  const loadBankAccount = async () => {
+    if (!accountId || !currentCompany) return;
+    
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from("bank_accounts")
-        .select("*")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .order("account_name");
+        .select("id, account_name, bank_name, current_balance")
+        .eq("id", accountId)
+        .eq("company_id", currentCompany.id)
+        .single();
 
       if (error) throw error;
-      setBankAccounts(data || []);
+      setAccount(data);
     } catch (error: any) {
-      console.error("Error loading bank accounts:", error);
-      toast.error("Failed to load bank accounts");
+      console.error("Error loading bank account:", error);
+      toast.error("Failed to load bank account");
+    }
+  };
+
+  const loadLastReconciliation = async () => {
+    if (!accountId || !currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("*")
+        .eq("bank_account_id", accountId)
+        .eq("company_id", currentCompany.id)
+        .eq("status", "completed")
+        .order("ending_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (data) {
+        setBeginningBalance(data.ending_balance);
+        setBeginningDate(new Date(data.ending_date));
+      } else if (account) {
+        setBeginningBalance(account.current_balance);
+      }
+    } catch (error: any) {
+      console.error("Error loading last reconciliation:", error);
+    }
+  };
+
+  const loadTransactions = async () => {
+    if (!accountId || !currentCompany) return;
+    
+    try {
+      setLoading(true);
+      
+      // Load payments (debits/checks)
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from("payments")
+        .select(`
+          id,
+          payment_date,
+          payment_number,
+          amount,
+          payment_method,
+          invoices!inner(vendor_id, vendors(name))
+        `)
+        .eq("bank_account_id", accountId)
+        .eq("status", "cleared")
+        .order("payment_date", { ascending: false });
+
+      if (paymentsError) throw paymentsError;
+
+      // Load deposits (credits) from journal entries
+      const { data: depositsData, error: depositsError } = await supabase
+        .from("journal_entry_lines")
+        .select(`
+          id,
+          credit_amount,
+          debit_amount,
+          description,
+          journal_entries!inner(
+            entry_date,
+            reference
+          )
+        `)
+        .eq("account_id", account?.id)
+        .gt("credit_amount", 0)
+        .order("journal_entries.entry_date", { ascending: false });
+
+      if (depositsError) throw depositsError;
+
+      // Format payments
+      const formattedPayments: Transaction[] = (paymentsData || []).map((p: any) => ({
+        id: p.id,
+        date: p.payment_date,
+        description: `Payment to ${p.invoices?.vendors?.name || 'Unknown'}`,
+        reference: p.payment_number || '',
+        amount: p.amount,
+        type: 'payment' as const,
+        is_cleared: false
+      }));
+
+      // Format deposits
+      const formattedDeposits: Transaction[] = (depositsData || []).map((d: any) => ({
+        id: d.id,
+        date: d.journal_entries?.entry_date || '',
+        description: d.description || 'Deposit',
+        reference: d.journal_entries?.reference || '',
+        amount: d.credit_amount,
+        type: 'deposit' as const,
+        is_cleared: false
+      }));
+
+      setPayments(formattedPayments);
+      setDeposits(formattedDeposits);
+    } catch (error: any) {
+      console.error("Error loading transactions:", error);
+      toast.error("Failed to load transactions");
     } finally {
       setLoading(false);
     }
   };
 
-  const reconciliations: any[] = [];
-  const transactions: any[] = [];
+  const handleToggleCleared = (id: string, type: 'deposit' | 'payment') => {
+    if (type === 'deposit') {
+      setDeposits(prev => prev.map(d => 
+        d.id === id ? { ...d, is_cleared: !d.is_cleared } : d
+      ));
+    } else {
+      setPayments(prev => prev.map(p => 
+        p.id === id ? { ...p, is_cleared: !p.is_cleared } : p
+      ));
+    }
+  };
 
-  const filteredTransactions = transactions.filter(transaction => {
-    return transaction?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           transaction?.reference?.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+  const handleSaveReconciliation = async () => {
+    if (!currentCompany || !accountId || !user || endingBalance === null) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const clearedDepositsTotal = deposits
+        .filter(d => d.is_cleared)
+        .reduce((sum, d) => sum + d.amount, 0);
+      
+      const clearedPaymentsTotal = payments
+        .filter(p => p.is_cleared)
+        .reduce((sum, p) => sum + p.amount, 0);
+      
+      const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
+      const adjustedBalance = clearedBalance;
+
+      const { data: reconciliation, error: reconciliationError } = await supabase
+        .from("bank_reconciliations")
+        .insert({
+          company_id: currentCompany.id,
+          bank_account_id: accountId,
+          beginning_balance: beginningBalance,
+          ending_balance: endingBalance,
+          beginning_date: format(beginningDate, 'yyyy-MM-dd'),
+          ending_date: format(endingDate, 'yyyy-MM-dd'),
+          cleared_balance: clearedBalance,
+          adjusted_balance: adjustedBalance,
+          status: clearedBalance === endingBalance ? 'completed' : 'in_progress',
+          created_by: user.id,
+          reconciled_by: clearedBalance === endingBalance ? user.id : null,
+          reconciled_at: clearedBalance === endingBalance ? new Date().toISOString() : null,
+        })
+        .select()
+        .single();
+
+      if (reconciliationError) throw reconciliationError;
+
+      // Save cleared items
+      const allClearedItems = [
+        ...deposits.filter(d => d.is_cleared).map(d => ({
+          reconciliation_id: reconciliation.id,
+          transaction_type: 'deposit',
+          transaction_id: d.id,
+          amount: d.amount,
+          is_cleared: true,
+          cleared_at: new Date().toISOString(),
+        })),
+        ...payments.filter(p => p.is_cleared).map(p => ({
+          reconciliation_id: reconciliation.id,
+          transaction_type: 'payment',
+          transaction_id: p.id,
+          amount: p.amount,
+          is_cleared: true,
+          cleared_at: new Date().toISOString(),
+        })),
+      ];
+
+      if (allClearedItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("bank_reconciliation_items")
+          .insert(allClearedItems);
+
+        if (itemsError) throw itemsError;
+      }
+
+      toast.success("Reconciliation saved successfully");
+      setReconciliationId(reconciliation.id);
+    } catch (error: any) {
+      console.error("Error saving reconciliation:", error);
+      toast.error("Failed to save reconciliation");
+    }
+  };
+
+  const filteredDeposits = deposits.filter(d =>
+    d.description.toLowerCase().includes(searchDeposits.toLowerCase()) ||
+    d.reference.toLowerCase().includes(searchDeposits.toLowerCase())
+  );
+
+  const filteredPayments = payments.filter(p =>
+    p.description.toLowerCase().includes(searchPayments.toLowerCase()) ||
+    p.reference.toLowerCase().includes(searchPayments.toLowerCase())
+  );
+
+  const clearedDepositsTotal = deposits
+    .filter(d => d.is_cleared)
+    .reduce((sum, d) => sum + d.amount, 0);
+  
+  const unclearedDepositsTotal = deposits
+    .filter(d => !d.is_cleared)
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  const clearedPaymentsTotal = payments
+    .filter(p => p.is_cleared)
+    .reduce((sum, p) => sum + p.amount, 0);
+  
+  const unclearedPaymentsTotal = payments
+    .filter(p => !p.is_cleared)
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
+  const adjustedBalance = clearedBalance;
+  const difference = endingBalance !== null ? clearedBalance - endingBalance : 0;
+  const isBalanced = endingBalance !== null && Math.abs(difference) < 0.01;
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <p className="text-center text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!account) {
+    return (
+      <div className="p-6">
+        <p className="text-center text-muted-foreground">Bank account not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Bank Reconciliation</h1>
-          <p className="text-muted-foreground">
-            Reconcile bank statements with your accounting records
-          </p>
-        </div>
-        <Button>
-          <CheckSquare className="h-4 w-4 mr-2" />
-          Start New Reconciliation
+      <div className="mb-6">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(`/banking/accounts/${accountId}`)}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Account Details
         </Button>
+        <h1 className="text-2xl font-bold text-foreground">Bank Reconciliation</h1>
+        <p className="text-muted-foreground">
+          {account.account_name} - {account.bank_name}
+        </p>
       </div>
 
-      {/* Reconciliation Setup */}
+      {/* Account Information */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Reconciliation Setup</CardTitle>
+          <CardTitle>Account Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="account">Bank Account</Label>
-              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loading ? "Loading..." : "Select account"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {bankAccounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.account_name} - {account.bank_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Account to Reconcile</Label>
+              <div className="p-2 border rounded bg-muted">
+                {account.account_name} - {account.bank_name}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="statementDate">Statement Date</Label>
-              <Input id="statementDate" type="date" />
+              <Label>Beginning Balance</Label>
+              <div className="p-2 border rounded bg-muted">
+                {formatCurrency(beginningBalance)}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="beginningBalance">Beginning Balance</Label>
-              <Input id="beginningBalance" type="number" step="0.01" placeholder="0.00" />
+              <Label htmlFor="endingBalance">Ending Balance *</Label>
+              <Input
+                id="endingBalance"
+                type="number"
+                step="0.01"
+                value={endingBalance || ''}
+                onChange={(e) => setEndingBalance(parseFloat(e.target.value) || null)}
+                placeholder="0.00"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="endingBalance">Ending Balance</Label>
-              <Input id="endingBalance" type="number" step="0.01" placeholder="0.00" />
+              <Label>Ending Statement Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    {format(endingDate, "MM/dd/yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endingDate}
+                    onSelect={(date) => date && setEndingDate(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button>Load Transactions</Button>
           </div>
         </CardContent>
       </Card>
 
       {/* Reconciliation Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Book Balance</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
-            <p className="text-xs text-muted-foreground">Per accounting records</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bank Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
-            <p className="text-xs text-muted-foreground">Per bank statement</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Difference</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$0.00</div>
-            <p className="text-xs text-muted-foreground">To be reconciled</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cleared Items</CardTitle>
-            <CheckSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Transactions cleared</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Transaction Lists */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Outstanding Deposits */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <TrendingUp className="h-5 w-5 mr-2 text-green-600" />
-              Outstanding Deposits
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {transactions.filter(t => t?.type === "deposit" && !t?.cleared).length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-muted-foreground">No outstanding deposits</p>
-                </div>
-              ) : (
-                transactions
-                  .filter(t => t?.type === "deposit" && !t?.cleared)
-                  .map(transaction => (
-                    <div key={transaction.id} className="flex items-center justify-between p-2 border rounded">
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
-                        <p className="text-sm text-muted-foreground">{transaction.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-green-600">+${transaction.amount}</p>
-                        <Button variant="outline" size="sm">Clear</Button>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Outstanding Checks */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <TrendingDown className="h-5 w-5 mr-2 text-red-600" />
-              Outstanding Checks
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {transactions.filter(t => t?.type === "check" && !t?.cleared).length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-muted-foreground">No outstanding checks</p>
-                </div>
-              ) : (
-                transactions
-                  .filter(t => t?.type === "check" && !t?.cleared)
-                  .map(transaction => (
-                    <div key={transaction.id} className="flex items-center justify-between p-2 border rounded">
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
-                        <p className="text-sm text-muted-foreground">{transaction.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-red-600">-${transaction.amount}</p>
-                        <Button variant="outline" size="sm">Clear</Button>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Transactions */}
       <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search transactions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        <CardHeader>
+          <CardTitle>Reconciliation Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`p-4 border-l-4 ${isBalanced ? 'border-green-500 bg-green-50' : 'border-muted'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{formatCurrency(endingBalance || 0)}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Ending Balance</div>
+                </div>
+                {isBalanced && <CheckCircle className="h-6 w-6 text-green-600" />}
+              </div>
+            </div>
+            
+            <div className={`p-4 border-l-4 ${!isBalanced && difference !== 0 ? 'border-red-500 bg-red-50' : 'border-muted'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{formatCurrency(clearedBalance)}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Cleared Balance</div>
+                  {!isBalanced && difference !== 0 && (
+                    <div className="text-sm text-red-600 mt-1">
+                      {difference > 0 ? 'Over' : 'Under'} {formatCurrency(Math.abs(difference))}
+                    </div>
+                  )}
+                </div>
+                {!isBalanced && difference !== 0 && <XCircle className="h-6 w-6 text-red-600" />}
+              </div>
+            </div>
+
+            <div className={`p-4 border-l-4 ${isBalanced ? 'border-green-500 bg-green-50' : 'border-muted'}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-bold">{formatCurrency(adjustedBalance)}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Adjusted Cash Balance</div>
+                </div>
+                {isBalanced && <CheckCircle className="h-6 w-6 text-green-600" />}
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => navigate(`/banking/accounts/${accountId}`)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveReconciliation}>
+              Save Reconciliation
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Transaction History */}
-      <Card>
+      {/* Deposits and other Credits */}
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Transaction History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredTransactions.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No transactions found</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm 
-                  ? "Try adjusting your search"
-                  : "Select an account and date range to load transactions"
-                }
-              </p>
+          <div className="flex items-center justify-between cursor-pointer" onClick={() => setDepositsExpanded(!depositsExpanded)}>
+            <div className="flex items-center gap-2">
+              {depositsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                Deposits and other Credits
+              </CardTitle>
             </div>
-          ) : (
+            <div className="flex items-center gap-4">
+              <Input
+                placeholder="Search"
+                value={searchDeposits}
+                onChange={(e) => setSearchDeposits(e.target.value)}
+                className="w-64"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+        </CardHeader>
+        {depositsExpanded && (
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12"></TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead>Deposit #</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Debit</TableHead>
-                  <TableHead>Credit</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
+                {filteredDeposits.map((deposit) => (
+                  <TableRow 
+                    key={deposit.id}
+                    className={deposit.is_cleared ? "bg-green-50" : ""}
+                  >
                     <TableCell>
-                      <div className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {transaction.date}
-                      </div>
+                      <Checkbox
+                        checked={deposit.is_cleared}
+                        onCheckedChange={() => handleToggleCleared(deposit.id, 'deposit')}
+                      />
                     </TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell>{transaction.reference}</TableCell>
-                    <TableCell>
-                      {transaction.type === "debit" && (
-                        <span className="text-red-600">-${transaction.amount}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {transaction.type === "credit" && (
-                        <span className="text-green-600">+${transaction.amount}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={transaction.cleared ? "default" : "secondary"}>
-                        {transaction.cleared ? "Cleared" : "Outstanding"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm">
-                        {transaction.cleared ? "Unmark" : "Mark Cleared"}
-                      </Button>
+                    <TableCell>{format(new Date(deposit.date), 'MM/dd/yyyy')}</TableCell>
+                    <TableCell>{deposit.reference}</TableCell>
+                    <TableCell>{deposit.description}</TableCell>
+                    <TableCell className="text-right font-medium text-green-600">
+                      {formatCurrency(deposit.amount)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
+            <div className="flex justify-between mt-4 pt-4 border-t text-sm">
+              <div>
+                Uncleared {deposits.filter(d => !d.is_cleared).length} of {deposits.length}: {formatCurrency(unclearedDepositsTotal)}
+              </div>
+              <div>
+                Cleared {deposits.filter(d => d.is_cleared).length} of {deposits.length}: {formatCurrency(clearedDepositsTotal)}
+              </div>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
-      {/* Previous Reconciliations */}
+      {/* Checks and other Payments */}
       <Card>
         <CardHeader>
-          <CardTitle>Previous Reconciliations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {reconciliations.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No reconciliations found</h3>
-              <p className="text-muted-foreground">Previous reconciliation history will appear here</p>
+          <div className="flex items-center justify-between cursor-pointer" onClick={() => setPaymentsExpanded(!paymentsExpanded)}>
+            <div className="flex items-center gap-2">
+              {paymentsExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+              <CardTitle className="flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-600" />
+                Checks and other Payments
+              </CardTitle>
             </div>
-          ) : (
+            <div className="flex items-center gap-4">
+              <Input
+                placeholder="Search"
+                value={searchPayments}
+                onChange={(e) => setSearchPayments(e.target.value)}
+                className="w-64"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+        </CardHeader>
+        {paymentsExpanded && (
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12"></TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Account</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Check #</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reconciliations.map((recon) => (
-                  <TableRow key={recon.id}>
-                    <TableCell>{recon.date}</TableCell>
-                    <TableCell>{recon.account}</TableCell>
-                    <TableCell>{recon.period}</TableCell>
+                {filteredPayments.map((payment) => (
+                  <TableRow 
+                    key={payment.id}
+                    className={payment.is_cleared ? "bg-green-50" : ""}
+                  >
                     <TableCell>
-                      <Badge variant={recon.status === "completed" ? "default" : "secondary"}>
-                        {recon.status}
-                      </Badge>
+                      <Checkbox
+                        checked={payment.is_cleared}
+                        onCheckedChange={() => handleToggleCleared(payment.id, 'payment')}
+                      />
                     </TableCell>
-                    <TableCell>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
+                    <TableCell>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
+                    <TableCell>{payment.reference}</TableCell>
+                    <TableCell>{payment.description}</TableCell>
+                    <TableCell className="text-right font-medium text-red-600">
+                      {formatCurrency(payment.amount)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
+            <div className="flex justify-between mt-4 pt-4 border-t text-sm">
+              <div>
+                Uncleared {payments.filter(p => !p.is_cleared).length} of {payments.length}: {formatCurrency(unclearedPaymentsTotal)}
+              </div>
+              <div>
+                Cleared {payments.filter(p => p.is_cleared).length} of {payments.length}: {formatCurrency(clearedPaymentsTotal)}
+              </div>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
