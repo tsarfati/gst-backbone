@@ -286,7 +286,7 @@ export default function Reconcile() {
         .map((d: any) => ({
           id: d.id,
           date: d.journal_entries?.entry_date || '',
-          description: d.description || 'Bank withdrawal',
+          description: `JE Check - ${d.description || 'Bank withdrawal'}`,
           reference: d.journal_entries?.reference || '',
           amount: d.credit_amount,
           type: 'payment' as const,
@@ -302,7 +302,7 @@ export default function Reconcile() {
         .map((d: any) => ({
           id: d.id,
           date: d.journal_entries?.entry_date || '',
-          description: d.description || 'Deposit',
+          description: `JE Deposit - ${d.description || 'Bank deposit'}`,
           reference: d.journal_entries?.reference || '',
           amount: d.debit_amount,
           type: 'deposit' as const,
