@@ -101,13 +101,9 @@ export default function QuickAddVendor({
   };
 
   const vendorTypes = allowedTypes || [
-    "Supplier",
-    "Contractor",
     "Subcontractor",
-    "Design Professional",
-    "Consultant",
-    "Equipment Rental",
     "Material Supplier",
+    "Equipment Rental",
     "Service Provider",
     "Other"
   ];
