@@ -257,10 +257,9 @@ export default function JournalEntries() {
       // Create the journal entry lines
       const linesToInsert = lines.map((line, index) => ({
         journal_entry_id: entryData.id,
-        line_type: line.line_type,
-        account_id: line.line_type === 'controller' ? line.account_id : null,
-        job_id: line.line_type === 'job' ? line.job_id : null,
-        cost_code_id: line.line_type === 'job' ? line.cost_code_id : null,
+        account_id: line.account_id,
+        job_id: line.job_id ?? null,
+        cost_code_id: line.cost_code_id ?? null,
         debit_amount: line.debit_amount || 0,
         credit_amount: line.credit_amount || 0,
         description: line.description || '',

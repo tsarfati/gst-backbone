@@ -239,11 +239,18 @@ export default function NewJournalEntry() {
 
       if (entryError) throw entryError;
 
-      const linesToInsert = lines.map(line => ({
-        ...line,
+      const linesToInsert = lines.map((line) => ({
         journal_entry_id: entryData.id,
+        account_id: line.account_id,
         job_id: line.job_id || null,
-        cost_code_id: line.cost_code_id || null
+        cost_code_id: line.cost_code_id || null,
+        debit_amount: line.debit_amount || 0,
+        credit_amount: line.credit_amount || 0,
+        description: line.description || '',
+        billable: line.billable ?? false,
+        markup_percentage: line.markup_percentage ?? 0,
+        billable_amount: line.billable_amount ?? 0,
+        line_order: line.line_order
       }));
 
       const { error: linesError } = await supabase
