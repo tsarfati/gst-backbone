@@ -131,15 +131,30 @@ export default function BankAccountDetails() {
     
     try {
       const { data, error } = await supabase
-        .from('reconcile_reports')
+        .from('bank_reconciliations')
         .select('*')
         .eq('bank_account_id', id)
         .eq('company_id', currentCompany.id)
-        .order('reconcile_year', { ascending: false })
-        .order('reconcile_month', { ascending: false });
+        .eq('status', 'completed')
+        .order('ending_date', { ascending: false });
 
       if (error) throw error;
-      setReconcileReports(data || []);
+      
+      // Transform to match ReconcileReport interface
+      const reports = (data || []).map(rec => ({
+        id: rec.id,
+        reconcile_date: rec.ending_date,
+        reconcile_month: new Date(rec.ending_date).getMonth() + 1,
+        reconcile_year: new Date(rec.ending_date).getFullYear(),
+        statement_balance: rec.ending_balance,
+        book_balance: rec.cleared_balance,
+        difference: rec.ending_balance - rec.cleared_balance,
+        is_balanced: Math.abs(rec.ending_balance - rec.cleared_balance) < 0.01,
+        reconciled_at: rec.reconciled_at || rec.created_at,
+        notes: rec.notes
+      }));
+      
+      setReconcileReports(reports);
     } catch (error) {
       console.error('Error loading reconcile reports:', error);
     }

@@ -101,6 +101,7 @@ export default function Reconcile() {
 
   useEffect(() => {
     if (currentCompany && accountId && account) {
+      loadInProgressReconciliation();
       loadTransactions();
       loadGLBalance();
     }
@@ -149,6 +150,63 @@ export default function Reconcile() {
       }
     } catch (error: any) {
       console.error("Error loading last reconciliation:", error);
+    }
+  };
+
+  const loadInProgressReconciliation = async () => {
+    if (!accountId || !currentCompany) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("*")
+        .eq("bank_account_id", accountId)
+        .eq("company_id", currentCompany.id)
+        .eq("status", "in_progress")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (data) {
+        // Restore state from in-progress reconciliation
+        setReconciliationId(data.id);
+        setEndingBalance(data.ending_balance);
+        setEndingDate(new Date(data.ending_date));
+        setUploadedStatementId(data.bank_statement_id);
+
+        // Load saved items and restore checked state
+        const { data: items, error: itemsError } = await supabase
+          .from("bank_reconciliation_items")
+          .select("*")
+          .eq("reconciliation_id", data.id);
+
+        if (!itemsError && items) {
+          const clearedDepositIds = new Set(
+            items.filter(i => i.transaction_type === 'deposit' && i.is_cleared).map(i => i.transaction_id)
+          );
+          const clearedPaymentIds = new Set(
+            items.filter(i => i.transaction_type === 'payment' && i.is_cleared).map(i => i.transaction_id)
+          );
+
+          // Update transaction states after they're loaded
+          setTimeout(() => {
+            setDeposits(prev => prev.map(d => ({
+              ...d,
+              is_cleared: clearedDepositIds.has(d.id)
+            })));
+            setPayments(prev => prev.map(p => ({
+              ...p,
+              is_cleared: clearedPaymentIds.has(p.id)
+            })));
+          }, 500);
+        }
+
+        toast.info("Restored in-progress reconciliation");
+      }
+    } catch (error: any) {
+      console.error("Error loading in-progress reconciliation:", error);
     }
   };
 
@@ -499,7 +557,7 @@ export default function Reconcile() {
     }
   };
 
-  const handleSaveReconciliation = async () => {
+  const handleSaveProgress = async () => {
     if (!currentCompany || !accountId || !user || endingBalance === null) {
       toast.error("Please fill in all required fields");
       return;
@@ -517,61 +575,166 @@ export default function Reconcile() {
       const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
       const adjustedBalance = clearedBalance;
 
-      const { data: reconciliation, error: reconciliationError } = await supabase
-        .from("bank_reconciliations")
-        .insert({
-          company_id: currentCompany.id,
-          bank_account_id: accountId,
-          beginning_balance: beginningBalance,
-          ending_balance: endingBalance,
-          beginning_date: format(beginningDate, 'yyyy-MM-dd'),
-          ending_date: format(endingDate, 'yyyy-MM-dd'),
-          cleared_balance: clearedBalance,
-          adjusted_balance: adjustedBalance,
-          status: clearedBalance === endingBalance ? 'completed' : 'in_progress',
-          created_by: user.id,
-          reconciled_by: clearedBalance === endingBalance ? user.id : null,
-          reconciled_at: clearedBalance === endingBalance ? new Date().toISOString() : null,
-          bank_statement_id: uploadedStatementId
-        })
-        .select()
-        .single();
+      // Check if we're updating existing in-progress reconciliation or creating new one
+      if (reconciliationId) {
+        // Update existing in-progress reconciliation
+        const { error: updateError } = await supabase
+          .from("bank_reconciliations")
+          .update({
+            ending_balance: endingBalance,
+            ending_date: format(endingDate, 'yyyy-MM-dd'),
+            cleared_balance: clearedBalance,
+            adjusted_balance: adjustedBalance,
+            bank_statement_id: uploadedStatementId
+          })
+          .eq("id", reconciliationId);
 
-      if (reconciliationError) throw reconciliationError;
+        if (updateError) throw updateError;
 
-      // Save cleared items
-      const allClearedItems = [
-        ...deposits.filter(d => d.is_cleared).map(d => ({
-          reconciliation_id: reconciliation.id,
+        // Delete old items and insert new ones
+        await supabase
+          .from("bank_reconciliation_items")
+          .delete()
+          .eq("reconciliation_id", reconciliationId);
+      } else {
+        // Create new in-progress reconciliation
+        const { data: reconciliation, error: reconciliationError } = await supabase
+          .from("bank_reconciliations")
+          .insert({
+            company_id: currentCompany.id,
+            bank_account_id: accountId,
+            beginning_balance: beginningBalance,
+            ending_balance: endingBalance,
+            beginning_date: format(beginningDate, 'yyyy-MM-dd'),
+            ending_date: format(endingDate, 'yyyy-MM-dd'),
+            cleared_balance: clearedBalance,
+            adjusted_balance: adjustedBalance,
+            status: 'in_progress',
+            created_by: user.id,
+            bank_statement_id: uploadedStatementId
+          })
+          .select()
+          .single();
+
+        if (reconciliationError) throw reconciliationError;
+        setReconciliationId(reconciliation.id);
+      }
+
+      // Save all items (cleared and uncleared) to preserve state
+      const allItems = [
+        ...deposits.map(d => ({
+          reconciliation_id: reconciliationId || null,
           transaction_type: 'deposit',
           transaction_id: d.id,
           amount: d.amount,
-          is_cleared: true,
-          cleared_at: new Date().toISOString(),
+          is_cleared: d.is_cleared,
+          cleared_at: d.is_cleared ? new Date().toISOString() : null,
         })),
-        ...payments.filter(p => p.is_cleared).map(p => ({
-          reconciliation_id: reconciliation.id,
+        ...payments.map(p => ({
+          reconciliation_id: reconciliationId || null,
           transaction_type: 'payment',
           transaction_id: p.id,
           amount: p.amount,
-          is_cleared: true,
-          cleared_at: new Date().toISOString(),
+          is_cleared: p.is_cleared,
+          cleared_at: p.is_cleared ? new Date().toISOString() : null,
         })),
       ];
 
-      if (allClearedItems.length > 0) {
+      if (allItems.length > 0 && reconciliationId) {
         const { error: itemsError } = await supabase
           .from("bank_reconciliation_items")
-          .insert(allClearedItems);
+          .insert(allItems.map(item => ({ ...item, reconciliation_id: reconciliationId })));
 
         if (itemsError) throw itemsError;
       }
 
-      toast.success("Reconciliation saved successfully");
-      setReconciliationId(reconciliation.id);
+      toast.success("Progress saved successfully");
     } catch (error: any) {
-      console.error("Error saving reconciliation:", error);
-      toast.error("Failed to save reconciliation");
+      console.error("Error saving progress:", error);
+      toast.error("Failed to save progress");
+    }
+  };
+
+  const handleReconcile = async () => {
+    if (!currentCompany || !accountId || !user || endingBalance === null) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (!isClearedBalanced) {
+      toast.error("Cannot reconcile - cleared balance does not match ending balance");
+      return;
+    }
+
+    try {
+      const clearedDepositsTotal = deposits
+        .filter(d => d.is_cleared)
+        .reduce((sum, d) => sum + d.amount, 0);
+      
+      const clearedPaymentsTotal = payments
+        .filter(p => p.is_cleared)
+        .reduce((sum, p) => sum + p.amount, 0);
+      
+      const clearedBalance = beginningBalance + clearedDepositsTotal - clearedPaymentsTotal;
+      const adjustedBalance = clearedBalance;
+
+      // Update or create the reconciliation as completed
+      let finalReconciliationId = reconciliationId;
+      
+      if (reconciliationId) {
+        const { error: updateError } = await supabase
+          .from("bank_reconciliations")
+          .update({
+            ending_balance: endingBalance,
+            ending_date: format(endingDate, 'yyyy-MM-dd'),
+            cleared_balance: clearedBalance,
+            adjusted_balance: adjustedBalance,
+            status: 'completed',
+            reconciled_by: user.id,
+            reconciled_at: new Date().toISOString(),
+            bank_statement_id: uploadedStatementId
+          })
+          .eq("id", reconciliationId);
+
+        if (updateError) throw updateError;
+      } else {
+        const { data: reconciliation, error: reconciliationError } = await supabase
+          .from("bank_reconciliations")
+          .insert({
+            company_id: currentCompany.id,
+            bank_account_id: accountId,
+            beginning_balance: beginningBalance,
+            ending_balance: endingBalance,
+            beginning_date: format(beginningDate, 'yyyy-MM-dd'),
+            ending_date: format(endingDate, 'yyyy-MM-dd'),
+            cleared_balance: clearedBalance,
+            adjusted_balance: adjustedBalance,
+            status: 'completed',
+            created_by: user.id,
+            reconciled_by: user.id,
+            reconciled_at: new Date().toISOString(),
+            bank_statement_id: uploadedStatementId
+          })
+          .select()
+          .single();
+
+        if (reconciliationError) throw reconciliationError;
+        finalReconciliationId = reconciliation.id;
+      }
+
+      // Update bank account balance
+      const { error: balanceError } = await supabase
+        .from("bank_accounts")
+        .update({ current_balance: endingBalance })
+        .eq("id", accountId);
+
+      if (balanceError) throw balanceError;
+
+      toast.success("Reconciliation completed successfully");
+      navigate(`/banking/accounts/${accountId}`);
+    } catch (error: any) {
+      console.error("Error completing reconciliation:", error);
+      toast.error("Failed to complete reconciliation");
     }
   };
 
@@ -669,6 +832,28 @@ export default function Reconcile() {
               </div>
             </div>
             <div className="space-y-2">
+              <Label>Link Cash GL Account</Label>
+              <Select 
+                value={account.chart_account_id || 'none'} 
+                onValueChange={handleLinkChartAccount}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select GL account..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not linked</SelectItem>
+                  {chartAccounts.map((ca) => (
+                    <SelectItem key={ca.id} value={ca.id}>
+                      {ca.account_number} - {ca.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link to see journal entries in reconciliation
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label>Beginning Balance</Label>
               <div className="p-2 border rounded bg-muted">
                 {formatCurrency(beginningBalance)}
@@ -684,6 +869,14 @@ export default function Reconcile() {
                 onChange={(e) => setEndingBalance(parseFloat(e.target.value) || null)}
                 placeholder="0.00"
               />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="space-y-2">
+              <Label>Beginning Date</Label>
+              <div className="p-2 border rounded bg-muted">
+                {format(beginningDate, "MM/dd/yyyy")}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Ending Statement Date *</Label>
@@ -914,8 +1107,11 @@ export default function Reconcile() {
             <Button variant="outline" onClick={() => navigate(`/banking/accounts/${accountId}`)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveReconciliation}>
-              Save Reconciliation
+            <Button variant="outline" onClick={handleSaveProgress}>
+              Save Progress
+            </Button>
+            <Button onClick={handleReconcile} disabled={!isClearedBalanced}>
+              Reconcile
             </Button>
           </div>
         </CardContent>
