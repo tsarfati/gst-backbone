@@ -62,31 +62,55 @@ export default function JournalEntryDetails() {
         
         // Created event
         if (entryData.created_by) {
-          const { data: createdByProfile } = await supabase
+          const { data: createdByProfile, error: profileError } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url, user_id')
+            .select('first_name, last_name, display_name, avatar_url, user_id')
             .eq('user_id', entryData.created_by)
             .single();
+          
+          if (profileError) {
+            console.error('Error loading creator profile:', profileError);
+          }
+          
+          const userName = createdByProfile 
+            ? (createdByProfile.display_name || `${createdByProfile.first_name || ''} ${createdByProfile.last_name || ''}`.trim() || 'Unknown User')
+            : 'Unknown User';
             
           events.push({
             type: 'created',
             timestamp: entryData.created_at,
-            user: createdByProfile || { full_name: 'Unknown User', avatar_url: null, user_id: entryData.created_by }
+            user: {
+              full_name: userName,
+              avatar_url: createdByProfile?.avatar_url || null,
+              user_id: entryData.created_by
+            }
           });
         }
         
         // Posted event (if different from created)
         if (entryData.posted_by && entryData.posted_at && entryData.posted_by !== entryData.created_by) {
-          const { data: postedByProfile } = await supabase
+          const { data: postedByProfile, error: profileError } = await supabase
             .from('profiles')
-            .select('full_name, avatar_url, user_id')
+            .select('first_name, last_name, display_name, avatar_url, user_id')
             .eq('user_id', entryData.posted_by)
             .single();
+          
+          if (profileError) {
+            console.error('Error loading poster profile:', profileError);
+          }
+          
+          const userName = postedByProfile 
+            ? (postedByProfile.display_name || `${postedByProfile.first_name || ''} ${postedByProfile.last_name || ''}`.trim() || 'Unknown User')
+            : 'Unknown User';
             
           events.push({
             type: 'posted',
             timestamp: entryData.posted_at,
-            user: postedByProfile || { full_name: 'Unknown User', avatar_url: null, user_id: entryData.posted_by }
+            user: {
+              full_name: userName,
+              avatar_url: postedByProfile?.avatar_url || null,
+              user_id: entryData.posted_by
+            }
           });
         }
         
