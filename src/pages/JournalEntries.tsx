@@ -48,7 +48,24 @@ export default function JournalEntries() {
         toast({ title: 'Error', description: 'Failed to load journal entries', variant: 'destructive' });
         return;
       }
-      setJournalEntries((data as any) || []);
+      
+      // Check reconciliation status for each entry
+      const entriesWithReconciliation = await Promise.all((data || []).map(async (entry) => {
+        const { data: lines } = await supabase
+          .from('journal_entry_lines')
+          .select('is_reconciled')
+          .eq('journal_entry_id', entry.id);
+        
+        const allReconciled = lines && lines.length > 0 && lines.every(line => line.is_reconciled);
+        const someReconciled = lines && lines.some(line => line.is_reconciled);
+        
+        return {
+          ...entry,
+          reconciliation_status: allReconciled ? 'reconciled' : someReconciled ? 'partially_reconciled' : 'unreconciled'
+        };
+      }));
+      
+      setJournalEntries(entriesWithReconciliation);
     };
     loadEntries();
   }, [currentCompany?.id, showSystemEntries]);
@@ -134,6 +151,7 @@ export default function JournalEntries() {
                   <TableHead>Debit</TableHead>
                   <TableHead>Credit</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Reconciliation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,6 +186,21 @@ export default function JournalEntries() {
                         entry.status === "posted" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                       }`}>
                         {entry.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        entry.reconciliation_status === "reconciled" 
+                          ? "bg-blue-100 text-blue-800" 
+                          : entry.reconciliation_status === "partially_reconciled"
+                          ? "bg-orange-100 text-orange-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}>
+                        {entry.reconciliation_status === "reconciled" 
+                          ? "Reconciled" 
+                          : entry.reconciliation_status === "partially_reconciled"
+                          ? "Partially Reconciled"
+                          : "Unreconciled"}
                       </span>
                     </TableCell>
                   </TableRow>

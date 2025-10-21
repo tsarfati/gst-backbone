@@ -53,22 +53,22 @@ export default function BankAccounts() {
 
       if (error) throw error;
       
-      // Load latest reconciliation balance for each account
+      // Load general ledger balance for each account
       const accountsWithBalance = await Promise.all((data || []).map(async (account) => {
-        const { data: latestRecon } = await supabase
-          .from('bank_reconciliations')
-          .select('ending_balance, ending_date')
-          .eq('bank_account_id', account.id)
-          .eq('company_id', currentCompany.id)
-          .eq('status', 'completed')
-          .order('ending_date', { ascending: false })
-          .limit(1)
-          .single();
+        if (account.chart_account_id) {
+          const { data: chartAccount } = await supabase
+            .from('chart_of_accounts')
+            .select('current_balance')
+            .eq('id', account.chart_account_id)
+            .single();
+          
+          return {
+            ...account,
+            current_balance: chartAccount?.current_balance ?? account.current_balance
+          };
+        }
         
-        return {
-          ...account,
-          current_balance: latestRecon?.ending_balance ?? account.current_balance
-        };
+        return account;
       }));
       
       setAccounts(accountsWithBalance);
