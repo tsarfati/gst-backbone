@@ -178,12 +178,10 @@ export default function PdfTemplateSettings() {
   const [loading, setLoading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
-  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'report-formats'>('timecard');
-  const [reportFormatTemplate, setReportFormatTemplate] = useState<TemplateSettings & { 
-    applies_to_reports?: string[]
-  }>({
+  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation'>('timecard');
+  const [reconciliationTemplate, setReconciliationTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
-    template_type: 'report_formats',
+    template_type: 'reconciliation',
     font_family: 'helvetica',
     header_html: TEMPLATE_PRESETS.professional.header_html,
     footer_html: TEMPLATE_PRESETS.professional.footer_html,
@@ -194,8 +192,7 @@ export default function PdfTemplateSettings() {
     table_stripe_color: '#f8fafc',
     auto_size_columns: true,
     header_images: [],
-    header_texts: [],
-    applies_to_reports: []
+    header_texts: []
   });
   const [timecardTemplate, setTimecardTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
@@ -281,7 +278,7 @@ export default function PdfTemplateSettings() {
   useEffect(() => {
     if (currentCompany?.id) {
       loadTemplate('timecard');
-      loadTemplate('report_formats');
+      loadTemplate('reconciliation');
     }
   }, [currentCompany?.id]);
 
@@ -555,8 +552,8 @@ export default function PdfTemplateSettings() {
           setTimecardTemplate(templateData);
         } else if (templateType === 'commitment') {
           setCommitmentTemplate(templateData);
-        } else if (templateType === 'report_formats') {
-          setReportFormatTemplate(templateData);
+        } else if (templateType === 'reconciliation') {
+          setReconciliationTemplate(templateData);
         }
       } else {
         // If no saved template, try to add company logo as default
@@ -623,8 +620,8 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement> | null, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
+    const file = e?.target.files?.[0];
     if (!file || !currentCompany?.id) return;
 
     setUploadingImage(true);
@@ -642,15 +639,21 @@ export default function PdfTemplateSettings() {
         .from('company-files')
         .getPublicUrl(fileName);
 
-      const newImages = [...(timecardTemplate.header_images || []), {
+      const newImage = {
         url: publicUrl,
         x: 50,
         y: 50,
         width: 100,
         height: 100
-      }];
+      };
 
-      setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+      if (templateType === 'timecard') {
+        const newImages = [...(timecardTemplate.header_images || []), newImage];
+        setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+      } else if (templateType === 'reconciliation') {
+        const newImages = [...(reconciliationTemplate.header_images || []), newImage];
+        setReconciliationTemplate({ ...reconciliationTemplate, header_images: newImages });
+      }
 
       toast({
         title: "Image uploaded",
@@ -668,9 +671,14 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const removeHeaderImage = (index: number) => {
-    const newImages = timecardTemplate.header_images?.filter((_, i) => i !== index);
-    setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+  const removeHeaderImage = (index: number, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
+    if (templateType === 'timecard') {
+      const newImages = timecardTemplate.header_images?.filter((_, i) => i !== index);
+      setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
+    } else if (templateType === 'reconciliation') {
+      const newImages = reconciliationTemplate.header_images?.filter((_, i) => i !== index);
+      setReconciliationTemplate({ ...reconciliationTemplate, header_images: newImages });
+    }
   };
 
   const updateImagePosition = (index: number, field: 'x' | 'y' | 'width' | 'height', value: number) => {
@@ -679,19 +687,34 @@ export default function PdfTemplateSettings() {
     setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
   };
 
-  const addTextBox = () => {
-    setTimecardTemplate(prev => ({
-      ...prev,
-      header_texts: [
-        ...(prev.header_texts || []),
-        { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
-      ]
-    }));
+  const addTextBox = (templateType: 'timecard' | 'reconciliation' = 'timecard') => {
+    if (templateType === 'timecard') {
+      setTimecardTemplate(prev => ({
+        ...prev,
+        header_texts: [
+          ...(prev.header_texts || []),
+          { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
+        ]
+      }));
+    } else if (templateType === 'reconciliation') {
+      setReconciliationTemplate(prev => ({
+        ...prev,
+        header_texts: [
+          ...(prev.header_texts || []),
+          { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
+        ]
+      }));
+    }
   };
 
-  const removeTextBox = (index: number) => {
-    const arr = (timecardTemplate.header_texts || []).filter((_, i) => i !== index);
-    setTimecardTemplate({ ...timecardTemplate, header_texts: arr });
+  const removeTextBox = (index: number, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
+    if (templateType === 'timecard') {
+      const arr = (timecardTemplate.header_texts || []).filter((_, i) => i !== index);
+      setTimecardTemplate({ ...timecardTemplate, header_texts: arr });
+    } else if (templateType === 'reconciliation') {
+      const arr = (reconciliationTemplate.header_texts || []).filter((_, i) => i !== index);
+      setReconciliationTemplate({ ...reconciliationTemplate, header_texts: arr });
+    }
   };
 
   const applyPreset = (presetKey: string) => {
@@ -845,65 +868,14 @@ export default function PdfTemplateSettings() {
               <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
               <TabsTrigger value="receipt">Receipt Reports</TabsTrigger>
               <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
-              <TabsTrigger value="report-formats">Report Formats</TabsTrigger>
+              <TabsTrigger value="reconciliation">Reconciliation Report</TabsTrigger>
             </TabsList>
 
             <TabsContent value="subcontract" className="space-y-6">
               <SubcontractTemplateSettings onSave={() => loadTemplate('subcontract')} />
             </TabsContent>
 
-            <TabsContent value="report-formats" className="space-y-6">
-              {/* Report Types Selection */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Report Types
-                  </CardTitle>
-                  <CardDescription>Select which report types this template applies to</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {[
-                      { value: 'reconciliation', label: 'Reconciliation Reports' },
-                      { value: 'commitment_status', label: 'Commitment Status Reports' },
-                      { value: 'invoice', label: 'Invoice Reports' },
-                      { value: 'timecard', label: 'Timecard Reports' },
-                      { value: 'receipt', label: 'Receipt Reports' },
-                      { value: 'vendor', label: 'Vendor Reports' },
-                      { value: 'job', label: 'Job Reports' },
-                      { value: 'employee', label: 'Employee Reports' },
-                      { value: 'payment', label: 'Payment Reports' },
-                      { value: 'bill', label: 'Bill Reports' },
-                      { value: 'banking', label: 'Banking Reports' },
-                      { value: 'chart_of_accounts', label: 'Chart of Accounts Reports' },
-                      { value: 'journal_entry', label: 'Journal Entry Reports' },
-                      { value: 'delivery_ticket', label: 'Delivery Ticket Reports' },
-                      { value: 'visitor_log', label: 'Visitor Log Reports' },
-                    ].map((report) => (
-                      <div key={report.value} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`report-${report.value}`}
-                          checked={reportFormatTemplate.applies_to_reports?.includes(report.value) || false}
-                          onChange={(e) => {
-                            const currentReports = reportFormatTemplate.applies_to_reports || [];
-                            const newReports = e.target.checked
-                              ? [...currentReports, report.value]
-                              : currentReports.filter(r => r !== report.value);
-                            setReportFormatTemplate({ ...reportFormatTemplate, applies_to_reports: newReports });
-                          }}
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <Label htmlFor={`report-${report.value}`} className="text-sm font-normal cursor-pointer">
-                          {report.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
+            <TabsContent value="reconciliation" className="space-y-6">
               {/* Template Presets */}
               <Card>
                 <CardHeader>
@@ -919,7 +891,7 @@ export default function PdfTemplateSettings() {
                     onValueChange={(presetKey) => {
                       const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
                       if (preset) {
-                        setReportFormatTemplate(prev => ({
+                        setReconciliationTemplate(prev => ({
                           ...prev,
                           header_html: preset.header_html,
                           footer_html: preset.footer_html,
@@ -948,113 +920,246 @@ export default function PdfTemplateSettings() {
                 </CardContent>
               </Card>
 
-              {/* Color and Styling */}
+              {/* Edit Mode Toggle */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Color & Styling</CardTitle>
-                  <CardDescription>Customize colors and appearance for your reports</CardDescription>
+                  <CardTitle className="text-base">Edit Mode</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="report-font">Font Family</Label>
-                      <Select 
-                        value={reportFormatTemplate.font_family} 
-                        onValueChange={(value) => setReportFormatTemplate({ ...reportFormatTemplate, font_family: value })}
-                      >
-                        <SelectTrigger id="report-font">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="helvetica">Helvetica</SelectItem>
-                          <SelectItem value="times">Times New Roman</SelectItem>
-                          <SelectItem value="courier">Courier</SelectItem>
-                        </SelectContent>
-                      </Select>
+                <CardContent>
+                  <RadioGroup value={editMode} onValueChange={(value) => setEditMode(value as 'visual' | 'code')}>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="visual" id="reconciliation-visual" />
+                      <Label htmlFor="reconciliation-visual" className="flex items-center gap-2 cursor-pointer">
+                        <Layout className="h-4 w-4" />
+                        Visual Editor
+                      </Label>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="report-primary-color">Primary Color</Label>
-                      <Input
-                        id="report-primary-color"
-                        type="color"
-                        value={reportFormatTemplate.primary_color || '#1e40af'}
-                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, primary_color: e.target.value })}
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="code" id="reconciliation-code" />
+                      <Label htmlFor="reconciliation-code" className="flex items-center gap-2 cursor-pointer">
+                        <Code className="h-4 w-4" />
+                        HTML Code
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+
+              {editMode === 'code' ? (
+                <>
+                  {/* Header HTML Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Header HTML</CardTitle>
+                      <CardDescription>Design the header section with HTML</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        value={reconciliationTemplate.header_html || ''}
+                        onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, header_html: e.target.value })}
+                        rows={10}
+                        className="font-mono text-xs"
+                        placeholder="Enter HTML for header..."
                       />
-                    </div>
-                  </div>
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
+                        <div 
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html || '') }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="report-secondary-color">Secondary Color</Label>
-                      <Input
-                        id="report-secondary-color"
-                        type="color"
-                        value={reportFormatTemplate.secondary_color || '#3b82f6'}
-                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, secondary_color: e.target.value })}
+                  {/* Footer HTML Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Footer HTML</CardTitle>
+                      <CardDescription>Design the footer section with HTML</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        value={reconciliationTemplate.footer_html || ''}
+                        onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, footer_html: e.target.value })}
+                        rows={8}
+                        className="font-mono text-xs"
+                        placeholder="Enter HTML for footer..."
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="report-table-header-bg">Table Header Background</Label>
-                      <Input
-                        id="report-table-header-bg"
-                        type="color"
-                        value={reportFormatTemplate.table_header_bg || '#f1f5f9'}
-                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_header_bg: e.target.value })}
-                      />
-                    </div>
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
+                        <div 
+                          className="prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html || '') }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <>
+                  {/* Visual Style Editor */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Colors & Styling</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Primary Color</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={reconciliationTemplate.primary_color}
+                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, primary_color: e.target.value })}
+                              className="h-10 w-16 rounded border cursor-pointer"
+                            />
+                            <Input
+                              type="text"
+                              value={reconciliationTemplate.primary_color}
+                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, primary_color: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Table Header Background</Label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={reconciliationTemplate.table_header_bg}
+                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, table_header_bg: e.target.value })}
+                              className="h-10 w-16 rounded border cursor-pointer"
+                            />
+                            <Input
+                              type="text"
+                              value={reconciliationTemplate.table_header_bg}
+                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, table_header_bg: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Font Family</Label>
+                        <Select 
+                          value={reconciliationTemplate.font_family} 
+                          onValueChange={(value) => setReconciliationTemplate({ ...reconciliationTemplate, font_family: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="helvetica">Helvetica</SelectItem>
+                            <SelectItem value="times">Times New Roman</SelectItem>
+                            <SelectItem value="courier">Courier</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Header Images */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Header Images
+                      </CardTitle>
+                      <CardDescription>Add and position images in the header</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, 'reconciliation')}
+                          className="flex-1"
+                        />
+                        <Button onClick={() => handleImageUpload(null, 'reconciliation')} variant="outline">
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="border rounded-lg bg-white" style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <p className="text-sm text-muted-foreground">Canvas for visual editor will appear here</p>
+                      </div>
+
+                      {reconciliationTemplate.header_images && reconciliationTemplate.header_images.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Uploaded Images</Label>
+                          <div className="space-y-2">
+                            {reconciliationTemplate.header_images.map((img, idx) => (
+                              <div key={idx} className="flex items-center gap-2 p-2 border rounded">
+                                <img src={img.url} alt={`Header ${idx + 1}`} className="w-12 h-12 object-contain" />
+                                <div className="flex-1 text-xs">
+                                  <div>Position: ({img.x.toFixed(0)}, {img.y.toFixed(0)})</div>
+                                  <div>Size: {img.width.toFixed(0)} × {img.height.toFixed(0)}</div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeHeaderImage(idx, 'reconciliation')}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Header Text Boxes */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Header Text Boxes
+                      </CardTitle>
+                      <CardDescription>Add text elements to the header</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <Button onClick={() => addTextBox('reconciliation')} variant="outline" className="w-full">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Add Text Box
+                      </Button>
+
+                      {reconciliationTemplate.header_texts && reconciliationTemplate.header_texts.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Text Boxes</Label>
+                          <div className="space-y-2">
+                            {reconciliationTemplate.header_texts.map((txt, idx) => (
+                              <div key={idx} className="flex items-center gap-2 p-2 border rounded">
+                                <div className="flex-1 text-xs">
+                                  <div className="font-medium">{txt.text}</div>
+                                  <div className="text-muted-foreground">Position: ({txt.x.toFixed(0)}, {txt.y.toFixed(0)})</div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeTextBox(idx, 'reconciliation')}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* Save Button */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex gap-2">
+                    <Button onClick={() => saveTemplate(reconciliationTemplate)} disabled={loading} className="flex-1">
+                      <Save className="h-4 w-4 mr-2" />
+                      {loading ? 'Saving...' : 'Save Reconciliation Template'}
+                    </Button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="report-table-border">Table Border Color</Label>
-                      <Input
-                        id="report-table-border"
-                        type="color"
-                        value={reportFormatTemplate.table_border_color || '#e2e8f0'}
-                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_border_color: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="report-table-stripe">Table Stripe Color</Label>
-                      <Input
-                        id="report-table-stripe"
-                        type="color"
-                        value={reportFormatTemplate.table_stripe_color || '#f8fafc'}
-                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_stripe_color: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label htmlFor="report-header">Header HTML</Label>
-                    <Textarea
-                      id="report-header"
-                      value={reportFormatTemplate.header_html || ''}
-                      onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, header_html: e.target.value })}
-                      rows={6}
-                      placeholder="Enter HTML for header..."
-                      className="font-mono text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="report-footer">Footer HTML</Label>
-                    <Textarea
-                      id="report-footer"
-                      value={reportFormatTemplate.footer_html || ''}
-                      onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, footer_html: e.target.value })}
-                      rows={6}
-                      placeholder="Enter HTML for footer..."
-                      className="font-mono text-xs"
-                    />
-                  </div>
-
-                  <Button onClick={() => saveTemplate(reportFormatTemplate)} disabled={loading}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Saving...' : 'Save Report Format Template'}
-                  </Button>
                 </CardContent>
               </Card>
 
@@ -1063,26 +1168,28 @@ export default function PdfTemplateSettings() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Eye className="h-4 w-4" />
-                    Preview
+                    Live Preview
                   </CardTitle>
-                  <CardDescription>Preview how your reports will look</CardDescription>
+                  <CardDescription>See how your template will look in PDF reports</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="border rounded-lg p-6 bg-white">
-                    {reportFormatTemplate.header_html && (
+                  <div className="border rounded-lg p-8 bg-white shadow-sm" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                    {reconciliationTemplate.header_html && (
                       <div 
-                        className="mb-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reportFormatTemplate.header_html) }}
+                        className="mb-6" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html) }}
                       />
                     )}
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <p>Report content will appear here...</p>
-                      <p className="text-xs">Selected reports: {reportFormatTemplate.applies_to_reports?.length || 0}</p>
+                    <div className="space-y-4 py-8">
+                      <h3 className="text-lg font-semibold text-center">Sample Reconciliation Report Content</h3>
+                      <p className="text-sm text-muted-foreground text-center">
+                        This is where your reconciliation data will appear...
+                      </p>
                     </div>
-                    {reportFormatTemplate.footer_html && (
+                    {reconciliationTemplate.footer_html && (
                       <div 
                         className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reportFormatTemplate.footer_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html) }}
                       />
                     )}
                   </div>
@@ -1182,6 +1289,39 @@ export default function PdfTemplateSettings() {
                     <Save className="h-4 w-4 mr-2" />
                     {loading ? 'Saving...' : 'Save Commitment Template'}
                   </Button>
+                </CardContent>
+              </Card>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Live Preview
+                  </CardTitle>
+                  <CardDescription>See how your commitment status reports will look</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg p-8 bg-white shadow-sm" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                    {commitmentTemplate.header_html && (
+                      <div 
+                        className="mb-6" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.header_html) }}
+                      />
+                    )}
+                    <div className="space-y-4 py-8">
+                      <h3 className="text-lg font-semibold text-center">Sample Commitment Status Content</h3>
+                      <p className="text-sm text-muted-foreground text-center">
+                        This is where your commitment status data will appear...
+                      </p>
+                    </div>
+                    {commitmentTemplate.footer_html && (
+                      <div 
+                        className="mt-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.footer_html) }}
+                      />
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1491,7 +1631,7 @@ export default function PdfTemplateSettings() {
 
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-muted-foreground">Drag logos and text boxes on the canvas.</div>
-                      <Button variant="outline" size="sm" onClick={addTextBox}>Add Text Box</Button>
+                      <Button variant="outline" size="sm" onClick={() => addTextBox('reconciliation')}>Add Text Box</Button>
                     </div>
 
                     <div className="relative w-full bg-gradient-to-br from-muted/10 to-muted/5 rounded-lg p-4 shadow-xl">
