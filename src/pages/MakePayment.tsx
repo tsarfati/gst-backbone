@@ -266,17 +266,49 @@ export default function MakePayment() {
     setPayment(prev => ({ ...prev, amount: 0 }));
   };
   
-  const handleInvoiceSelection = (invoiceId: string) => {
+  const handleInvoiceSelection = (invoiceId: string, checked: boolean) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
     if (!invoice) return;
     
-    setSelectedInvoices([invoiceId]);
-    setPayment(prev => ({ 
-      ...prev, 
-      vendor_id: invoice.vendor_id,
-      amount: isPartialPayment ? prev.amount : invoice.amount
-    }));
-    setSelectedVendor(invoice.vendor_id);
+    let newSelectedInvoices: string[];
+    
+    if (checked) {
+      // Check if we already have invoices from a different vendor
+      if (selectedInvoices.length > 0) {
+        const firstSelectedInvoice = invoices.find(inv => inv.id === selectedInvoices[0]);
+        if (firstSelectedInvoice && firstSelectedInvoice.vendor_id !== invoice.vendor_id) {
+          toast({
+            title: "Different Vendor",
+            description: "You can only pay bills from the same vendor in one payment",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      newSelectedInvoices = [...selectedInvoices, invoiceId];
+    } else {
+      newSelectedInvoices = selectedInvoices.filter(id => id !== invoiceId);
+    }
+    
+    setSelectedInvoices(newSelectedInvoices);
+    
+    // Calculate total amount from selected invoices
+    if (newSelectedInvoices.length > 0) {
+      const totalAmount = newSelectedInvoices.reduce((sum, id) => {
+        const inv = invoices.find(i => i.id === id);
+        return sum + (inv?.amount || 0);
+      }, 0);
+      
+      setPayment(prev => ({ 
+        ...prev, 
+        vendor_id: invoice.vendor_id,
+        amount: isPartialPayment ? prev.amount : totalAmount
+      }));
+      setSelectedVendor(invoice.vendor_id);
+    } else {
+      setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
+      setIsPartialPayment(false);
+    }
   };
 
   const handleJobChange = (jobId: string) => {
@@ -405,26 +437,28 @@ export default function MakePayment() {
         }
       }
 
-      // Create payment invoice line
-      const invoice = invoices.find(inv => inv.id === selectedInvoices[0]);
-      const paymentLine = {
-        payment_id: paymentData.id,
-        invoice_id: selectedInvoices[0],
-        amount_paid: payment.amount
-      };
+      // Create payment invoice lines for all selected invoices
+      const paymentLines = selectedInvoices.map(invoiceId => {
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        return {
+          payment_id: paymentData.id,
+          invoice_id: invoiceId,
+          amount_paid: invoice?.amount || 0
+        };
+      });
 
       const { error: linesError } = await supabase
         .from('payment_invoice_lines')
-        .insert([paymentLine]);
+        .insert(paymentLines);
 
       if (linesError) throw linesError;
 
-      // Update invoice status to paid (only if full payment)
+      // Update invoice statuses to paid (only if full payment)
       if (!isPartialPayment) {
         await supabase
           .from('invoices')
           .update({ status: 'paid' })
-          .eq('id', selectedInvoices[0]);
+          .in('id', selectedInvoices);
       }
 
       toast({
@@ -604,10 +638,11 @@ export default function MakePayment() {
                   onCheckedChange={(checked) => {
                     setIsPartialPayment(!!checked);
                     if (!checked && selectedInvoices.length > 0) {
-                      const invoice = invoices.find(inv => inv.id === selectedInvoices[0]);
-                      if (invoice) {
-                        setPayment(prev => ({ ...prev, amount: invoice.amount }));
-                      }
+                      const totalAmount = selectedInvoices.reduce((sum, id) => {
+                        const invoice = invoices.find(inv => inv.id === id);
+                        return sum + (invoice?.amount || 0);
+                      }, 0);
+                      setPayment(prev => ({ ...prev, amount: totalAmount }));
                     }
                   }}
                   disabled={selectedInvoices.length === 0}
@@ -683,8 +718,13 @@ export default function MakePayment() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Select Invoice to Pay
+                Select Bills to Pay
               </CardTitle>
+              {selectedInvoices.length > 0 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedInvoices.length} bill{selectedInvoices.length > 1 ? 's' : ''} selected. Select multiple bills from the same vendor to pay together.
+                </p>
+              )}
             </CardHeader>
 
             <CardContent>
@@ -709,32 +749,25 @@ export default function MakePayment() {
                   <TableBody>
                     {invoices.map(invoice => {
                       const isSelected = selectedInvoices.includes(invoice.id);
+                      const isFromDifferentVendor = selectedInvoices.length > 0 && 
+                        selectedInvoices[0] !== invoice.id &&
+                        invoices.find(inv => inv.id === selectedInvoices[0])?.vendor_id !== invoice.vendor_id;
+                      
                       return (
                         <TableRow 
                           key={invoice.id}
-                          className={isSelected ? "bg-muted/50" : "cursor-pointer hover:bg-muted/30"}
+                          className={isSelected ? "bg-muted/50" : isFromDifferentVendor ? "opacity-50" : "cursor-pointer hover:bg-muted/30"}
                           onClick={() => {
-                            // Only allow selecting one invoice at a time
-                            if (isSelected) {
-                              setSelectedInvoices([]);
-                              setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
-                              setIsPartialPayment(false);
-                            } else {
-                              handleInvoiceSelection(invoice.id);
-                            }
+                            if (isFromDifferentVendor) return;
+                            handleInvoiceSelection(invoice.id, !isSelected);
                           }}
                         >
-                           <TableCell onClick={(e) => e.stopPropagation()}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={isSelected}
+                              disabled={isFromDifferentVendor}
                               onCheckedChange={(checked) => {
-                                if (checked) {
-                                  handleInvoiceSelection(invoice.id);
-                                } else {
-                                  setSelectedInvoices([]);
-                                  setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
-                                  setIsPartialPayment(false);
-                                }
+                                handleInvoiceSelection(invoice.id, !!checked);
                               }}
                             />
                           </TableCell>
