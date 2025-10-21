@@ -2926,6 +2926,7 @@ export type Database = {
       pdf_templates: {
         Row: {
           auto_size_columns: boolean | null
+          available_variables: Json | null
           body_html: string | null
           company_id: string
           created_at: string
@@ -2942,12 +2943,17 @@ export type Database = {
           table_border_color: string | null
           table_header_bg: string | null
           table_stripe_color: string | null
+          template_file_name: string | null
+          template_file_type: string | null
+          template_file_url: string | null
+          template_format: string | null
           template_name: string | null
           template_type: string
           updated_at: string
         }
         Insert: {
           auto_size_columns?: boolean | null
+          available_variables?: Json | null
           body_html?: string | null
           company_id: string
           created_at?: string
@@ -2964,12 +2970,17 @@ export type Database = {
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
+          template_file_name?: string | null
+          template_file_type?: string | null
+          template_file_url?: string | null
+          template_format?: string | null
           template_name?: string | null
           template_type: string
           updated_at?: string
         }
         Update: {
           auto_size_columns?: boolean | null
+          available_variables?: Json | null
           body_html?: string | null
           company_id?: string
           created_at?: string
@@ -2986,6 +2997,10 @@ export type Database = {
           table_border_color?: string | null
           table_header_bg?: string | null
           table_stripe_color?: string | null
+          template_file_name?: string | null
+          template_file_type?: string | null
+          template_file_url?: string | null
+          template_format?: string | null
           template_name?: string | null
           template_type?: string
           updated_at?: string

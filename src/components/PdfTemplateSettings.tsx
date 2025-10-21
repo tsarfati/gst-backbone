@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
+import TemplateFileUploader from '@/components/TemplateFileUploader';
 import { Canvas as FabricCanvas, Image as FabricImage, Textbox as FabricTextbox } from 'fabric';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -48,6 +49,10 @@ interface TemplateSettings {
     fontFamily?: string;
   }>;
   notes?: string;
+  template_file_url?: string;
+  template_file_name?: string;
+  template_file_type?: string;
+  template_format?: string;
 }
 
 const TEMPLATE_PRESETS = {
@@ -212,6 +217,36 @@ export default function PdfTemplateSettings() {
   const [commitmentTemplate, setCommitmentTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'commitment',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: []
+  });
+  const [invoiceTemplate, setInvoiceTemplate] = useState<TemplateSettings>({
+    company_id: currentCompany?.id || '',
+    template_type: 'invoice',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: []
+  });
+  const [receiptTemplate, setReceiptTemplate] = useState<TemplateSettings>({
+    company_id: currentCompany?.id || '',
+    template_type: 'receipt',
     font_family: 'helvetica',
     header_html: TEMPLATE_PRESETS.professional.header_html,
     footer_html: TEMPLATE_PRESETS.professional.footer_html,
@@ -554,6 +589,10 @@ export default function PdfTemplateSettings() {
           setCommitmentTemplate(templateData);
         } else if (templateType === 'reconciliation') {
           setReconciliationTemplate(templateData);
+        } else if (templateType === 'invoice') {
+          setInvoiceTemplate(templateData);
+        } else if (templateType === 'receipt') {
+          setReceiptTemplate(templateData);
         }
       } else {
         // If no saved template, try to add company logo as default
@@ -880,10 +919,34 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="reconciliation" className="space-y-6">
+              <TemplateFileUploader
+                templateType="reconciliation"
+                displayName="Reconciliation Report"
+                availableVariables={[
+                  'company_name',
+                  'bank_account',
+                  'period',
+                  'statement_balance',
+                  'book_balance',
+                  'difference',
+                  'reconcile_date',
+                  'date',
+                  'page',
+                  'pages',
+                  'generated_date'
+                ]}
+                currentTemplate={{
+                  file_url: reconciliationTemplate.template_file_url,
+                  file_name: reconciliationTemplate.template_file_name,
+                  file_type: reconciliationTemplate.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('reconciliation')}
+              />
+
               <Alert className="mb-6">
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  Configure the PDF template for reconciliation reports. Available variables: <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{bank_account}'}</code>, <code className="text-xs">{'{period}'}</code>, <code className="text-xs">{'{statement_balance}'}</code>, <code className="text-xs">{'{book_balance}'}</code>, <code className="text-xs">{'{difference}'}</code>, <code className="text-xs">{'{date}'}</code>, <code className="text-xs">{'{page}'}</code>, <code className="text-xs">{'{pages}'}</code>, <code className="text-xs">{'{generated_date}'}</code>
+                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
                 </AlertDescription>
               </Alert>
 
@@ -1209,6 +1272,37 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="commitment" className="space-y-6">
+              <TemplateFileUploader
+                templateType="commitment"
+                displayName="Commitment Status Report"
+                availableVariables={[
+                  'company_name',
+                  'job_name',
+                  'contract_number',
+                  'vendor_name',
+                  'total_commit',
+                  'contract_balance',
+                  'period',
+                  'date',
+                  'page',
+                  'pages',
+                  'generated_date'
+                ]}
+                currentTemplate={{
+                  file_url: commitmentTemplate.template_file_url,
+                  file_name: commitmentTemplate.template_file_name,
+                  file_type: commitmentTemplate.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('commitment')}
+              />
+
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
+                </AlertDescription>
+              </Alert>
+
               {/* Template Presets */}
               <Card>
                 <CardHeader>
@@ -1338,6 +1432,30 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="invoice" className="space-y-6">
+              <TemplateFileUploader
+                templateType="invoice"
+                displayName="Invoice Report"
+                availableVariables={[
+                  'company_name',
+                  'invoice_number',
+                  'vendor_name',
+                  'amount',
+                  'due_date',
+                  'issue_date',
+                  'period',
+                  'date',
+                  'page',
+                  'pages',
+                  'generated_date'
+                ]}
+                currentTemplate={{
+                  file_url: invoiceTemplate?.template_file_url,
+                  file_name: invoiceTemplate?.template_file_name,
+                  file_type: invoiceTemplate?.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('invoice')}
+              />
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -1361,6 +1479,29 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="receipt" className="space-y-6">
+              <TemplateFileUploader
+                templateType="receipt"
+                displayName="Receipt Report"
+                availableVariables={[
+                  'company_name',
+                  'date_range',
+                  'total_amount',
+                  'vendor_name',
+                  'receipt_count',
+                  'period',
+                  'date',
+                  'page',
+                  'pages',
+                  'generated_date'
+                ]}
+                currentTemplate={{
+                  file_url: receiptTemplate?.template_file_url,
+                  file_name: receiptTemplate?.template_file_name,
+                  file_type: receiptTemplate?.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('receipt')}
+              />
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -1384,6 +1525,36 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="timecard" className="space-y-6">
+              <TemplateFileUploader
+                templateType="timecard"
+                displayName="Timecard Report"
+                availableVariables={[
+                  'company_name',
+                  'employee_name',
+                  'job_name',
+                  'period',
+                  'date',
+                  'total_hours',
+                  'overtime_hours',
+                  'page',
+                  'pages',
+                  'generated_date'
+                ]}
+                currentTemplate={{
+                  file_url: timecardTemplate.template_file_url,
+                  file_name: timecardTemplate.template_file_name,
+                  file_type: timecardTemplate.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('timecard')}
+              />
+
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
+                </AlertDescription>
+              </Alert>
+
               {/* Template Presets */}
               <Card>
                 <CardHeader>
