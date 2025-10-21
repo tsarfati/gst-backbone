@@ -69,6 +69,16 @@ export default function JournalEntries() {
   ]);
   const [openPopovers, setOpenPopovers] = useState<Record<number, { jobControl: boolean; costCode: boolean }>>({});
 
+  // Separate job accounts (5000-5999) from other accounts
+  const jobAccounts = accounts.filter(a => {
+    const num = parseInt(a.account_number);
+    return num >= 5000 && num <= 5999;
+  });
+  const otherAccounts = accounts.filter(a => {
+    const num = parseInt(a.account_number);
+    return num < 5000 || num > 5999;
+  });
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -228,9 +238,17 @@ export default function JournalEntries() {
                           {line.line_type === 'job' && line.job_id 
                             ? jobs.find(j => j.id === line.job_id)?.name
                             : line.account_id
-                            ? accounts.find(a => a.id === line.account_id)
-                              ? `${accounts.find(a => a.id === line.account_id)?.account_number} - ${accounts.find(a => a.id === line.account_id)?.account_name}`
-                              : 'Select job or account'
+                            ? (() => {
+                                const account = accounts.find(a => a.id === line.account_id);
+                                if (!account) return 'Select job or account';
+                                const num = parseInt(account.account_number);
+                                // For job accounts (5000-5999), show name only
+                                if (num >= 5000 && num <= 5999) {
+                                  return account.account_name;
+                                }
+                                // For other accounts, show number - name
+                                return `${account.account_number} - ${account.account_name}`;
+                              })()
                             : 'Select job or account'}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
@@ -240,20 +258,19 @@ export default function JournalEntries() {
                           <CommandInput placeholder="Search jobs or accounts..." />
                           <CommandList>
                             <CommandEmpty>No results found.</CommandEmpty>
-                            {jobs.length > 0 && (
-                              <CommandGroup heading="Jobs">
-                                {jobs.map((job) => (
+                            {jobAccounts.length > 0 && (
+                              <CommandGroup heading="JOBS">
+                                {jobAccounts.map((account) => (
                                   <CommandItem
-                                    key={`job-${job.id}`}
-                                    value={job.name}
+                                    key={account.id}
+                                    value={account.account_name}
                                     onSelect={() => {
                                       updateLine(index, {
-                                        line_type: 'job',
-                                        job_id: job.id,
-                                        account_id: '',
+                                        line_type: 'controller',
+                                        account_id: account.id,
+                                        job_id: undefined,
                                         cost_code_id: undefined
                                       });
-                                      loadCostCodesForJob(job.id);
                                       setOpenPopovers(prev => ({ 
                                         ...prev, 
                                         [index]: { ...prev[index], jobControl: false } 
@@ -263,18 +280,18 @@ export default function JournalEntries() {
                                     <Check
                                       className={cn(
                                         "mr-2 h-4 w-4",
-                                        line.line_type === 'job' && line.job_id === job.id ? "opacity-100" : "opacity-0"
+                                        line.line_type === 'controller' && line.account_id === account.id ? "opacity-100" : "opacity-0"
                                       )}
                                     />
-                                    {job.name}
+                                    {account.account_name}
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
                             )}
-                            {jobs.length > 0 && accounts.length > 0 && <CommandSeparator />}
-                            {accounts.length > 0 && (
-                              <CommandGroup heading="Chart of Accounts">
-                                {accounts.map((account) => (
+                            {jobAccounts.length > 0 && otherAccounts.length > 0 && <CommandSeparator />}
+                            {otherAccounts.length > 0 && (
+                              <CommandGroup heading="Accounts">
+                                {otherAccounts.map((account) => (
                                   <CommandItem
                                     key={account.id}
                                     value={`${account.account_number} ${account.account_name}`}
