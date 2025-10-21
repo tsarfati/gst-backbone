@@ -2391,6 +2391,7 @@ export type Database = {
       }
       journal_entries: {
         Row: {
+          company_id: string
           created_at: string
           created_by: string
           description: string
@@ -2406,6 +2407,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          company_id: string
           created_at?: string
           created_by: string
           description: string
@@ -2421,6 +2423,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          company_id?: string
           created_at?: string
           created_by?: string
           description?: string
@@ -2436,6 +2439,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "journal_entries_job_id_fkey"
             columns: ["job_id"]
