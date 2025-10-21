@@ -17,9 +17,7 @@ import {
   Search, 
   Calendar,
   DollarSign,
-  Edit,
   Trash2,
-  Eye,
   Check,
   ChevronsUpDown,
   Save
@@ -655,12 +653,15 @@ export default function JournalEntries() {
                   <TableHead>Debit</TableHead>
                   <TableHead>Credit</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredEntries.map((entry) => (
-                  <TableRow key={entry.id}>
+                  <TableRow 
+                    key={entry.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => window.location.href = `/banking/journal-entries/${entry.id}`}
+                  >
                     <TableCell>
                       <div className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
@@ -687,19 +688,6 @@ export default function JournalEntries() {
                       }`}>
                         {entry.status}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
