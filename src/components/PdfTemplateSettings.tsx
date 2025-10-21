@@ -178,7 +178,25 @@ export default function PdfTemplateSettings() {
   const [loading, setLoading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
-  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt'>('timecard');
+  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'report-formats'>('timecard');
+  const [reportFormatTemplate, setReportFormatTemplate] = useState<TemplateSettings & { 
+    applies_to_reports?: string[]
+  }>({
+    company_id: currentCompany?.id || '',
+    template_type: 'report_formats',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: [],
+    applies_to_reports: []
+  });
   const [timecardTemplate, setTimecardTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'timecard',
@@ -263,6 +281,7 @@ export default function PdfTemplateSettings() {
   useEffect(() => {
     if (currentCompany?.id) {
       loadTemplate('timecard');
+      loadTemplate('report_formats');
     }
   }, [currentCompany?.id]);
 
@@ -526,14 +545,23 @@ export default function PdfTemplateSettings() {
           }
         }
 
-        setTimecardTemplate({
+        const templateData = {
           ...(row as any),
           header_images: finalHeaderImages
-        });
+        };
+
+        // Update the appropriate template state based on type
+        if (templateType === 'timecard') {
+          setTimecardTemplate(templateData);
+        } else if (templateType === 'commitment') {
+          setCommitmentTemplate(templateData);
+        } else if (templateType === 'report_formats') {
+          setReportFormatTemplate(templateData);
+        }
       } else {
         // If no saved template, try to add company logo as default
         const logoUrl = await getCompanyLogoPublicUrl();
-        if (logoUrl) {
+        if (logoUrl && templateType === 'timecard') {
           setTimecardTemplate(prev => ({
             ...prev,
             header_images: [{ url: logoUrl, x: 36, y: 28, width: 140, height: 56 }]
@@ -811,16 +839,255 @@ export default function PdfTemplateSettings() {
           </Alert>
 
           <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="timecard">Timecard Reports</TabsTrigger>
               <TabsTrigger value="commitment">Commitment Status</TabsTrigger>
               <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
               <TabsTrigger value="receipt">Receipt Reports</TabsTrigger>
               <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
+              <TabsTrigger value="report-formats">Report Formats</TabsTrigger>
             </TabsList>
 
             <TabsContent value="subcontract" className="space-y-6">
               <SubcontractTemplateSettings onSave={() => loadTemplate('subcontract')} />
+            </TabsContent>
+
+            <TabsContent value="report-formats" className="space-y-6">
+              {/* Report Types Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Report Types
+                  </CardTitle>
+                  <CardDescription>Select which report types this template applies to</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {[
+                      { value: 'reconciliation', label: 'Reconciliation Reports' },
+                      { value: 'commitment_status', label: 'Commitment Status Reports' },
+                      { value: 'invoice', label: 'Invoice Reports' },
+                      { value: 'timecard', label: 'Timecard Reports' },
+                      { value: 'receipt', label: 'Receipt Reports' },
+                      { value: 'vendor', label: 'Vendor Reports' },
+                      { value: 'job', label: 'Job Reports' },
+                      { value: 'employee', label: 'Employee Reports' },
+                      { value: 'payment', label: 'Payment Reports' },
+                      { value: 'bill', label: 'Bill Reports' },
+                      { value: 'banking', label: 'Banking Reports' },
+                      { value: 'chart_of_accounts', label: 'Chart of Accounts Reports' },
+                      { value: 'journal_entry', label: 'Journal Entry Reports' },
+                      { value: 'delivery_ticket', label: 'Delivery Ticket Reports' },
+                      { value: 'visitor_log', label: 'Visitor Log Reports' },
+                    ].map((report) => (
+                      <div key={report.value} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`report-${report.value}`}
+                          checked={reportFormatTemplate.applies_to_reports?.includes(report.value) || false}
+                          onChange={(e) => {
+                            const currentReports = reportFormatTemplate.applies_to_reports || [];
+                            const newReports = e.target.checked
+                              ? [...currentReports, report.value]
+                              : currentReports.filter(r => r !== report.value);
+                            setReportFormatTemplate({ ...reportFormatTemplate, applies_to_reports: newReports });
+                          }}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <Label htmlFor={`report-${report.value}`} className="text-sm font-normal cursor-pointer">
+                          {report.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Template Presets */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layout className="h-4 w-4" />
+                    Choose a Template Preset
+                  </CardTitle>
+                  <CardDescription>Start with a professionally designed template</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Select 
+                    value={selectedPreset} 
+                    onValueChange={(presetKey) => {
+                      const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
+                      if (preset) {
+                        setReportFormatTemplate(prev => ({
+                          ...prev,
+                          header_html: preset.header_html,
+                          footer_html: preset.footer_html,
+                          primary_color: preset.primary_color,
+                          table_header_bg: preset.table_header_bg,
+                        }));
+                        setSelectedPreset(presetKey);
+                        toast({
+                          title: "Template applied",
+                          description: `${preset.name} template has been applied.`,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                        <SelectItem key={key} value={key}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+
+              {/* Color and Styling */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Color & Styling</CardTitle>
+                  <CardDescription>Customize colors and appearance for your reports</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="report-font">Font Family</Label>
+                      <Select 
+                        value={reportFormatTemplate.font_family} 
+                        onValueChange={(value) => setReportFormatTemplate({ ...reportFormatTemplate, font_family: value })}
+                      >
+                        <SelectTrigger id="report-font">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="helvetica">Helvetica</SelectItem>
+                          <SelectItem value="times">Times New Roman</SelectItem>
+                          <SelectItem value="courier">Courier</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="report-primary-color">Primary Color</Label>
+                      <Input
+                        id="report-primary-color"
+                        type="color"
+                        value={reportFormatTemplate.primary_color || '#1e40af'}
+                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, primary_color: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="report-secondary-color">Secondary Color</Label>
+                      <Input
+                        id="report-secondary-color"
+                        type="color"
+                        value={reportFormatTemplate.secondary_color || '#3b82f6'}
+                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, secondary_color: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="report-table-header-bg">Table Header Background</Label>
+                      <Input
+                        id="report-table-header-bg"
+                        type="color"
+                        value={reportFormatTemplate.table_header_bg || '#f1f5f9'}
+                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_header_bg: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="report-table-border">Table Border Color</Label>
+                      <Input
+                        id="report-table-border"
+                        type="color"
+                        value={reportFormatTemplate.table_border_color || '#e2e8f0'}
+                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_border_color: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="report-table-stripe">Table Stripe Color</Label>
+                      <Input
+                        id="report-table-stripe"
+                        type="color"
+                        value={reportFormatTemplate.table_stripe_color || '#f8fafc'}
+                        onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, table_stripe_color: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label htmlFor="report-header">Header HTML</Label>
+                    <Textarea
+                      id="report-header"
+                      value={reportFormatTemplate.header_html || ''}
+                      onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, header_html: e.target.value })}
+                      rows={6}
+                      placeholder="Enter HTML for header..."
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="report-footer">Footer HTML</Label>
+                    <Textarea
+                      id="report-footer"
+                      value={reportFormatTemplate.footer_html || ''}
+                      onChange={(e) => setReportFormatTemplate({ ...reportFormatTemplate, footer_html: e.target.value })}
+                      rows={6}
+                      placeholder="Enter HTML for footer..."
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <Button onClick={() => saveTemplate(reportFormatTemplate)} disabled={loading}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {loading ? 'Saving...' : 'Save Report Format Template'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Preview
+                  </CardTitle>
+                  <CardDescription>Preview how your reports will look</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg p-6 bg-white">
+                    {reportFormatTemplate.header_html && (
+                      <div 
+                        className="mb-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reportFormatTemplate.header_html) }}
+                      />
+                    )}
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p>Report content will appear here...</p>
+                      <p className="text-xs">Selected reports: {reportFormatTemplate.applies_to_reports?.length || 0}</p>
+                    </div>
+                    {reportFormatTemplate.footer_html && (
+                      <div 
+                        className="mt-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reportFormatTemplate.footer_html) }}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="commitment" className="space-y-6">
