@@ -44,20 +44,31 @@ export default function JournalEntryDetails() {
       
       setLoading(true);
       try {
-        // Load journal entry with creator info
+        // Load journal entry
         const { data: entryData, error: entryError } = await supabase
           .from('journal_entries')
-          .select(`
-            *,
-            created_by_profile:profiles!journal_entries_created_by_fkey(full_name),
-            updated_by_profile:profiles!journal_entries_updated_by_fkey(full_name)
-          `)
+          .select('*')
           .eq('id', id)
           .eq('company_id', currentCompany.id)
           .single();
 
         if (entryError) throw entryError;
-        setEntry(entryData);
+
+        // Load creator profile
+        let createdByProfile = null;
+        if (entryData.created_by) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', entryData.created_by)
+            .single();
+          createdByProfile = profileData;
+        }
+
+        setEntry({
+          ...entryData,
+          created_by_profile: createdByProfile
+        });
 
         // Load journal entry lines with account, job, and cost code info
         const { data: linesData, error: linesError } = await supabase
@@ -241,28 +252,15 @@ export default function JournalEntryDetails() {
                 </span>
               </div>
             </div>
-            {entry.updated_at && entry.updated_at !== entry.created_at && (
-              <>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Last Updated By</div>
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span className="font-medium">
-                      {entry.updated_by_profile?.full_name || 'Unknown'}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-muted-foreground mb-1">Last Updated</div>
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <span className="font-medium">
-                      {format(new Date(entry.updated_at), 'MMM d, yyyy h:mm a')}
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Last Updated</div>
+              <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span className="font-medium">
+                  {format(new Date(entry.updated_at), 'MMM d, yyyy h:mm a')}
+                </span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
