@@ -796,12 +796,20 @@ export default function CompanyManagement() {
                     }}
                   >
                     <TableCell>
-                      <div>
-                        <p className="font-medium">
-                          {companyUser.profile?.display_name || 
-                           `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
-                           'Unknown User'}
-                        </p>
+                       <div>
+                         <p className="font-medium">
+                           {companyUser.is_pin_employee ? (
+                             // For PIN employees, use their name from the profile
+                             companyUser.profile?.display_name || 
+                             `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
+                             'Unknown Employee'
+                           ) : (
+                             // For regular users
+                             companyUser.profile?.display_name || 
+                             `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
+                             'Unknown User'
+                           )}
+                         </p>
                         <p className="text-sm text-muted-foreground">
                           {companyUser.is_pin_employee ? (
                             <>PIN Employee ID: {companyUser.user_id.substring(0, 8)}...</>
