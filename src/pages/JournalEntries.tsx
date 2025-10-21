@@ -234,8 +234,48 @@ export default function JournalEntries() {
 
     try {
       const { data: userData } = await supabase.auth.getUser();
-      
-      // Save journal entry
+      if (!userData.user) throw new Error('Not authenticated');
+
+      // Create the journal entry record
+      const { data: entryData, error: entryError } = await supabase
+        .from('journal_entries')
+        .insert({
+          description: 'Quick journal entry',
+          entry_date: new Date().toISOString().split('T')[0],
+          reference: '',
+          total_debit: totalDebits,
+          total_credit: totalCredits,
+          status: 'posted',
+          created_by: userData.user.id,
+          company_id: currentCompany.id
+        })
+        .select()
+        .single();
+
+      if (entryError) throw entryError;
+
+      // Create the journal entry lines
+      const linesToInsert = lines.map((line, index) => ({
+        journal_entry_id: entryData.id,
+        line_type: line.line_type,
+        account_id: line.line_type === 'controller' ? line.account_id : null,
+        job_id: line.line_type === 'job' ? line.job_id : null,
+        cost_code_id: line.line_type === 'job' ? line.cost_code_id : null,
+        debit_amount: line.debit_amount || 0,
+        credit_amount: line.credit_amount || 0,
+        description: line.description || '',
+        billable: false,
+        markup_percentage: 0,
+        billable_amount: 0,
+        line_order: index + 1
+      }));
+
+      const { error: linesError } = await supabase
+        .from('journal_entry_lines')
+        .insert(linesToInsert);
+
+      if (linesError) throw linesError;
+
       toast({
         title: "Success",
         description: "Journal entry saved successfully",
@@ -246,6 +286,9 @@ export default function JournalEntries() {
         { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' },
         { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
       ]);
+      
+      // Reload the page to show the new entry
+      window.location.reload();
     } catch (error) {
       console.error('Error saving journal entry:', error);
       toast({

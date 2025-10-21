@@ -220,6 +220,9 @@ export default function NewJournalEntry() {
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
+      if (!user.data.user || !currentCompany?.id) {
+        throw new Error('No user or company');
+      }
 
       const { data: entryData, error: entryError } = await supabase
         .from('journal_entries')
@@ -228,7 +231,8 @@ export default function NewJournalEntry() {
           total_debit: totalDebits,
           total_credit: totalCredits,
           status: 'posted',
-          created_by: user.data.user?.id
+          created_by: user.data.user.id,
+          company_id: currentCompany.id
         })
         .select()
         .single();
