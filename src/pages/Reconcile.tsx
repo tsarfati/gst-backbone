@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
@@ -36,6 +37,12 @@ interface BankAccount {
   chart_account_id?: string | null;
 }
 
+interface ChartAccountOption {
+  id: string;
+  account_name: string;
+  account_number: string;
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -62,6 +69,7 @@ export default function Reconcile() {
   const [depositsExpanded, setDepositsExpanded] = useState(true);
   const [paymentsExpanded, setPaymentsExpanded] = useState(true);
   const [calculationsExpanded, setCalculationsExpanded] = useState(true);
+  const [chartAccounts, setChartAccounts] = useState<ChartAccountOption[]>([]);
   
   // Reconciliation state
   const [beginningBalance, setBeginningBalance] = useState(0);
@@ -70,8 +78,12 @@ export default function Reconcile() {
   const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
   const [glCashBalance, setGlCashBalance] = useState<number>(0);
-  
-  
+
+  useEffect(() => {
+    if (currentCompany) {
+      loadChartAccounts();
+    }
+  }, [currentCompany]);
   // Bank statement upload state
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementUploading, setStatementUploading] = useState(false);
@@ -156,6 +168,40 @@ export default function Reconcile() {
       }
     } catch (error: any) {
       console.error("Error loading GL balance:", error);
+    }
+  };
+
+  const loadChartAccounts = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_name, account_number, is_active')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      if (error) throw error;
+      setChartAccounts((data || []) as any);
+    } catch (e) {
+      console.error('Error loading chart accounts', e);
+    }
+  };
+
+  const handleLinkChartAccount = async (chartId: string) => {
+    if (!currentCompany || !accountId) return;
+    try {
+      const { error } = await supabase
+        .from('bank_accounts')
+        .update({ chart_account_id: chartId })
+        .eq('id', accountId)
+        .eq('company_id', currentCompany.id);
+      if (error) throw error;
+      toast.success('Linked cash GL account');
+      setAccount(prev => prev ? { ...prev, chart_account_id: chartId } : prev);
+      await loadGLBalance();
+      await loadTransactions();
+    } catch (e) {
+      console.error('Failed to link GL account', e);
+      toast.error('Failed to link GL account');
     }
   };
 
