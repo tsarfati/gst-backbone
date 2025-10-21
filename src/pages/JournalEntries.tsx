@@ -73,14 +73,18 @@ export default function JournalEntries() {
   ]);
   const [openPopovers, setOpenPopovers] = useState<Record<number, { jobControl: boolean; costCode: boolean }>>({});
 
-  // Separate job accounts (5000-5999) from other accounts
+  // Separate accounts: Jobs (5000-5999 by numeric prefix) vs other accounts
+  const getNumericPrefix = (v: string) => {
+    const m = (v || '').match(/^\d+/);
+    return m ? parseInt(m[0], 10) : NaN;
+  };
   const jobAccounts = accounts.filter(a => {
-    const num = parseInt(a.account_number);
-    return num >= 5000 && num <= 5999;
+    const num = getNumericPrefix(a.account_number);
+    return !Number.isNaN(num) && num >= 5000 && num <= 5999;
   });
   const otherAccounts = accounts.filter(a => {
-    const num = parseInt(a.account_number);
-    return num < 5000 || num > 5999;
+    const num = getNumericPrefix(a.account_number);
+    return Number.isNaN(num) || num < 5000 || num > 5999;
   });
 
   useEffect(() => {
@@ -307,6 +311,7 @@ export default function JournalEntries() {
         .from('journal_entries')
         .select('id, entry_date, reference, description, total_debit, total_credit, status')
         .eq('company_id', currentCompany.id)
+        .not('reference', 'like', 'PAY-%')
         .order('entry_date', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) {
@@ -405,17 +410,17 @@ export default function JournalEntries() {
                           <CommandInput placeholder="Search jobs or accounts..." />
                           <CommandList>
                             <CommandEmpty>No results found.</CommandEmpty>
-                            {jobAccounts.length > 0 && (
+                            {jobs.length > 0 && (
                               <CommandGroup heading="Jobs">
-                                {jobAccounts.map((account) => (
+                                {jobs.map((job) => (
                                   <CommandItem
-                                    key={account.id}
-                                    value={account.account_name}
+                                    key={job.id}
+                                    value={job.name}
                                     onSelect={() => {
                                       updateLine(index, {
-                                        line_type: 'controller',
-                                        account_id: account.id,
-                                        job_id: undefined,
+                                        line_type: 'job',
+                                        job_id: job.id,
+                                        account_id: '',
                                         cost_code_id: undefined
                                       });
                                       setOpenPopovers(prev => ({ 
@@ -427,15 +432,15 @@ export default function JournalEntries() {
                                     <Check
                                       className={cn(
                                         "mr-2 h-4 w-4",
-                                        line.line_type === 'controller' && line.account_id === account.id ? "opacity-100" : "opacity-0"
+                                        line.line_type === 'job' && line.job_id === job.id ? "opacity-100" : "opacity-0"
                                       )}
                                     />
-                                    {account.account_name}
+                                    {job.name}
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
                             )}
-                            {jobAccounts.length > 0 && otherAccounts.length > 0 && <CommandSeparator />}
+                            {jobs.length > 0 && otherAccounts.length > 0 && <CommandSeparator />}
                             {otherAccounts.length > 0 && (
                               <CommandGroup heading="Accounts">
                                 {otherAccounts.map((account) => (
