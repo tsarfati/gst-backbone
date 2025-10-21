@@ -94,6 +94,7 @@ export default function AccountAssociationSettings() {
         supabase
           .from('bank_accounts')
           .select('id, account_name, bank_name, chart_account_id')
+          .eq('company_id', currentCompany.id)
           .eq('is_active', true),
         supabase
           .from('chart_of_accounts')

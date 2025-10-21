@@ -406,9 +406,9 @@ export default function CodedReceipts() {
         // Coding information (right column)
         pdf.text('CODING INFORMATION:', rightColX, rightY);
         rightY += 8;
-        pdf.text(`Job: ${receipt.job}`, rightColX, rightY);
+        pdf.text(`Job: ${receipt.jobName || 'Unknown'}`, rightColX, rightY);
         rightY += lineHeight;
-        pdf.text(`Cost Code: ${receipt.costCode}`, rightColX, rightY);
+        pdf.text(`Cost Code: ${receipt.costCodeName || 'Unknown'}`, rightColX, rightY);
         rightY += lineHeight;
         
         // User information
