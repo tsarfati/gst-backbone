@@ -442,44 +442,24 @@ export default function BankAccountDetails() {
                     <TableHead>Period</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Uploaded</TableHead>
-                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {statements.map((statement) => (
-                    <TableRow key={statement.id}>
+                    <TableRow 
+                      key={statement.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setPreviewDocument({
+                        fileName: statement.file_name,
+                        url: statement.file_url,
+                        type: statement.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
+                      })}
+                    >
                       <TableCell>
                         {new Date(statement.statement_year, statement.statement_month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
                       </TableCell>
                       <TableCell>{statement.display_name || statement.file_name}</TableCell>
                       <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditStatement(statement)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => setPreviewDocument({
-                              fileName: statement.file_name,
-                              url: statement.file_url,
-                              type: statement.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
-                            })}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={statement.file_url} download>
-                              <Download className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        </div>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

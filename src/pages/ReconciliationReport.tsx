@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Download, Eye } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
@@ -221,14 +221,18 @@ export default function ReconciliationReport() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto print:p-4">
-      <div className="mb-6 print:hidden">
+      <div className="mb-6 print:hidden flex items-center justify-between">
         <Button
           variant="ghost"
           onClick={() => navigate(`/banking/accounts/${accountId}`)}
-          className="mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Account
+        </Button>
+        <Button
+          onClick={() => window.print()}
+        >
+          Download Report
         </Button>
       </div>
 
@@ -286,33 +290,6 @@ export default function ReconciliationReport() {
           </CardContent>
         </Card>
 
-        {/* Attached Bank Statement */}
-        {reconciliation.bank_statement && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Attached Bank Statement</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 border rounded">
-                <span className="font-medium">{reconciliation.bank_statement.file_name}</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={reconciliation.bank_statement.file_url} target="_blank" rel="noreferrer">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </a>
-                  </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={reconciliation.bank_statement.file_url} download>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Cleared Transactions */}
         <Card>

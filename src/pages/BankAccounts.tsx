@@ -52,7 +52,26 @@ export default function BankAccounts() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setAccounts(data || []);
+      
+      // Load latest reconciliation balance for each account
+      const accountsWithBalance = await Promise.all((data || []).map(async (account) => {
+        const { data: latestRecon } = await supabase
+          .from('bank_reconciliations')
+          .select('ending_balance, ending_date')
+          .eq('bank_account_id', account.id)
+          .eq('company_id', currentCompany.id)
+          .eq('status', 'completed')
+          .order('ending_date', { ascending: false })
+          .limit(1)
+          .single();
+        
+        return {
+          ...account,
+          current_balance: latestRecon?.ending_balance ?? account.current_balance
+        };
+      }));
+      
+      setAccounts(accountsWithBalance);
     } catch (error) {
       console.error('Error loading bank accounts:', error);
       toast({

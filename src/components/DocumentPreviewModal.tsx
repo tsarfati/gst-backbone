@@ -1,8 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, X, FileText, Image as ImageIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PdfPreview from "./PdfPreview";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -20,20 +21,70 @@ export default function DocumentPreviewModal({
   document
 }: DocumentPreviewModalProps) {
   const [loading, setLoading] = useState(false);
+  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(true);
+
+  useEffect(() => {
+    if (!document || !isOpen) {
+      setRefreshedUrl(null);
+      setRefreshing(true);
+      return;
+    }
+
+    const refreshSignedUrl = async () => {
+      try {
+        setRefreshing(true);
+        // Try to extract the storage path from the URL
+        const urlObj = new URL(document.url);
+        const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(public|sign)\/([^?]+)/);
+        
+        if (pathMatch) {
+          const [, , fullPath] = pathMatch;
+          const [bucket, ...pathParts] = fullPath.split('/');
+          const filePath = pathParts.join('/');
+          
+          // Generate a fresh signed URL
+          const { data, error } = await supabase.storage
+            .from(bucket)
+            .createSignedUrl(filePath, 3600); // 1 hour expiry
+          
+          if (error) {
+            console.error('Error creating signed URL:', error);
+            setRefreshedUrl(document.url);
+          } else if (data?.signedUrl) {
+            setRefreshedUrl(data.signedUrl);
+          } else {
+            setRefreshedUrl(document.url);
+          }
+        } else {
+          // Not a storage URL, use as-is
+          setRefreshedUrl(document.url);
+        }
+      } catch (error) {
+        console.error('Error refreshing signed URL:', error);
+        setRefreshedUrl(document.url);
+      } finally {
+        setRefreshing(false);
+      }
+    };
+
+    refreshSignedUrl();
+  }, [document, isOpen]);
 
   if (!document) return null;
 
   const handleDownload = async () => {
-    if (!document.url) return;
+    const urlToUse = refreshedUrl || document?.url;
+    if (!urlToUse) return;
     
     setLoading(true);
     try {
-      const response = await fetch(document.url);
+      const response = await fetch(urlToUse);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
-      a.download = document.fileName;
+      a.download = document?.fileName || 'download';
       window.document.body.appendChild(a);
       a.click();
       window.document.body.removeChild(a);
@@ -60,20 +111,36 @@ export default function DocumentPreviewModal({
   };
 
   const renderPreview = () => {
+    if (refreshing) {
+      return (
+        <div className="flex items-center justify-center h-[600px]">
+          <p className="text-muted-foreground">Loading preview...</p>
+        </div>
+      );
+    }
+
+    if (!refreshedUrl || !document) {
+      return (
+        <div className="flex items-center justify-center h-[600px]">
+          <p className="text-muted-foreground">Unable to load preview</p>
+        </div>
+      );
+    }
+
     // Use the type prop if provided, otherwise infer from filename
     const fileType = document.type || (isPdf(document.fileName) ? 'pdf' : isImage(document.fileName) ? 'image' : 'other');
     
     if (fileType === 'pdf' || isPdf(document.fileName)) {
       return (
         <div className="w-full h-[600px]">
-          <PdfPreview url={document.url} />
+          <PdfPreview url={refreshedUrl} />
         </div>
       );
     } else if (fileType === 'image' || isImage(document.fileName)) {
       return (
         <div className="flex items-center justify-center h-[600px] bg-muted rounded-lg">
           <img
-            src={document.url}
+            src={refreshedUrl}
             alt={document.fileName}
             className="max-w-full max-h-full object-contain rounded-lg"
           />
