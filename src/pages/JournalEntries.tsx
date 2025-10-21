@@ -298,11 +298,30 @@ export default function JournalEntries() {
     }
   };
 
-  const journalEntries: any[] = [];
+  const [journalEntries, setJournalEntries] = useState<any[]>([]);
 
-  const filteredEntries = journalEntries.filter(entry => {
-    return entry?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           entry?.reference?.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    const loadEntries = async () => {
+      if (!currentCompany?.id) { setJournalEntries([]); return; }
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .select('id, entry_date, reference, description, total_debit, total_credit, status')
+        .eq('company_id', currentCompany.id)
+        .order('entry_date', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('Error loading journal entries:', error);
+        toast({ title: 'Error', description: 'Failed to load journal entries', variant: 'destructive' });
+        return;
+      }
+      setJournalEntries((data as any) || []);
+    };
+    loadEntries();
+  }, [currentCompany?.id]);
+
+  const filteredEntries = journalEntries.filter((entry) => {
+    const q = searchTerm.toLowerCase();
+    return (entry?.description || '').toLowerCase().includes(q) || (entry?.reference || '').toLowerCase().includes(q);
   });
 
   return (
@@ -387,7 +406,7 @@ export default function JournalEntries() {
                           <CommandList>
                             <CommandEmpty>No results found.</CommandEmpty>
                             {jobAccounts.length > 0 && (
-                              <CommandGroup heading="JOBS">
+                              <CommandGroup heading="Jobs">
                                 {jobAccounts.map((account) => (
                                   <CommandItem
                                     key={account.id}
@@ -640,7 +659,7 @@ export default function JournalEntries() {
                     <TableCell>
                       <div className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {entry.date}
+                         {entry.entry_date}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{entry.reference}</TableCell>
@@ -648,13 +667,13 @@ export default function JournalEntries() {
                     <TableCell>
                       <div className="flex items-center">
                         <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {entry.debit || "-"}
+                         {entry.total_debit ?? "-"}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
                         <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
-                        {entry.credit || "-"}
+                         {entry.total_credit ?? "-"}
                       </div>
                     </TableCell>
                     <TableCell>
