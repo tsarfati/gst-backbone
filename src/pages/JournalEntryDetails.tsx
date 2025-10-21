@@ -117,8 +117,7 @@ export default function JournalEntryDetails() {
         
         // Sort events chronologically
         events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        setAuditEvents(events);
-
+        
         // Load journal entry lines with account, job, and cost code info
         const { data: linesData, error: linesError } = await supabase
           .from('journal_entry_lines')
@@ -133,6 +132,39 @@ export default function JournalEntryDetails() {
 
         if (linesError) throw linesError;
         setLines(linesData || []);
+
+        // Add reconciliation events for reconciled lines
+        if (linesData) {
+          for (const line of linesData) {
+            if (line.is_reconciled && line.reconciled_at && line.reconciled_by) {
+              const { data: reconciledByProfile } = await supabase
+                .from('profiles')
+                .select('first_name, last_name, display_name, avatar_url, user_id')
+                .eq('user_id', line.reconciled_by)
+                .single();
+
+              const userName = reconciledByProfile 
+                ? (reconciledByProfile.display_name || `${reconciledByProfile.first_name || ''} ${reconciledByProfile.last_name || ''}`.trim() || 'Unknown User')
+                : 'Unknown User';
+
+              events.push({
+                type: 'reconciled',
+                timestamp: line.reconciled_at,
+                lineDescription: line.description,
+                accountName: line.account?.account_name,
+                user: {
+                  full_name: userName,
+                  avatar_url: reconciledByProfile?.avatar_url || null,
+                  user_id: line.reconciled_by
+                }
+              });
+            }
+          }
+
+          // Re-sort events chronologically after adding reconciliation events
+          events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          setAuditEvents(events);
+        }
       } catch (error) {
         console.error('Error loading journal entry:', error);
         toast({
@@ -327,9 +359,16 @@ export default function JournalEntryDetails() {
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Status</div>
-              <Badge variant={entry.status === 'posted' ? 'default' : 'secondary'}>
-                {entry.status}
-              </Badge>
+              <div className="flex gap-2">
+                <Badge variant={entry.status === 'posted' ? 'default' : 'secondary'}>
+                  {entry.status}
+                </Badge>
+                {lines.some(line => line.is_reconciled) && (
+                  <Badge variant="outline" className="border-success text-success">
+                    Reconciled
+                  </Badge>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Reference</div>
@@ -386,6 +425,7 @@ export default function JournalEntryDetails() {
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Debit</TableHead>
                 <TableHead className="text-right">Credit</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -405,12 +445,20 @@ export default function JournalEntryDetails() {
                   <TableCell className="text-right">
                     {line.credit_amount > 0 ? `$${line.credit_amount.toFixed(2)}` : '-'}
                   </TableCell>
+                  <TableCell>
+                    {line.is_reconciled && (
+                      <Badge variant="outline" className="border-success text-success text-xs">
+                        Reconciled
+                      </Badge>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               <TableRow className="font-semibold bg-muted/50">
                 <TableCell colSpan={4} className="text-right">Totals:</TableCell>
                 <TableCell className="text-right">${entry.total_debit?.toFixed(2) || '0.00'}</TableCell>
                 <TableCell className="text-right">${entry.total_credit?.toFixed(2) || '0.00'}</TableCell>
+                <TableCell></TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -439,9 +487,16 @@ export default function JournalEntryDetails() {
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{event.user.full_name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {event.type === 'created' ? 'created this entry' : 'posted this entry'}
+                        {event.type === 'created' && 'created this entry'}
+                        {event.type === 'posted' && 'posted this entry'}
+                        {event.type === 'reconciled' && 'reconciled a line'}
                       </span>
                     </div>
+                    {event.type === 'reconciled' && (
+                      <div className="text-xs text-muted-foreground">
+                        Account: {event.accountName || 'Unknown'} - {event.lineDescription || 'No description'}
+                      </div>
+                    )}
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {format(new Date(event.timestamp), 'MMM d, yyyy h:mm a')}
