@@ -876,7 +876,7 @@ export default function Reconcile() {
       if (uploadedStatementId) {
         const month = (endingDate?.getMonth?.() ?? new Date().getMonth()) + 1;
         const year = (endingDate?.getFullYear?.() ?? new Date().getFullYear());
-        await supabase
+        const { error: stmtUpdateErr } = await supabase
           .from('bank_statements')
           .update({
             statement_date: format(endingDate, 'yyyy-MM-dd'),
@@ -884,6 +884,10 @@ export default function Reconcile() {
             statement_year: year,
           })
           .eq('id', uploadedStatementId);
+        
+        if (stmtUpdateErr) {
+          console.error('Error updating bank statement period:', stmtUpdateErr);
+        }
       }
 
       // Update bank account balance and as-of date
