@@ -97,6 +97,7 @@ import BankingReports from "./pages/BankingReports";
 import JournalEntries from "./pages/JournalEntries";
 import JournalEntryDetails from "./pages/JournalEntryDetails";
 import JournalEntryEdit from "./pages/JournalEntryEdit";
+import ReconciliationReport from "./pages/ReconciliationReport";
 import Deposits from "./pages/Deposits";
 import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
@@ -317,6 +318,7 @@ function AuthenticatedRoutes() {
                 <Route path="banking/accounts" element={<BankAccounts />} />
                 <Route path="banking/accounts/:id" element={<BankAccountDetails />} />
                 <Route path="banking/accounts/add" element={<AddBankAccount />} />
+                <Route path="banking/reconciliation/:id" element={<ReconciliationReport />} />
                 <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
                 <Route path="payables/credit-cards" element={<CreditCards />} />
                 <Route path="payables/credit-cards/add" element={<AddCreditCard />} />

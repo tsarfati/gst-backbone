@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
 import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 
 interface BankAccount {
@@ -387,7 +388,9 @@ export default function BankAccountDetails() {
           <CardContent>
             <div className="text-3xl font-bold">{formatCurrency(account.current_balance)}</div>
             <p className="text-sm text-muted-foreground mt-1">
-              As of {new Date().toLocaleDateString()}
+              As of {reconcileReports.length > 0 
+                ? format(new Date(reconcileReports[0].reconcile_date), 'MM/dd/yyyy')
+                : new Date().toLocaleDateString()}
             </p>
           </CardContent>
         </Card>
@@ -479,7 +482,11 @@ export default function BankAccountDetails() {
                 </TableHeader>
                 <TableBody>
                   {reconcileReports.map((report) => (
-                    <TableRow key={report.id}>
+                    <TableRow 
+                      key={report.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/banking/reconciliation/${report.id}?account=${id}`)}
+                    >
                       <TableCell>{report.reconcile_month}/{report.reconcile_year}</TableCell>
                       <TableCell>{formatCurrency(report.statement_balance)}</TableCell>
                       <TableCell>{formatCurrency(report.book_balance)}</TableCell>

@@ -1522,6 +1522,7 @@ export type Database = {
       }
       file_upload_settings: {
         Row: {
+          bank_statement_naming_pattern: string | null
           bill_naming_pattern: string | null
           company_id: string
           created_at: string | null
@@ -1543,6 +1544,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          bank_statement_naming_pattern?: string | null
           bill_naming_pattern?: string | null
           company_id: string
           created_at?: string | null
@@ -1564,6 +1566,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          bank_statement_naming_pattern?: string | null
           bill_naming_pattern?: string | null
           company_id?: string
           created_at?: string | null

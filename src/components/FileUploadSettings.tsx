@@ -15,6 +15,7 @@ interface FileUploadSettings {
   receipt_naming_pattern: string;
   bill_naming_pattern: string;
   subcontract_naming_pattern: string;
+  bank_statement_naming_pattern: string;
   enable_google_drive: boolean;
   google_drive_folder_id: string;
   enable_onedrive: boolean;
@@ -35,6 +36,7 @@ export default function FileUploadSettings() {
     receipt_naming_pattern: '{vendor}_{date}_{amount}',
     bill_naming_pattern: '{vendor}_{invoice_number}_{date}',
     subcontract_naming_pattern: '{vendor}_{contract_number}_{date}',
+    bank_statement_naming_pattern: '{bank_name}_{account_name}_{month}_{year}',
     enable_google_drive: false,
     google_drive_folder_id: '',
     enable_onedrive: false,
@@ -72,6 +74,7 @@ export default function FileUploadSettings() {
         receipt_naming_pattern: data.receipt_naming_pattern || '{vendor}_{date}_{amount}',
         bill_naming_pattern: data.bill_naming_pattern || '{vendor}_{invoice_number}_{date}',
         subcontract_naming_pattern: data.subcontract_naming_pattern || '{vendor}_{contract_number}_{date}',
+        bank_statement_naming_pattern: data.bank_statement_naming_pattern || '{bank_name}_{account_name}_{month}_{year}',
         enable_google_drive: data.enable_google_drive || false,
         google_drive_folder_id: data.google_drive_folder_id || '',
         enable_onedrive: data.enable_onedrive || false,
@@ -102,6 +105,7 @@ export default function FileUploadSettings() {
           receipt_naming_pattern: settings.receipt_naming_pattern,
           bill_naming_pattern: settings.bill_naming_pattern,
           subcontract_naming_pattern: settings.subcontract_naming_pattern,
+          bank_statement_naming_pattern: settings.bank_statement_naming_pattern,
           enable_google_drive: settings.enable_google_drive,
           google_drive_folder_id: settings.google_drive_folder_id,
           enable_onedrive: settings.enable_onedrive,
@@ -225,6 +229,35 @@ export default function FileUploadSettings() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Example: Plumbing_Co_SC-001_2025-01-15.pdf
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Bank Statement File Naming</CardTitle>
+              <CardDescription>
+                Configure how bank statement files are automatically renamed on upload
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Available variables: {'{bank_name}'}, {'{account_name}'}, {'{month}'}, {'{year}'}, {'{date}'}, {'{original_filename}'}
+                </AlertDescription>
+              </Alert>
+              <div className="space-y-2">
+                <Label htmlFor="bank-statement-pattern">Naming Pattern</Label>
+                <Input
+                  id="bank-statement-pattern"
+                  value={settings.bank_statement_naming_pattern}
+                  onChange={(e) => setSettings({ ...settings, bank_statement_naming_pattern: e.target.value })}
+                  placeholder="{bank_name}_{account_name}_{month}_{year}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Example: Chase_Operating_Account_02_2025.pdf
                 </p>
               </div>
             </CardContent>
