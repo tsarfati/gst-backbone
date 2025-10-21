@@ -69,7 +69,7 @@ export default function Reconcile() {
   const [searchPayments, setSearchPayments] = useState("");
   const [depositsExpanded, setDepositsExpanded] = useState(true);
   const [paymentsExpanded, setPaymentsExpanded] = useState(true);
-  const [calculationsExpanded, setCalculationsExpanded] = useState(true);
+  const [calculationsExpanded, setCalculationsExpanded] = useState(false);
   const [chartAccounts, setChartAccounts] = useState<ChartAccountOption[]>([]);
   
   // Reconciliation state
@@ -930,10 +930,34 @@ export default function Reconcile() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Account Details
         </Button>
-        <h1 className="text-2xl font-bold text-foreground">Bank Reconciliation</h1>
-        <p className="text-muted-foreground">
-          {account.account_name} - {account.bank_name}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Bank Reconciliation</h1>
+            <p className="text-muted-foreground">
+              {account.account_name} - {account.bank_name}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/banking/accounts/${accountId}`)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSaveProgress}
+            >
+              Save Progress
+            </Button>
+            <Button
+              onClick={handleReconcile}
+              disabled={!isClearedBalanced}
+            >
+              Reconcile
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Account Information */}
@@ -942,7 +966,7 @@ export default function Reconcile() {
           <CardTitle>Account Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Account to Reconcile</Label>
               <div className="p-2 border rounded bg-muted">
@@ -950,31 +974,12 @@ export default function Reconcile() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Link Cash GL Account</Label>
-              <Select 
-                value={account.chart_account_id || 'none'} 
-                onValueChange={handleLinkChartAccount}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select GL account..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not linked</SelectItem>
-                  {chartAccounts.map((ca) => (
-                    <SelectItem key={ca.id} value={ca.id}>
-                      {ca.account_number} - {ca.account_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Link to see journal entries in reconciliation
-              </p>
-            </div>
-            <div className="space-y-2">
               <Label>Beginning Balance</Label>
               <div className="p-2 border rounded bg-muted">
                 {formatCurrency(beginningBalance)}
+                <span className="text-xs text-muted-foreground ml-2">
+                  (as of {format(beginningDate, "MM/dd/yyyy")})
+                </span>
               </div>
             </div>
             <div className="space-y-2">
@@ -1220,18 +1225,6 @@ export default function Reconcile() {
               </Button>
             </CollapsibleTrigger>
           </Collapsible>
-          
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => navigate(`/banking/accounts/${accountId}`)}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={handleSaveProgress}>
-              Save Progress
-            </Button>
-            <Button onClick={handleReconcile} disabled={!isClearedBalanced}>
-              Reconcile
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
