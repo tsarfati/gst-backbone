@@ -93,13 +93,12 @@ export default function JournalEntries() {
           setJobs((jobsData as any) || []);
         }
 
-        // Load expense accounts for this company
+        // Load all active accounts for this company
         const { data: accountsData, error: accountsError } = await supabase
           .from('chart_of_accounts')
           .select('id, account_number, account_name, account_type, normal_balance')
           .eq('company_id', currentCompany.id)
           .eq('is_active', true)
-          .eq('account_type', 'Expense')
           .order('account_number');
 
         if (accountsError) {
@@ -274,7 +273,7 @@ export default function JournalEntries() {
                             )}
                             {jobs.length > 0 && accounts.length > 0 && <CommandSeparator />}
                             {accounts.length > 0 && (
-                              <CommandGroup heading="Expense Accounts">
+                              <CommandGroup heading="Chart of Accounts">
                                 {accounts.map((account) => (
                                   <CommandItem
                                     key={account.id}
