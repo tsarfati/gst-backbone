@@ -501,10 +501,12 @@ export default function Reconcile() {
             .eq('id', id)
             .single();
 
+          console.log('Reconciling deposit journal entry line:', id, 'Entry ID:', lineInfo?.journal_entry_id, 'New state:', newClearedState);
+
           if (lineInfo?.journal_entry_id) {
             if (newClearedState) {
               const { data: { user } } = await supabase.auth.getUser();
-              await supabase
+              const { error } = await supabase
                 .from('journal_entry_lines')
                 .update({
                   is_reconciled: true,
@@ -512,8 +514,15 @@ export default function Reconcile() {
                   reconciled_by: user?.id
                 })
                 .eq('journal_entry_id', lineInfo.journal_entry_id);
+              
+              if (error) {
+                console.error('Error marking JE lines as reconciled:', error);
+                toast.error('Failed to mark journal entry as reconciled');
+              } else {
+                console.log('Successfully marked all lines in journal entry as reconciled');
+              }
             } else {
-              await supabase
+              const { error } = await supabase
                 .from('journal_entry_lines')
                 .update({
                   is_reconciled: false,
@@ -521,10 +530,18 @@ export default function Reconcile() {
                   reconciled_by: null
                 })
                 .eq('journal_entry_id', lineInfo.journal_entry_id);
+              
+              if (error) {
+                console.error('Error unmarking JE lines as reconciled:', error);
+                toast.error('Failed to unmark journal entry as reconciled');
+              } else {
+                console.log('Successfully unmarked all lines in journal entry as reconciled');
+              }
             }
           }
         } catch (error) {
           console.error('Error updating JE reconciliation status:', error);
+          toast.error('Failed to update journal entry reconciliation status');
         }
       }
     } else {
@@ -544,10 +561,12 @@ export default function Reconcile() {
             .eq('id', id)
             .single();
 
+          console.log('Reconciling payment journal entry line:', id, 'Entry ID:', lineInfo?.journal_entry_id, 'New state:', newClearedState);
+
           if (lineInfo?.journal_entry_id) {
             if (newClearedState) {
               const { data: { user } } = await supabase.auth.getUser();
-              await supabase
+              const { error } = await supabase
                 .from('journal_entry_lines')
                 .update({
                   is_reconciled: true,
@@ -555,8 +574,15 @@ export default function Reconcile() {
                   reconciled_by: user?.id
                 })
                 .eq('journal_entry_id', lineInfo.journal_entry_id);
+              
+              if (error) {
+                console.error('Error marking JE lines as reconciled:', error);
+                toast.error('Failed to mark journal entry as reconciled');
+              } else {
+                console.log('Successfully marked all lines in journal entry as reconciled');
+              }
             } else {
-              await supabase
+              const { error } = await supabase
                 .from('journal_entry_lines')
                 .update({
                   is_reconciled: false,
@@ -564,10 +590,18 @@ export default function Reconcile() {
                   reconciled_by: null
                 })
                 .eq('journal_entry_id', lineInfo.journal_entry_id);
+              
+              if (error) {
+                console.error('Error unmarking JE lines as reconciled:', error);
+                toast.error('Failed to unmark journal entry as reconciled');
+              } else {
+                console.log('Successfully unmarked all lines in journal entry as reconciled');
+              }
             }
           }
         } catch (error) {
           console.error('Error updating JE reconciliation status:', error);
+          toast.error('Failed to update journal entry reconciliation status');
         }
       }
     }
@@ -803,22 +837,38 @@ export default function Reconcile() {
         ...deposits.filter(d => d.is_cleared && d.transactionType === 'journal_entry_line').map(d => d.id),
         ...payments.filter(p => p.is_cleared && p.transactionType === 'journal_entry_line').map(p => p.id),
       ];
+      console.log('Finalizing reconciliation - Cleared JE line IDs:', clearedJeLineIds);
+      
       if (clearedJeLineIds.length) {
-        const { data: parentIds } = await supabase
+        const { data: parentIds, error: fetchError } = await supabase
           .from('journal_entry_lines')
           .select('journal_entry_id')
           .in('id', clearedJeLineIds);
-        const distinctEntryIds = Array.from(new Set((parentIds || []).map((r: any) => r.journal_entry_id)));
-        if (distinctEntryIds.length) {
-          const { data: { user: authUser } } = await supabase.auth.getUser();
-          await supabase
-            .from('journal_entry_lines')
-            .update({
-              is_reconciled: true,
-              reconciled_at: new Date().toISOString(),
-              reconciled_by: authUser?.id
-            })
-            .in('journal_entry_id', distinctEntryIds);
+        
+        if (fetchError) {
+          console.error('Error fetching journal entry IDs:', fetchError);
+        } else {
+          const distinctEntryIds = Array.from(new Set((parentIds || []).map((r: any) => r.journal_entry_id)));
+          console.log('Marking all lines in journal entries as reconciled:', distinctEntryIds);
+          
+          if (distinctEntryIds.length) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            const { error: updateError } = await supabase
+              .from('journal_entry_lines')
+              .update({
+                is_reconciled: true,
+                reconciled_at: new Date().toISOString(),
+                reconciled_by: authUser?.id
+              })
+              .in('journal_entry_id', distinctEntryIds);
+            
+            if (updateError) {
+              console.error('Error marking journal entry lines as reconciled:', updateError);
+              toast.error('Warning: Some journal entry lines may not have been marked as reconciled');
+            } else {
+              console.log('Successfully marked all journal entry lines as reconciled');
+            }
+          }
         }
       }
 
