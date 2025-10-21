@@ -26,6 +26,8 @@ interface BankAccount {
   routing_number?: string;
   description?: string;
   created_at: string;
+  chart_account_id?: string;
+  gl_balance?: number;
 }
 
 interface BankStatement {
@@ -95,7 +97,22 @@ export default function BankAccountDetails() {
         .single();
 
       if (error) throw error;
-      setAccount(data);
+      
+      // Fetch the general ledger balance from chart of accounts
+      let glBalance = data.current_balance;
+      if (data.chart_account_id) {
+        const { data: chartData, error: chartError } = await supabase
+          .from('chart_of_accounts')
+          .select('current_balance')
+          .eq('id', data.chart_account_id)
+          .single();
+        
+        if (!chartError && chartData) {
+          glBalance = chartData.current_balance;
+        }
+      }
+      
+      setAccount({ ...data, gl_balance: glBalance });
     } catch (error) {
       console.error('Error loading bank account:', error);
       toast({
@@ -409,14 +426,12 @@ export default function BankAccountDetails() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Current Balance</CardTitle>
+            <CardTitle>Current Balance (General Ledger)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(reconcileReports.length > 0 ? reconcileReports[0].statement_balance : account.current_balance)}</div>
+            <div className="text-3xl font-bold">{formatCurrency(account.gl_balance ?? account.current_balance)}</div>
             <p className="text-sm text-muted-foreground mt-1">
-              As of {reconcileReports.length > 0 
-                ? format(new Date(reconcileReports[0].reconcile_date), 'MM/dd/yyyy')
-                : new Date().toLocaleDateString()}
+              As of {new Date().toLocaleDateString()}
             </p>
           </CardContent>
         </Card>

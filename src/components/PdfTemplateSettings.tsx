@@ -53,112 +53,112 @@ interface TemplateSettings {
 const TEMPLATE_PRESETS = {
   professional: {
     name: 'Professional Blue',
-    header_html: '<div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 25px;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #64748b; font-weight: 600;">Timecard Report</div>\n  <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Report Period: {period}</div>\n</div>',
+    header_html: '<div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 25px;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #64748b; font-weight: 600;">Report</div>\n  <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Report Period: {period}</div>\n</div>',
     footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 20px; border-top: 1px solid #e2e8f0;">\n  <div style="font-weight: 600;">Confidential - For Internal Use Only</div>\n  <div style="margin-top: 5px;">Generated on {generated_date} | Page {page} of {pages}</div>\n</div>',
     primary_color: '#1e40af',
     table_header_bg: '#dbeafe',
   },
   corporate: {
     name: 'Corporate Gray',
-    header_html: '<div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); padding: 25px 0; margin-bottom: 25px; border-bottom: 3px solid #334155;">\n  <div style="font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Timecard Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">{period}</div>\n</div>',
+    header_html: '<div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); padding: 25px 0; margin-bottom: 25px; border-bottom: 3px solid #334155;">\n  <div style="font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">{period}</div>\n</div>',
     footer_html: '<div style="background: #f1f5f9; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 2px solid #cbd5e1; font-size: 10px; color: #475569; display: flex; justify-content: space-between; align-items: center;">\n  <div style="font-weight: 600;">© {company_name} - Confidential</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | {generated_date}</div>\n</div>',
     primary_color: '#334155',
     table_header_bg: '#f1f5f9',
   },
   executive: {
     name: 'Executive Black',
-    header_html: '<div style="background: #0f172a; color: white; padding: 30px; margin: -20px -20px 25px -20px; border-bottom: 4px solid #334155;">\n  <div style="font-size: 34px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">Timecard Report</div>\n  <div style="font-size: 13px; opacity: 0.8; margin-top: 8px;">{period}</div>\n</div>',
+    header_html: '<div style="background: #0f172a; color: white; padding: 30px; margin: -20px -20px 25px -20px; border-bottom: 4px solid #334155;">\n  <div style="font-size: 34px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">Report</div>\n  <div style="font-size: 13px; opacity: 0.8; margin-top: 8px;">{period}</div>\n</div>',
     footer_html: '<div style="background: #0f172a; color: white; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 3px solid #334155; font-size: 10px; text-align: center;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">CONFIDENTIAL DOCUMENT</div>\n  <div style="opacity: 0.85; font-weight: 500;">Page {page} of {pages} • Generated {generated_date}</div>\n</div>',
     primary_color: '#0f172a',
     table_header_bg: '#f8fafc',
   },
   modern: {
     name: 'Modern Indigo',
-    header_html: '<div style="padding-bottom: 20px; margin-bottom: 25px; border-bottom: 3px solid #4f46e5;">\n  <div style="font-size: 32px; font-weight: 700; color: #312e81; margin-bottom: 10px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: center;">\n    <div style="font-size: 15px; color: #6366f1; font-weight: 600;">Timecard Report</div>\n    <div style="font-size: 12px; color: #6b7280; font-weight: 500;">{period}</div>\n  </div>\n</div>',
+    header_html: '<div style="padding-bottom: 20px; margin-bottom: 25px; border-bottom: 3px solid #4f46e5;">\n  <div style="font-size: 32px; font-weight: 700; color: #312e81; margin-bottom: 10px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: center;">\n    <div style="font-size: 15px; color: #6366f1; font-weight: 600;">Report</div>\n    <div style="font-size: 12px; color: #6b7280; font-weight: 500;">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="padding-top: 15px; border-top: 2px solid #e0e7ff; font-size: 10px; color: #6b7280;">\n  <table width="100%" style="border-collapse: collapse;"><tr>\n    <td style="font-weight: 600; text-align: left;">Confidential</td>\n    <td style="font-weight: 500; text-align: right;">Page {page} of {pages} • {generated_date}</td>\n  </tr></table>\n</div>',
     primary_color: '#4f46e5',
     table_header_bg: '#eef2ff',
   },
   financial: {
     name: 'Financial Green',
-    header_html: '<div style="border-left: 5px solid #059669; padding-left: 20px; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 700; color: #064e3b; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; color: #047857; font-weight: 600; margin-bottom: 6px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #6b7280;">Period: {period}</div>\n</div>',
+    header_html: '<div style="border-left: 5px solid #059669; padding-left: 20px; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 700; color: #064e3b; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; color: #047857; font-weight: 600; margin-bottom: 6px;">REPORT</div>\n  <div style="font-size: 12px; color: #6b7280;">Period: {period}</div>\n</div>',
     footer_html: '<div style="border-top: 2px solid #d1fae5; padding-top: 15px; font-size: 10px; color: #6b7280;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">This document is confidential</td>\n    <td style="text-align: right; font-weight: 500;">{generated_date} | Page {page}/{pages}</td>\n  </tr></table>\n</div>',
     primary_color: '#059669',
     table_header_bg: '#d1fae5',
   },
   legal: {
     name: 'Legal Navy',
-    header_html: '<div style="text-align: center; padding: 25px 0; margin-bottom: 25px; border-bottom: 3px double #1e3a8a;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; letter-spacing: 0.5px;">{company_name}</div>\n  <div style="width: 100px; height: 2px; background: #3b82f6; margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #1e40af; font-weight: 600; letter-spacing: 1px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">For Period: {period}</div>\n</div>',
+    header_html: '<div style="text-align: center; padding: 25px 0; margin-bottom: 25px; border-bottom: 3px double #1e3a8a;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; letter-spacing: 0.5px;">{company_name}</div>\n  <div style="width: 100px; height: 2px; background: #3b82f6; margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #1e40af; font-weight: 600; letter-spacing: 1px;">REPORT</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">For Period: {period}</div>\n</div>',
     footer_html: '<div style="text-align: center; padding-top: 20px; margin-top: 25px; border-top: 3px double #1e3a8a; font-size: 10px; color: #64748b;">\n  <div style="font-weight: 700; color: #1e40af; margin-bottom: 5px;">CONFIDENTIAL & PRIVILEGED</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | Generated: {generated_date}</div>\n</div>',
     primary_color: '#1e40af',
     table_header_bg: '#dbeafe',
   },
   tech: {
     name: 'Tech Slate',
-    header_html: '<div style="font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #334155 0%, #475569 100%); color: white; padding: 25px; margin: -20px -20px 25px -20px; border-radius: 8px;">\n  <div style="font-size: 30px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.9; font-weight: 500; letter-spacing: 0.5px;">TIMECARD REPORT • {period}</div>\n</div>',
+    header_html: '<div style="font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #334155 0%, #475569 100%); color: white; padding: 25px; margin: -20px -20px 25px -20px; border-radius: 8px;">\n  <div style="font-size: 30px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.9; font-weight: 500; letter-spacing: 0.5px;">REPORT • {period}</div>\n</div>',
     footer_html: '<div style="font-family: system-ui, -apple-system, sans-serif; padding-top: 15px; border-top: 1px solid #cbd5e1; font-size: 10px; color: #64748b;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">Confidential</td>\n    <td style="text-align: right; font-weight: 500;">Page {page}/{pages} • {generated_date}</td>\n  </tr></table>\n</div>',
     primary_color: '#334155',
     table_header_bg: '#f1f5f9',
   },
   minimal: {
     name: 'Minimal Clean',
-    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: baseline;">\n    <div style="font-size: 14px; color: #6b7280; font-weight: 500;">Timecard Report</div>\n    <div style="font-size: 12px; color: #9ca3af;">{period}</div>\n  </div>\n</div>',
+    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: baseline;">\n    <div style="font-size: 14px; color: #6b7280; font-weight: 500;">Report</div>\n    <div style="font-size: 12px; color: #9ca3af;">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af;">\n  <table width="100%"><tr>\n    <td style="font-weight: 500;">{generated_date}</td>\n    <td style="text-align: right; font-weight: 500;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
     primary_color: '#111827',
     table_header_bg: '#f9fafb',
   },
   construction: {
     name: 'Construction Orange',
-    header_html: '<div style="border-top: 6px solid #ea580c; border-bottom: 2px solid #ea580c; padding: 20px 0; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 800; color: #9a3412; margin-bottom: 8px; text-transform: uppercase;">{company_name}</div>\n  <div style="font-size: 14px; color: #c2410c; font-weight: 700; letter-spacing: 1px;">TIMECARD REPORT</div>\n  <div style="font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 600;">{period}</div>\n</div>',
+    header_html: '<div style="border-top: 6px solid #ea580c; border-bottom: 2px solid #ea580c; padding: 20px 0; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 800; color: #9a3412; margin-bottom: 8px; text-transform: uppercase;">{company_name}</div>\n  <div style="font-size: 14px; color: #c2410c; font-weight: 700; letter-spacing: 1px;">REPORT</div>\n  <div style="font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 600;">{period}</div>\n</div>',
     footer_html: '<div style="border-top: 2px solid #ea580c; padding-top: 15px; font-size: 10px; color: #78716c;">\n  <table width="100%"><tr>\n    <td style="font-weight: 700; color: #9a3412;">CONFIDENTIAL REPORT</td>\n    <td style="text-align: right; font-weight: 600;">Page {page} of {pages} | {generated_date}</td>\n  </tr></table>\n</div>',
     primary_color: '#ea580c',
     table_header_bg: '#fed7aa',
   },
   healthcare: {
     name: 'Healthcare Teal',
-    header_html: '<div style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: white; padding: 28px; margin: -20px -20px 25px -20px; border-radius: 10px;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">Timecard Report • {period}</div>\n</div>',
+    header_html: '<div style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: white; padding: 28px; margin: -20px -20px 25px -20px; border-radius: 10px;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">Report • {period}</div>\n</div>',
     footer_html: '<div style="padding-top: 15px; border-top: 2px solid #5eead4; font-size: 10px; color: #0f766e; text-align: center;">\n  <div style="font-weight: 600; margin-bottom: 3px;">Confidential Medical Records</div>\n  <div style="font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
     primary_color: '#0d9488',
     table_header_bg: '#ccfbf1',
   },
   luxury: {
     name: 'Luxury Gold',
-    header_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 28px; margin: -20px -20px 25px -20px; border-top: 3px solid #fbbf24; border-bottom: 3px solid #fbbf24;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.95; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;">Timecard Report</div>\n  <div style="font-size: 12px; opacity: 0.9; margin-top: 8px;">{period}</div>\n</div>',
+    header_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 28px; margin: -20px -20px 25px -20px; border-top: 3px solid #fbbf24; border-bottom: 3px solid #fbbf24;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.95; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;">Report</div>\n  <div style="font-size: 12px; opacity: 0.9; margin-top: 8px;">{period}</div>\n</div>',
     footer_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 15px; margin: 25px -20px -20px -20px; border-top: 3px solid #fbbf24; text-align: center; font-size: 10px;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 3px;">PRIVATE & CONFIDENTIAL</div>\n  <div style="opacity: 0.9; font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
     primary_color: '#92400e',
     table_header_bg: '#fef3c7',
   },
   creative: {
     name: 'Creative Purple',
-    header_html: '<div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(124,58,237,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Timecard Report • {period}</div>\n</div>',
+    header_html: '<div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(124,58,237,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Report • {period}</div>\n</div>',
     footer_html: '<div style="text-align: center; font-size: 10px; padding-top: 15px; border-top: 2px solid #e9d5ff; color: #6b21a8;">\n  <div style="font-weight: 600;">Page {page} of {pages} • {generated_date}</div>\n</div>',
     primary_color: '#7c3aed',
     table_header_bg: '#f3e8ff',
   },
   split_header: {
     name: 'Split Header (Logo Left)',
-    header_html: '<div style="display:flex; align-items:center; gap:20px; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb;">\n  <div style="flex:1">\n    <div style="font-size:28px; font-weight:700; color:#111827; letter-spacing:-0.4px">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:6px">{period}</div>\n  </div>\n  <div style="width:2px; height:48px; background:#e5e7eb"></div>\n  <div style="text-align:right; min-width:220px">\n    <div style="font-size:12px; color:#374151; font-weight:600">Timecard Report</div>\n    <div style="font-size:11px; color:#6b7280; margin-top:4px">Page {page} of {pages}</div>\n  </div>\n</div>',
+    header_html: '<div style="display:flex; align-items:center; gap:20px; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb;">\n  <div style="flex:1">\n    <div style="font-size:28px; font-weight:700; color:#111827; letter-spacing:-0.4px">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:6px">{period}</div>\n  </div>\n  <div style="width:2px; height:48px; background:#e5e7eb"></div>\n  <div style="text-align:right; min-width:220px">\n    <div style="font-size:12px; color:#374151; font-weight:600">Report</div>\n    <div style="font-size:11px; color:#6b7280; margin-top:4px">Page {page} of {pages}</div>\n  </div>\n</div>',
     footer_html: '<div style="text-align:right; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">Generated: {generated_date}</div>',
     primary_color: '#111827',
     table_header_bg: '#f3f4f6',
   },
   centered_logo: {
     name: 'Centered Title (Logo Center)',
-    header_html: '<div style="text-align:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="font-size:30px; font-weight:800; color:#111827">{company_name}</div>\n  <div style="margin-top:4px; font-size:12px; color:#6b7280">Timecard Report • {period}</div>\n</div>',
+    header_html: '<div style="text-align:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="font-size:30px; font-weight:800; color:#111827">{company_name}</div>\n  <div style="margin-top:4px; font-size:12px; color:#6b7280">Report • {period}</div>\n</div>',
     footer_html: '<div style="text-align:center; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">{generated_date} • Page {page}/{pages}</div>',
     primary_color: '#111827',
     table_header_bg: '#eef2f7',
   },
   right_aligned: {
     name: 'Right-Aligned (Logo Right)',
-    header_html: '<div style="padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="display:flex; justify-content:space-between; align-items:flex-end">\n    <div>\n      <div style="font-size:28px; font-weight:700; color:#111827">{company_name}</div>\n      <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n    </div>\n    <div style="font-size:13px; color:#374151; font-weight:600">Timecard Report</div>\n  </div>\n</div>',
+    header_html: '<div style="padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="display:flex; justify-content:space-between; align-items:flex-end">\n    <div>\n      <div style="font-size:28px; font-weight:700; color:#111827">{company_name}</div>\n      <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n    </div>\n    <div style="font-size:13px; color:#374151; font-weight:600">Report</div>\n  </div>\n</div>',
     footer_html: '<div style="font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between">\n  <span>Confidential</span><span>Page {page} of {pages}</span>\n</div>',
     primary_color: '#111827',
     table_header_bg: '#f3f4f6',
   },
   banner_top: {
     name: 'Banner Top',
-    header_html: '<div style="background:#111827; color:white; padding:18px 24px; margin:-20px -20px 20px -20px">\n  <div style="display:flex; justify-content:space-between; align-items:center">\n    <div style="font-size:18px; opacity:.9; font-weight:600; letter-spacing:1px">TIMECARD REPORT</div>\n    <div style="font-size:11px; opacity:.85">{period}</div>\n  </div>\n</div>',
+    header_html: '<div style="background:#111827; color:white; padding:18px 24px; margin:-20px -20px 20px -20px">\n  <div style="display:flex; justify-content:space-between; align-items:center">\n    <div style="font-size:18px; opacity:.9; font-weight:600; letter-spacing:1px">REPORT</div>\n    <div style="font-size:11px; opacity:.85">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="background:#111827; color:white; padding:10px 16px; margin:20px -20px -20px -20px; font-size:10px; text-align:center">Page {page}/{pages} • {generated_date}</div>',
     primary_color: '#111827',
     table_header_bg: '#e5e7eb',
@@ -832,10 +832,14 @@ export default function PdfTemplateSettings() {
   const renderPreview = (html: string) => {
     return html
       .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
-      .replace(/{period}/g, 'Jan 1 - Jan 7, 2025')
+      .replace(/{period}/g, 'Jan 1 - Jan 31, 2025')
       .replace(/{date}/g, new Date().toLocaleDateString())
       .replace(/{employee_name}/g, 'John Doe')
       .replace(/{job_name}/g, 'Sample Project')
+      .replace(/{bank_account}/g, 'Operating Account - First National Bank')
+      .replace(/{statement_balance}/g, '$50,000.00')
+      .replace(/{book_balance}/g, '$49,850.00')
+      .replace(/{difference}/g, '$150.00')
       .replace(/{page}/g, '1')
       .replace(/{pages}/g, '1')
       .replace(/{generated_date}/g, new Date().toLocaleDateString());
@@ -876,6 +880,13 @@ export default function PdfTemplateSettings() {
             </TabsContent>
 
             <TabsContent value="reconciliation" className="space-y-6">
+              <Alert className="mb-6">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Configure the PDF template for reconciliation reports. Available variables: <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{bank_account}'}</code>, <code className="text-xs">{'{period}'}</code>, <code className="text-xs">{'{statement_balance}'}</code>, <code className="text-xs">{'{book_balance}'}</code>, <code className="text-xs">{'{difference}'}</code>, <code className="text-xs">{'{date}'}</code>, <code className="text-xs">{'{page}'}</code>, <code className="text-xs">{'{pages}'}</code>, <code className="text-xs">{'{generated_date}'}</code>
+                </AlertDescription>
+              </Alert>
+
               {/* Template Presets */}
               <Card>
                 <CardHeader>
@@ -883,7 +894,7 @@ export default function PdfTemplateSettings() {
                     <Layout className="h-4 w-4" />
                     Choose a Template Preset
                   </CardTitle>
-                  <CardDescription>Start with a professionally designed template</CardDescription>
+                  <CardDescription>Start with a professionally designed template for reconciliation reports</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Select 
