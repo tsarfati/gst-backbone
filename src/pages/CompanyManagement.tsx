@@ -658,6 +658,64 @@ export default function CompanyManagement() {
         </Card>
       )}
 
+      {/* Journal Entry Settings Card - Only show for company admins */}
+      {isCompanyAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Journal Entry Settings
+            </CardTitle>
+            <CardDescription>
+              Configure how journal entries can be managed
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Allow Journal Entry Deletion</Label>
+                <p className="text-sm text-muted-foreground">
+                  When disabled, journal entries can only be reversed (not deleted). This provides a better audit trail and prevents accidental data loss.
+                </p>
+                <div className="text-xs text-muted-foreground">
+                  <div>• Default: Disabled (entries can only be reversed)</div>
+                  <div>• When enabled: Delete button appears on journal entry details</div>
+                </div>
+              </div>
+              <Switch
+                checked={currentCompany?.allow_journal_entry_deletion || false}
+                onCheckedChange={async (checked) => {
+                  try {
+                    const { error } = await supabase
+                      .from('companies')
+                      .update({ allow_journal_entry_deletion: checked })
+                      .eq('id', currentCompany?.id);
+
+                    if (error) throw error;
+
+                    await refreshCompanies();
+                    
+                    toast({
+                      title: "Setting updated",
+                      description: checked 
+                        ? "Journal entries can now be deleted."
+                        : "Journal entries can only be reversed (provides better audit trail).",
+                    });
+                  } catch (error) {
+                    console.error('Error updating journal entry deletion setting:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to update setting",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Access Requests Card - Only show for company admins */}
 
       {/* Access Requests Card - Only show for company admins */}

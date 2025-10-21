@@ -25,6 +25,7 @@ export default function JournalEntryEdit() {
   const [loading, setLoading] = useState(true);
   const [entry, setEntry] = useState<any>(null);
   const [description, setDescription] = useState('');
+  const [reference, setReference] = useState('');
   const [isPosted, setIsPosted] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export default function JournalEntryEdit() {
         
         setEntry(entryData);
         setDescription(entryData.description || '');
+        setReference(entryData.reference || '');
         setIsPosted(entryData.status === 'posted');
       } catch (error) {
         console.error('Error loading journal entry:', error);
@@ -69,6 +71,7 @@ export default function JournalEntryEdit() {
         .from('journal_entries')
         .update({
           description: description,
+          reference: reference,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -162,11 +165,12 @@ export default function JournalEntryEdit() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Reference</Label>
+                <Label htmlFor="reference">Reference</Label>
                 <Input 
-                  value={entry.reference || ''}
-                  disabled
-                  className="bg-muted"
+                  id="reference"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  placeholder="Entry reference..."
                 />
               </div>
               <div className="space-y-2">
