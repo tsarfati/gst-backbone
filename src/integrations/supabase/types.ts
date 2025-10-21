@@ -482,6 +482,7 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          allow_journal_entry_deletion: boolean
           city: string | null
           created_at: string
           created_by: string
@@ -502,6 +503,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          allow_journal_entry_deletion?: boolean
           city?: string | null
           created_at?: string
           created_by: string
@@ -522,6 +524,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          allow_journal_entry_deletion?: boolean
           city?: string | null
           created_at?: string
           created_by?: string

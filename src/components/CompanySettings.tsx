@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Edit, Trash2, MapPin, Upload, X, Building2 } from "lucide-react";
@@ -430,6 +431,48 @@ export default function CompanySettings() {
         </CardHeader>
         <CardContent>
           <BillApprovalSettings />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Journal Entry Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-journal-deletion">Allow Journal Entry Deletion</Label>
+              <p className="text-sm text-muted-foreground">
+                When disabled, journal entries can only be reversed (not deleted). This provides better audit trail.
+              </p>
+            </div>
+            <Switch
+              id="allow-journal-deletion"
+              checked={currentCompany?.allow_journal_entry_deletion || false}
+              onCheckedChange={async (checked) => {
+                if (!currentCompany) return;
+                
+                const { error } = await supabase
+                  .from('companies')
+                  .update({ allow_journal_entry_deletion: checked })
+                  .eq('id', currentCompany.id);
+
+                if (error) {
+                  toast({
+                    title: "Error updating setting",
+                    description: error.message,
+                    variant: "destructive"
+                  });
+                } else {
+                  await refreshCompanies();
+                  toast({
+                    title: "Setting updated",
+                    description: `Journal entries can now be ${checked ? 'deleted' : 'only reversed'}`,
+                  });
+                }
+              }}
+            />
+          </div>
         </CardContent>
       </Card>
 

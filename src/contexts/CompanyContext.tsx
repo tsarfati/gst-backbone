@@ -16,6 +16,7 @@ interface Company {
   email?: string;
   website?: string;
   enable_shared_vendor_database?: boolean;
+  allow_journal_entry_deletion?: boolean;
 }
 
 interface UserCompanyAccess {
