@@ -16,6 +16,7 @@ import PaymentMethodEdit from "@/components/PaymentMethodEdit";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import PaymentTermsSelect from "@/components/PaymentTermsSelect";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -23,6 +24,7 @@ export default function VendorEdit() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const queryClient = useQueryClient();
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -266,6 +268,9 @@ export default function VendorEdit() {
 
         if (error) throw error;
 
+        // Invalidate vendors cache
+        queryClient.invalidateQueries({ queryKey: ['vendors'] });
+
         toast({
           title: "Vendor Created",
           description: "New vendor has been successfully created.",
@@ -279,6 +284,9 @@ export default function VendorEdit() {
           .eq('id', id);
 
         if (error) throw error;
+
+        // Invalidate vendors cache
+        queryClient.invalidateQueries({ queryKey: ['vendors'] });
 
         toast({
           title: "Vendor Updated", 
@@ -311,6 +319,9 @@ export default function VendorEdit() {
 
       if (error) throw error;
 
+      // Invalidate vendors cache to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['vendors'] });
+
       toast({
         title: "Vendor Deleted",
         description: "Vendor has been successfully deleted.",
@@ -342,6 +353,9 @@ export default function VendorEdit() {
       if (error) throw error;
 
       setFormData(prev => ({ ...prev, is_active: newStatus }));
+
+      // Invalidate vendors cache
+      queryClient.invalidateQueries({ queryKey: ['vendors'] });
 
       toast({
         title: `Vendor ${newStatus ? 'Activated' : 'Archived'}`,
