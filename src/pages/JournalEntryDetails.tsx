@@ -152,15 +152,17 @@ export default function JournalEntryDetails() {
     if (!id || !entry) return;
 
     try {
+      const reversalDate = new Date().toISOString().split('T')[0];
+      
       // Create a new journal entry with reversed amounts
       const { data: newEntry, error: entryError } = await supabase
         .from('journal_entries')
         .insert({
           company_id: currentCompany?.id,
-          entry_date: new Date().toISOString().split('T')[0],
+          entry_date: reversalDate,
           reference: `REV-${entry.reference || id}`,
           description: `Reversal of: ${entry.description || entry.reference || 'Journal Entry'}`,
-          status: 'draft',
+          status: 'posted',
           total_debit: entry.total_credit, // Flip totals
           total_credit: entry.total_debit,
           created_by: (await supabase.auth.getUser()).data.user?.id
@@ -188,12 +190,23 @@ export default function JournalEntryDetails() {
 
       if (linesError) throw linesError;
 
+      // Update the original entry with reversal info
+      const { error: updateError } = await supabase
+        .from('journal_entries')
+        .update({
+          reversal_date: reversalDate,
+          reversed_by_entry_id: newEntry.id
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
       toast({
         title: "Success",
         description: "Reversing journal entry created successfully",
       });
 
-      navigate(`/banking/journal-entries/${newEntry.id}/edit`);
+      navigate(`/banking/journal-entries/${newEntry.id}`);
     } catch (error) {
       console.error('Error reversing journal entry:', error);
       toast({
@@ -322,7 +335,7 @@ export default function JournalEntryDetails() {
               <div className="text-sm text-muted-foreground mb-1">Reference</div>
               <span className="font-medium">{entry.reference || '-'}</span>
             </div>
-            <div>
+            <div className="md:col-span-2">
               <div className="text-sm text-muted-foreground mb-1">Description</div>
               <span className="font-medium">{entry.description || '-'}</span>
             </div>
@@ -334,6 +347,26 @@ export default function JournalEntryDetails() {
               <div className="text-sm text-muted-foreground mb-1">Total Credit</div>
               <span className="font-medium">${entry.total_credit?.toFixed(2) || '0.00'}</span>
             </div>
+            {entry.reversal_date && (
+              <>
+                <div className="md:col-span-2">
+                  <div className="text-sm text-muted-foreground mb-1">Reversal Date</div>
+                  <span className="font-medium">{entry.reversal_date}</span>
+                </div>
+                {entry.reversed_by_entry_id && (
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-1">Reversing Entry</div>
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto font-medium"
+                      onClick={() => navigate(`/banking/journal-entries/${entry.reversed_by_entry_id}`)}
+                    >
+                      View Reversing Entry
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

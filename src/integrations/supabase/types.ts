@@ -2404,6 +2404,8 @@ export type Database = {
           posted_at: string | null
           posted_by: string | null
           reference: string | null
+          reversal_date: string | null
+          reversed_by_entry_id: string | null
           status: string
           total_credit: number
           total_debit: number
@@ -2420,6 +2422,8 @@ export type Database = {
           posted_at?: string | null
           posted_by?: string | null
           reference?: string | null
+          reversal_date?: string | null
+          reversed_by_entry_id?: string | null
           status?: string
           total_credit?: number
           total_debit?: number
@@ -2436,6 +2440,8 @@ export type Database = {
           posted_at?: string | null
           posted_by?: string | null
           reference?: string | null
+          reversal_date?: string | null
+          reversed_by_entry_id?: string | null
           status?: string
           total_credit?: number
           total_debit?: number
@@ -2461,6 +2467,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_reversed_by_entry_id_fkey"
+            columns: ["reversed_by_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
         ]

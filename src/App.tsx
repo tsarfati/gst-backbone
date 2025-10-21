@@ -96,6 +96,7 @@ import CreditCards from "./pages/CreditCards";
 import BankingReports from "./pages/BankingReports";
 import JournalEntries from "./pages/JournalEntries";
 import JournalEntryDetails from "./pages/JournalEntryDetails";
+import JournalEntryEdit from "./pages/JournalEntryEdit";
 import Deposits from "./pages/Deposits";
 import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
@@ -323,6 +324,7 @@ function AuthenticatedRoutes() {
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
                 <Route path="banking/journal-entries/:id" element={<JournalEntryDetails />} />
+                <Route path="banking/journal-entries/:id/edit" element={<JournalEntryEdit />} />
                 <Route path="banking/deposits" element={<Deposits />} />
                 <Route path="banking/print-checks" element={<PrintChecks />} />
                 <Route path="banking/make-payment" element={<MakePayment />} />
