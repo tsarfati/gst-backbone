@@ -11,7 +11,8 @@ import {
   Trash2,
   Calendar,
   User,
-  Clock
+  Clock,
+  RotateCcw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -147,6 +148,62 @@ export default function JournalEntryDetails() {
     loadEntry();
   }, [id, currentCompany?.id]);
 
+  const handleReverse = async () => {
+    if (!id || !entry) return;
+
+    try {
+      // Create a new journal entry with reversed amounts
+      const { data: newEntry, error: entryError } = await supabase
+        .from('journal_entries')
+        .insert({
+          company_id: currentCompany?.id,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference: `REV-${entry.reference || id}`,
+          description: `Reversal of: ${entry.description || entry.reference || 'Journal Entry'}`,
+          status: 'draft',
+          total_debit: entry.total_credit, // Flip totals
+          total_credit: entry.total_debit,
+          created_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .select()
+        .single();
+
+      if (entryError) throw entryError;
+
+      // Create reversed lines
+      const reversedLines = lines.map((line, index) => ({
+        journal_entry_id: newEntry.id,
+        account_id: line.account_id,
+        job_id: line.job_id,
+        cost_code_id: line.cost_code_id,
+        description: line.description,
+        debit_amount: line.credit_amount, // Flip amounts
+        credit_amount: line.debit_amount,
+        line_order: index + 1
+      }));
+
+      const { error: linesError } = await supabase
+        .from('journal_entry_lines')
+        .insert(reversedLines);
+
+      if (linesError) throw linesError;
+
+      toast({
+        title: "Success",
+        description: "Reversing journal entry created successfully",
+      });
+
+      navigate(`/banking/journal-entries/${newEntry.id}/edit`);
+    } catch (error) {
+      console.error('Error reversing journal entry:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create reversing entry",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDelete = async () => {
     if (!id) return;
 
@@ -228,10 +285,16 @@ export default function JournalEntryDetails() {
               Edit
             </Link>
           </Button>
-          <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
+          <Button variant="outline" onClick={handleReverse}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reverse Entry
           </Button>
+          {currentCompany?.allow_journal_entry_deletion && (
+            <Button variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 
