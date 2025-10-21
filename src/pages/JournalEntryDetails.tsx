@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   ArrowLeft, 
   Edit, 
@@ -35,6 +36,7 @@ export default function JournalEntryDetails() {
   
   const [entry, setEntry] = useState<any>(null);
   const [lines, setLines] = useState<any[]>([]);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -53,22 +55,44 @@ export default function JournalEntryDetails() {
           .single();
 
         if (entryError) throw entryError;
+        setEntry(entryData);
 
-        // Load creator profile
-        let createdByProfile = null;
+        // Build audit events with profile data
+        const events = [];
+        
+        // Created event
         if (entryData.created_by) {
-          const { data: profileData } = await supabase
+          const { data: createdByProfile } = await supabase
             .from('profiles')
-            .select('full_name')
+            .select('full_name, avatar_url, user_id')
             .eq('user_id', entryData.created_by)
             .single();
-          createdByProfile = profileData;
+            
+          events.push({
+            type: 'created',
+            timestamp: entryData.created_at,
+            user: createdByProfile || { full_name: 'Unknown User', avatar_url: null, user_id: entryData.created_by }
+          });
         }
-
-        setEntry({
-          ...entryData,
-          created_by_profile: createdByProfile
-        });
+        
+        // Posted event (if different from created)
+        if (entryData.posted_by && entryData.posted_at && entryData.posted_by !== entryData.created_by) {
+          const { data: postedByProfile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url, user_id')
+            .eq('user_id', entryData.posted_by)
+            .single();
+            
+          events.push({
+            type: 'posted',
+            timestamp: entryData.posted_at,
+            user: postedByProfile || { full_name: 'Unknown User', avatar_url: null, user_id: entryData.posted_by }
+          });
+        }
+        
+        // Sort events chronologically
+        events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        setAuditEvents(events);
 
         // Load journal entry lines with account, job, and cost code info
         const { data: linesData, error: linesError } = await supabase
@@ -227,44 +251,6 @@ export default function JournalEntryDetails() {
         </CardContent>
       </Card>
 
-      {/* Audit Information */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Audit Trail</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Created By</div>
-              <div className="flex items-center">
-                <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span className="font-medium">
-                  {entry.created_by_profile?.full_name || 'Unknown'}
-                </span>
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Created Date</div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span className="font-medium">
-                  {entry.created_at ? format(new Date(entry.created_at), 'MMM d, yyyy h:mm a') : '-'}
-                </span>
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Last Updated</div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                <span className="font-medium">
-                  {format(new Date(entry.updated_at), 'MMM d, yyyy h:mm a')}
-                </span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Lines */}
       <Card>
         <CardHeader>
@@ -308,6 +294,43 @@ export default function JournalEntryDetails() {
               </TableRow>
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Audit Trail */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Audit Trail</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {auditEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No audit events available</p>
+          ) : (
+            <div className="space-y-4">
+              {auditEvents.map((event, index) => (
+                <div key={index} className="flex items-start gap-3 pb-4 border-b last:border-b-0">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={event.user.avatar_url} />
+                    <AvatarFallback>
+                      {event.user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{event.user.full_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {event.type === 'created' ? 'created this entry' : 'posted this entry'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {format(new Date(event.timestamp), 'MMM d, yyyy h:mm a')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

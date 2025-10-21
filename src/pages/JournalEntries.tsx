@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { 
   FileText, 
@@ -20,7 +21,8 @@ import {
   Trash2,
   Check,
   ChevronsUpDown,
-  Save
+  Save,
+  Settings2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -59,6 +61,7 @@ interface JournalEntryLine {
 
 export default function JournalEntries() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showSystemEntries, setShowSystemEntries] = useState(false);
   const { currentCompany } = useCompany();
   const { toast } = useToast();
 
@@ -305,13 +308,20 @@ export default function JournalEntries() {
   useEffect(() => {
     const loadEntries = async () => {
       if (!currentCompany?.id) { setJournalEntries([]); return; }
-      const { data, error } = await supabase
+      let query = supabase
         .from('journal_entries')
         .select('id, entry_date, reference, description, total_debit, total_credit, status')
-        .eq('company_id', currentCompany.id)
-        .not('reference', 'like', 'PAY-%')
+        .eq('company_id', currentCompany.id);
+      
+      // Filter out system entries if toggle is off
+      if (!showSystemEntries) {
+        query = query.not('reference', 'like', 'PAY-%');
+      }
+      
+      const { data, error } = await query
         .order('entry_date', { ascending: false })
         .order('created_at', { ascending: false });
+        
       if (error) {
         console.error('Error loading journal entries:', error);
         toast({ title: 'Error', description: 'Failed to load journal entries', variant: 'destructive' });
@@ -320,7 +330,7 @@ export default function JournalEntries() {
       setJournalEntries((data as any) || []);
     };
     loadEntries();
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, showSystemEntries]);
 
   const filteredEntries = journalEntries.filter((entry) => {
     const q = searchTerm.toLowerCase();
@@ -605,17 +615,28 @@ export default function JournalEntries() {
         </CardContent>
       </Card>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search journal entries..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search journal entries..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="show-system" className="text-sm whitespace-nowrap">Show System</Label>
+              <Switch
+                id="show-system"
+                checked={showSystemEntries}
+                onCheckedChange={setShowSystemEntries}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
