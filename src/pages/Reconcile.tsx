@@ -51,6 +51,7 @@ interface Transaction {
   amount: number;
   type: 'deposit' | 'payment';
   is_cleared: boolean;
+  transactionType?: 'journal_entry_line' | 'payment' | 'deposit';
 }
 
 export default function Reconcile() {
@@ -336,7 +337,8 @@ export default function Reconcile() {
           reference: d.journal_entries?.reference || '',
           amount: d.credit_amount,
           type: 'payment' as const,
-          is_cleared: false
+          is_cleared: false,
+          transactionType: 'journal_entry_line' as const
         }));
 
       const formattedPayments: Transaction[] = [...apPayments, ...journalPayments];
@@ -352,7 +354,8 @@ export default function Reconcile() {
           reference: d.journal_entries?.reference || '',
           amount: d.debit_amount,
           type: 'deposit' as const,
-          is_cleared: false
+          is_cleared: false,
+          transactionType: 'journal_entry_line' as const
         }));
 
       console.log("Total deposits:", formattedDeposits.length);
@@ -422,15 +425,77 @@ export default function Reconcile() {
     }
   };
 
-  const handleToggleCleared = (id: string, type: 'deposit' | 'payment') => {
+  const handleToggleCleared = async (id: string, type: 'deposit' | 'payment') => {
     if (type === 'deposit') {
+      const deposit = deposits.find(d => d.id === id);
+      const newClearedState = !deposit?.is_cleared;
+      
       setDeposits(prev => prev.map(d => 
-        d.id === id ? { ...d, is_cleared: !d.is_cleared } : d
+        d.id === id ? { ...d, is_cleared: newClearedState } : d
       ));
+
+      // If it's a journal entry line, mark it as reconciled
+      if (deposit?.transactionType === 'journal_entry_line') {
+        try {
+          if (newClearedState) {
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase
+              .from('journal_entry_lines')
+              .update({
+                is_reconciled: true,
+                reconciled_at: new Date().toISOString(),
+                reconciled_by: user?.id
+              })
+              .eq('id', id);
+          } else {
+            await supabase
+              .from('journal_entry_lines')
+              .update({
+                is_reconciled: false,
+                reconciled_at: null,
+                reconciled_by: null
+              })
+              .eq('id', id);
+          }
+        } catch (error) {
+          console.error('Error updating JE reconciliation status:', error);
+        }
+      }
     } else {
+      const payment = payments.find(p => p.id === id);
+      const newClearedState = !payment?.is_cleared;
+      
       setPayments(prev => prev.map(p => 
-        p.id === id ? { ...p, is_cleared: !p.is_cleared } : p
+        p.id === id ? { ...p, is_cleared: newClearedState } : p
       ));
+
+      // If it's a journal entry line, mark it as reconciled
+      if (payment?.transactionType === 'journal_entry_line') {
+        try {
+          if (newClearedState) {
+            const { data: { user } } = await supabase.auth.getUser();
+            await supabase
+              .from('journal_entry_lines')
+              .update({
+                is_reconciled: true,
+                reconciled_at: new Date().toISOString(),
+                reconciled_by: user?.id
+              })
+              .eq('id', id);
+          } else {
+            await supabase
+              .from('journal_entry_lines')
+              .update({
+                is_reconciled: false,
+                reconciled_at: null,
+                reconciled_by: null
+              })
+              .eq('id', id);
+          }
+        } catch (error) {
+          console.error('Error updating JE reconciliation status:', error);
+        }
+      }
     }
   };
 

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ArrowLeft,
   Save,
@@ -27,6 +28,7 @@ export default function JournalEntryEdit() {
   const [description, setDescription] = useState('');
   const [reference, setReference] = useState('');
   const [isPosted, setIsPosted] = useState(false);
+  const [lines, setLines] = useState<any[]>([]);
 
   useEffect(() => {
     const loadEntry = async () => {
@@ -47,6 +49,21 @@ export default function JournalEntryEdit() {
         setDescription(entryData.description || '');
         setReference(entryData.reference || '');
         setIsPosted(entryData.status === 'posted');
+
+        // Load journal entry lines
+        const { data: linesData, error: linesError } = await supabase
+          .from('journal_entry_lines')
+          .select(`
+            *,
+            account:chart_of_accounts(account_number, account_name),
+            job:jobs(name),
+            cost_code:cost_codes(code, description)
+          `)
+          .eq('journal_entry_id', id)
+          .order('line_order');
+
+        if (linesError) throw linesError;
+        setLines(linesData || []);
       } catch (error) {
         console.error('Error loading journal entry:', error);
         toast({
@@ -63,11 +80,18 @@ export default function JournalEntryEdit() {
     loadEntry();
   }, [id, currentCompany?.id]);
 
+  const handleLineDescriptionChange = (lineId: string, newDescription: string) => {
+    setLines(prev => prev.map(line => 
+      line.id === lineId ? { ...line, description: newDescription } : line
+    ));
+  };
+
   const handleSave = async () => {
     if (!id || !currentCompany?.id) return;
 
     try {
-      const { error } = await supabase
+      // Update journal entry
+      const { error: entryError } = await supabase
         .from('journal_entries')
         .update({
           description: description,
@@ -77,7 +101,17 @@ export default function JournalEntryEdit() {
         .eq('id', id)
         .eq('company_id', currentCompany.id);
 
-      if (error) throw error;
+      if (entryError) throw entryError;
+
+      // Update line descriptions
+      for (const line of lines) {
+        const { error: lineError } = await supabase
+          .from('journal_entry_lines')
+          .update({ description: line.description })
+          .eq('id', line.id);
+        
+        if (lineError) throw lineError;
+      }
 
       toast({
         title: "Success",
@@ -227,12 +261,58 @@ export default function JournalEntryEdit() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Journal Entry Lines (Read-Only)</CardTitle>
+          <CardTitle>Journal Entry Lines</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Line items cannot be modified after posting. To make changes, create a reversing entry.
-          </p>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Account</TableHead>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Cost Code</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Debit</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lines.map((line) => (
+                  <TableRow key={line.id}>
+                    <TableCell>
+                      <div className="font-medium">{line.account?.account_number}</div>
+                      <div className="text-sm text-muted-foreground">{line.account?.account_name}</div>
+                    </TableCell>
+                    <TableCell>
+                      {line.job?.name || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {line.cost_code ? (
+                        <div>
+                          <div className="font-medium">{line.cost_code.code}</div>
+                          <div className="text-sm text-muted-foreground">{line.cost_code.description}</div>
+                        </div>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Input 
+                        value={line.description || ''}
+                        onChange={(e) => handleLineDescriptionChange(line.id, e.target.value)}
+                        placeholder="Line description..."
+                        className="min-w-[200px]"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      ${line.debit_amount?.toFixed(2) || '0.00'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      ${line.credit_amount?.toFixed(2) || '0.00'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

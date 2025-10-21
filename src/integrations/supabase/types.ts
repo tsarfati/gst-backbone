@@ -2489,10 +2489,13 @@ export type Database = {
           debit_amount: number | null
           description: string | null
           id: string
+          is_reconciled: boolean | null
           job_id: string | null
           journal_entry_id: string
           line_order: number
           markup_percentage: number | null
+          reconciled_at: string | null
+          reconciled_by: string | null
         }
         Insert: {
           account_id: string
@@ -2504,10 +2507,13 @@ export type Database = {
           debit_amount?: number | null
           description?: string | null
           id?: string
+          is_reconciled?: boolean | null
           job_id?: string | null
           journal_entry_id: string
           line_order?: number
           markup_percentage?: number | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
         }
         Update: {
           account_id?: string
@@ -2519,10 +2525,13 @@ export type Database = {
           debit_amount?: number | null
           description?: string | null
           id?: string
+          is_reconciled?: boolean | null
           job_id?: string | null
           journal_entry_id?: string
           line_order?: number
           markup_percentage?: number | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
         }
         Relationships: [
           {
