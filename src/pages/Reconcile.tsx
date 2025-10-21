@@ -199,11 +199,12 @@ export default function Reconcile() {
         );
       }
       
-      // Load all payments for this bank account
+      // Load all payments for this bank account up to the ending date
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
         .select("id, payment_date, payment_number, amount, payment_method, status, bank_account_id")
         .eq("bank_account_id", accountId)
+        .lte("payment_date", format(endingDate, 'yyyy-MM-dd'))
         .order("payment_date", { ascending: false });
 
       if (paymentsError) throw paymentsError;
@@ -215,7 +216,7 @@ export default function Reconcile() {
 
       if (account?.chart_account_id) {
         try {
-          // Load withdrawals (credits to cash account)
+          // Load withdrawals (credits to cash account) up to ending date
           const { data, error } = await supabase
             .from("journal_entry_lines")
             .select(`
@@ -225,12 +226,14 @@ export default function Reconcile() {
               description,
               journal_entries!inner(
                 entry_date,
-                reference
+                reference,
+                status
               )
             `)
             .eq("account_id", account.chart_account_id)
-            .gt("credit_amount", 0)
-            .order("journal_entries.entry_date", { ascending: false });
+            .eq("journal_entries.status", "posted")
+            .lte("journal_entries.entry_date", format(endingDate, 'yyyy-MM-dd'))
+            .gt("credit_amount", 0);
           if (error) throw error;
           withdrawalsJournalData = data || [];
           console.log("Journal withdrawals loaded:", withdrawalsJournalData.length);
@@ -239,7 +242,7 @@ export default function Reconcile() {
         }
 
         try {
-          // Load deposits (debits to cash account)
+          // Load deposits (debits to cash account) up to ending date
           const { data, error } = await supabase
             .from("journal_entry_lines")
             .select(`
@@ -249,12 +252,14 @@ export default function Reconcile() {
               description,
               journal_entries!inner(
                 entry_date,
-                reference
+                reference,
+                status
               )
             `)
             .eq("account_id", account.chart_account_id)
-            .gt("debit_amount", 0)
-            .order("journal_entries.entry_date", { ascending: false });
+            .eq("journal_entries.status", "posted")
+            .lte("journal_entries.entry_date", format(endingDate, 'yyyy-MM-dd'))
+            .gt("debit_amount", 0);
           if (error) throw error;
           depositsData = data || [];
           console.log("Journal deposits loaded:", depositsData.length);
