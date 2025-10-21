@@ -492,28 +492,36 @@ export default function Reconcile() {
         d.id === id ? { ...d, is_cleared: newClearedState } : d
       ));
 
-      // If it's a journal entry line, mark it as reconciled
+      // If it's a journal entry line, mark the entire journal entry as reconciled/unreconciled
       if (deposit?.transactionType === 'journal_entry_line') {
         try {
-          if (newClearedState) {
-            const { data: { user } } = await supabase.auth.getUser();
-            await supabase
-              .from('journal_entry_lines')
-              .update({
-                is_reconciled: true,
-                reconciled_at: new Date().toISOString(),
-                reconciled_by: user?.id
-              })
-              .eq('id', id);
-          } else {
-            await supabase
-              .from('journal_entry_lines')
-              .update({
-                is_reconciled: false,
-                reconciled_at: null,
-                reconciled_by: null
-              })
-              .eq('id', id);
+          const { data: lineInfo } = await supabase
+            .from('journal_entry_lines')
+            .select('journal_entry_id')
+            .eq('id', id)
+            .single();
+
+          if (lineInfo?.journal_entry_id) {
+            if (newClearedState) {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase
+                .from('journal_entry_lines')
+                .update({
+                  is_reconciled: true,
+                  reconciled_at: new Date().toISOString(),
+                  reconciled_by: user?.id
+                })
+                .eq('journal_entry_id', lineInfo.journal_entry_id);
+            } else {
+              await supabase
+                .from('journal_entry_lines')
+                .update({
+                  is_reconciled: false,
+                  reconciled_at: null,
+                  reconciled_by: null
+                })
+                .eq('journal_entry_id', lineInfo.journal_entry_id);
+            }
           }
         } catch (error) {
           console.error('Error updating JE reconciliation status:', error);
@@ -527,28 +535,36 @@ export default function Reconcile() {
         p.id === id ? { ...p, is_cleared: newClearedState } : p
       ));
 
-      // If it's a journal entry line, mark it as reconciled
+      // If it's a journal entry line, mark the entire journal entry as reconciled/unreconciled
       if (payment?.transactionType === 'journal_entry_line') {
         try {
-          if (newClearedState) {
-            const { data: { user } } = await supabase.auth.getUser();
-            await supabase
-              .from('journal_entry_lines')
-              .update({
-                is_reconciled: true,
-                reconciled_at: new Date().toISOString(),
-                reconciled_by: user?.id
-              })
-              .eq('id', id);
-          } else {
-            await supabase
-              .from('journal_entry_lines')
-              .update({
-                is_reconciled: false,
-                reconciled_at: null,
-                reconciled_by: null
-              })
-              .eq('id', id);
+          const { data: lineInfo } = await supabase
+            .from('journal_entry_lines')
+            .select('journal_entry_id')
+            .eq('id', id)
+            .single();
+
+          if (lineInfo?.journal_entry_id) {
+            if (newClearedState) {
+              const { data: { user } } = await supabase.auth.getUser();
+              await supabase
+                .from('journal_entry_lines')
+                .update({
+                  is_reconciled: true,
+                  reconciled_at: new Date().toISOString(),
+                  reconciled_by: user?.id
+                })
+                .eq('journal_entry_id', lineInfo.journal_entry_id);
+            } else {
+              await supabase
+                .from('journal_entry_lines')
+                .update({
+                  is_reconciled: false,
+                  reconciled_at: null,
+                  reconciled_by: null
+                })
+                .eq('journal_entry_id', lineInfo.journal_entry_id);
+            }
           }
         } catch (error) {
           console.error('Error updating JE reconciliation status:', error);
@@ -698,35 +714,137 @@ export default function Reconcile() {
 
         if (updateError) throw updateError;
       } else {
-        const { data: reconciliation, error: reconciliationError } = await supabase
-          .from("bank_reconciliations")
-          .insert({
-            company_id: currentCompany.id,
-            bank_account_id: accountId,
-            beginning_balance: beginningBalance,
-            ending_balance: endingBalance,
-            beginning_date: format(beginningDate, 'yyyy-MM-dd'),
-            ending_date: format(endingDate, 'yyyy-MM-dd'),
-            cleared_balance: clearedBalance,
-            adjusted_balance: adjustedBalance,
-            status: 'completed',
-            created_by: user.id,
-            reconciled_by: user.id,
-            reconciled_at: new Date().toISOString(),
-            bank_statement_id: uploadedStatementId
-          })
-          .select()
-          .single();
+        // If a completed reconciliation already exists for this period, update it instead of inserting a duplicate
+        const { data: existing } = await supabase
+          .from('bank_reconciliations')
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .eq('bank_account_id', accountId)
+          .eq('ending_date', format(endingDate, 'yyyy-MM-dd'))
+          .eq('status', 'completed')
+          .maybeSingle();
 
-        if (reconciliationError) throw reconciliationError;
-        finalReconciliationId = reconciliation.id;
+        if (existing?.id) {
+          finalReconciliationId = existing.id;
+          const { error: updErr } = await supabase
+            .from('bank_reconciliations')
+            .update({
+              ending_balance: endingBalance,
+              cleared_balance: clearedBalance,
+              adjusted_balance: adjustedBalance,
+              reconciled_by: user.id,
+              reconciled_at: new Date().toISOString(),
+              bank_statement_id: uploadedStatementId
+            })
+            .eq('id', existing.id);
+          if (updErr) throw updErr;
+        } else {
+          const { data: reconciliation, error: reconciliationError } = await supabase
+            .from("bank_reconciliations")
+            .insert({
+              company_id: currentCompany.id,
+              bank_account_id: accountId,
+              beginning_balance: beginningBalance,
+              ending_balance: endingBalance,
+              beginning_date: format(beginningDate, 'yyyy-MM-dd'),
+              ending_date: format(endingDate, 'yyyy-MM-dd'),
+              cleared_balance: clearedBalance,
+              adjusted_balance: adjustedBalance,
+              status: 'completed',
+              created_by: user.id,
+              reconciled_by: user.id,
+              reconciled_at: new Date().toISOString(),
+              bank_statement_id: uploadedStatementId
+            })
+            .select()
+            .single();
+
+          if (reconciliationError) throw reconciliationError;
+          finalReconciliationId = reconciliation.id;
+        }
       }
 
-      // Update bank account balance
+      // Save cleared items to this reconciliation (so the report shows details)
+      if (finalReconciliationId) {
+        const { error: delItemsErr } = await supabase
+          .from('bank_reconciliation_items')
+          .delete()
+          .eq('reconciliation_id', finalReconciliationId);
+        if (delItemsErr) console.warn('Could not clear old reconciliation items', delItemsErr);
+
+        const clearedItems = [
+          ...deposits.filter(d => d.is_cleared).map(d => ({
+            reconciliation_id: finalReconciliationId,
+            transaction_type: 'deposit',
+            transaction_id: d.id,
+            amount: d.amount,
+            is_cleared: true,
+            cleared_at: new Date().toISOString(),
+          })),
+          ...payments.filter(p => p.is_cleared).map(p => ({
+            reconciliation_id: finalReconciliationId,
+            transaction_type: 'payment',
+            transaction_id: p.id,
+            amount: p.amount,
+            is_cleared: true,
+            cleared_at: new Date().toISOString(),
+          })),
+        ];
+        if (clearedItems.length) {
+          const { error: insItemsErr } = await supabase
+            .from('bank_reconciliation_items')
+            .insert(clearedItems);
+          if (insItemsErr) throw insItemsErr;
+        }
+      }
+
+      // Mark entire journal entries as reconciled for any cleared JE lines
+      const clearedJeLineIds = [
+        ...deposits.filter(d => d.is_cleared && d.transactionType === 'journal_entry_line').map(d => d.id),
+        ...payments.filter(p => p.is_cleared && p.transactionType === 'journal_entry_line').map(p => p.id),
+      ];
+      if (clearedJeLineIds.length) {
+        const { data: parentIds } = await supabase
+          .from('journal_entry_lines')
+          .select('journal_entry_id')
+          .in('id', clearedJeLineIds);
+        const distinctEntryIds = Array.from(new Set((parentIds || []).map((r: any) => r.journal_entry_id)));
+        if (distinctEntryIds.length) {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          await supabase
+            .from('journal_entry_lines')
+            .update({
+              is_reconciled: true,
+              reconciled_at: new Date().toISOString(),
+              reconciled_by: authUser?.id
+            })
+            .in('journal_entry_id', distinctEntryIds);
+        }
+      }
+
+      // Ensure attached bank statement period matches ending date
+      if (uploadedStatementId) {
+        const month = (endingDate?.getMonth?.() ?? new Date().getMonth()) + 1;
+        const year = (endingDate?.getFullYear?.() ?? new Date().getFullYear());
+        await supabase
+          .from('bank_statements')
+          .update({
+            statement_date: format(endingDate, 'yyyy-MM-dd'),
+            statement_month: month,
+            statement_year: year,
+          })
+          .eq('id', uploadedStatementId);
+      }
+
+      // Update bank account balance and as-of date
       const { error: balanceError } = await supabase
         .from("bank_accounts")
-        .update({ current_balance: endingBalance })
-        .eq("id", accountId);
+        .update({ 
+          current_balance: endingBalance,
+          balance_date: format(endingDate, 'yyyy-MM-dd')
+        })
+        .eq("id", accountId)
+        .eq('company_id', currentCompany.id);
 
       if (balanceError) throw balanceError;
 

@@ -141,19 +141,45 @@ export default function BankAccountDetails() {
 
       if (error) throw error;
       
+      const recs = (data || []) as any[];
+
+      // Dedupe by ending_date (keep the most recently reconciled one)
+      const grouped = new Map<string, any[]>();
+      for (const r of recs) {
+        const key = r.ending_date;
+        const arr = grouped.get(key) || [];
+        arr.push(r);
+        grouped.set(key, arr);
+      }
+      const duplicatesToDelete: string[] = [];
+      const uniqueRecs: any[] = [];
+      grouped.forEach((arr) => {
+        arr.sort((a, b) => new Date(b.reconciled_at || b.created_at).getTime() - new Date(a.reconciled_at || a.created_at).getTime());
+        const [keep, ...dups] = arr;
+        uniqueRecs.push(keep);
+        duplicatesToDelete.push(...dups.map(d => d.id));
+      });
+
+      if (duplicatesToDelete.length > 0) {
+        // Best-effort cleanup; ignore errors due to RLS
+        await supabase.from('bank_reconciliations').delete().in('id', duplicatesToDelete);
+      }
+
       // Transform to match ReconcileReport interface
-      const reports = (data || []).map(rec => ({
-        id: rec.id,
-        reconcile_date: rec.ending_date,
-        reconcile_month: new Date(rec.ending_date).getMonth() + 1,
-        reconcile_year: new Date(rec.ending_date).getFullYear(),
-        statement_balance: rec.ending_balance,
-        book_balance: rec.cleared_balance,
-        difference: rec.ending_balance - rec.cleared_balance,
-        is_balanced: Math.abs(rec.ending_balance - rec.cleared_balance) < 0.01,
-        reconciled_at: rec.reconciled_at || rec.created_at,
-        notes: rec.notes
-      }));
+      const reports = uniqueRecs
+        .sort((a, b) => new Date(b.ending_date).getTime() - new Date(a.ending_date).getTime())
+        .map(rec => ({
+          id: rec.id,
+          reconcile_date: rec.ending_date,
+          reconcile_month: new Date(rec.ending_date).getMonth() + 1,
+          reconcile_year: new Date(rec.ending_date).getFullYear(),
+          statement_balance: rec.ending_balance,
+          book_balance: rec.cleared_balance,
+          difference: rec.ending_balance - rec.cleared_balance,
+          is_balanced: Math.abs(rec.ending_balance - rec.cleared_balance) < 0.01,
+          reconciled_at: rec.reconciled_at || rec.created_at,
+          notes: rec.notes
+        }));
       
       setReconcileReports(reports);
     } catch (error) {
@@ -386,7 +412,7 @@ export default function BankAccountDetails() {
             <CardTitle>Current Balance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(account.current_balance)}</div>
+            <div className="text-3xl font-bold">{formatCurrency(reconcileReports.length > 0 ? reconcileReports[0].statement_balance : account.current_balance)}</div>
             <p className="text-sm text-muted-foreground mt-1">
               As of {reconcileReports.length > 0 
                 ? format(new Date(reconcileReports[0].reconcile_date), 'MM/dd/yyyy')

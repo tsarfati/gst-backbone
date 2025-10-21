@@ -314,6 +314,73 @@ export default function ReconciliationReport() {
           </Card>
         )}
 
+        {/* Cleared Transactions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Cleared Transactions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <h3 className="font-semibold mb-3">Cleared Deposits and other Increases ({clearedDeposits.length} Items)</h3>
+              {clearedDeposits.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clearedDeposits.map((deposit) => (
+                      <TableRow key={deposit.id}>
+                        <TableCell>{deposit.description}</TableCell>
+                        <TableCell>{format(new Date(deposit.date), 'MM/dd/yyyy')}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(deposit.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-semibold bg-muted/50">
+                      <TableCell colSpan={2}>Total</TableCell>
+                      <TableCell className="text-right">{formatCurrency(clearedDepositsTotal)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-sm">No cleared deposits</p>
+              )}
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3">Cleared Checks and other Decreases ({clearedPayments.length} Items)</h3>
+              {clearedPayments.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clearedPayments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>{payment.description}</TableCell>
+                        <TableCell>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-semibold bg-muted/50">
+                      <TableCell colSpan={2}>Total</TableCell>
+                      <TableCell className="text-right">{formatCurrency(clearedPaymentsTotal)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-sm">No cleared checks</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Unreconciled Transactions */}
         <Card>
           <CardHeader>
