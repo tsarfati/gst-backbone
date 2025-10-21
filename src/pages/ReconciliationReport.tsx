@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { generateReconciliationReportPdf } from "@/utils/reconciliationReportPdf";
 
 interface ReconciliationData {
   id: string;
@@ -203,6 +204,61 @@ export default function ReconciliationReport() {
   const unclearedDepositsTotal = unclearedDeposits.reduce((sum, d) => sum + d.amount, 0);
   const unclearedPaymentsTotal = unclearedPayments.reduce((sum, p) => sum + p.amount, 0);
 
+  const handleDownloadReport = async () => {
+    if (!reconciliation || !currentCompany) return;
+    
+    try {
+      toast.info("Generating PDF report...");
+      
+      // Get fresh signed URL for bank statement if it exists
+      let bankStatementUrl: string | undefined;
+      if (reconciliation.bank_statement?.file_url) {
+        try {
+          const urlObj = new URL(reconciliation.bank_statement.file_url);
+          const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(public|sign)\/([^?]+)/);
+          
+          if (pathMatch) {
+            const [, , fullPath] = pathMatch;
+            const [bucket, ...pathParts] = fullPath.split('/');
+            const filePath = pathParts.join('/');
+            
+            const { data, error } = await supabase.storage
+              .from(bucket)
+              .createSignedUrl(filePath, 3600);
+            
+            if (!error && data?.signedUrl) {
+              bankStatementUrl = data.signedUrl;
+            }
+          }
+        } catch (err) {
+          console.error('Error getting signed URL for bank statement:', err);
+        }
+      }
+      
+      await generateReconciliationReportPdf({
+        companyName: currentCompany.display_name || currentCompany.name,
+        bankName: reconciliation.bank_account.bank_name,
+        accountName: reconciliation.bank_account.account_name,
+        accountNumber: reconciliation.bank_account.account_number,
+        beginningDate: reconciliation.beginning_date,
+        endingDate: reconciliation.ending_date,
+        beginningBalance: reconciliation.beginning_balance,
+        endingBalance: reconciliation.ending_balance,
+        clearedBalance: reconciliation.cleared_balance,
+        clearedDeposits,
+        clearedPayments,
+        unclearedDeposits,
+        unclearedPayments,
+        bankStatementUrl
+      });
+      
+      toast.success("Report downloaded successfully");
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error("Failed to generate PDF report");
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -230,8 +286,9 @@ export default function ReconciliationReport() {
           Back to Account
         </Button>
         <Button
-          onClick={() => window.print()}
+          onClick={handleDownloadReport}
         >
+          <Download className="h-4 w-4 mr-2" />
           Download Report
         </Button>
       </div>
