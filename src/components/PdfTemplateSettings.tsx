@@ -933,7 +933,8 @@ export default function PdfTemplateSettings() {
                   'date',
                   'page',
                   'pages',
-                  'generated_date'
+                  'generated_date',
+                  'report_data'
                 ]}
                 currentTemplate={{
                   file_url: reconciliationTemplate.template_file_url,
@@ -1286,7 +1287,8 @@ export default function PdfTemplateSettings() {
                   'date',
                   'page',
                   'pages',
-                  'generated_date'
+                  'generated_date',
+                  'report_data'
                 ]}
                 currentTemplate={{
                   file_url: commitmentTemplate.template_file_url,
@@ -1446,7 +1448,8 @@ export default function PdfTemplateSettings() {
                   'date',
                   'page',
                   'pages',
-                  'generated_date'
+                  'generated_date',
+                  'report_data'
                 ]}
                 currentTemplate={{
                   file_url: invoiceTemplate?.template_file_url,
@@ -1492,7 +1495,8 @@ export default function PdfTemplateSettings() {
                   'date',
                   'page',
                   'pages',
-                  'generated_date'
+                  'generated_date',
+                  'report_data'
                 ]}
                 currentTemplate={{
                   file_url: receiptTemplate?.template_file_url,
@@ -1538,7 +1542,8 @@ export default function PdfTemplateSettings() {
                   'overtime_hours',
                   'page',
                   'pages',
-                  'generated_date'
+                  'generated_date',
+                  'report_data'
                 ]}
                 currentTemplate={{
                   file_url: timecardTemplate.template_file_url,

@@ -150,18 +150,47 @@ export default function TemplateFileUploader({
 Available Variables:
 ${availableVariables.map(v => `  {{${v}}}`).join('\n')}
 
+Special Variables:
+  {{report_data}} - This will be replaced with the actual report table/data
+                    The colors and styling from PDF Template Settings will be applied to this data
+
+Color & Styling:
+- Primary Color: Used for main headers and section titles
+- Secondary Color: Used for sub-headers and secondary text
+- Accent Color: Used for table borders, highlights, and emphasis
+- Text Color: Used for main body text
+- Background Color: Used for table headers and backgrounds
+
+The color scheme you configure in PDF Template Settings will automatically apply to the {{report_data}} content.
+
 Instructions:
 1. Create your template in Word (.docx) or Excel (.xlsx)
 2. Use the variables above in your document (e.g., {{company_name}}, {{period}})
-3. Format the document as desired - add logos, colors, fonts, layouts
-4. Upload the template file back to this system
-5. When generating reports, the system will replace variables with actual data
+3. Add {{report_data}} where you want the main report table to appear
+4. Format the document as desired - add logos, fonts, page layouts, margins
+5. Upload the template file back to this system
+6. Configure colors in PDF Template Settings - they will apply to the report data
+7. When generating reports, the system will replace variables with actual data
 
-Example:
+Template Structure Example:
+
+  Header Section:
   Company: {{company_name}}
   Report Period: {{period}}
   Generated: {{generated_date}}
-  Page {{page}} of {{pages}}`;
+  
+  Main Report Data:
+  {{report_data}}
+  
+  Footer Section:
+  Page {{page}} of {{pages}}
+
+Tips:
+- Leave enough space for the {{report_data}} section (it may span multiple pages)
+- Use tables in Word/Excel for structured layouts
+- The report data will inherit your color scheme from Template Settings
+- Headers will automatically use your Primary Color
+- Table borders will use your Accent Color`;
 
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -175,7 +204,7 @@ Example:
 
     toast({
       title: "Template guide downloaded",
-      description: "Use this guide to create your custom template.",
+      description: "Use this guide to create your custom template with report data support.",
     });
   };
 
@@ -243,9 +272,15 @@ Example:
                     {`{{${variable}}}`}
                   </Badge>
                 ))}
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {`{{report_data}}`}
+                </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Use these variables in your template document. They will be replaced with actual data when generating reports.
+              </p>
+              <p className="text-xs text-muted-foreground font-medium">
+                Use <code className="bg-muted px-1 py-0.5 rounded">{`{{report_data}}`}</code> for the main report table. Colors from Template Settings will automatically apply to the report data.
               </p>
             </div>
           </AlertDescription>
