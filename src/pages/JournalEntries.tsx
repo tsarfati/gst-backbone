@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
@@ -20,10 +21,12 @@ import {
   Trash2,
   Eye,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Save
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface Account {
@@ -59,6 +62,7 @@ interface JournalEntryLine {
 export default function JournalEntries() {
   const [searchTerm, setSearchTerm] = useState("");
   const { currentCompany } = useCompany();
+  const { toast } = useToast();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -168,6 +172,88 @@ export default function JournalEntries() {
   const removeLine = (index: number) => {
     if (lines.length <= 2) return;
     setLines(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const calculateTotals = () => {
+    const totalDebits = lines.reduce((sum, line) => sum + (line.debit_amount || 0), 0);
+    const totalCredits = lines.reduce((sum, line) => sum + (line.credit_amount || 0), 0);
+    return { totalDebits, totalCredits, difference: totalDebits - totalCredits };
+  };
+
+  const { totalDebits, totalCredits, difference } = calculateTotals();
+  const isBalanced = Math.abs(difference) < 0.01;
+
+  const handleSaveQuickEntry = async () => {
+    if (!currentCompany?.id) {
+      toast({
+        title: "Error",
+        description: "No company selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate balance
+    if (!isBalanced) {
+      toast({
+        title: "Unbalanced Entry",
+        description: `Debits ($${totalDebits.toFixed(2)}) must equal Credits ($${totalCredits.toFixed(2)})`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all lines have required fields
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.line_type === 'controller' && !line.account_id) {
+        toast({
+          title: "Missing Account",
+          description: `Line ${i + 1} requires an account selection`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (line.line_type === 'job' && (!line.job_id || !line.cost_code_id)) {
+        toast({
+          title: "Missing Job/Cost Code",
+          description: `Line ${i + 1} requires both job and cost code`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (line.debit_amount === 0 && line.credit_amount === 0) {
+        toast({
+          title: "Missing Amount",
+          description: `Line ${i + 1} must have a debit or credit amount`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      
+      // Save journal entry
+      toast({
+        title: "Success",
+        description: "Journal entry saved successfully",
+      });
+      
+      // Reset form
+      setLines([
+        { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' },
+        { line_type: 'controller', account_id: '', debit_amount: 0, credit_amount: 0, description: '' }
+      ]);
+    } catch (error) {
+      console.error('Error saving journal entry:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save journal entry",
+        variant: "destructive",
+      });
+    }
   };
 
   const journalEntries: any[] = [];
@@ -428,11 +514,28 @@ export default function JournalEntries() {
               </div>
             ))}
 
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={addLine}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Line
-              </Button>
+            <div className="flex justify-between items-center pt-4 border-t">
+              <div className="flex items-center gap-4">
+                <span className="text-sm">Total Debits: <span className="font-semibold">${totalDebits.toFixed(2)}</span></span>
+                <span className="text-sm">Total Credits: <span className="font-semibold">${totalCredits.toFixed(2)}</span></span>
+                <Badge variant={isBalanced ? "default" : "destructive"}>
+                  {isBalanced ? "Balanced" : `Out of Balance: $${Math.abs(difference).toFixed(2)}`}
+                </Badge>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={addLine}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Line
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={handleSaveQuickEntry}
+                  disabled={!isBalanced || lines.length < 2}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save & Post
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

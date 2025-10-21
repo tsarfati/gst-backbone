@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useCompany } from "@/contexts/CompanyContext";
 import AccountingJobCostSelector from "@/components/AccountingJobCostSelector";
 
 interface Account {
@@ -50,6 +51,7 @@ export default function NewJournalEntry() {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
 
   const [journalEntry, setJournalEntry] = useState({
     description: '',
@@ -83,14 +85,22 @@ export default function NewJournalEntry() {
   ]);
 
   useEffect(() => {
-    loadAccounts();
-  }, []);
+    if (currentCompany?.id) {
+      loadAccounts();
+    }
+  }, [currentCompany?.id]);
 
   const loadAccounts = async () => {
     try {
+      if (!currentCompany?.id) {
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('chart_of_accounts')
         .select('id, account_number, account_name, account_type, normal_balance')
+        .eq('company_id', currentCompany.id)
         .eq('is_active', true)
         .order('account_number');
 
@@ -107,6 +117,16 @@ export default function NewJournalEntry() {
       setLoading(false);
     }
   };
+
+  // Separate job accounts (5000-5999) from other accounts
+  const jobAccounts = accounts.filter(a => {
+    const num = parseInt(a.account_number);
+    return num >= 5000 && num <= 5999;
+  });
+  const otherAccounts = accounts.filter(a => {
+    const num = parseInt(a.account_number);
+    return num < 5000 || num > 5999;
+  });
 
   const addLine = () => {
     const newLine: JournalEntryLine = {
@@ -364,11 +384,29 @@ export default function NewJournalEntry() {
                           <SelectValue placeholder="Select account" />
                         </SelectTrigger>
                         <SelectContent>
-                          {accounts.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.account_number} - {account.account_name}
-                            </SelectItem>
-                          ))}
+                          {jobAccounts.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">JOBS</div>
+                              {jobAccounts.map((account) => (
+                                <SelectItem key={account.id} value={account.id}>
+                                  {account.account_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                          {jobAccounts.length > 0 && otherAccounts.length > 0 && (
+                            <div className="my-1 border-t" />
+                          )}
+                          {otherAccounts.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">Accounts</div>
+                              {otherAccounts.map((account) => (
+                                <SelectItem key={account.id} value={account.id}>
+                                  {account.account_number} - {account.account_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
