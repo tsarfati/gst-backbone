@@ -250,7 +250,15 @@ serve(async (req) => {
       if (error) return errorResponse(error.message, 500);
 
       return new Response(JSON.stringify(data || []), { headers: { "Content-Type": "application/json", ...corsHeaders } });
-    } else if (req.method === "POST" && body?.action === "review-change-request") {
+    }
+    
+    // Parse body for all POST requests
+    let body: any = null;
+    if (req.method === "POST") {
+      body = await req.json().catch(() => null);
+    }
+    
+    if (req.method === "POST" && body?.action === "review-change-request") {
       // Handle approval/denial of change requests
       const { request_id, status, review_notes } = body;
       
@@ -311,7 +319,6 @@ serve(async (req) => {
         headers: { "Content-Type": "application/json", ...corsHeaders }
       });
     } else if (req.method === "POST" && url.pathname.endsWith("/request-change")) {
-      const body = await req.json().catch(() => null) as any;
       const { pin, time_card_id, reason, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id } = body || {};
       if (!pin || !time_card_id || !reason) return errorResponse("Missing required fields", 400);
       const userRow = await validatePin(supabaseAdmin, pin);
@@ -345,7 +352,6 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     } else if (req.method === "POST" && url.pathname.endsWith("/update-profile")) {
-      const body = await req.json().catch(() => null) as any;
       const { pin, email, phone, avatar_url } = body || {};
       if (!pin) return errorResponse("Missing pin", 400);
       const userRow = await validatePin(supabaseAdmin, pin);
@@ -380,7 +386,6 @@ serve(async (req) => {
 
     if (req.method === "POST" && url.pathname.endsWith("/upload-photo")) {
       try {
-        const body = await req.json();
         const { pin, image } = body || {};
         if (!pin || !image) return errorResponse("Missing pin or image", 400);
 
@@ -425,7 +430,6 @@ serve(async (req) => {
         return errorResponse((e as Error).message || 'Upload failed', 500);
       }
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
-      const body = await req.json();
       let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image, timezone_offset_minutes } = body || {};
       // Normalize empty strings to null for UUID fields
       if (typeof cost_code_id === 'string' && cost_code_id.trim() === '') {
