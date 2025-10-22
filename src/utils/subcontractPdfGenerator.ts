@@ -2,6 +2,28 @@ import jsPDF from 'jspdf';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 
+// Helper to load image and convert to data URL for jsPDF
+const loadImageAsDataUrl = async (url: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+    img.src = url;
+  });
+};
+
 export const SUBCONTRACT_PLACEHOLDERS = {
   '{company_name}': 'Company Name',
   '{company_address}': 'Company Address',
@@ -72,6 +94,19 @@ export const generateSubcontractPDF = async (
     const pageWidth = pdf.internal.pageSize.width;
     const pageHeight = pdf.internal.pageSize.height;
     const margin = 20;
+
+    // Add header images/logos if defined in template
+    if (template.header_images && Array.isArray(template.header_images) && template.header_images.length > 0) {
+      for (const img of template.header_images) {
+        try {
+          const imgData = img as any;
+          const dataUrl = await loadImageAsDataUrl(imgData.url);
+          pdf.addImage(dataUrl, 'PNG', imgData.x, imgData.y, imgData.width, imgData.height);
+        } catch (e) {
+          console.error('Failed to load header image:', e);
+        }
+      }
+    }
 
     // Prepare data for placeholder replacement
     const placeholderValues = {

@@ -3,6 +3,28 @@ import 'jspdf-autotable';
 import { formatNumber } from './formatNumber';
 import { format } from 'date-fns';
 
+// Helper to load image and convert to data URL for jsPDF
+const loadImageAsDataUrl = async (url: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+    img.src = url;
+  });
+};
+
 interface SubcontractData {
   name: string;
   vendor_name: string;
@@ -25,6 +47,7 @@ interface InvoiceData {
 interface CompanyData {
   name: string;
   logo_url?: string;
+  id?: string;
 }
 
 interface JobData {
@@ -42,6 +65,33 @@ export const generateCommitmentStatusReport = async (
   const pageWidth = pdf.internal.pageSize.width;
   const margin = 20;
   let yPosition = margin;
+
+  // Load and add header images/logos from template if available
+  if (company.id) {
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: template } = await supabase
+        .from('pdf_templates')
+        .select('header_images')
+        .eq('company_id', company.id)
+        .eq('template_type', 'commitment')
+        .maybeSingle();
+
+      if (template?.header_images && Array.isArray(template.header_images) && template.header_images.length > 0) {
+        for (const img of template.header_images) {
+          try {
+            const imgData = img as any;
+            const dataUrl = await loadImageAsDataUrl(imgData.url);
+            pdf.addImage(dataUrl, 'PNG', imgData.x, imgData.y, imgData.width, imgData.height);
+          } catch (e) {
+            console.error('Failed to load header image:', e);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load template header images:', e);
+    }
+  }
 
   // Header
   pdf.setFontSize(18);

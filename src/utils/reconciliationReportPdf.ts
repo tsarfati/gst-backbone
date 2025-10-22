@@ -379,6 +379,40 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
   const pageHeight = doc.internal.pageSize.getHeight();
   let yPos = 20;
 
+  // Load and render header images/logos if defined in template
+  if (templateData?.header_images && Array.isArray(templateData.header_images) && templateData.header_images.length > 0) {
+    for (const img of templateData.header_images) {
+      try {
+        const imgData = img as any;
+        // Helper to load image inline
+        const loadImg = async (url: string): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.crossOrigin = 'anonymous';
+            image.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = image.width;
+              canvas.height = image.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                reject(new Error('Failed to get canvas context'));
+                return;
+              }
+              ctx.drawImage(image, 0, 0);
+              resolve(canvas.toDataURL('image/png'));
+            };
+            image.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+            image.src = url;
+          });
+        };
+        const dataUrl = await loadImg(imgData.url);
+        doc.addImage(dataUrl, 'PNG', imgData.x, imgData.y, imgData.width, imgData.height);
+      } catch (e) {
+        console.error('Failed to load header image:', e);
+      }
+    }
+  }
+
   // Header/Footer from template (plain text extracted from HTML)
   const drawHeader = () => {
     if (headerHtml) {
