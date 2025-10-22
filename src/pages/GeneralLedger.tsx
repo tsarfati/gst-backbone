@@ -131,7 +131,8 @@ export default function GeneralLedger() {
         .eq("journal_entries.company_id", currentCompany.id)
         .eq("journal_entries.status", "posted")
         .gte("journal_entries.entry_date", format(dateStart, "yyyy-MM-dd"))
-        .lte("journal_entries.entry_date", format(dateEnd, "yyyy-MM-dd"));
+        .lte("journal_entries.entry_date", format(dateEnd, "yyyy-MM-dd"))
+        .order("journal_entries(entry_date)", { ascending: true });
 
       if (error) throw error;
       

@@ -2403,6 +2403,7 @@ export type Database = {
           description: string
           entry_date: string
           id: string
+          is_reversed: boolean | null
           job_id: string | null
           posted_at: string | null
           posted_by: string | null
@@ -2421,6 +2422,7 @@ export type Database = {
           description: string
           entry_date?: string
           id?: string
+          is_reversed?: boolean | null
           job_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
@@ -2439,6 +2441,7 @@ export type Database = {
           description?: string
           entry_date?: string
           id?: string
+          is_reversed?: boolean | null
           job_id?: string | null
           posted_at?: string | null
           posted_by?: string | null

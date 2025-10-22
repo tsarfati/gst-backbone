@@ -253,6 +253,9 @@ export default function JournalEntryDetails() {
     if (!id) return;
 
     try {
+      // Check if this journal entry has lines
+      const hasLines = lines.length > 0;
+      
       // Check if this journal entry is linked to a payment
       const { data: linkedPayment, error: paymentCheckError } = await supabase
         .from('payments')
@@ -262,7 +265,8 @@ export default function JournalEntryDetails() {
 
       if (paymentCheckError) throw paymentCheckError;
 
-      if (linkedPayment) {
+      // Only block deletion if linked to payment AND has lines (is valid)
+      if (linkedPayment && hasLines) {
         toast({
           title: "Cannot delete",
           description: `This journal entry is linked to payment ${linkedPayment.payment_number}. Please delete or unlink the payment first.`,
@@ -270,6 +274,15 @@ export default function JournalEntryDetails() {
         });
         setShowDeleteDialog(false);
         return;
+      }
+      
+      // Allow deletion of malformed entries (no lines) even if linked to payment
+      if (linkedPayment && !hasLines) {
+        // Also unlink from payment when deleting malformed entry
+        await supabase
+          .from('payments')
+          .update({ journal_entry_id: null })
+          .eq('id', linkedPayment.id);
       }
 
       // Delete lines first
