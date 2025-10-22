@@ -565,7 +565,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   };
 
   const handleApproveTimeCard = async () => {
-    if (!user || !isManager) return;
+    if (!user?.id || !isManager) return;
     
     const comments = prompt('Optional approval comments:');
     
@@ -581,7 +581,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           approved_at: new Date().toISOString(),
           review_notes: comments || null
         })
-        .eq('id', timeCard.id);
+        .eq('id', timeCard!.id);
 
       if (updateError) throw updateError;
 
@@ -589,7 +589,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       await supabase
         .from('time_card_audit_trail')
         .insert({
-          time_card_id: timeCard.id,
+          time_card_id: timeCard!.id,
           changed_by: user.id,
           change_type: 'approved',
           reason: comments || 'Time card approved',
@@ -616,7 +616,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   };
 
   const handleDenyTimeCard = async () => {
-    if (!user || !isManager) return;
+    if (!user?.id || !isManager) return;
     
     const comments = prompt('Reason for denial (required):');
     if (!comments) {
@@ -640,7 +640,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           approved_at: new Date().toISOString(),
           review_notes: comments
         })
-        .eq('id', timeCard.id);
+        .eq('id', timeCard!.id);
 
       if (updateError) throw updateError;
 
@@ -648,7 +648,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       await supabase
         .from('time_card_audit_trail')
         .insert({
-          time_card_id: timeCard.id,
+          time_card_id: timeCard!.id,
           changed_by: user.id,
           change_type: 'rejected',
           reason: comments,
@@ -753,78 +753,50 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 Pending Change Request
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {/* Reason for change */}
-              <div className="bg-background rounded-md p-4 border-l-4 border-warning">
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Reason for Change:</p>
-                <p className="text-base font-medium">{pendingChangeRequest.reason || 'No reason provided'}</p>
+              <div className="bg-background rounded-md p-3 border-l-4 border-warning">
+                <p className="text-sm font-semibold text-muted-foreground mb-1">Reason:</p>
+                <p className="text-sm">{pendingChangeRequest.reason || 'No reason provided'}</p>
               </div>
               
-              {/* Detailed change comparison */}
-              <div className="bg-background rounded-md p-4 space-y-3">
-                <p className="text-sm font-semibold text-muted-foreground mb-2">Requested Changes:</p>
+              {/* Compact change list */}
+              <div className="bg-background rounded-md p-3 space-y-2">
+                <p className="text-sm font-semibold text-muted-foreground">Requested Changes:</p>
                 
                 {pendingChangeRequest.proposed_punch_in_time && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground">Punch In Time:</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Current:</div>
-                        <div className="font-medium">{format(new Date(timeCard.punch_in_time), 'h:mm a')}</div>
-                      </div>
-                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Proposed:</div>
-                        <div className="font-medium">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}</div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Punch In:</span>
+                    <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'h:mm a')}</span>
+                    <span>→</span>
+                    <span className="font-medium text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}</span>
                   </div>
                 )}
                 
                 {pendingChangeRequest.proposed_punch_out_time && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground">Punch Out Time:</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Current:</div>
-                        <div className="font-medium">{format(new Date(timeCard.punch_out_time), 'h:mm a')}</div>
-                      </div>
-                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Proposed:</div>
-                        <div className="font-medium">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}</div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Punch Out:</span>
+                    <span className="line-through text-red-600">{format(new Date(timeCard.punch_out_time), 'h:mm a')}</span>
+                    <span>→</span>
+                    <span className="font-medium text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}</span>
                   </div>
                 )}
                 
                 {pendingChangeRequest.proposed_job_id && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground">Job:</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Current:</div>
-                        <div className="font-medium">{jobs[timeCard.job_id]?.name || 'Unknown'}</div>
-                      </div>
-                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Proposed:</div>
-                        <div className="font-medium">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Job:</span>
+                    <span className="line-through text-red-600">{jobs[timeCard.job_id]?.name || 'Unknown'}</span>
+                    <span>→</span>
+                    <span className="font-medium text-green-600">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</span>
                   </div>
                 )}
                 
                 {pendingChangeRequest.proposed_cost_code_id && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-muted-foreground">Cost Code:</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Current:</div>
-                        <div className="font-medium">{timeCard.cost_code_id ? (costCodes[timeCard.cost_code_id]?.code || 'Unknown') : 'None'}</div>
-                      </div>
-                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
-                        <div className="text-xs text-muted-foreground">Proposed:</div>
-                        <div className="font-medium">{costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown'}</div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Cost Code:</span>
+                    <span className="line-through text-red-600">{timeCard.cost_code_id ? (costCodes[timeCard.cost_code_id]?.code || 'Unknown') : 'None'}</span>
+                    <span>→</span>
+                    <span className="font-medium text-green-600">{costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown'}</span>
                   </div>
                 )}
                 
