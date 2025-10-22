@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { History, User, Edit, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -18,6 +19,9 @@ interface AuditTrailEntry {
   changed_by: string;
   profiles?: {
     display_name: string;
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
   };
 }
 
@@ -54,25 +58,35 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
         return;
       }
 
-      // Manually fetch display names for changed_by users from both profiles and PIN employees
+      // Manually fetch display names and avatars for changed_by users from both profiles and PIN employees
       const changedByIds = Array.from(new Set(data?.map(entry => entry.changed_by).filter(Boolean))) as string[];
-      let nameMap: Record<string, { display_name: string }> = {};
+      let nameMap: Record<string, { display_name: string; first_name?: string; last_name?: string; avatar_url?: string }> = {};
 
       if (changedByIds.length > 0) {
         const [profilesRes, pinRes] = await Promise.all([
-          supabase.from('profiles').select('user_id, display_name').in('user_id', changedByIds),
-          supabase.from('pin_employees').select('id, display_name, first_name, last_name').in('id', changedByIds)
+          supabase.from('profiles').select('user_id, display_name, first_name, last_name, avatar_url').in('user_id', changedByIds),
+          supabase.from('pin_employees').select('id, display_name, first_name, last_name, avatar_url').in('id', changedByIds)
         ]);
 
         if (profilesRes.data) {
           profilesRes.data.forEach((p) => {
-            nameMap[p.user_id] = { display_name: p.display_name || 'Unknown User' };
+            nameMap[p.user_id] = { 
+              display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User',
+              first_name: p.first_name,
+              last_name: p.last_name,
+              avatar_url: p.avatar_url
+            };
           });
         }
         if (pinRes.data) {
           pinRes.data.forEach((p) => {
             if (!nameMap[p.id]) {
-              nameMap[p.id] = { display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User' };
+              nameMap[p.id] = { 
+                display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User',
+                first_name: p.first_name,
+                last_name: p.last_name,
+                avatar_url: p.avatar_url
+              };
             }
           });
         }
@@ -81,7 +95,7 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
       // Combine audit entries with name data
       const entriesWithProfiles = (data || []).map(entry => ({
         ...entry,
-        profiles: nameMap[entry.changed_by] || { display_name: 'Unknown User' }
+        profiles: nameMap[entry.changed_by] || { display_name: 'Unknown User', avatar_url: undefined }
       }));
 
       setAuditEntries(entriesWithProfiles);
@@ -170,14 +184,17 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
               {auditEntries.map((entry, index) => (
                 <div key={entry.id}>
                   <div className="flex items-start gap-3">
-                    <div className="mt-1">
-                      {getChangeTypeIcon(entry.change_type)}
-                    </div>
+                    <Avatar className="h-8 w-8 mt-1">
+                      <AvatarImage src={entry.profiles?.avatar_url} />
+                      <AvatarFallback>
+                        {entry.profiles?.first_name?.[0]}{entry.profiles?.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         {getChangeTypeBadge(entry.change_type)}
-                        <span className="text-sm text-muted-foreground">
-                          by {entry.profiles?.display_name || 'Unknown User'}
+                        <span className="text-sm font-medium">
+                          {entry.profiles?.display_name || 'Unknown User'}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatDateTime(entry.created_at)}

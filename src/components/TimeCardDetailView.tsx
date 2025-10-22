@@ -665,16 +665,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 {formatDate(timeCard.punch_in_time)}
               </DialogDescription>
             </div>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditDialogOpen(true)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            )}
           </div>
         </DialogHeader>
 

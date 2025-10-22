@@ -470,10 +470,15 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           status,
           created_at,
           reason,
+          proposed_punch_in_time,
+          proposed_punch_out_time,
+          proposed_job_id,
+          proposed_cost_code_id,
           time_cards (
             id,
             user_id,
             job_id,
+            cost_code_id,
             company_id,
             punch_in_time,
             punch_out_time,
@@ -497,10 +502,17 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         }, new Map<string, any>());
       setPendingChangeRequests(Array.from(deduped.values()));
       
-      // Load profiles and jobs for the change requests
+      // Load profiles, jobs, and cost codes for the change requests
       if (data && data.length > 0) {
         const userIds = Array.from(new Set(data.map(cr => cr.user_id)));
-        const jobIds = Array.from(new Set(data.map(cr => cr.time_cards?.job_id).filter(Boolean))) as string[];
+        const jobIds = Array.from(new Set([
+          ...data.map(cr => cr.time_cards?.job_id).filter(Boolean),
+          ...data.map(cr => cr.proposed_job_id).filter(Boolean)
+        ])) as string[];
+        const costCodeIds = Array.from(new Set([
+          ...data.map(cr => cr.time_cards?.cost_code_id).filter(Boolean),
+          ...data.map(cr => cr.proposed_cost_code_id).filter(Boolean)
+        ])) as string[];
         
         if (userIds.length) {
           const [profilesResponse, pinEmployeesResponse] = await Promise.all([
@@ -536,6 +548,17 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           const jobMap: Record<string, Job> = {};
           (jobsData || []).forEach(j => { jobMap[j.id] = j; });
           setJobs(prev => ({ ...prev, ...jobMap }));
+        }
+        
+        if (costCodeIds.length) {
+          const { data: costCodesData } = await supabase
+            .from('cost_codes')
+            .select('id, code, description')
+            .eq('company_id', currentCompany.id)
+            .in('id', costCodeIds);
+          const ccMap: Record<string, { code: string; description: string }> = {};
+          (costCodesData || []).forEach(cc => { ccMap[cc.id] = { code: cc.code, description: cc.description }; });
+          setCostCodes(prev => ({ ...prev, ...ccMap }));
         }
       }
   };
@@ -611,6 +634,25 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   const prof = profiles[cr.user_id];
                   const tc = cr.time_cards;
                   const job = tc?.job_id ? jobs[tc.job_id] : undefined;
+                  
+                  // Determine what's being changed
+                  const changes: string[] = [];
+                  if (cr.proposed_punch_in_time) {
+                    changes.push(`Punch In: ${format(new Date(tc.punch_in_time), 'h:mm a')} → ${format(new Date(cr.proposed_punch_in_time), 'h:mm a')}`);
+                  }
+                  if (cr.proposed_punch_out_time) {
+                    changes.push(`Punch Out: ${format(new Date(tc.punch_out_time), 'h:mm a')} → ${format(new Date(cr.proposed_punch_out_time), 'h:mm a')}`);
+                  }
+                  if (cr.proposed_job_id) {
+                    const newJob = jobs[cr.proposed_job_id];
+                    changes.push(`Job: ${job?.name || 'Unknown'} → ${newJob?.name || 'Unknown'}`);
+                  }
+                  if (cr.proposed_cost_code_id) {
+                    const oldCostCode = tc.cost_code_id ? costCodes[tc.cost_code_id] : null;
+                    const newCostCode = costCodes[cr.proposed_cost_code_id];
+                    changes.push(`Cost Code: ${oldCostCode?.code || 'None'} → ${newCostCode?.code || 'Unknown'}`);
+                  }
+                  
                   return (
                     <div 
                       key={cr.id} 
@@ -641,9 +683,20 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                                 {tc.total_hours.toFixed(2)} hours
                               </div>
                             )}
+                            
+                            {/* Show what's being changed */}
+                            {changes.length > 0 && (
+                              <div className="mt-2 p-2 bg-warning/10 border border-warning/30 rounded text-xs space-y-1">
+                                <div className="font-semibold text-warning">Requested Changes:</div>
+                                {changes.map((change, idx) => (
+                                  <div key={idx} className="text-foreground">{change}</div>
+                                ))}
+                              </div>
+                            )}
+                            
                             {cr.reason && (
-                              <div className="text-xs text-muted-foreground mt-1 italic line-clamp-1">
-                                {cr.reason}
+                              <div className="text-xs text-muted-foreground mt-2 italic line-clamp-2">
+                                <span className="font-semibold">Reason:</span> {cr.reason}
                               </div>
                             )}
                           </div>
@@ -659,13 +712,26 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                           className="flex-1"
                           onClick={async () => {
                             const comments = prompt('Optional comments:');
+                            
+                            // Build audit trail details with what was changed
+                            const auditDetails = [`Change request approved`];
+                            if (changes.length > 0) {
+                              auditDetails.push('Changes: ' + changes.join('; '));
+                            }
+                            if (cr.reason) {
+                              auditDetails.push('Reason: ' + cr.reason);
+                            }
+                            if (comments) {
+                              auditDetails.push('Review notes: ' + comments);
+                            }
+                            
                             try {
                               const { error } = await supabase.functions.invoke('punch-clock', {
                                 body: {
                                   action: 'review-change-request',
                                   request_id: cr.id,
                                   status: 'approved',
-                                  review_notes: comments || undefined
+                                  review_notes: auditDetails.join(' | ')
                                 }
                               });
                               if (error) throw error;
@@ -685,13 +751,26 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                           className="flex-1"
                           onClick={async () => {
                             const comments = prompt('Optional comments:');
+                            
+                            // Build audit trail details with what was being requested
+                            const auditDetails = [`Change request rejected`];
+                            if (changes.length > 0) {
+                              auditDetails.push('Requested changes: ' + changes.join('; '));
+                            }
+                            if (cr.reason) {
+                              auditDetails.push('Employee reason: ' + cr.reason);
+                            }
+                            if (comments) {
+                              auditDetails.push('Rejection notes: ' + comments);
+                            }
+                            
                             try {
                               const { error } = await supabase.functions.invoke('punch-clock', {
                                 body: {
                                   action: 'review-change-request',
                                   request_id: cr.id,
                                   status: 'rejected',
-                                  review_notes: comments || undefined
+                                  review_notes: auditDetails.join(' | ')
                                 }
                               });
                               if (error) throw error;
