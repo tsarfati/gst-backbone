@@ -989,12 +989,32 @@ export default function PdfTemplateSettings() {
                           header_html: preset.header_html,
                           footer_html: preset.footer_html,
                           primary_color: preset.primary_color,
+                          secondary_color: '#f8fafc',
                           table_header_bg: preset.table_header_bg,
+                          table_border_color: '#e2e8f0',
+                          table_stripe_color: '#f8fafc',
+                          font_family: 'helvetica',
                         }));
                         setSelectedPreset(presetKey);
+                        
+                        // Auto-save after applying preset
+                        setTimeout(async () => {
+                          await saveTemplate({
+                            ...reconciliationTemplate,
+                            header_html: preset.header_html,
+                            footer_html: preset.footer_html,
+                            primary_color: preset.primary_color,
+                            secondary_color: '#f8fafc',
+                            table_header_bg: preset.table_header_bg,
+                            table_border_color: '#e2e8f0',
+                            table_stripe_color: '#f8fafc',
+                            font_family: 'helvetica',
+                          });
+                        }, 100);
+                        
                         toast({
                           title: "Template applied",
-                          description: `${preset.name} template has been applied.`,
+                          description: `${preset.name} template has been applied and saved.`,
                         });
                       }
                     }}
