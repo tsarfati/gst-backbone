@@ -3,6 +3,8 @@ import autoTable from 'jspdf-autotable';
 import { PDFDocument } from 'pdf-lib';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import Docxtemplater from 'docxtemplater';
+import PizZip from 'pizzip';
 
 interface Transaction {
   id: string;
@@ -47,6 +49,149 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
   } catch (e) {
     console.warn('Unable to load reconciliation template, using defaults');
   }
+
+  // Check if there's a template file uploaded
+  if (templateData?.template_file_url) {
+    try {
+      return await generateFromTemplate(data, templateData);
+    } catch (error) {
+      console.error('Error generating from template, falling back to default:', error);
+      // Fall through to default generation
+    }
+  }
+
+  // Default PDF generation (existing code)
+  return await generateDefaultReconciliationPdf(data, templateData);
+};
+
+// Generate report from uploaded Word template
+const generateFromTemplate = async (data: ReconciliationReportData, templateData: any) => {
+  // Fetch the template file
+  const response = await fetch(templateData.template_file_url);
+  const arrayBuffer = await response.arrayBuffer();
+  
+  const zip = new PizZip(arrayBuffer);
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+  });
+
+  // Helper function for formatting currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  // Calculate totals
+  const clearedDepositsTotal = data.clearedDeposits.reduce((sum, d) => sum + d.amount, 0);
+  const clearedPaymentsTotal = data.clearedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const unclearedDepositsTotal = data.unclearedDeposits.reduce((sum, d) => sum + d.amount, 0);
+  const unclearedPaymentsTotal = data.unclearedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+  // Format transactions for table
+  const formatTransactions = (transactions: any[]) => {
+    return transactions.map(t => ({
+      description: t.description,
+      date: format(new Date(t.date), 'MM/dd/yyyy'),
+      amount: formatCurrency(t.amount)
+    }));
+  };
+
+  // Build report_data HTML table
+  const reportDataHtml = `
+    <h3>Summary</h3>
+    <table>
+      <tr><td>Bank Statement Starting Balance</td><td>${formatCurrency(data.beginningBalance)}</td></tr>
+      <tr><td>Cleared Deposits and other Increases</td><td>${formatCurrency(clearedDepositsTotal)}</td></tr>
+      <tr><td>Cleared Checks and other Decreases</td><td>${formatCurrency(clearedPaymentsTotal)}</td></tr>
+      <tr><td>Cleared Balance</td><td>${formatCurrency(data.clearedBalance)}</td></tr>
+    </table>
+    
+    <h3>Cleared Transactions</h3>
+    <h4>Cleared Deposits (${data.clearedDeposits.length} Items)</h4>
+    <table>
+      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
+      ${data.clearedDeposits.map(d => `<tr><td>${d.description}</td><td>${format(new Date(d.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(d.amount)}</td></tr>`).join('')}
+      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(clearedDepositsTotal)}</strong></td></tr>
+    </table>
+    
+    <h4>Cleared Checks (${data.clearedPayments.length} Items)</h4>
+    <table>
+      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
+      ${data.clearedPayments.map(p => `<tr><td>${p.description}</td><td>${format(new Date(p.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(p.amount)}</td></tr>`).join('')}
+      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(clearedPaymentsTotal)}</strong></td></tr>
+    </table>
+    
+    <h3>Unreconciled Transactions</h3>
+    <h4>Unreconciled Deposits (${data.unclearedDeposits.length} Items)</h4>
+    <table>
+      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
+      ${data.unclearedDeposits.map(d => `<tr><td>${d.description}</td><td>${format(new Date(d.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(d.amount)}</td></tr>`).join('')}
+      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(unclearedDepositsTotal)}</strong></td></tr>
+    </table>
+    
+    <h4>Unreconciled Checks (${data.unclearedPayments.length} Items)</h4>
+    <table>
+      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
+      ${data.unclearedPayments.map(p => `<tr><td>${p.description}</td><td>${format(new Date(p.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(p.amount)}</td></tr>`).join('')}
+      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(unclearedPaymentsTotal)}</strong></td></tr>
+    </table>
+  `;
+
+  // Set template data
+  doc.setData({
+    company_name: data.companyName,
+    bank_name: data.bankName,
+    account_name: data.accountName,
+    account_number: data.accountNumber ? `***${data.accountNumber.slice(-4)}` : '',
+    beginning_date: format(new Date(data.beginningDate), 'MM/dd/yyyy'),
+    ending_date: format(new Date(data.endingDate), 'MM/dd/yyyy'),
+    beginning_balance: formatCurrency(data.beginningBalance),
+    ending_balance: formatCurrency(data.endingBalance),
+    cleared_balance: formatCurrency(data.clearedBalance),
+    report_date: format(new Date(), 'MM/dd/yyyy'),
+    report_data: reportDataHtml,
+    
+    // Transactions as arrays for loops
+    cleared_deposits: formatTransactions(data.clearedDeposits),
+    cleared_payments: formatTransactions(data.clearedPayments),
+    uncleared_deposits: formatTransactions(data.unclearedDeposits),
+    uncleared_payments: formatTransactions(data.unclearedPayments),
+    
+    // Totals
+    cleared_deposits_total: formatCurrency(clearedDepositsTotal),
+    cleared_payments_total: formatCurrency(clearedPaymentsTotal),
+    uncleared_deposits_total: formatCurrency(unclearedDepositsTotal),
+    uncleared_payments_total: formatCurrency(unclearedPaymentsTotal),
+  });
+
+  try {
+    doc.render();
+  } catch (error: any) {
+    console.error('Error rendering template:', error);
+    throw error;
+  }
+
+  const output = doc.getZip().generate({
+    type: 'blob',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+
+  // Download the filled template
+  const url = URL.createObjectURL(output);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.docx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Default PDF generation (existing logic)
+const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, templateData: any | null) => {
 
   // Helper function to convert hex to RGB
   const hexToRgb = (hex: string): [number, number, number] => {
