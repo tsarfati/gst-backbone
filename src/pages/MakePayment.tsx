@@ -401,7 +401,7 @@ export default function MakePayment() {
     try {
       const user = await supabase.auth.getUser();
       
-      // Create payment - all payments start as 'pending' until reconciled
+      // Create payment - all payments start as 'paid' until reconciled
       const paymentToInsert = {
         payment_number: payment.payment_number,
         vendor_id: payment.vendor_id,
@@ -409,11 +409,12 @@ export default function MakePayment() {
         payment_date: payment.payment_date,
         amount: payment.amount,
         memo: payment.memo,
-        status: 'pending',
+        status: 'paid',
         check_number: payment.check_number,
         bank_account_id: payment.bank_account_id,
         is_partial_payment: isPartialPayment,
         bank_fee: payment.bank_fee || 0,
+        company_id: currentCompany.id,
         created_by: user.data.user?.id
       };
 

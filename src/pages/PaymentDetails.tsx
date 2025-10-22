@@ -85,21 +85,38 @@ export default function PaymentDetails() {
       setLoading(true);
 
       // Fetch payment with vendor, bank account, and created by user
-      const { data: paymentData, error: paymentError } = await supabase
-        .from("payments")
+      const { data: paymentData, error: paymentError } = await (supabase
+        .from("payments") as any)
         .select(`
           *,
           vendor:vendors(id, name),
           bank_account:bank_accounts(id, account_name)
         `)
         .eq("id", id)
+        .eq("company_id", currentCompany.id)
         .maybeSingle();
 
       if (paymentError) throw paymentError;
       if (!paymentData) {
-        toast.error("Payment not found");
-        setLoading(false);
-        return;
+        // Fallback without company filter (for legacy records)
+        const { data: paymentDataFallback } = await (supabase
+          .from("payments") as any)
+          .select(`
+            *,
+            vendor:vendors(id, name),
+            bank_account:bank_accounts(id, account_name)
+          `)
+          .eq("id", id)
+          .maybeSingle();
+        if (!paymentDataFallback) {
+          toast.error("Payment not found");
+          setLoading(false);
+          return;
+        }
+        // Use fallback result
+        var paymentDataAny: any = paymentDataFallback;
+      } else {
+        var paymentDataAny: any = paymentData;
       }
 
       // Fetch created by user
@@ -128,10 +145,10 @@ export default function PaymentDetails() {
 
       if (invoiceError) throw invoiceError;
 
-      // Fetch reconciliation info if payment is cleared
+      // Fetch reconciliation info (regardless of stored status)
       let reconciliationInfo = null;
-      if (paymentData.status === 'cleared') {
-        const { data: reconData, error: reconError } = await supabase
+      {
+        const { data: reconData } = await supabase
           .from("bank_reconciliation_items")
           .select(`
             cleared_at,
@@ -145,8 +162,7 @@ export default function PaymentDetails() {
           .eq("transaction_type", "payment")
           .maybeSingle();
 
-        if (!reconError && reconData) {
-          // Fetch reconciled by user
+        if (reconData) {
           let reconciledByUser = null;
           if (reconData.bank_reconciliations.reconciled_by) {
             const { data: reconUserData } = await supabase
@@ -156,7 +172,6 @@ export default function PaymentDetails() {
               .maybeSingle();
             reconciledByUser = reconUserData;
           }
-          
           reconciliationInfo = {
             reconciled_at: reconData.bank_reconciliations.reconciled_at,
             reconciled_by_user: reconciledByUser,
@@ -193,8 +208,11 @@ export default function PaymentDetails() {
         }
       }
 
+      const computedStatus = reconciliationInfo ? 'cleared' : 'paid';
+
       setPayment({
         ...paymentData,
+        status: computedStatus,
         created_by_user: createdByUser,
         reconciliation: reconciliationInfo,
         journal_entry: journalEntry,
