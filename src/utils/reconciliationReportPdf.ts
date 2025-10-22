@@ -149,13 +149,31 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     return xml;
   };
 
+  // Convert specific tokens to proper Word fields (eg, page numbers)
+  const fixPageTokens = (xml: string) => {
+    try {
+      // Replace an entire run containing [[page]]/{{page}} with PAGE field
+      xml = xml.replace(
+        /<w:r[^>]*>\s*(?:<w:rPr>[\s\S]*?<\/w:rPr>\s*)?<w:t[^>]*>\s*(?:\[\[page\]\]|\{\{page\}\})\s*<\/w:t>\s*<\/w:r>/g,
+        '<w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
+      );
+      // Replace an entire run containing [[pages]]/{{pages}} with NUMPAGES field
+      xml = xml.replace(
+        /<w:r[^>]*>\s*(?:<w:rPr>[\s\S]*?<\/w:rPr>\s*)?<w:t[^>]*>\s*(?:\[\[pages\]\]|\{\{pages\}\})\s*<\/w:t>\s*<\/w:r>/g,
+        '<w:fldSimple w:instr=" NUMPAGES "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
+      );
+    } catch {}
+    return xml;
+  };
+
   const xmlFiles = Object.keys(zip.files).filter((k) => k.startsWith('word/') && k.endsWith('.xml'));
   for (const f of xmlFiles) {
     try {
       const content = zip.file(f)?.asText();
       if (content) {
         const normalized = normalizeXml(content);
-        zip.file(f, normalized);
+        const updated = fixPageTokens(normalized);
+        zip.file(f, updated);
       }
     } catch (e) {
       console.warn('Skipped XML normalization for', f, e);
@@ -205,6 +223,7 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
       paragraphLoop: true,
       linebreaks: true,
       nullGetter: () => "",
+      delimiters: { start: '[[', end: ']]' },
     });
   }
 
