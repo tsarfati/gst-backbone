@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Plus, Trash2, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
+import { cn } from "@/lib/utils";
 
 interface CostDistribution {
   id?: string;
@@ -47,6 +49,7 @@ export default function JobCostingDistribution({
   const [distribution, setDistribution] = useState<CostDistribution[]>(initialDistribution);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openPopovers, setOpenPopovers] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     loadData();
@@ -202,22 +205,57 @@ export default function JobCostingDistribution({
 
                 <div>
                   <Label>Cost Code</Label>
-                  <Select
-                    value={dist.cost_code_id}
-                    onValueChange={(value) => updateDistribution(dist.id!, 'cost_code_id', value)}
-                    disabled={disabled}
+                  <Popover 
+                    open={openPopovers[dist.id!]} 
+                    onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [dist.id!]: open }))}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a cost code" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {costCodes.map((costCode) => (
-                        <SelectItem key={costCode.id} value={costCode.id}>
-                          {costCode.code} - {costCode.description}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        disabled={disabled}
+                        className={cn(
+                          "w-full justify-between",
+                          !dist.cost_code_id && "text-muted-foreground"
+                        )}
+                      >
+                        {dist.cost_code_id
+                          ? costCodes.find((cc) => cc.id === dist.cost_code_id)
+                            ? `${costCodes.find((cc) => cc.id === dist.cost_code_id)!.code} - ${costCodes.find((cc) => cc.id === dist.cost_code_id)!.description}`
+                            : "Select cost code"
+                          : "Select cost code"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search cost codes..." />
+                        <CommandList>
+                          <CommandEmpty>No cost code found.</CommandEmpty>
+                          <CommandGroup>
+                            {costCodes.map((costCode) => (
+                              <CommandItem
+                                key={costCode.id}
+                                value={`${costCode.code} ${costCode.description}`}
+                                onSelect={() => {
+                                  updateDistribution(dist.id!, 'cost_code_id', costCode.id);
+                                  setOpenPopovers(prev => ({ ...prev, [dist.id!]: false }));
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    dist.cost_code_id === costCode.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {costCode.code} - {costCode.description}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

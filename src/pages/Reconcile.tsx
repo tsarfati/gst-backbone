@@ -626,7 +626,9 @@ export default function Reconcile() {
       const adjustedBalance = clearedBalance;
 
       // Check if we're updating existing in-progress reconciliation or creating new one
-      if (reconciliationId) {
+      let currentReconciliationId = reconciliationId;
+      
+      if (currentReconciliationId) {
         // Update existing in-progress reconciliation
         const { error: updateError } = await supabase
           .from("bank_reconciliations")
@@ -637,7 +639,7 @@ export default function Reconcile() {
             adjusted_balance: adjustedBalance,
             bank_statement_id: uploadedStatementId
           })
-          .eq("id", reconciliationId);
+          .eq("id", currentReconciliationId);
 
         if (updateError) throw updateError;
 
@@ -645,7 +647,7 @@ export default function Reconcile() {
         await supabase
           .from("bank_reconciliation_items")
           .delete()
-          .eq("reconciliation_id", reconciliationId);
+          .eq("reconciliation_id", currentReconciliationId);
       } else {
         // Create new in-progress reconciliation
         const { data: reconciliation, error: reconciliationError } = await supabase
@@ -667,13 +669,14 @@ export default function Reconcile() {
           .single();
 
         if (reconciliationError) throw reconciliationError;
+        currentReconciliationId = reconciliation.id;
         setReconciliationId(reconciliation.id);
       }
 
       // Save all items (cleared and uncleared) to preserve state
       const allItems = [
         ...deposits.map(d => ({
-          reconciliation_id: reconciliationId || null,
+          reconciliation_id: currentReconciliationId,
           transaction_type: 'deposit',
           transaction_id: d.id,
           amount: d.amount,
@@ -681,7 +684,7 @@ export default function Reconcile() {
           cleared_at: d.is_cleared ? new Date().toISOString() : null,
         })),
         ...payments.map(p => ({
-          reconciliation_id: reconciliationId || null,
+          reconciliation_id: currentReconciliationId,
           transaction_type: 'payment',
           transaction_id: p.id,
           amount: p.amount,
@@ -690,10 +693,10 @@ export default function Reconcile() {
         })),
       ];
 
-      if (allItems.length > 0 && reconciliationId) {
+      if (allItems.length > 0) {
         const { error: itemsError } = await supabase
           .from("bank_reconciliation_items")
-          .insert(allItems.map(item => ({ ...item, reconciliation_id: reconciliationId })));
+          .insert(allItems);
 
         if (itemsError) throw itemsError;
       }
