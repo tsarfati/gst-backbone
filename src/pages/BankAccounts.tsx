@@ -95,7 +95,7 @@ export default function BankAccounts() {
     return matchesSearch && matchesType;
   });
 
-const totalBalance = accounts.reduce((sum, account) => sum + ((account.gl_balance ?? account.current_balance) || 0), 0);
+  const totalBalance = accounts.reduce((sum, account) => sum + (((account.gl_balance ?? account.current_balance) as number) || 0), 0);
   const checkingAccounts = accounts.filter(account => account.account_type === 'checking').length;
 
   const formatCurrency = (amount: number) => {
@@ -242,7 +242,7 @@ const totalBalance = accounts.reduce((sum, account) => sum + ((account.gl_balanc
                       </Badge>
                     </TableCell>
                     <TableCell className="font-semibold">
-                      {formatCurrency(account.current_balance)}
+                      {formatCurrency((account.gl_balance ?? account.current_balance) as number)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={account.is_active ? "default" : "secondary"}>

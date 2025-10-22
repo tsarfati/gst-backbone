@@ -462,6 +462,99 @@ export default function MakePayment() {
           .in('id', selectedInvoices);
       }
 
+      // Auto-post journal entry so GL and cash balance reflect this payment
+      try {
+        // Resolve cash (bank) account
+        let cashAccountId: string | null = null;
+        let bankFeeAccountId: string | null = null;
+        if (paymentToInsert.bank_account_id) {
+          const { data: bank } = await supabase
+            .from('bank_accounts')
+            .select('chart_account_id, bank_fee_account_id')
+            .eq('id', paymentToInsert.bank_account_id)
+            .maybeSingle();
+          cashAccountId = (bank as any)?.chart_account_id || null;
+          bankFeeAccountId = (bank as any)?.bank_fee_account_id || null;
+        }
+
+        // Resolve Accounts Payable account
+        const { data: apAcct } = await (supabase
+          .from('chart_of_accounts') as any)
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .or('account_category.eq.accounts_payable,account_number.eq.2000')
+          .order('is_system_account', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const apAccountId = (apAcct as any)?.id || null;
+
+        if (cashAccountId && apAccountId) {
+          const total = (paymentToInsert.amount || 0) + (paymentToInsert.bank_fee || 0);
+          const { data: je } = await (supabase
+            .from('journal_entries') as any)
+            .insert({
+              description: `Payment ${paymentToInsert.payment_number}`,
+              entry_date: paymentToInsert.payment_date,
+              reference: paymentToInsert.payment_number,
+              total_debit: total,
+              total_credit: total,
+              created_by: paymentToInsert.created_by,
+              status: 'posted',
+              company_id: currentCompany.id,
+            })
+            .select('id')
+            .single();
+
+          if (je?.id) {
+            const lines: any[] = [
+              {
+                journal_entry_id: je.id,
+                account_id: apAccountId,
+                debit_amount: paymentToInsert.amount,
+                credit_amount: 0,
+                description: 'Payment to vendor',
+                line_order: 1,
+              },
+              {
+                journal_entry_id: je.id,
+                account_id: cashAccountId,
+                debit_amount: 0,
+                credit_amount: paymentToInsert.amount,
+                description: 'Cash payment',
+                line_order: 2,
+              },
+            ];
+
+            if ((paymentToInsert.bank_fee || 0) > 0 && bankFeeAccountId) {
+              lines.push(
+                {
+                  journal_entry_id: je.id,
+                  account_id: bankFeeAccountId,
+                  debit_amount: paymentToInsert.bank_fee,
+                  credit_amount: 0,
+                  description: `Bank fee (${paymentToInsert.payment_method})`,
+                  line_order: 3,
+                },
+                {
+                  journal_entry_id: je.id,
+                  account_id: cashAccountId,
+                  debit_amount: 0,
+                  credit_amount: paymentToInsert.bank_fee,
+                  description: 'Bank fee deducted',
+                  line_order: 4,
+                }
+              );
+            }
+
+            await supabase.from('journal_entry_lines').insert(lines);
+            await supabase.from('payments').update({ journal_entry_id: je.id }).eq('id', paymentData.id);
+          }
+        }
+      } catch (e) {
+        console.warn('Payment saved but journal entry posting failed:', e);
+      }
+
       toast({
         title: "Success",
         description: "Payment created successfully",

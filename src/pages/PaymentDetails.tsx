@@ -121,11 +121,11 @@ export default function PaymentDetails() {
 
       // Fetch created by user
       let createdByUser = null;
-      if (paymentData.created_by) {
+      if (paymentDataAny.created_by) {
         const { data: userData } = await supabase
           .from("profiles")
           .select("first_name, last_name")
-          .eq("user_id", paymentData.created_by)
+          .eq("user_id", paymentDataAny.created_by)
           .maybeSingle();
         createdByUser = userData;
       }
@@ -134,7 +134,7 @@ export default function PaymentDetails() {
       const { data: invoiceLines, error: invoiceError } = await supabase
         .from("payment_invoice_lines")
         .select(`
-          payment_amount,
+          amount_paid,
           invoice:invoices(
             id,
             invoice_number,
@@ -181,7 +181,7 @@ export default function PaymentDetails() {
 
       // Fetch journal entry if exists
       let journalEntry = null;
-      if (paymentData.journal_entry_id) {
+      if (paymentDataAny.journal_entry_id) {
         const { data: jeData, error: jeError } = await supabase
           .from("journal_entries")
           .select(`
@@ -198,7 +198,7 @@ export default function PaymentDetails() {
               )
             )
           `)
-          .eq("id", paymentData.journal_entry_id)
+          .eq("id", paymentDataAny.journal_entry_id)
           .maybeSingle();
 
         if (!jeError && jeData) {
@@ -211,7 +211,7 @@ export default function PaymentDetails() {
       const computedStatus = reconciliationInfo ? 'cleared' : 'paid';
 
       setPayment({
-        ...paymentData,
+        ...paymentDataAny,
         status: computedStatus,
         created_by_user: createdByUser,
         reconciliation: reconciliationInfo,
@@ -220,7 +220,7 @@ export default function PaymentDetails() {
           id: line.invoice.id,
           invoice_number: line.invoice.invoice_number,
           amount: line.invoice.amount,
-          payment_amount: line.payment_amount,
+          payment_amount: line.amount_paid,
         })) || [],
       });
     } catch (error: any) {
