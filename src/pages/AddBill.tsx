@@ -1171,14 +1171,22 @@ export default function AddBill() {
                                 </SelectItem>
                               ))}
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
-                              {expenseAccounts.length === 0 ? (
+                              {expenseAccounts.filter(account => {
+                                const accountNum = parseInt(account.account_number);
+                                return isNaN(accountNum) || accountNum < 5000 || accountNum > 5900;
+                              }).length === 0 ? (
                                 <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts found for this company</div>
                               ) : (
-                                expenseAccounts.map((account) => (
-                                  <SelectItem key={account.id} value={account.id}>
-                                    {account.account_number} - {account.account_name}
-                                  </SelectItem>
-                                ))
+                                expenseAccounts
+                                  .filter(account => {
+                                    const accountNum = parseInt(account.account_number);
+                                    return isNaN(accountNum) || accountNum < 5000 || accountNum > 5900;
+                                  })
+                                  .map((account) => (
+                                    <SelectItem key={account.id} value={account.id}>
+                                      {account.account_number} - {account.account_name}
+                                    </SelectItem>
+                                  ))
                               )}
                             </SelectContent>
                           </Select>
