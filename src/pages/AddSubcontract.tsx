@@ -172,7 +172,7 @@ export default function AddSubcontract() {
           .from('cost_codes')
           .select('*')
           .eq('job_id', formData.job_id)
-          .in('type', ['sub', 'other'] as any[])
+          .eq('type', 'sub')
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
           .order('code');

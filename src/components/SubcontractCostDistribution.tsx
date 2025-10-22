@@ -77,6 +77,7 @@ export default function SubcontractCostDistribution({
         .eq('job_id', jobId)
         .eq('type', 'sub') // Only subcontractor cost codes
         .eq('is_active', true)
+        .eq('is_dynamic_group', false)
         .order('code');
 
       // Load job budgets for budget validation
