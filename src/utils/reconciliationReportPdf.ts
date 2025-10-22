@@ -341,28 +341,66 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     // Continue without throwing to preserve template formatting
   }
 
-  // Generate filled DOCX
+  // Generate filled DOCX -> render to PDF
   const outputBlob = doc.getZip().generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // Force download immediately - most reliable method
-  const url = URL.createObjectURL(outputBlob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.docx`;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  
-  // Use setTimeout to ensure the link is in the DOM
-  setTimeout(() => {
-    link.click();
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 100);
-  }, 100);
+  // Render DOCX to HTML offscreen, then capture pages to PDF
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.width = '816px'; // Approx Letter width at 96dpi
+  container.style.background = '#ffffff';
+  document.body.appendChild(container);
+
+  try {
+    await renderAsync(outputBlob, container, undefined, { inWrapper: true });
+    const pages = Array.from(container.querySelectorAll('.docx-page')) as HTMLElement[];
+
+    const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
+    for (let i = 0; i < pages.length; i++) {
+      const pageEl = pages[i];
+      const canvas = await html2canvas(pageEl as HTMLElement, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+    }
+
+    // Optionally append bank statement if provided
+    if (data.bankStatementUrl) {
+      try {
+        const reportPdfBytes = pdf.output('arraybuffer');
+        const reportPdf = await PDFDocument.load(reportPdfBytes);
+        const response = await fetch(data.bankStatementUrl);
+        const bankBytes = await response.arrayBuffer();
+        const bankPdf = await PDFDocument.load(bankBytes);
+        const pagesToAdd = await reportPdf.copyPages(bankPdf, bankPdf.getPageIndices());
+        pagesToAdd.forEach(p => reportPdf.addPage(p));
+        const mergedPdfBytes = await reportPdf.save();
+        const blob = new Blob([new Uint8Array(mergedPdfBytes)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (mergeErr) {
+        console.error('Bank statement merge failed (template export):', mergeErr);
+        pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
+      }
+    } else {
+      pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
+    }
+  } finally {
+    document.body.removeChild(container);
+  }
 };
 
 // Default PDF generation (existing logic)

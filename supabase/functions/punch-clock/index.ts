@@ -270,13 +270,25 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
+      // Determine company id from the time card to satisfy NOT NULL constraint
+      const { data: tc, error: tcErr } = await supabaseAdmin
+        .from('time_cards')
+        .select('company_id, user_id')
+        .eq('id', time_card_id)
+        .maybeSingle();
+      if (tcErr) return errorResponse(tcErr.message, 500);
+      if (!tc) return errorResponse('Time card not found', 404);
+      if (tc.user_id !== userRow.user_id) return errorResponse('Cannot request changes for another user\'s time card', 403);
+
       const { error } = await supabaseAdmin
         .from('time_card_change_requests')
         .insert({
           time_card_id,
           user_id: userRow.user_id,
+          company_id: tc.company_id,
           reason,
           status: 'pending',
+          requested_at: new Date().toISOString(),
           proposed_punch_in_time: proposed_punch_in_time || null,
           proposed_punch_out_time: proposed_punch_out_time || null,
           proposed_job_id: proposed_job_id || null,
