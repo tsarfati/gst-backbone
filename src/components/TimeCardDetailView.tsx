@@ -1050,6 +1050,19 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <p className="text-sm">{timeCard.review_notes}</p>
                       </div>
                     )}
+                    
+                    {/* Show if time card was edited after approval */}
+                    {timeCard.status === 'approved-edited' && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Time Card Was Edited</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          This time card was edited after submission. View the Audit Trail tab to see all changes.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <Separator />
@@ -1214,18 +1227,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-between gap-2 pt-4 border-t">
-          <div className="flex gap-2">
-            {(user?.id === timeCard.user_id || isManager) && (
-              <Button 
-                variant="outline"
-                onClick={() => setEditDialogOpen(true)}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Time Card
-              </Button>
-            )}
-          </div>
+        <div className="flex justify-end gap-2 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
