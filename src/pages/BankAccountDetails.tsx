@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { ArrowLeft, Edit, FileText, Download, Trash2, Calendar, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -372,87 +373,89 @@ export default function BankAccountDetails() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Bank Statements</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statements.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No bank statements uploaded</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Uploaded</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {statements.map((statement) => (
-                    <TableRow 
-                      key={statement.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setPreviewDocument({
-                        fileName: statement.file_name,
-                        url: statement.file_url,
-                        type: statement.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
-                      })}
-                    >
-                      <TableCell>
-                        {new Date(statement.statement_year, statement.statement_month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                      </TableCell>
-                      <TableCell>{statement.display_name || statement.file_name}</TableCell>
-                      <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
+        <Accordion type="multiple" defaultValue={["statements", "reconcile"]} className="bg-card rounded-md border">
+          <AccordionItem value="statements">
+            <AccordionTrigger>
+              <span className="text-base font-semibold">Bank Statements</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              {statements.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No bank statements uploaded</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Period</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Uploaded</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {statements.map((statement) => (
+                      <TableRow 
+                        key={statement.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setPreviewDocument({
+                          fileName: statement.file_name,
+                          url: statement.file_url,
+                          type: statement.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image'
+                        })}
+                      >
+                        <TableCell>
+                          {new Date(statement.statement_year, statement.statement_month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                        </TableCell>
+                        <TableCell>{statement.display_name || statement.file_name}</TableCell>
+                        <TableCell>{new Date(statement.uploaded_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </AccordionContent>
+          </AccordionItem>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Reconcile Reports</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reconcileReports.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No reconcile reports</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Statement Balance</TableHead>
-                    <TableHead>Book Balance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Reconciled</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reconcileReports.map((report) => (
-                    <TableRow 
-                      key={report.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/banking/reconciliation/${report.id}?account=${id}`)}
-                    >
-                      <TableCell>{report.reconcile_month}/{report.reconcile_year}</TableCell>
-                      <TableCell>{formatCurrency(report.statement_balance)}</TableCell>
-                      <TableCell>{formatCurrency(report.book_balance)}</TableCell>
-                      <TableCell>
-                        <Badge variant={report.is_balanced ? "default" : "destructive"}>
-                          {report.is_balanced ? "Balanced" : "Unbalanced"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(report.reconciled_at).toLocaleDateString()}</TableCell>
+          <AccordionItem value="reconcile">
+            <AccordionTrigger>
+              <span className="text-base font-semibold">Reconcile Reports</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              {reconcileReports.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No reconcile reports</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Period</TableHead>
+                      <TableHead>Statement Balance</TableHead>
+                      <TableHead>Book Balance</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Reconciled</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {reconcileReports.map((report) => (
+                      <TableRow 
+                        key={report.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/banking/reconciliation/${report.id}?account=${id}`)}
+                      >
+                        <TableCell>{report.reconcile_month}/{report.reconcile_year}</TableCell>
+                        <TableCell>{formatCurrency(report.statement_balance)}</TableCell>
+                        <TableCell>{formatCurrency(report.book_balance)}</TableCell>
+                        <TableCell>
+                          <Badge variant={report.is_balanced ? "default" : "destructive"}>
+                            {report.is_balanced ? "Balanced" : "Unbalanced"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(report.reconciled_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
       {/* Edit Dialog */}

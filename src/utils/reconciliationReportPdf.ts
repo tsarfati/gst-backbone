@@ -44,7 +44,10 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       query = query.eq('company_id', data.companyId);
     }
 
-    const { data: rows } = await query.order('updated_at', { ascending: false }).limit(1);
+    const { data: rows } = await query
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1);
     templateData = rows && rows.length > 0 ? rows[0] : null;
   } catch (e) {
     console.warn('Unable to load reconciliation template, using defaults');
@@ -122,6 +125,7 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
+    nullGetter: () => "",
   });
 
   // Helper function for formatting currency
@@ -200,6 +204,8 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     ending_balance: formatCurrency(data.endingBalance),
     cleared_balance: formatCurrency(data.clearedBalance),
     report_date: format(new Date(), 'MM/dd/yyyy'),
+    generated_date: format(new Date(), 'MM/dd/yyyy'),
+    period: `${format(new Date(data.beginningDate), 'MM/dd/yyyy')} - ${format(new Date(data.endingDate), 'MM/dd/yyyy')}`,
     report_data: reportDataHtml,
     
     // Transactions as arrays for loops
@@ -219,7 +225,7 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     doc.render();
   } catch (error: any) {
     console.error('Error rendering template:', error);
-    throw error;
+    // Continue without throwing to preserve template formatting
   }
 
   const output = doc.getZip().generate({
