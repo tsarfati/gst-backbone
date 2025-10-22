@@ -768,48 +768,42 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           </Card>
         )}
 
-        {/* Change Request Alert - Show prominently if there's a pending change request */}
+        {/* Change Request Alert - Show compactly if there's a pending change request */}
         {pendingChangeRequest && isManager && (
-          <Card className="border-warning bg-warning/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-warning">
-                <AlertCircle className="h-5 w-5" />
-                Pending Change Request
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Reason for change */}
-              {pendingChangeRequest.reason && (
-                <div className="bg-background rounded-md p-3 border-l-4 border-warning">
-                  <p className="text-sm font-semibold text-muted-foreground mb-1">Reason:</p>
-                  <p className="text-sm">{pendingChangeRequest.reason}</p>
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-warning flex-shrink-0" />
+                  <p className="text-sm font-semibold">Pending Change Request</p>
                 </div>
-              )}
-              
-              {/* Approval/Denial Buttons */}
-              <div className="flex gap-2">
+                {pendingChangeRequest.reason && (
+                  <p className="text-xs text-muted-foreground ml-6">{pendingChangeRequest.reason}</p>
+                )}
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
                 <Button 
                   onClick={handleApproveChangeRequest}
                   disabled={approving || denying}
-                  className="flex-1 gap-2"
-                  size="lg"
+                  size="sm"
+                  className="gap-1"
                 >
-                  <CheckCircle className="h-4 w-4" />
-                  {approving ? 'Approving...' : 'Approve Changes'}
+                  <CheckCircle className="h-3 w-3" />
+                  {approving ? 'Approving...' : 'Approve'}
                 </Button>
                 <Button 
                   onClick={handleRejectChangeRequest}
                   disabled={approving || denying}
                   variant="destructive"
-                  className="flex-1 gap-2"
-                  size="lg"
+                  size="sm"
+                  className="gap-1"
                 >
-                  <X className="h-4 w-4" />
-                  {denying ? 'Denying...' : 'Deny Changes'}
+                  <X className="h-3 w-3" />
+                  {denying ? 'Denying...' : 'Deny'}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'audit' | 'map')} className="w-full">
@@ -935,36 +929,46 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Job:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_job_id && pendingChangeRequest.proposed_job_id !== timeCard.job_id ? (
-                            <span>
-                              <span className="line-through text-red-600">{job?.name || 'N/A'}</span>
-                              <span className="px-1">→</span>
-                              <span className="text-green-600">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</span>
-                            </span>
-                          ) : (
-                            job?.name || 'N/A'
-                          )}
+                          {(() => {
+                            const hasChange = pendingChangeRequest?.proposed_job_id && 
+                                             pendingChangeRequest.proposed_job_id !== timeCard.job_id;
+                            if (hasChange) {
+                              return (
+                                <span>
+                                  <span className="line-through text-red-600">{job?.name || 'N/A'}</span>
+                                  <span className="px-1">→</span>
+                                  <span className="text-green-600">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</span>
+                                </span>
+                              );
+                            }
+                            return job?.name || 'N/A';
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Cost Code:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== timeCard.cost_code_id ? (
-                            <span>
-                              <span className="line-through text-red-600">
-                                {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
-                              </span>
-                              <span className="px-1">→</span>
-                              <span className="text-green-600">
-                                {(() => {
-                                  const cc = costCodes[pendingChangeRequest.proposed_cost_code_id];
-                                  return cc ? `${cc.code} - ${cc.description}` : 'Unknown';
-                                })()}
-                              </span>
-                            </span>
-                          ) : (
-                            costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'
-                          )}
+                          {(() => {
+                            const hasChange = pendingChangeRequest?.proposed_cost_code_id && 
+                                             pendingChangeRequest.proposed_cost_code_id !== timeCard.cost_code_id;
+                            if (hasChange) {
+                              return (
+                                <span>
+                                  <span className="line-through text-red-600">
+                                    {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
+                                  </span>
+                                  <span className="px-1">→</span>
+                                  <span className="text-green-600">
+                                    {(() => {
+                                      const cc = costCodes[pendingChangeRequest.proposed_cost_code_id];
+                                      return cc ? `${cc.code} - ${cc.description}` : 'Unknown';
+                                    })()}
+                                  </span>
+                                </span>
+                              );
+                            }
+                            return costCode ? `${costCode.code} - ${costCode.description}` : 'N/A';
+                          })()}
                         </span>
                       </div>
                     </div>
@@ -973,35 +977,59 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch In:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time ? (
-                            <span>
-                              <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
-                              <span className="px-1">→</span>
-                              <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
-                            </span>
-                          ) : (
-                            format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')
-                          )}
+                          {(() => {
+                            if (!pendingChangeRequest?.proposed_punch_in_time) {
+                              return format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a');
+                            }
+                            // Normalize timestamps for comparison
+                            const originalTime = new Date(timeCard.punch_in_time).getTime();
+                            const proposedTime = new Date(pendingChangeRequest.proposed_punch_in_time).getTime();
+                            const hasChange = Math.abs(originalTime - proposedTime) > 1000; // Allow 1 second difference
+                            
+                            if (hasChange) {
+                              return (
+                                <span>
+                                  <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="px-1">→</span>
+                                  <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                                </span>
+                              );
+                            }
+                            return format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a');
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch Out:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== timeCard.punch_out_time ? (
-                            <span>
-                              <span className="line-through text-red-600">
-                                {timeCard.punch_out_time 
-                                  ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                                  : 'None'}
-                              </span>
-                              <span className="px-1">→</span>
-                              <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}</span>
-                            </span>
-                          ) : (
-                            timeCard.punch_out_time 
+                          {(() => {
+                            if (!pendingChangeRequest?.proposed_punch_out_time) {
+                              return timeCard.punch_out_time 
+                                ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                                : 'Still clocked in';
+                            }
+                            // Normalize timestamps for comparison
+                            const originalTime = timeCard.punch_out_time ? new Date(timeCard.punch_out_time).getTime() : null;
+                            const proposedTime = new Date(pendingChangeRequest.proposed_punch_out_time).getTime();
+                            const hasChange = !originalTime || Math.abs(originalTime - proposedTime) > 1000; // Allow 1 second difference
+                            
+                            if (hasChange) {
+                              return (
+                                <span>
+                                  <span className="line-through text-red-600">
+                                    {timeCard.punch_out_time 
+                                      ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                                      : 'None'}
+                                  </span>
+                                  <span className="px-1">→</span>
+                                  <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}</span>
+                                </span>
+                              );
+                            }
+                            return timeCard.punch_out_time 
                               ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                              : 'Still clocked in'
-                          )}
+                              : 'Still clocked in';
+                          })()}
                         </span>
                       </div>
                       <div className="flex justify-between">
