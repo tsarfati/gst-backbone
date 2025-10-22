@@ -247,6 +247,14 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     URL.revokeObjectURL(url);
   };
 
+  // Chrome-specific: reliably download DOCX immediately (PDF can be flaky)
+  const ua = navigator.userAgent || '';
+  const isChrome = /Chrome\//.test(ua) && !/Edg\//.test(ua) && !/OPR\//.test(ua);
+  if (isChrome) {
+    downloadDocxFallback();
+    return; // Stop here for Chrome to guarantee a download
+  }
+
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.left = '-10000px';
