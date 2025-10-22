@@ -128,11 +128,19 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
       case 'update':
         return <Badge variant="secondary">Updated</Badge>;
       case 'approve':
+      case 'approved':
         return <Badge variant="default">Approved</Badge>;
       case 'reject':
+      case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
+      case 'change_requested':
+        return <Badge className="bg-amber-500">Change Requested</Badge>;
+      case 'change_request_approved':
+        return <Badge className="bg-green-500">Change Approved</Badge>;
+      case 'change_request_rejected':
+        return <Badge variant="destructive">Change Denied</Badge>;
       default:
-        return <Badge variant="outline">{changeType}</Badge>;
+        return <Badge variant="outline">{changeType.replace(/_/g, ' ')}</Badge>;
     }
   };
 
@@ -201,21 +209,56 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                         </span>
                       </div>
                       
-                      {entry.field_name && (
+                      {/* Special handling for change request entries */}
+                      {entry.change_type === 'change_requested' && (
+                        <div className="text-sm mt-1">
+                          <p className="text-muted-foreground">Requested a change to this time card</p>
+                          {entry.reason && (
+                            <div className="mt-1 text-xs">
+                              <span className="font-medium">Reason:</span> {entry.reason}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {entry.change_type === 'change_request_approved' && (
+                        <div className="text-sm mt-1">
+                          <p className="text-muted-foreground">Approved the requested changes</p>
+                          {entry.reason && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {entry.reason}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {entry.change_type === 'change_request_rejected' && (
+                        <div className="text-sm mt-1">
+                          <p className="text-muted-foreground">Denied the requested changes</p>
+                          {entry.reason && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {entry.reason}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Regular field changes */}
+                      {entry.field_name && !['change_requested', 'change_request_approved', 'change_request_rejected'].includes(entry.change_type) && (
                         <div className="text-sm">
                           <span className="font-medium">{formatFieldName(entry.field_name)}</span>
-                          {entry.old_value && entry.new_value && (
+                          {(entry.old_value || entry.new_value) && (
                             <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span className="text-muted-foreground">From:</span>
-                                <div className="bg-red-50 border border-red-200 rounded p-2 mt-1 text-foreground">
-                                  {entry.old_value}
+                                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2 mt-1">
+                                  {entry.old_value || <span className="text-muted-foreground italic">None</span>}
                                 </div>
                               </div>
                               <div>
                                 <span className="text-muted-foreground">To:</span>
-                                <div className="bg-green-50 border border-green-200 rounded p-2 mt-1 text-foreground">
-                                  {entry.new_value}
+                                <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2 mt-1">
+                                  {entry.new_value || <span className="text-muted-foreground italic">None</span>}
                                 </div>
                               </div>
                             </div>
@@ -223,7 +266,8 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                         </div>
                       )}
                       
-                      {entry.reason && (
+                      {/* Show reason for other types if not already shown */}
+                      {entry.reason && !['change_requested', 'change_request_approved', 'change_request_rejected'].includes(entry.change_type) && (
                         <div className="mt-2 text-sm text-muted-foreground">
                           <span className="font-medium">Reason:</span> {entry.reason}
                         </div>
