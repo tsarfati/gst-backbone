@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PDFDocument } from 'pdf-lib';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Transaction {
   id: string;
@@ -28,6 +29,26 @@ interface ReconciliationReportData {
 }
 
 export const generateReconciliationReportPdf = async (data: ReconciliationReportData) => {
+  // Fetch template settings from database
+  const { data: templateData } = await supabase
+    .from('pdf_templates')
+    .select('*')
+    .eq('template_type', 'reconciliation')
+    .maybeSingle();
+
+  // Helper function to convert hex to RGB
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result 
+      ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+      : [66, 139, 202]; // Default blue
+  };
+
+  // Get colors from template or use defaults
+  const primaryColor: [number, number, number] = templateData?.primary_color ? hexToRgb(templateData.primary_color) : [66, 139, 202];
+  const secondaryColor: [number, number, number] = templateData?.secondary_color ? hexToRgb(templateData.secondary_color) : [240, 240, 240];
+  const fontFamily = templateData?.font_family || 'helvetica';
+
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   let yPos = 20;
@@ -42,7 +63,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
   // Header
   doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text(data.companyName, pageWidth / 2, yPos, { align: 'center' });
   yPos += 8;
 
@@ -51,7 +72,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
   yPos += 8;
 
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fontFamily, 'normal');
   doc.text(data.bankName, pageWidth / 2, yPos, { align: 'center' });
   yPos += 6;
 
@@ -67,7 +88,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
   const clearedPaymentsTotal = data.clearedPayments.reduce((sum, p) => sum + p.amount, 0);
   
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text('Summary', 14, yPos);
   yPos += 8;
 
@@ -87,10 +108,10 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       0: { cellWidth: 130 },
       1: { halign: 'right', cellWidth: 50 }
     },
-    didParseCell: (data) => {
-      if (data.row.index === 4) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [240, 240, 240];
+    didParseCell: (cellData) => {
+      if (cellData.row.index === 4) {
+        cellData.cell.styles.fontStyle = 'bold';
+        cellData.cell.styles.fillColor = secondaryColor;
       }
     }
   });
@@ -99,7 +120,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
   // Cleared Transactions
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text('Cleared Transactions', 14, yPos);
   yPos += 8;
 
@@ -122,22 +143,22 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       ],
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [66, 139, 202], textColor: 255 },
+      headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
-      didParseCell: (data) => {
-        if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 240, 240];
+      didParseCell: (cellData) => {
+        if (cellData.row.index === cellData.table.body.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = secondaryColor;
         }
       }
     });
     yPos = (doc as any).lastAutoTable.finalY + 8;
   } else {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(fontFamily, 'normal');
     doc.setFontSize(9);
     doc.text('No cleared deposits', 14, yPos);
     yPos += 8;
@@ -151,7 +172,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
   // Cleared Payments
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text(`Cleared Checks and other Decreases (${data.clearedPayments.length} Items)`, 14, yPos);
   yPos += 5;
 
@@ -169,22 +190,22 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       ],
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [66, 139, 202], textColor: 255 },
+      headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
-      didParseCell: (data) => {
-        if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 240, 240];
+      didParseCell: (cellData) => {
+        if (cellData.row.index === cellData.table.body.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = secondaryColor;
         }
       }
     });
     yPos = (doc as any).lastAutoTable.finalY + 10;
   } else {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(fontFamily, 'normal');
     doc.setFontSize(9);
     doc.text('No cleared checks', 14, yPos);
     yPos += 10;
@@ -201,7 +222,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
   const unclearedPaymentsTotal = data.unclearedPayments.reduce((sum, p) => sum + p.amount, 0);
 
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text('Unreconciled Transactions', 14, yPos);
   yPos += 8;
 
@@ -224,22 +245,22 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       ],
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [66, 139, 202], textColor: 255 },
+      headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
-      didParseCell: (data) => {
-        if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 240, 240];
+      didParseCell: (cellData) => {
+        if (cellData.row.index === cellData.table.body.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = secondaryColor;
         }
       }
     });
     yPos = (doc as any).lastAutoTable.finalY + 8;
   } else {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(fontFamily, 'normal');
     doc.setFontSize(9);
     doc.text('No unreconciled deposits', 14, yPos);
     yPos += 8;
@@ -253,7 +274,7 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
   // Unreconciled Payments
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(fontFamily, 'bold');
   doc.text(`Unreconciled Checks and other Decreases (${data.unclearedPayments.length} Items)`, 14, yPos);
   yPos += 5;
 
@@ -271,21 +292,21 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       ],
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [66, 139, 202], textColor: 255 },
+      headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
-      didParseCell: (data) => {
-        if (data.row.index === data.table.body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 240, 240];
+      didParseCell: (cellData) => {
+        if (cellData.row.index === cellData.table.body.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = secondaryColor;
         }
       }
     });
   } else {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(fontFamily, 'normal');
     doc.setFontSize(9);
     doc.text('No unreconciled checks', 14, yPos);
   }
