@@ -125,17 +125,24 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   // Normalize split template tags (Word often splits {{tag}} across runs)
   const normalizeXml = (xml: string) => {
     if (!xml) return xml;
-    // Join run boundaries inside mustache tags
+    // 1) Join run boundaries inside mustache tags
     xml = xml.replace(/\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\{/g, '{{');
     xml = xml.replace(/\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}/g, '}}');
-    // Remove run boundaries occurring between braces and variable names
+
+    // 2) Remove run boundaries between braces and variable names
     xml = xml.replace(/\{\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '{{');
     xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}\}/g, '}}');
-    // Collapse duplicated braces
+
+    // 3) Aggressively repair broken tags like "{ { { comp any _ name } } }"
+    xml = xml.replace(/\{+\s*(?:<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*)*([a-zA-Z0-9_\.]+)(?:<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*)*\}+?/g, '{{$1}}');
+
+    // 4) Collapse duplicated braces (triple braces -> double)
     xml = xml.replace(/\{\{\s*\{\{/g, '{{').replace(/\}\}\s*\}\}/g, '}}');
-    // Remove any remaining run boundaries strictly inside tags
+
+    // 5) Final pass for any remaining run boundaries strictly inside tags
     xml = xml.replace(/\}\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '}}');
     xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\{\{/g, '{{');
+
     return xml;
   };
 
@@ -151,11 +158,38 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     }
   }
 
-  const doc = new Docxtemplater(zip, {
-    paragraphLoop: true,
-    linebreaks: true,
-    nullGetter: () => "",
-  });
+  let doc: Docxtemplater;
+  try {
+    doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      nullGetter: () => "",
+    });
+  } catch (e) {
+    console.warn('Docxtemplater compile failed on first pass, retrying with aggressive normalization', e);
+    // Aggressive repair: remove stray spaces and duplicate braces inside tags
+    const xmlFiles2 = Object.keys(zip.files).filter((k) => k.startsWith('word/') && k.endsWith('.xml'));
+    for (const f of xmlFiles2) {
+      try {
+        const content = zip.file(f)?.asText();
+        if (content) {
+          let fixed = content
+            .replace(/\{\s+\{/g, '{{')
+            .replace(/\}\s+\}/g, '}}')
+            .replace(/\{\{\s+/g, '{{')
+            .replace(/\s+\}\}/g, '}}')
+            .replace(/\{\{\{*/g, '{{')
+            .replace(/\}\}\}*/g, '}}');
+          zip.file(f, fixed);
+        }
+      } catch {}
+    }
+    doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      nullGetter: () => "",
+    });
+  }
 
   // Helper function for formatting currency
   const formatCurrency = (amount: number) => {
