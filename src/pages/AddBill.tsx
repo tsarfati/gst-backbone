@@ -733,8 +733,13 @@ export default function AddBill() {
         requiresPmApproval = jobData?.require_pm_bill_approval || false;
       }
       
+      // Subcontract bills should NOT be marked as pending coding
+      // They should auto-apply cost codes from the subcontract distribution
+      const isCommitmentBill = billType === "commitment" && (formData.subcontract_id || formData.purchase_order_id);
+      
       // If job requires PM approval OR user explicitly sent to PM for coding, mark as pending
-      const shouldPendCoding = formData.pending_coding || requiresPmApproval;
+      // BUT: Subcontract/PO bills should never be pending_coding
+      const shouldPendCoding = !isCommitmentBill && (formData.pending_coding || requiresPmApproval);
 
       // Fetch file naming settings
       const { data: namingSettings } = await supabase
@@ -792,13 +797,23 @@ export default function AddBill() {
           await supabase.from('invoice_audit_trail').insert(auditRows);
         }
       } else {
+        // For commitment bills, determine cost code automatically
+        let costCodeId = formData.cost_code_id || null;
+        
+        // If this is a subcontract/PO with cost distribution, auto-apply cost code if only one exists
+        if (isCommitmentBill && commitmentDistribution && commitmentDistribution.length === 1) {
+          costCodeId = commitmentDistribution[0].cost_code_id || null;
+        }
+        // If multiple cost codes exist in distribution, the bill will need manual distribution later
+        // But it should NOT be marked as pending_coding
+        
         // For commitment bills, use the original single record approach
         const { data: inserted, error } = await supabase
           .from('invoices')
           .insert({
             vendor_id: formData.vendor_id,
             job_id: formData.job_id,
-            cost_code_id: shouldPendCoding ? null : (formData.cost_code_id || null),
+            cost_code_id: shouldPendCoding ? null : costCodeId,
             subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
             purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
             amount: parseFloat(formData.amount),

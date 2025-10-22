@@ -14,6 +14,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
+import BillApprovalActions from "@/components/BillApprovalActions";
 
 interface Vendor {
   id: string;
@@ -38,7 +39,7 @@ export default function BillEdit() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   
   const [bill, setBill] = useState<any>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -53,6 +54,7 @@ export default function BillEdit() {
   const [existingDocuments, setExistingDocuments] = useState<any[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [payNumber, setPayNumber] = useState<number>(0);
+  const [jobData, setJobData] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -180,6 +182,17 @@ export default function BillEdit() {
 
       if (vendorsData.data) setVendors(vendorsData.data);
       if (jobsData.data) setJobs(jobsData.data);
+      
+      // Load job data for PM approval settings
+      if (typedBillData.job_id) {
+        const { data: jobInfo } = await supabase
+          .from('jobs')
+          .select('project_manager_user_id, require_pm_bill_approval')
+          .eq('id', typedBillData.job_id)
+          .single();
+        setJobData(jobInfo);
+      }
+      
       if (allCostCodesData.data) {
         setAllCostCodes(allCostCodesData.data);
         // Filter cost codes based on invoice type and job
@@ -640,6 +653,26 @@ export default function BillEdit() {
             )}
           </CardContent>
         </Card>
+
+        {/* Bill Approval Section */}
+        {bill?.status && ['pending_approval', 'pending_coding'].includes(bill.status) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Bill Approval</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BillApprovalActions
+                billId={bill.id}
+                currentStatus={bill.status}
+                jobRequiresPmApproval={jobData?.require_pm_bill_approval}
+                currentUserRole={profile?.role}
+                currentUserId={user?.id}
+                jobPmUserId={jobData?.project_manager_user_id}
+                onStatusUpdate={loadBillAndOptions}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
