@@ -404,17 +404,6 @@ export default function BankAccountDetails() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Balance (General Ledger)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatCurrency(account.gl_balance ?? account.current_balance)}</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              As of {new Date().toLocaleDateString()}
-            </p>
-          </CardContent>
-        </Card>
 
         <Accordion type="multiple" defaultValue={["statements", "reconcile"]} className="bg-card rounded-md border">
           <AccordionItem value="statements">
@@ -557,6 +546,41 @@ export default function BankAccountDetails() {
               </Button>
               <Button onClick={handleUpdateStatement} disabled={updating || !statementName.trim()}>
                 {updating ? "Updating..." : "Update"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Account Edit Dialog */}
+      <Dialog open={accountEditOpen} onOpenChange={setAccountEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-account-name">Account Name *</Label>
+              <Input
+                id="edit-account-name"
+                value={editAccountName}
+                onChange={(e) => setEditAccountName(e.target.value)}
+                placeholder="e.g., Operating Account"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-bank-name">Bank Name *</Label>
+              <Input
+                id="edit-bank-name"
+                value={editBankName}
+                onChange={(e) => setEditBankName(e.target.value)}
+                placeholder="e.g., First National Bank"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAccountEditOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveAccount} disabled={updating || !editAccountName.trim() || !editBankName.trim()}>
+                {updating ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

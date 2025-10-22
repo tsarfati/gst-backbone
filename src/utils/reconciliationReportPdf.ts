@@ -55,15 +55,12 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
   // Check if there's a template file uploaded
   if (templateData?.template_file_url) {
-    try {
-      return await generateFromTemplate(data, templateData);
-    } catch (error) {
-      console.error('Error generating from template, falling back to default:', error);
-      // Fall through to default generation
-    }
+    // Always use the uploaded template when available (no fallback)
+    await generateFromTemplate(data, templateData);
+    return;
   }
 
-  // Default PDF generation (existing code)
+  // Default PDF generation (only when no template exists)
   return await generateDefaultReconciliationPdf(data, templateData);
 };
 
