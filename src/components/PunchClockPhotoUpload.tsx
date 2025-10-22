@@ -74,17 +74,22 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
     setUploading(true);
     try {
-      // Upload photo to storage
-      const fileName = `job-${jobId}/${Date.now()}.jpg`;
+      // Use userId as first folder segment to satisfy storage policies
+      const timestamp = Date.now();
+      const filePath = `${userId}/job-${jobId}/${timestamp}.jpg`;
+
+      // Upload photo to storage with explicit content type
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('punch-photos')
-        .upload(fileName, photoBlob);
+        .upload(filePath, photoBlob, { contentType: 'image/jpeg', upsert: false });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: publicUrlData } = supabase.storage
         .from('punch-photos')
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
 
       // Save to database
       const { error: insertError } = await supabase
@@ -98,17 +103,13 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       if (insertError) throw insertError;
 
-      toast({
-        title: 'Success',
-        description: 'Photo uploaded to job album',
-      });
-
+      toast({ title: 'Success', description: 'Photo uploaded to job album' });
       handleClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading photo:', error);
       toast({
         title: 'Error',
-        description: 'Failed to upload photo',
+        description: error?.message || 'Failed to upload photo',
         variant: 'destructive',
       });
     } finally {
