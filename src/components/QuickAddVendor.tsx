@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QuickAddVendorProps {
   onVendorAdded: (vendorId: string) => void;
@@ -28,6 +29,7 @@ export default function QuickAddVendor({
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -80,6 +82,9 @@ export default function QuickAddVendor({
         description: "Vendor added successfully"
       });
 
+      // Invalidate vendors query to refresh all vendor lists
+      queryClient.invalidateQueries({ queryKey: ['vendors'] });
+      
       onVendorAdded(data.id);
       setOpen(false);
       
