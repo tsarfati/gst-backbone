@@ -358,12 +358,11 @@ export default function JobCostManagement() {
 
               <div className="space-y-2">
                 <Label htmlFor="job">Job (Optional)</Label>
-                <Select value={newCode.job_id || ''} onValueChange={(value) => setNewCode({ ...newCode, job_id: value || undefined })}>
+                <Select value={newCode.job_id || undefined} onValueChange={(value) => setNewCode({ ...newCode, job_id: value || undefined })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a job" />
+                    <SelectValue placeholder="Select a job (or leave blank for all jobs)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No specific job</SelectItem>
                     {jobs.map((job) => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name}
@@ -384,10 +383,9 @@ export default function JobCostManagement() {
                   });
                 }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select chart account" />
+                    <SelectValue placeholder="Select chart account (Optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No chart account</SelectItem>
                     {chartAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.account_number} - {account.account_name}
@@ -602,12 +600,11 @@ export default function JobCostManagement() {
 
               <div className="space-y-2">
                 <Label htmlFor="edit_job">Job</Label>
-                <Select value={editingCode.job_id || ''} onValueChange={(value) => setEditingCode({ ...editingCode, job_id: value || null })}>
+                <Select value={editingCode.job_id || undefined} onValueChange={(value) => setEditingCode({ ...editingCode, job_id: value || null })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a job" />
+                    <SelectValue placeholder="Select a job (or leave blank for all jobs)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No specific job</SelectItem>
                     {jobs.map((job) => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name}
@@ -628,10 +625,9 @@ export default function JobCostManagement() {
                   });
                 }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select chart account" />
+                    <SelectValue placeholder="Select chart account (Optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No chart account</SelectItem>
                     {chartAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.account_number} - {account.account_name}

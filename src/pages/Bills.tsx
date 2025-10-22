@@ -570,28 +570,28 @@ export default function Bills() {
                           onCheckedChange={() => handleSelectBill(bill.id)}
                         />
                       </TableCell>
-                     <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
-                         <div className="flex items-center gap-3">
-                           <VendorAvatar 
-                             name={bill.vendor_name}
-                             logoUrl={bill.vendor_logo_url}
-                             size="sm"
-                           />
-                       <span className="font-medium">{bill.vendor_name}</span>
-                       </div>
-                     </TableCell>
-                     <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
-                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
-                         {bill.job_name}
-                       </Badge>
-                     </TableCell>
-                       <TableCell onClick={() => navigate(`/invoices/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                        <TableCell onClick={() => navigate(`/invoices/${bill.id}`)}>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={getStatusVariant(bill.status)}>
-                              {getStatusDisplayName(bill.status)}
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                          <div className="flex items-center gap-3">
+                            <VendorAvatar 
+                              name={bill.vendor_name}
+                              logoUrl={bill.vendor_logo_url}
+                              size="sm"
+                            />
+                        <span className="font-medium">{bill.vendor_name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                        <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
+                          {bill.job_name}
+                        </Badge>
+                      </TableCell>
+                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                           <div className="flex items-center gap-2">
+                             <Badge variant={getStatusVariant(bill.status)}>
+                               {getStatusDisplayName(bill.status)}
                             </Badge>
                             {billIsOverdue && (
                               <Badge variant="destructive" className="animate-pulse">
@@ -627,7 +627,7 @@ export default function Bills() {
                       billIsOverdue ? 'bg-destructive/10 border-destructive' : ''
                     }`}
                     style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
-                    onClick={() => navigate(`/invoices/${bill.id}`)}
+                    onClick={() => navigate(`/bills/${bill.id}`)}
                   >
                     <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
@@ -679,7 +679,7 @@ export default function Bills() {
                       billIsOverdue ? 'border-destructive' : ''
                     }`}
                     style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
-                    onClick={() => navigate(`/invoices/${bill.id}`)}
+                    onClick={() => navigate(`/bills/${bill.id}`)}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                       <Checkbox

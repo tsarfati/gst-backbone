@@ -318,12 +318,11 @@ export default function AddBankAccount() {
             
             <div className="space-y-2">
               <Label htmlFor="bankFeeAccountId">Bank Fee GL Account (Optional)</Label>
-              <Select value={formData.bankFeeAccountId} onValueChange={(value) => handleInputChange('bankFeeAccountId', value)}>
+              <Select value={formData.bankFeeAccountId || undefined} onValueChange={(value) => handleInputChange('bankFeeAccountId', value)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select expense account for bank fees" />
+                  <SelectValue placeholder="Select expense account for bank fees (Optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
                   {chartAccounts.map(account => (
                     <SelectItem key={account.id} value={account.id}>
                       {account.account_number} - {account.account_name}
