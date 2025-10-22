@@ -242,26 +242,56 @@ export default function NewJournalEntry() {
 
       if (entryError) throw entryError;
 
-      // Create the journal entry lines
-      const linesToInsert = lines.map((line, index) => ({
-        journal_entry_id: entryData.id,
-        account_id: line.account_id,
-        job_id: line.job_id ?? null,
-        cost_code_id: line.cost_code_id ?? null,
-        debit_amount: line.debit_amount || 0,
-        credit_amount: line.credit_amount || 0,
-        description: line.description || '',
-        billable: false,
-        markup_percentage: 0,
-        billable_amount: 0,
-        line_order: index + 1
-      }));
+      // Prepare lines with proper account_id
+      const linesToInsert = [];
+      for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        let accountId = line.account_id;
+        
+        // For job-type lines, get account_id from cost_code
+        if (line.line_type === 'job' && line.cost_code_id) {
+          const { data: costCodeData } = await supabase
+            .from('cost_codes')
+            .select('chart_account_id')
+            .eq('id', line.cost_code_id)
+            .single();
+          
+          if (costCodeData?.chart_account_id) {
+            accountId = costCodeData.chart_account_id;
+          }
+        }
+        
+        if (!accountId) {
+          throw new Error(`Line ${index + 1} is missing account information`);
+        }
+        
+        linesToInsert.push({
+          journal_entry_id: entryData.id,
+          account_id: accountId,
+          job_id: line.job_id ?? null,
+          cost_code_id: line.cost_code_id ?? null,
+          debit_amount: line.debit_amount || 0,
+          credit_amount: line.credit_amount || 0,
+          description: line.description || '',
+          billable: false,
+          markup_percentage: 0,
+          billable_amount: 0,
+          line_order: index + 1
+        });
+      }
 
       const { error: linesError } = await supabase
         .from('journal_entry_lines')
         .insert(linesToInsert);
 
-      if (linesError) throw linesError;
+      if (linesError) {
+        // If lines fail to insert, delete the journal entry header
+        await supabase
+          .from('journal_entries')
+          .delete()
+          .eq('id', entryData.id);
+        throw linesError;
+      }
 
       toast({
         title: "Success",
