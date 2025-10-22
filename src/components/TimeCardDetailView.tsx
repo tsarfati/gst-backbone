@@ -253,27 +253,31 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       console.log('Final time card data:', data);
       setTimeCard(data as any);
       
-      // Check for pending change requests
-      const { data: changeRequestData, error: changeRequestError } = await supabase
+      // Check for latest change request (prefer pending)
+      const { data: changeRequests } = await supabase
         .from('time_card_change_requests')
-        .select('*')
+        .select('id, status, reason, created_at, requested_at, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
         .eq('time_card_id', timeCardId)
-        .eq('status', 'pending')
-        .maybeSingle();
+        .order('requested_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(3);
       
-      console.log('Pending change request:', changeRequestData);
-      setPendingChangeRequest(changeRequestData || null);
+      const pendingCR = (changeRequests || []).find((cr: any) => cr.status === 'pending') || null;
+      const latestCR = pendingCR || (changeRequests && changeRequests[0]) || null;
+      console.log('Pending (or latest) change request:', latestCR);
+      setPendingChangeRequest(pendingCR); // only show UI when truly pending
       
       // Load job and cost code data for change request if it exists
-      if (changeRequestData) {
+      const crForLookup = pendingCR || latestCR;
+      if (crForLookup) {
         const jobIdsToLoad = [
           timeCardData.job_id,
-          changeRequestData.proposed_job_id
+          crForLookup.proposed_job_id
         ].filter(Boolean);
         
         const costCodeIdsToLoad = [
           timeCardData.cost_code_id,
-          changeRequestData.proposed_cost_code_id
+          crForLookup.proposed_cost_code_id
         ].filter(Boolean);
         
         if (jobIdsToLoad.length > 0) {
@@ -284,7 +288,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           
           const jobsMap: Record<string, any> = {};
           (jobsData || []).forEach(j => { jobsMap[j.id] = j; });
-          setJobs(jobsMap);
+          setJobs(prev => ({ ...prev, ...jobsMap }));
         }
         
         if (costCodeIdsToLoad.length > 0) {
@@ -295,7 +299,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           
           const costCodesMap: Record<string, any> = {};
           (costCodesData || []).forEach(cc => { costCodesMap[cc.id] = cc; });
-          setCostCodes(costCodesMap);
+          setCostCodes(prev => ({ ...prev, ...costCodesMap }));
         }
       }
       
