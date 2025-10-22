@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Edit, FileText, Upload, Download, Trash2, Calendar, Eye } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Download, Trash2, Calendar, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -68,16 +68,13 @@ export default function BankAccountDetails() {
   const [statements, setStatements] = useState<BankStatement[]>([]);
   const [reconcileReports, setReconcileReports] = useState<ReconcileReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingStatement, setEditingStatement] = useState<BankStatement | null>(null);
   const [statementName, setStatementName] = useState("");
   const [statementMonth, setStatementMonth] = useState(new Date().getMonth() + 1);
   const [statementYear, setStatementYear] = useState(new Date().getFullYear());
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewDocument, setPreviewDocument] = useState<{ fileName: string; url: string; type: string } | null>(null);
-  const statementFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadBankAccount();
@@ -204,67 +201,6 @@ export default function BankAccountDetails() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    setSelectedFile(file);
-    setStatementName(file.name.replace(/\.[^/.]+$/, "")); // Remove file extension
-    setUploadDialogOpen(true);
-  };
-
-  const handleStatementUpload = async () => {
-    if (!selectedFile || !currentCompany || !user || !id || !statementName.trim()) return;
-
-    setUploading(true);
-    try {
-      const filePath = `${currentCompany.id}/${id}/${Date.now()}-${selectedFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('bank-statements')
-        .upload(filePath, selectedFile);
-
-      if (uploadError) throw uploadError;
-
-      // Use signed URL instead of public URL since bucket is private
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from('bank-statements')
-        .createSignedUrl(filePath, 315360000); // 10 years
-
-      if (urlError) throw urlError;
-
-      const { error: insertError } = await supabase
-        .from('bank_statements')
-        .insert({
-          bank_account_id: id,
-          company_id: currentCompany.id,
-          statement_date: `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`,
-          statement_month: statementMonth,
-          statement_year: statementYear,
-          file_name: selectedFile.name,
-          display_name: statementName.trim(),
-          file_url: signedUrlData.signedUrl,
-          file_size: selectedFile.size,
-          uploaded_by: user.id,
-        });
-
-      if (insertError) throw insertError;
-
-      toast({ title: "Success", description: "Bank statement uploaded successfully" });
-      setUploadDialogOpen(false);
-      setSelectedFile(null);
-      setStatementName("");
-      setStatementMonth(new Date().getMonth() + 1);
-      setStatementYear(new Date().getFullYear());
-      await loadStatements();
-    } catch (error) {
-      console.error('Error uploading statement:', error);
-      toast({ title: "Error", description: "Failed to upload bank statement", variant: "destructive" });
-    } finally {
-      setUploading(false);
-      if (statementFileRef.current) statementFileRef.current.value = '';
-    }
-  };
-
   const handleEditStatement = (statement: BankStatement) => {
     setEditingStatement(statement);
     setStatementName(statement.display_name || statement.file_name.replace(/\.[^/.]+$/, ""));
@@ -276,7 +212,7 @@ export default function BankAccountDetails() {
   const handleUpdateStatement = async () => {
     if (!editingStatement || !statementName.trim()) return;
 
-    setUploading(true);
+    setUpdating(true);
     try {
       const statementDate = `${statementYear}-${String(statementMonth).padStart(2, '0')}-01`;
       
@@ -312,7 +248,7 @@ export default function BankAccountDetails() {
       console.error('Error updating statement:', error);
       toast({ title: "Error", description: "Failed to update bank statement", variant: "destructive" });
     } finally {
-      setUploading(false);
+      setUpdating(false);
     }
   };
 
@@ -438,14 +374,7 @@ export default function BankAccountDetails() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Bank Statements</CardTitle>
-              <Button onClick={() => statementFileRef.current?.click()} disabled={uploading}>
-                <Upload className="h-4 w-4 mr-2" />
-                {uploading ? "Uploading..." : "Upload Statement"}
-              </Button>
-              <input ref={statementFileRef} type="file" accept=".pdf" className="hidden" onChange={handleFileSelect} />
-            </div>
+            <CardTitle>Bank Statements</CardTitle>
           </CardHeader>
           <CardContent>
             {statements.length === 0 ? (
@@ -526,74 +455,6 @@ export default function BankAccountDetails() {
         </Card>
       </div>
 
-      {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload Bank Statement</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="statement-name">Statement Name *</Label>
-              <Input
-                id="statement-name"
-                value={statementName}
-                onChange={(e) => setStatementName(e.target.value)}
-                placeholder="e.g., January 2025 Statement"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="statement-month">Month *</Label>
-                <select
-                  id="statement-month"
-                  value={statementMonth}
-                  onChange={(e) => setStatementMonth(parseInt(e.target.value))}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                    <option key={month} value={month}>
-                      {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="statement-year">Year *</Label>
-                <Input
-                  id="statement-year"
-                  type="number"
-                  value={statementYear}
-                  onChange={(e) => setStatementYear(parseInt(e.target.value))}
-                  min="2000"
-                  max="2100"
-                />
-              </div>
-            </div>
-            {selectedFile && (
-              <div className="text-sm text-muted-foreground">
-                <strong>File:</strong> {selectedFile.name}
-              </div>
-            )}
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => {
-                setUploadDialogOpen(false);
-                setSelectedFile(null);
-                setStatementName("");
-                setStatementMonth(new Date().getMonth() + 1);
-                setStatementYear(new Date().getFullYear());
-                if (statementFileRef.current) statementFileRef.current.value = '';
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleStatementUpload} disabled={uploading || !statementName.trim()}>
-                {uploading ? "Uploading..." : "Upload"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
@@ -648,8 +509,8 @@ export default function BankAccountDetails() {
               }}>
                 Cancel
               </Button>
-              <Button onClick={handleUpdateStatement} disabled={uploading || !statementName.trim()}>
-                {uploading ? "Updating..." : "Update"}
+              <Button onClick={handleUpdateStatement} disabled={updating || !statementName.trim()}>
+                {updating ? "Updating..." : "Update"}
               </Button>
             </div>
           </div>
