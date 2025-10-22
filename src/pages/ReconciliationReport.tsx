@@ -236,6 +236,7 @@ export default function ReconciliationReport() {
       }
       
       await generateReconciliationReportPdf({
+        companyId: currentCompany.id,
         companyName: currentCompany.display_name || currentCompany.name,
         bankName: reconciliation.bank_account.bank_name,
         accountName: reconciliation.bank_account.account_name,

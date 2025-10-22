@@ -12,6 +12,7 @@ interface Transaction {
 }
 
 interface ReconciliationReportData {
+  companyId?: string;
   companyName: string;
   bankName: string;
   accountName: string;
@@ -29,16 +30,27 @@ interface ReconciliationReportData {
 }
 
 export const generateReconciliationReportPdf = async (data: ReconciliationReportData) => {
-  // Fetch template settings from database
-  const { data: templateData } = await supabase
-    .from('pdf_templates')
-    .select('*')
-    .eq('template_type', 'reconciliation')
-    .maybeSingle();
+  // Fetch template settings from database (scoped to company if provided)
+  let templateData: any | null = null;
+  try {
+    let query = supabase
+      .from('pdf_templates')
+      .select('*')
+      .eq('template_type', 'reconciliation');
+
+    if (data.companyId) {
+      query = query.eq('company_id', data.companyId);
+    }
+
+    const { data: rows } = await query.order('updated_at', { ascending: false }).limit(1);
+    templateData = rows && rows.length > 0 ? rows[0] : null;
+  } catch (e) {
+    console.warn('Unable to load reconciliation template, using defaults');
+  }
 
   // Helper function to convert hex to RGB
   const hexToRgb = (hex: string): [number, number, number] => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
     return result 
       ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
       : [66, 139, 202]; // Default blue
@@ -47,11 +59,36 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
   // Get colors from template or use defaults
   const primaryColor: [number, number, number] = templateData?.primary_color ? hexToRgb(templateData.primary_color) : [66, 139, 202];
   const secondaryColor: [number, number, number] = templateData?.secondary_color ? hexToRgb(templateData.secondary_color) : [240, 240, 240];
+  const headerBgColor: [number, number, number] = templateData?.table_header_bg ? hexToRgb(templateData.table_header_bg) : primaryColor;
+  const stripeColor: [number, number, number] = templateData?.table_stripe_color ? hexToRgb(templateData.table_stripe_color) : secondaryColor;
+  const borderColor: [number, number, number] = templateData?.table_border_color ? hexToRgb(templateData.table_border_color) : [200, 200, 200];
   const fontFamily = templateData?.font_family || 'helvetica';
+
+  const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, '').trim();
+  const headerHtml = stripHtml(templateData?.header_html || '');
+  const footerHtml = stripHtml(templateData?.footer_html || '');
 
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   let yPos = 20;
+
+  // Header/Footer from template (plain text extracted from HTML)
+  const drawHeader = () => {
+    if (headerHtml) {
+      doc.setFontSize(10);
+      doc.setFont(fontFamily, 'normal');
+      doc.text(headerHtml, 14, 12);
+    }
+  };
+
+  const drawFooter = () => {
+    if (footerHtml) {
+      doc.setFontSize(9);
+      doc.setFont(fontFamily, 'normal');
+      doc.text(footerHtml, pageWidth - 14, pageHeight - 10, { align: 'right' });
+    }
+  };
 
   // Helper function for formatting currency
   const formatCurrency = (amount: number) => {
@@ -60,6 +97,10 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
       currency: 'USD',
     }).format(amount);
   };
+
+  // Draw initial header
+  drawHeader();
+  yPos += headerHtml ? 6 : 0;
 
   // Header
   doc.setFontSize(16);
@@ -142,17 +183,20 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
         ['Total', '', formatCurrency(clearedDepositsTotal)]
       ],
       theme: 'grid',
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: primaryColor, textColor: 255 },
+      styles: { fontSize: 9, cellPadding: 2, lineColor: borderColor, lineWidth: 0.1 },
+      headStyles: { fillColor: headerBgColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
       didParseCell: (cellData) => {
-        if (cellData.row.index === cellData.table.body.length - 1) {
+        const isTotal = cellData.row.index === cellData.table.body.length - 1;
+        if (isTotal) {
           cellData.cell.styles.fontStyle = 'bold';
           cellData.cell.styles.fillColor = secondaryColor;
+        } else if (cellData.section === 'body' && cellData.row.index % 2 === 1) {
+          cellData.cell.styles.fillColor = stripeColor;
         }
       }
     });
@@ -189,17 +233,20 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
         ['Total', '', formatCurrency(clearedPaymentsTotal)]
       ],
       theme: 'grid',
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: primaryColor, textColor: 255 },
+      styles: { fontSize: 9, cellPadding: 2, lineColor: borderColor, lineWidth: 0.1 },
+      headStyles: { fillColor: headerBgColor, textColor: 255 },
       columnStyles: {
         0: { cellWidth: 100 },
         1: { cellWidth: 40 },
         2: { halign: 'right', cellWidth: 40 }
       },
       didParseCell: (cellData) => {
-        if (cellData.row.index === cellData.table.body.length - 1) {
+        const isTotal = cellData.row.index === cellData.table.body.length - 1;
+        if (isTotal) {
           cellData.cell.styles.fontStyle = 'bold';
           cellData.cell.styles.fillColor = secondaryColor;
+        } else if (cellData.section === 'body' && cellData.row.index % 2 === 1) {
+          cellData.cell.styles.fillColor = stripeColor;
         }
       }
     });
