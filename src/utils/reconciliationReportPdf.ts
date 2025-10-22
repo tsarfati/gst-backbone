@@ -227,15 +227,122 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // Download the filled template
-  const url = URL.createObjectURL(output);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.docx`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  // Convert the Word document to PDF using docx-preview and jsPDF
+  const blob = output as Blob;
+  
+  // Create a hidden container for docx-preview
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.width = '8.5in';
+  container.style.background = 'white';
+  container.style.padding = '1in';
+  document.body.appendChild(container);
+
+  try {
+    // Dynamically import docx-preview
+    const { renderAsync } = await import('docx-preview');
+    
+    // Render the DOCX to HTML
+    await renderAsync(blob, container, undefined, {
+      className: 'docx-preview',
+      inWrapper: false,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      renderHeaders: true,
+      renderFooters: true,
+      renderFootnotes: true,
+      renderEndnotes: true,
+    });
+
+    // Wait a bit for rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Create PDF from the rendered HTML
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'in',
+      format: 'letter',
+    });
+
+    // Get all the content
+    const content = container.innerHTML;
+    
+    // Use autoTable to render the content
+    // Parse tables and content from the HTML
+    const tables = container.querySelectorAll('table');
+    const headings = container.querySelectorAll('h1, h2, h3, h4, p');
+    
+    let yOffset = 1;
+    
+    // Add headings and text content
+    headings.forEach((element) => {
+      const text = element.textContent?.trim() || '';
+      if (text) {
+        const tag = element.tagName.toLowerCase();
+        let fontSize = 12;
+        let fontStyle: 'normal' | 'bold' = 'normal';
+        
+        if (tag === 'h1') { fontSize = 20; fontStyle = 'bold'; }
+        else if (tag === 'h2') { fontSize = 16; fontStyle = 'bold'; }
+        else if (tag === 'h3') { fontSize = 14; fontStyle = 'bold'; }
+        else if (tag === 'h4') { fontSize = 12; fontStyle = 'bold'; }
+        
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', fontStyle);
+        
+        // Check if we need a new page
+        if (yOffset > 9.5) {
+          pdf.addPage();
+          yOffset = 1;
+        }
+        
+        pdf.text(text, 1, yOffset);
+        yOffset += fontSize / 72 + 0.1;
+      }
+    });
+
+    // Add tables
+    tables.forEach((table, index) => {
+      const rows: string[][] = [];
+      const tableRows = table.querySelectorAll('tr');
+      
+      tableRows.forEach((tr) => {
+        const cells: string[] = [];
+        tr.querySelectorAll('td, th').forEach((cell) => {
+          cells.push(cell.textContent?.trim() || '');
+        });
+        if (cells.length > 0) rows.push(cells);
+      });
+
+      if (rows.length > 0) {
+        // Check if we need a new page
+        if (yOffset > 8) {
+          pdf.addPage();
+          yOffset = 1;
+        }
+
+        autoTable(pdf, {
+          head: [rows[0]],
+          body: rows.slice(1),
+          startY: yOffset * 72,
+          theme: 'grid',
+          styles: { fontSize: 10, cellPadding: 0.05 * 72 },
+          headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+          margin: { left: 1 * 72, right: 1 * 72 },
+        });
+
+        yOffset = (pdf as any).lastAutoTable.finalY / 72 + 0.2;
+      }
+    });
+
+    // Save the PDF
+    pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
+    
+  } finally {
+    // Clean up
+    document.body.removeChild(container);
+  }
 };
 
 // Default PDF generation (existing logic)
