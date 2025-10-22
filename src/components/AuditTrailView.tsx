@@ -229,6 +229,26 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                               {entry.reason}
                             </div>
                           )}
+                          {/* Show field changes for approved requests */}
+                          {entry.field_name && (entry.old_value || entry.new_value) && (
+                            <div className="mt-2">
+                              <span className="font-medium text-xs">{formatFieldName(entry.field_name)}</span>
+                              <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">From:</span>
+                                  <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2 mt-1">
+                                    {entry.old_value || <span className="text-muted-foreground italic">None</span>}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">To:</span>
+                                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2 mt-1">
+                                    {entry.new_value || <span className="text-muted-foreground italic">None</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       
@@ -238,6 +258,26 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                           {entry.reason && (
                             <div className="mt-1 text-xs text-muted-foreground">
                               {entry.reason}
+                            </div>
+                          )}
+                          {/* Show what was rejected */}
+                          {entry.field_name && (entry.old_value || entry.new_value) && (
+                            <div className="mt-2">
+                              <span className="font-medium text-xs">{formatFieldName(entry.field_name)}</span>
+                              <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">From:</span>
+                                  <div className="bg-muted border rounded p-2 mt-1">
+                                    {entry.old_value || <span className="text-muted-foreground italic">None</span>}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">To (Rejected):</span>
+                                  <div className="bg-muted border rounded p-2 mt-1 opacity-60">
+                                    {entry.new_value || <span className="text-muted-foreground italic">None</span>}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
