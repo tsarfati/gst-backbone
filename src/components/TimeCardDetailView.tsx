@@ -564,6 +564,30 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     }
   };
 
+  const handleRejectChangeRequest = async () => {
+    if (!pendingChangeRequest || !isManager) return;
+    try {
+      setDenying(true);
+      const { error: changeRequestError } = await supabase
+        .from('time_card_change_requests')
+        .update({
+          status: 'rejected',
+          reviewed_by: user?.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', pendingChangeRequest.id);
+      if (changeRequestError) throw changeRequestError;
+
+      toast({ title: 'Change Request Denied', description: 'The change request was marked as rejected.' });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error rejecting change request:', error);
+      toast({ title: 'Error', description: 'Failed to deny change request. Please try again.', variant: 'destructive' });
+    } finally {
+      setDenying(false);
+    }
+  };
+
   const handleApproveTimeCard = async () => {
     if (!user?.id || !isManager) return;
     
@@ -1053,12 +1077,37 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Job:</span>
-                        <span className="text-sm font-medium">{job?.name || 'N/A'}</span>
+                        <span className="text-sm font-medium">
+                          {pendingChangeRequest?.proposed_job_id ? (
+                            <span>
+                              <span className="line-through text-red-600">{job?.name || 'N/A'}</span>
+                              <span className="px-1">→</span>
+                              <span className="text-green-600">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</span>
+                            </span>
+                          ) : (
+                            job?.name || 'N/A'
+                          )}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Cost Code:</span>
                         <span className="text-sm font-medium">
-                          {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
+                          {pendingChangeRequest?.proposed_cost_code_id ? (
+                            <span>
+                              <span className="line-through text-red-600">
+                                {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
+                              </span>
+                              <span className="px-1">→</span>
+                              <span className="text-green-600">
+                                {(() => {
+                                  const cc = costCodes[pendingChangeRequest.proposed_cost_code_id];
+                                  return cc ? `${cc.code} - ${cc.description}` : 'Unknown';
+                                })()}
+                              </span>
+                            </span>
+                          ) : (
+                            costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'
+                          )}
                         </span>
                       </div>
                     </div>
@@ -1067,16 +1116,35 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch In:</span>
                         <span className="text-sm font-medium">
-                          {format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}
+                          {pendingChangeRequest?.proposed_punch_in_time ? (
+                            <span>
+                              <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                              <span className="px-1">→</span>
+                              <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                            </span>
+                          ) : (
+                            format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch Out:</span>
                         <span className="text-sm font-medium">
-                          {timeCard.punch_out_time 
-                            ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                            : 'Still clocked in'
-                          }
+                          {pendingChangeRequest?.proposed_punch_out_time ? (
+                            <span>
+                              <span className="line-through text-red-600">
+                                {timeCard.punch_out_time 
+                                  ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                                  : 'None'}
+                              </span>
+                              <span className="px-1">→</span>
+                              <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}</span>
+                            </span>
+                          ) : (
+                            timeCard.punch_out_time 
+                              ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                              : 'Still clocked in'
+                          )}
                         </span>
                       </div>
                       <div className="flex justify-between">
