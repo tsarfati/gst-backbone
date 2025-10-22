@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
-import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarIcon, ChevronDown, Loader2 } from "lucide-react";
+import { CalendarIcon, ChevronDown, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
+import * as XLSX from "xlsx";
+import { useToast } from "@/hooks/use-toast";
 
 interface Account {
   id: string;
@@ -30,6 +31,7 @@ interface LedgerLine {
 
 export default function GeneralLedger() {
   const { currentCompany } = useCompany();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
@@ -119,6 +121,40 @@ export default function GeneralLedger() {
   const formatCurrency = (n: number | null | undefined) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n || 0));
 
+  const handleExport = () => {
+    if (lines.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "Please load the report first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = lines.map(line => ({
+      Date: format(new Date(line.entry_date), "MM/dd/yyyy"),
+      Account: `${accountMap.get(line.account_id)?.account_number} - ${accountMap.get(line.account_id)?.account_name}`,
+      Reference: line.reference || "",
+      Description: line.description || "",
+      Debit: line.debit_amount || 0,
+      Credit: line.credit_amount || 0,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "General Ledger");
+    
+    XLSX.writeFile(
+      workbook, 
+      `General_Ledger_${format(dateStart, "yyyy-MM-dd")}_to_${format(dateEnd, "yyyy-MM-dd")}.xlsx`
+    );
+
+    toast({
+      title: "Export successful",
+      description: "General Ledger has been exported to Excel",
+    });
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <header className="mb-6">
@@ -182,7 +218,14 @@ export default function GeneralLedger() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button onClick={loadReport} disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Load report</Button>
+            <Button onClick={loadReport} disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Load report
+            </Button>
+            <Button onClick={handleExport} variant="outline" disabled={lines.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Export to Excel
+            </Button>
           </div>
         </CardContent>
       </Card>

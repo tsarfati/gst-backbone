@@ -408,15 +408,27 @@ export default function BankingReports() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
-                  {accountingReports.filter(r => r.category === 'ledger').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
-                      <span className="text-sm">{report.name}</span>
-                      <div className="flex items-center gap-2">
-                        <Star className="h-3 w-3 text-muted-foreground" />
-                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                    </Button>
-                  ))}
+                  {accountingReports.filter(r => r.category === 'ledger').map((report, idx) => {
+                    const isGeneralLedger = report.name === "General Ledger";
+                    return (
+                      <Button 
+                        key={idx} 
+                        variant="outline" 
+                        className="justify-between h-auto py-3"
+                        onClick={() => {
+                          if (isGeneralLedger) {
+                            window.location.href = "/banking/general-ledger";
+                          }
+                        }}
+                      >
+                        <span className="text-sm">{report.name}</span>
+                        <div className="flex items-center gap-2">
+                          {isGeneralLedger && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      </Button>
+                    );
+                  })}
                 </div>
               </AccordionContent>
             </AccordionItem>

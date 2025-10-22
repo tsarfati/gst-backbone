@@ -66,8 +66,24 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
 // Generate report from uploaded Word template
 const generateFromTemplate = async (data: ReconciliationReportData, templateData: any) => {
+  // Extract the file path from the signed URL or use as-is
+  let fileUrl = templateData.template_file_url;
+  
+  // If the URL seems to be a path rather than a full URL, get a fresh signed URL
+  if (!fileUrl.startsWith('http')) {
+    const { data: signedData, error } = await supabase.storage
+      .from('report-templates')
+      .createSignedUrl(fileUrl, 3600); // 1 hour
+    
+    if (error) throw error;
+    fileUrl = signedData.signedUrl;
+  }
+  
   // Fetch the template file
-  const response = await fetch(templateData.template_file_url);
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch template: ${response.statusText}`);
+  }
   const arrayBuffer = await response.arrayBuffer();
   
   const zip = new PizZip(arrayBuffer);

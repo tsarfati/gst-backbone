@@ -82,14 +82,7 @@ export default function TemplateFileUploader({
 
       if (uploadError) throw uploadError;
 
-      // Get signed URL (valid for 10 years)
-      const { data: signedUrlData, error: urlError } = await supabase.storage
-        .from('report-templates')
-        .createSignedUrl(filePath, 315360000);
-
-      if (urlError) throw urlError;
-
-      // Save template info to database
+      // Save template info to database with file path (not signed URL)
       const { data: existingTemplate } = await supabase
         .from('pdf_templates')
         .select('id')
@@ -101,7 +94,7 @@ export default function TemplateFileUploader({
         company_id: currentCompany.id,
         template_type: templateType,
         template_format: 'file',
-        template_file_url: signedUrlData.signedUrl,
+        template_file_url: filePath, // Store path, not signed URL
         template_file_name: selectedFile.name,
         template_file_type: fileType,
         available_variables: availableVariables,
