@@ -245,55 +245,51 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   const unclearedDepositsTotal = data.unclearedDeposits.reduce((sum, d) => sum + d.amount, 0);
   const unclearedPaymentsTotal = data.unclearedPayments.reduce((sum, p) => sum + p.amount, 0);
 
-  // Format transactions for table
-  const formatTransactions = (transactions: any[]) => {
+  // Format transactions for template (plain text for Word)
+  const formatTransactionsForWord = (transactions: any[]) => {
     return transactions.map(t => ({
-      description: t.description,
+      description: t.description || '',
       date: format(new Date(t.date), 'MM/dd/yyyy'),
       amount: formatCurrency(t.amount)
     }));
   };
 
-  // Build report_data HTML table
-  const reportDataHtml = `
-    <h3>Summary</h3>
-    <table>
-      <tr><td>Bank Statement Starting Balance</td><td>${formatCurrency(data.beginningBalance)}</td></tr>
-      <tr><td>Cleared Deposits and other Increases</td><td>${formatCurrency(clearedDepositsTotal)}</td></tr>
-      <tr><td>Cleared Checks and other Decreases</td><td>${formatCurrency(clearedPaymentsTotal)}</td></tr>
-      <tr><td>Cleared Balance</td><td>${formatCurrency(data.clearedBalance)}</td></tr>
-    </table>
+  // Build plain text summary for report_data (no HTML)
+  const buildPlainTextReport = () => {
+    let text = '\n\nSUMMARY\n';
+    text += `Bank Statement Starting Balance: ${formatCurrency(data.beginningBalance)}\n`;
+    text += `Cleared Deposits and other Increases: ${formatCurrency(clearedDepositsTotal)}\n`;
+    text += `Cleared Checks and other Decreases: ${formatCurrency(clearedPaymentsTotal)}\n`;
+    text += `Cleared Balance: ${formatCurrency(data.clearedBalance)}\n\n`;
     
-    <h3>Cleared Transactions</h3>
-    <h4>Cleared Deposits (${data.clearedDeposits.length} Items)</h4>
-    <table>
-      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
-      ${data.clearedDeposits.map(d => `<tr><td>${d.description}</td><td>${format(new Date(d.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(d.amount)}</td></tr>`).join('')}
-      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(clearedDepositsTotal)}</strong></td></tr>
-    </table>
+    text += `CLEARED TRANSACTIONS\n\n`;
+    text += `Cleared Deposits (${data.clearedDeposits.length} Items):\n`;
+    data.clearedDeposits.forEach(d => {
+      text += `  ${d.description} - ${format(new Date(d.date), 'MM/dd/yyyy')} - ${formatCurrency(d.amount)}\n`;
+    });
+    text += `  Total: ${formatCurrency(clearedDepositsTotal)}\n\n`;
     
-    <h4>Cleared Checks (${data.clearedPayments.length} Items)</h4>
-    <table>
-      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
-      ${data.clearedPayments.map(p => `<tr><td>${p.description}</td><td>${format(new Date(p.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(p.amount)}</td></tr>`).join('')}
-      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(clearedPaymentsTotal)}</strong></td></tr>
-    </table>
+    text += `Cleared Checks (${data.clearedPayments.length} Items):\n`;
+    data.clearedPayments.forEach(p => {
+      text += `  ${p.description} - ${format(new Date(p.date), 'MM/dd/yyyy')} - ${formatCurrency(p.amount)}\n`;
+    });
+    text += `  Total: ${formatCurrency(clearedPaymentsTotal)}\n\n`;
     
-    <h3>Unreconciled Transactions</h3>
-    <h4>Unreconciled Deposits (${data.unclearedDeposits.length} Items)</h4>
-    <table>
-      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
-      ${data.unclearedDeposits.map(d => `<tr><td>${d.description}</td><td>${format(new Date(d.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(d.amount)}</td></tr>`).join('')}
-      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(unclearedDepositsTotal)}</strong></td></tr>
-    </table>
+    text += `UNRECONCILED TRANSACTIONS\n\n`;
+    text += `Unreconciled Deposits (${data.unclearedDeposits.length} Items):\n`;
+    data.unclearedDeposits.forEach(d => {
+      text += `  ${d.description} - ${format(new Date(d.date), 'MM/dd/yyyy')} - ${formatCurrency(d.amount)}\n`;
+    });
+    text += `  Total: ${formatCurrency(unclearedDepositsTotal)}\n\n`;
     
-    <h4>Unreconciled Checks (${data.unclearedPayments.length} Items)</h4>
-    <table>
-      <tr><th>Description</th><th>Date</th><th>Amount</th></tr>
-      ${data.unclearedPayments.map(p => `<tr><td>${p.description}</td><td>${format(new Date(p.date), 'MM/dd/yyyy')}</td><td>${formatCurrency(p.amount)}</td></tr>`).join('')}
-      <tr><td><strong>Total</strong></td><td></td><td><strong>${formatCurrency(unclearedPaymentsTotal)}</strong></td></tr>
-    </table>
-  `;
+    text += `Unreconciled Checks (${data.unclearedPayments.length} Items):\n`;
+    data.unclearedPayments.forEach(p => {
+      text += `  ${p.description} - ${format(new Date(p.date), 'MM/dd/yyyy')} - ${formatCurrency(p.amount)}\n`;
+    });
+    text += `  Total: ${formatCurrency(unclearedPaymentsTotal)}\n`;
+    
+    return text;
+  };
 
   // Set template data (support both old and new template formats)
   doc.setData({
@@ -312,19 +308,30 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     date: format(new Date(), 'MM/dd/yyyy'),
     reconcile_date: format(new Date(), 'MM/dd/yyyy'),
     period: `${format(new Date(data.beginningDate), 'MM/dd/yyyy')} - ${format(new Date(data.endingDate), 'MM/dd/yyyy')}`,
-    report_data: reportDataHtml,
+    statement_balance: formatCurrency(data.endingBalance),
+    book_balance: formatCurrency(data.clearedBalance),
+    difference: formatCurrency(data.endingBalance - data.clearedBalance),
     
-    // Transactions as arrays for loops
-    cleared_deposits: formatTransactions(data.clearedDeposits),
-    cleared_payments: formatTransactions(data.clearedPayments),
-    uncleared_deposits: formatTransactions(data.unclearedDeposits),
-    uncleared_payments: formatTransactions(data.unclearedPayments),
+    // Plain text report (NO HTML)
+    report_data: buildPlainTextReport(),
+    
+    // Transactions as arrays for Word table loops
+    cleared_deposits: formatTransactionsForWord(data.clearedDeposits),
+    cleared_payments: formatTransactionsForWord(data.clearedPayments),
+    uncleared_deposits: formatTransactionsForWord(data.unclearedDeposits),
+    uncleared_payments: formatTransactionsForWord(data.unclearedPayments),
     
     // Totals
     cleared_deposits_total: formatCurrency(clearedDepositsTotal),
     cleared_payments_total: formatCurrency(clearedPaymentsTotal),
     uncleared_deposits_total: formatCurrency(unclearedDepositsTotal),
     uncleared_payments_total: formatCurrency(unclearedPaymentsTotal),
+    
+    // Counts
+    cleared_deposits_count: data.clearedDeposits.length,
+    cleared_payments_count: data.clearedPayments.length,
+    uncleared_deposits_count: data.unclearedDeposits.length,
+    uncleared_payments_count: data.unclearedPayments.length,
   });
 
   try {
