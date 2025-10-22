@@ -186,8 +186,32 @@ export default function GeneralLedger() {
     return m;
   }, [accounts]);
 
-  const formatCurrency = (n: number | null | undefined) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n || 0));
+const groupedByAccount = useMemo(() => {
+  const groups: Array<{ accountId: string; lines: LedgerLine[]; debitTotal: number; creditTotal: number }>= [];
+  if (!lines || lines.length === 0) return groups;
+  const map = new Map<string, LedgerLine[]>();
+  for (const l of lines) {
+    const arr = map.get(l.account_id) || [];
+    arr.push(l);
+    map.set(l.account_id, arr);
+  }
+  // Sort groups by account number
+  const sortedAccountIds = Array.from(map.keys()).sort((a, b) => {
+    const aAcc = accountMap.get(a);
+    const bAcc = accountMap.get(b);
+    return (aAcc?.account_number || '').localeCompare(bAcc?.account_number || '');
+  });
+  for (const accId of sortedAccountIds) {
+    const ls = (map.get(accId) || []).sort((a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime());
+    const debitTotal = ls.reduce((s, x) => s + (x.debit_amount || 0), 0);
+    const creditTotal = ls.reduce((s, x) => s + (x.credit_amount || 0), 0);
+    groups.push({ accountId: accId, lines: ls, debitTotal, creditTotal });
+  }
+  return groups;
+}, [lines, accountMap]);
+
+const formatCurrency = (n: number | null | undefined) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n || 0));
 
   const handleExportExcel = () => {
     if (lines.length === 0) {
@@ -442,26 +466,43 @@ export default function GeneralLedger() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map((line) => (
-                  <TableRow key={line.id} className={line.is_reversed ? "opacity-60" : ""}>
-                    <TableCell>{format(new Date(line.entry_date), "MM/dd/yyyy")}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {accountMap.get(line.account_id)?.account_number} — {accountMap.get(line.account_id)?.account_name}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{line.reference || ""}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {line.description || ""}
-                      {line.is_reversed && <span className="ml-2 text-xs text-muted-foreground">(REVERSED)</span>}
-                    </TableCell>
-                    <TableCell className="text-right">{formatCurrency(line.debit_amount)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(line.credit_amount)}</TableCell>
-                  </TableRow>
-                ))}
-                {lines.length === 0 && (
+                {groupedByAccount.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">No results</TableCell>
                   </TableRow>
                 )}
+                {groupedByAccount.map((group) => {
+                  const acc = accountMap.get(group.accountId);
+                  return (
+                    <>
+                      <TableRow key={`hdr-${group.accountId}`} className="bg-muted/40">
+                        <TableCell colSpan={6} className="font-semibold">
+                          {acc?.account_number} — {acc?.account_name}
+                        </TableCell>
+                      </TableRow>
+                      {group.lines.map((line) => (
+                        <TableRow key={line.id} className={line.is_reversed ? "opacity-60" : ""}>
+                          <TableCell>{format(new Date(line.entry_date), "MM/dd/yyyy")}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {acc?.account_number} — {acc?.account_name}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{line.reference || ""}</TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {line.description || ""}
+                            {line.is_reversed && <span className="ml-2 text-xs text-muted-foreground">(REVERSED)</span>}
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(line.debit_amount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(line.credit_amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow key={`tot-${group.accountId}`} className="bg-muted/30 font-semibold">
+                        <TableCell colSpan={4} className="text-right">Totals:</TableCell>
+                        <TableCell className="text-right">{formatCurrency(group.debitTotal)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(group.creditTotal)}</TableCell>
+                      </TableRow>
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

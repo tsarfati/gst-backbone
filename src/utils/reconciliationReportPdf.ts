@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
+import { renderAsync } from 'docx-preview';
+import html2canvas from 'html2canvas';
 
 interface Transaction {
   id: string;
@@ -225,20 +227,40 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     // Continue without throwing to preserve template formatting
   }
 
-  const output = doc.getZip().generate({
+  // Generate filled DOCX, render to HTML, then export as PDF
+  const outputBlob = doc.getZip().generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
-  // Download the filled Word template
-  const url = URL.createObjectURL(output);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.docx`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  container.style.background = 'white';
+  document.body.appendChild(container);
+
+  await renderAsync(outputBlob, container, undefined, { inWrapper: false });
+
+  // Ensure jsPDF.html has html2canvas available
+  (window as any).html2canvas = html2canvas;
+
+  const pdf = new jsPDF('p', 'pt', 'letter');
+  await new Promise<void>((resolve) => {
+    (pdf as any).html(container, {
+      callback: () => {
+        pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
+        resolve();
+      },
+      x: 20,
+      y: 20,
+      width: 575,
+      windowWidth: 800,
+    });
+  });
+
+  document.body.removeChild(container);
 };
 
 // Default PDF generation (existing logic)
