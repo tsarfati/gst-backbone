@@ -31,6 +31,7 @@ export default function QuickAddVendor({
 
   const [formData, setFormData] = useState({
     name: "",
+    contact_name: "",
     email: "",
     phone: "",
     vendor_type: "",
@@ -60,6 +61,7 @@ export default function QuickAddVendor({
         .from('vendors')
         .insert({
           name: formData.name,
+          contact_name: formData.contact_name || null,
           email: formData.email || null,
           phone: formData.phone || null,
           vendor_type: formData.vendor_type || null,
@@ -84,16 +86,17 @@ export default function QuickAddVendor({
       // Reset form
       setFormData({
         name: "",
+        contact_name: "",
         email: "",
         phone: "",
         vendor_type: "",
         address: ""
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding vendor:', error);
       toast({
         title: "Error",
-        description: "Failed to add vendor",
+        description: error?.message || "Failed to add vendor",
         variant: "destructive"
       });
     } finally {
@@ -141,6 +144,16 @@ export default function QuickAddVendor({
               onChange={(e) => handleInputChange("name", e.target.value)}
               placeholder="Enter vendor name"
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contact_name">Contact Name</Label>
+            <Input
+              id="contact_name"
+              value={formData.contact_name}
+              onChange={(e) => handleInputChange("contact_name", e.target.value)}
+              placeholder="Primary contact person"
             />
           </div>
 
