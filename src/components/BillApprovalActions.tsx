@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
@@ -28,6 +29,75 @@ export default function BillApprovalActions({
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'controller';
   const isPm = currentUserId === jobPmUserId;
   const canApprove = isAdmin || (isPm && jobRequiresPmApproval);
+
+  // Pending coding helpers
+  const [billMeta, setBillMeta] = useState<{ cost_code_id?: string | null; subcontract_id?: string | null; purchase_order_id?: string | null } | null>(null);
+  const [suggestedCostCodeId, setSuggestedCostCodeId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  useEffect(() => {
+    const loadBillMeta = async () => {
+      if (currentStatus !== 'pending_coding') return;
+      try {
+        setLoading(true);
+        const { data: inv, error: invErr } = await supabase
+          .from('invoices')
+          .select('cost_code_id, subcontract_id, purchase_order_id')
+          .eq('id', billId)
+          .single();
+        if (invErr) throw invErr;
+        setBillMeta(inv);
+
+        // If subcontract with single distribution, suggest its cost code
+        if (inv?.subcontract_id) {
+          const { data: sub, error: subErr } = await supabase
+            .from('subcontracts')
+            .select('cost_distribution')
+            .eq('id', inv.subcontract_id)
+            .single();
+          if (subErr) throw subErr;
+          let dist: any[] = [];
+          const raw = (sub as any)?.cost_distribution;
+          if (Array.isArray(raw)) dist = raw;
+          else if (typeof raw === 'string') {
+            try { dist = JSON.parse(raw); } catch { dist = []; }
+          }
+          if (dist.length === 1 && dist[0]?.cost_code_id) {
+            setSuggestedCostCodeId(dist[0].cost_code_id);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load bill meta', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadBillMeta();
+  }, [billId, currentStatus]);
+
+  const applyCostCodeAndSend = async () => {
+    if (!suggestedCostCodeId) return;
+    try {
+      setApplying(true);
+      const { error } = await supabase
+        .from('invoices')
+        .update({ cost_code_id: suggestedCostCodeId, status: 'pending_approval' })
+        .eq('id', billId);
+      if (error) throw error;
+      toast({ title: 'Cost code applied', description: 'Bill moved to Pending Approval.' });
+      onStatusUpdate();
+    } catch (e) {
+      console.error('Apply cost code failed', e);
+      toast({ title: 'Error', description: 'Failed to apply cost code', variant: 'destructive' });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const sendToApproval = async () => {
+    await updateBillStatus('pending_approval', 'Sent to approval');
+  };
 
   const updateBillStatus = async (newStatus: string, statusText: string) => {
     try {
@@ -65,6 +135,8 @@ export default function BillApprovalActions({
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
+      case "pending_coding":
+        return { text: "Pending Coding", variant: "secondary" as const, icon: Clock };
       case "pending_approval":
         return { text: "Pending Approval", variant: "warning" as const, icon: Clock };
       case "pending_payment":
@@ -121,6 +193,36 @@ export default function BillApprovalActions({
               Reject Bill
             </Button>
           </div>
+        </>
+      )}
+
+      {currentStatus === 'pending_coding' && (
+        <>
+          {loading ? (
+            <div className="text-sm text-muted-foreground">Checking subcontract distribution...</div>
+          ) : (
+            <div className="space-y-3">
+              {suggestedCostCodeId ? (
+                <div className="bg-muted p-3 rounded-md text-sm">
+                  Subcontract distribution has a single cost code. You can apply it to this bill and send for approval.
+                </div>
+              ) : (
+                <div className="bg-muted p-3 rounded-md text-sm">
+                  This bill is pending coding. You can send it for approval now or edit the bill to assign a cost code.
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {suggestedCostCodeId && (
+                  <Button onClick={applyCostCodeAndSend} size="sm" disabled={applying}>
+                    {applying ? 'Applying…' : 'Apply cost code & send to approval'}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={sendToApproval}>
+                  Send to approval
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
