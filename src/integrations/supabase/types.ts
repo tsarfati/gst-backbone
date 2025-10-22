@@ -1930,33 +1930,52 @@ export type Database = {
       }
       job_photos: {
         Row: {
+          album_id: string | null
           created_at: string
           id: string
           job_id: string
+          location_address: string | null
+          location_lat: number | null
+          location_lng: number | null
           note: string | null
           photo_url: string
           updated_at: string
           uploaded_by: string
         }
         Insert: {
+          album_id?: string | null
           created_at?: string
           id?: string
           job_id: string
+          location_address?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
           note?: string | null
           photo_url: string
           updated_at?: string
           uploaded_by: string
         }
         Update: {
+          album_id?: string | null
           created_at?: string
           id?: string
           job_id?: string
+          location_address?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
           note?: string | null
           photo_url?: string
           updated_at?: string
           uploaded_by?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_photos_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "photo_albums"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_photos_job_id_fkey"
             columns: ["job_id"]
@@ -3014,6 +3033,89 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      photo_albums: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_auto_employee_album: boolean
+          job_id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_auto_employee_album?: boolean
+          job_id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_auto_employee_album?: boolean
+          job_id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_albums_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "photo_albums_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      photo_comments: {
+        Row: {
+          comment: string
+          created_at: string
+          id: string
+          photo_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          comment: string
+          created_at?: string
+          id?: string
+          photo_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          comment?: string
+          created_at?: string
+          id?: string
+          photo_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_comments_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "job_photos"
             referencedColumns: ["id"]
           },
         ]
@@ -4976,6 +5078,10 @@ export type Database = {
       }
       get_mapbox_token: { Args: never; Returns: string }
       get_next_cash_account_number: { Args: never; Returns: string }
+      get_or_create_employee_album: {
+        Args: { p_job_id: string; p_user_id: string }
+        Returns: string
+      }
       get_user_companies: {
         Args: { _user_id: string }
         Returns: {

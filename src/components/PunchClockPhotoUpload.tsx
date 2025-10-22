@@ -74,6 +74,37 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
     setUploading(true);
     try {
+      // Get or create employee uploads album
+      const { data: albumId, error: albumError } = await supabase
+        .rpc('get_or_create_employee_album', {
+          p_job_id: jobId,
+          p_user_id: userId
+        });
+
+      if (albumError) {
+        console.error('Album error:', albumError);
+        toast({
+          title: 'Album Error',
+          description: albumError.message || 'Failed to get album',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Get location
+      let locationData = {};
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        locationData = {
+          location_lat: position.coords.latitude,
+          location_lng: position.coords.longitude,
+        };
+      } catch (error) {
+        console.log('Location not available');
+      }
+
       // Use userId as first folder segment to satisfy storage policies
       const timestamp = Date.now();
       const filePath = `${userId}/job-${jobId}/${timestamp}.jpg`;
@@ -99,6 +130,8 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
           uploaded_by: userId,
           photo_url: publicUrl,
           note: note.trim() || null,
+          album_id: albumId,
+          ...locationData,
         });
 
       if (insertError) throw insertError;

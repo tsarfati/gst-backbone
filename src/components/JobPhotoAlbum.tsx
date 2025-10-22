@@ -3,10 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { format } from 'date-fns';
 
 interface JobPhoto {
   id: string;
@@ -14,6 +19,36 @@ interface JobPhoto {
   note?: string;
   uploaded_by: string;
   created_at: string;
+  album_id?: string;
+  location_lat?: number;
+  location_lng?: number;
+  location_address?: string;
+  profiles?: {
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+  };
+}
+
+interface PhotoAlbum {
+  id: string;
+  name: string;
+  description?: string;
+  is_auto_employee_album: boolean;
+  created_at: string;
+}
+
+interface PhotoComment {
+  id: string;
+  photo_id: string;
+  user_id: string;
+  comment: string;
+  created_at: string;
+  profiles?: {
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+  };
 }
 
 interface JobPhotoAlbumProps {
@@ -24,22 +59,30 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
+  const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showCreateAlbumDialog, setShowCreateAlbumDialog] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<JobPhoto | null>(null);
+  const [comments, setComments] = useState<PhotoComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [newAlbumDescription, setNewAlbumDescription] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     loadPhotos();
+    loadAlbums();
 
     // Subscribe to realtime updates
-    const channel = supabase
+    const photosChannel = supabase
       .channel('job-photos-changes')
       .on('postgres_changes', {
         event: '*',
@@ -51,19 +94,50 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       })
       .subscribe();
 
+    const albumsChannel = supabase
+      .channel('photo-albums-changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'photo_albums',
+        filter: `job_id=eq.${jobId}`,
+      }, () => {
+        loadAlbums();
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(photosChannel);
+      supabase.removeChannel(albumsChannel);
       stopCamera();
     };
   }, [jobId]);
 
+  useEffect(() => {
+    if (selectedPhoto) {
+      loadComments(selectedPhoto.id);
+    }
+  }, [selectedPhoto]);
+
   const loadPhotos = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('job_photos')
-        .select('*')
-        .eq('job_id', jobId)
-        .order('created_at', { ascending: false });
+        .select(`
+          *,
+          profiles!job_photos_uploaded_by_fkey (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .eq('job_id', jobId);
+
+      if (selectedAlbumId !== 'all') {
+        query = query.eq('album_id', selectedAlbumId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       setPhotos(data || []);
@@ -76,6 +150,44 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAlbums = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('photo_albums')
+        .select('*')
+        .eq('job_id', jobId)
+        .order('is_auto_employee_album', { ascending: false })
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setAlbums(data || []);
+    } catch (error) {
+      console.error('Error loading albums:', error);
+    }
+  };
+
+  const loadComments = async (photoId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('photo_comments')
+        .select(`
+          *,
+          profiles!photo_comments_user_id_fkey (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .eq('photo_id', photoId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setComments(data || []);
+    } catch (error) {
+      console.error('Error loading comments:', error);
     }
   };
 
@@ -131,6 +243,29 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
     setUploading(true);
     try {
+      // Get or create employee uploads album
+      const { data: albumId, error: albumError } = await supabase
+        .rpc('get_or_create_employee_album', {
+          p_job_id: jobId,
+          p_user_id: user.id
+        });
+
+      if (albumError) throw albumError;
+
+      // Get location
+      let locationData = {};
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        locationData = {
+          location_lat: position.coords.latitude,
+          location_lng: position.coords.longitude,
+        };
+      } catch (error) {
+        console.log('Location not available');
+      }
+
       // Upload photo to storage
       const fileName = `job-${jobId}/${Date.now()}.jpg`;
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -151,6 +286,8 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           uploaded_by: user.id,
           photo_url: publicUrl,
           note: note.trim() || null,
+          album_id: albumId,
+          ...locationData,
         });
 
       if (insertError) throw insertError;
@@ -173,6 +310,66 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleCreateAlbum = async () => {
+    if (!user || !newAlbumName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('photo_albums')
+        .insert({
+          job_id: jobId,
+          name: newAlbumName.trim(),
+          description: newAlbumDescription.trim() || null,
+          created_by: user.id,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Album created successfully',
+      });
+
+      setShowCreateAlbumDialog(false);
+      setNewAlbumName('');
+      setNewAlbumDescription('');
+      loadAlbums();
+    } catch (error) {
+      console.error('Error creating album:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create album',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!user || !selectedPhoto || !newComment.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('photo_comments')
+        .insert({
+          photo_id: selectedPhoto.id,
+          user_id: user.id,
+          comment: newComment.trim(),
+        });
+
+      if (error) throw error;
+
+      setNewComment('');
+      loadComments(selectedPhoto.id);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add comment',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -223,12 +420,40 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold">Job Photo Album</h2>
-        <Button onClick={handleOpenUpload}>
-          <Camera className="h-4 w-4 mr-2" />
-          Add Photo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
+            <FolderPlus className="h-4 w-4 mr-2" />
+            Create Album
+          </Button>
+          <Button onClick={handleOpenUpload}>
+            <Camera className="h-4 w-4 mr-2" />
+            Add Photo
+          </Button>
+        </div>
+      </div>
+
+      {/* Album Filter */}
+      <div className="flex gap-2 items-center">
+        <label className="text-sm font-medium">Album:</label>
+        <Select value={selectedAlbumId} onValueChange={(value) => {
+          setSelectedAlbumId(value);
+          setLoading(true);
+          loadPhotos();
+        }}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Photos</SelectItem>
+            {albums.map((album) => (
+              <SelectItem key={album.id} value={album.id}>
+                {album.name} {album.is_auto_employee_album && '(Auto)'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {photos.length === 0 ? (
@@ -270,11 +495,33 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                   </Button>
                 )}
               </div>
-              {photo.note && (
-                <CardContent className="p-3">
-                  <p className="text-sm text-muted-foreground">{photo.note}</p>
-                </CardContent>
-              )}
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={photo.profiles?.avatar_url} />
+                    <AvatarFallback>
+                      {photo.profiles?.first_name?.[0]}{photo.profiles?.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {photo.profiles?.first_name} {photo.profiles?.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(photo.created_at), 'MMM d, yyyy h:mm a')}
+                    </p>
+                  </div>
+                </div>
+                {photo.note && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{photo.note}</p>
+                )}
+                {photo.location_lat && photo.location_lng && (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" />
+                    <span>Location captured</span>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -340,28 +587,148 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       {/* Photo Detail Dialog */}
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Photo Details</DialogTitle>
           </DialogHeader>
           {selectedPhoto && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <img
                 src={selectedPhoto.photo_url}
                 alt="Job photo"
                 className="w-full rounded-lg"
               />
+              
+              {/* Uploader Info */}
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={selectedPhoto.profiles?.avatar_url} />
+                  <AvatarFallback>
+                    {selectedPhoto.profiles?.first_name?.[0]}{selectedPhoto.profiles?.last_name?.[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">
+                    {selectedPhoto.profiles?.first_name} {selectedPhoto.profiles?.last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Location */}
+              {selectedPhoto.location_lat && selectedPhoto.location_lng && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Location</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedPhoto.location_address || `${selectedPhoto.location_lat.toFixed(6)}, ${selectedPhoto.location_lng.toFixed(6)}`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Note */}
               {selectedPhoto.note && (
                 <div>
                   <label className="text-sm font-medium mb-2 block">Note</label>
                   <p className="text-muted-foreground">{selectedPhoto.note}</p>
                 </div>
               )}
-              <div className="text-sm text-muted-foreground">
-                {new Date(selectedPhoto.created_at).toLocaleString()}
+
+              <Separator />
+
+              {/* Comments Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <h3 className="font-semibold">Comments</h3>
+                </div>
+
+                {/* Comments List */}
+                <div className="space-y-4 max-h-60 overflow-y-auto">
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No comments yet. Be the first to comment!
+                    </p>
+                  ) : (
+                    comments.map((comment) => (
+                      <div key={comment.id} className="flex gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={comment.profiles?.avatar_url} />
+                          <AvatarFallback>
+                            {comment.profiles?.first_name?.[0]}{comment.profiles?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-baseline gap-2">
+                            <p className="text-sm font-medium">
+                              {comment.profiles?.first_name} {comment.profiles?.last_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(comment.created_at), 'MMM d, h:mm a')}
+                            </p>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">{comment.comment}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Add Comment */}
+                <div className="flex gap-2">
+                  <Input
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Add a comment..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddComment();
+                      }
+                    }}
+                  />
+                  <Button onClick={handleAddComment} disabled={!newComment.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Album Dialog */}
+      <Dialog open={showCreateAlbumDialog} onOpenChange={setShowCreateAlbumDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Photo Album</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Album Name</label>
+              <Input
+                value={newAlbumName}
+                onChange={(e) => setNewAlbumName(e.target.value)}
+                placeholder="Enter album name..."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+              <Textarea
+                value={newAlbumDescription}
+                onChange={(e) => setNewAlbumDescription(e.target.value)}
+                placeholder="Describe this album..."
+                rows={3}
+              />
+            </div>
+            <Button onClick={handleCreateAlbum} disabled={!newAlbumName.trim()} className="w-full">
+              Create Album
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
