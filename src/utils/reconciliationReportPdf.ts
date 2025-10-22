@@ -31,6 +31,7 @@ interface ReconciliationReportData {
   unclearedDeposits: Transaction[];
   unclearedPayments: Transaction[];
   bankStatementUrl?: string;
+  forcePdf?: boolean;
 }
 
 export const generateReconciliationReportPdf = async (data: ReconciliationReportData) => {
@@ -55,12 +56,12 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
     console.warn('Unable to load reconciliation template, using defaults');
   }
 
-  // Check if there's a template file uploaded
-  if (templateData?.template_file_url) {
-    // Always use the uploaded template when available (no fallback)
-    await generateFromTemplate(data, templateData);
-    return;
-  }
+// Check if there's a template file uploaded
+if (templateData?.template_file_url && !data.forcePdf) {
+  // Always use the uploaded template when available (no fallback)
+  await generateFromTemplate(data, templateData);
+  return;
+}
 
   // Default PDF generation (only when no template exists)
   return await generateDefaultReconciliationPdf(data, templateData);
