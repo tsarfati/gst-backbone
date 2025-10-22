@@ -63,22 +63,10 @@ export default function BankAccounts() {
             .select('current_balance')
             .eq('id', account.chart_account_id)
             .single();
-
-          // Include payments that haven't posted to GL yet (no journal_entry_id)
-          const { data: pendingPayments } = await supabase
-            .from('payments')
-            .select('amount, bank_account_id, journal_entry_id')
-            .eq('bank_account_id', account.id)
-            .is('journal_entry_id', null);
-
-          const pendingPaymentsTotal = (pendingPayments || []).reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-
-          const baseBalance = chartAccount?.current_balance ?? account.current_balance;
-          const adjustedBalance = Number(baseBalance || 0) - pendingPaymentsTotal;
           
           return {
             ...account,
-            gl_balance: adjustedBalance,
+            gl_balance: chartAccount?.current_balance ?? account.current_balance,
           } as BankAccount;
         }
         

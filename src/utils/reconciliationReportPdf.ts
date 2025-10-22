@@ -221,10 +221,11 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     </table>
   `;
 
-  // Set template data
+  // Set template data (support both old and new template formats)
   doc.setData({
     company_name: data.companyName,
     bank_name: data.bankName,
+    bank_account: `${data.bankName} - ${data.accountName}${data.accountNumber ? ` (***${data.accountNumber.slice(-4)})` : ''}`,
     account_name: data.accountName,
     account_number: data.accountNumber ? `***${data.accountNumber.slice(-4)}` : '',
     beginning_date: format(new Date(data.beginningDate), 'MM/dd/yyyy'),
@@ -234,6 +235,8 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     cleared_balance: formatCurrency(data.clearedBalance),
     report_date: format(new Date(), 'MM/dd/yyyy'),
     generated_date: format(new Date(), 'MM/dd/yyyy'),
+    date: format(new Date(), 'MM/dd/yyyy'),
+    reconcile_date: format(new Date(), 'MM/dd/yyyy'),
     period: `${format(new Date(data.beginningDate), 'MM/dd/yyyy')} - ${format(new Date(data.endingDate), 'MM/dd/yyyy')}`,
     report_data: reportDataHtml,
     

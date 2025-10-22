@@ -31,7 +31,7 @@ export default function QuickAddVendor({
 
   const [formData, setFormData] = useState({
     name: "",
-    contact_name: "",
+    contact_person: "",
     email: "",
     phone: "",
     vendor_type: "",
@@ -61,7 +61,7 @@ export default function QuickAddVendor({
         .from('vendors')
         .insert({
           name: formData.name,
-          contact_name: formData.contact_name || null,
+          contact_person: formData.contact_person || null,
           email: formData.email || null,
           phone: formData.phone || null,
           vendor_type: formData.vendor_type || null,
@@ -86,7 +86,7 @@ export default function QuickAddVendor({
       // Reset form
       setFormData({
         name: "",
-        contact_name: "",
+        contact_person: "",
         email: "",
         phone: "",
         vendor_type: "",
@@ -148,11 +148,11 @@ export default function QuickAddVendor({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="contact_name">Contact Name</Label>
+            <Label htmlFor="contact_person">Contact Name</Label>
             <Input
-              id="contact_name"
-              value={formData.contact_name}
-              onChange={(e) => handleInputChange("contact_name", e.target.value)}
+              id="contact_person"
+              value={formData.contact_person}
+              onChange={(e) => handleInputChange("contact_person", e.target.value)}
               placeholder="Primary contact person"
             />
           </div>
