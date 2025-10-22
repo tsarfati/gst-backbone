@@ -570,15 +570,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         created_at: new Date().toISOString()
       });
 
-      // Add entries for each field change
+      // Add entries for each field change with formatted values
       if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_in_time',
-          old_value: timeCard.punch_in_time,
-          new_value: pendingChangeRequest.proposed_punch_in_time,
+          old_value: format(new Date(timeCard.punch_in_time), 'MMM d, yyyy h:mm a'),
+          new_value: format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM d, yyyy h:mm a'),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
@@ -590,8 +590,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_out_time',
-          old_value: timeCard.punch_out_time,
-          new_value: pendingChangeRequest.proposed_punch_out_time,
+          old_value: format(new Date(timeCard.punch_out_time), 'MMM d, yyyy h:mm a'),
+          new_value: format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM d, yyyy h:mm a'),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
@@ -680,15 +680,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         created_at: new Date().toISOString()
       });
 
-      // Add entries for each field change that was rejected
+      // Add entries for each field change that was rejected with formatted values
       if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_in_time',
-          old_value: timeCard.punch_in_time,
-          new_value: pendingChangeRequest.proposed_punch_in_time,
+          old_value: format(new Date(timeCard.punch_in_time), 'MMM d, yyyy h:mm a'),
+          new_value: format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM d, yyyy h:mm a'),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
@@ -700,8 +700,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_out_time',
-          old_value: timeCard.punch_out_time,
-          new_value: pendingChangeRequest.proposed_punch_out_time,
+          old_value: format(new Date(timeCard.punch_out_time), 'MMM d, yyyy h:mm a'),
+          new_value: format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM d, yyyy h:mm a'),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
