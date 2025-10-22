@@ -694,17 +694,23 @@ export default function AddBill() {
         }
       }
 
-      // Get project manager for the job if pending_coding
+      // Get project manager for the job and check if approval is required
       let assignedToPm = null;
-      if (formData.pending_coding && formData.job_id) {
+      let requiresPmApproval = false;
+      
+      if (formData.job_id) {
         const { data: jobData } = await supabase
           .from('jobs')
-          .select('project_manager_user_id')
+          .select('project_manager_user_id, require_pm_bill_approval')
           .eq('id', formData.job_id)
           .single();
         
         assignedToPm = jobData?.project_manager_user_id || null;
+        requiresPmApproval = jobData?.require_pm_bill_approval || false;
       }
+      
+      // If job requires PM approval OR user explicitly sent to PM for coding, mark as pending
+      const shouldPendCoding = formData.pending_coding || requiresPmApproval;
 
       // Fetch file naming settings
       const { data: namingSettings } = await supabase
@@ -720,7 +726,7 @@ export default function AddBill() {
         const invoicesToInsert = distributionItems.map(item => ({
           vendor_id: formData.vendor_id,
           job_id: item.job_id || null,
-          cost_code_id: formData.pending_coding ? null : (item.cost_code_id || null),
+          cost_code_id: shouldPendCoding ? null : (item.cost_code_id || null),
           amount: parseFloat(item.amount),
           invoice_number: formData.invoice_number || null,
           issue_date: formData.issueDate,
@@ -732,8 +738,9 @@ export default function AddBill() {
           is_reimbursement: formData.is_reimbursement,
           file_url: attachedReceipt?.file_url || null,
           created_by: user.data.user.id,
-          pending_coding: formData.pending_coding,
-          assigned_to_pm: assignedToPm
+          pending_coding: shouldPendCoding,
+          assigned_to_pm: assignedToPm,
+          status: shouldPendCoding ? 'pending_coding' : 'pending_approval'
         }));
 
         const { data: inserted, error } = await supabase
@@ -767,7 +774,7 @@ export default function AddBill() {
           .insert({
             vendor_id: formData.vendor_id,
             job_id: formData.job_id,
-            cost_code_id: formData.pending_coding ? null : (formData.cost_code_id || null),
+            cost_code_id: shouldPendCoding ? null : (formData.cost_code_id || null),
             subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
             purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
             amount: parseFloat(formData.amount),
@@ -780,9 +787,10 @@ export default function AddBill() {
             is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
             is_reimbursement: formData.is_reimbursement,
             created_by: user.data.user.id,
-            pending_coding: formData.pending_coding,
+            pending_coding: shouldPendCoding,
             assigned_to_pm: assignedToPm,
-            file_url: attachedReceipt?.file_url || null
+            file_url: attachedReceipt?.file_url || null,
+            status: shouldPendCoding ? 'pending_coding' : 'pending_approval'
           })
           .select('id');
 
@@ -860,7 +868,7 @@ export default function AddBill() {
 
       toast({
         title: "Bill created",
-        description: formData.pending_coding 
+        description: shouldPendCoding
           ? "Bill sent to project manager for coding"
           : (billType === "non_commitment" 
             ? `Bill created with ${distributionItems.length} distribution line item(s)`

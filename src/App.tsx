@@ -110,6 +110,7 @@ import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
 import ConstructionDashboard from "./pages/ConstructionDashboard";
 import ConstructionReports from "./pages/ConstructionReports";
+import ProjectCostTransactionHistory from "./pages/reports/ProjectCostTransactionHistory";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
@@ -203,6 +204,7 @@ function AuthenticatedRoutes() {
                 <Route path="receipts/reports" element={<ReceiptReports />} />
                 <Route path="construction/dashboard" element={<ConstructionDashboard />} />
                 <Route path="construction/reports" element={<ConstructionReports />} />
+                <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="jobs/add" element={<AddJob />} />
                 <Route path="jobs/cost-codes" element={<CostCodes />} />
