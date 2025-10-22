@@ -239,25 +239,12 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Fetch change requests for this user in their current company
-      const { data: companyAccess } = await supabaseAdmin
-        .from('user_company_access')
-        .select('company_id')
-        .eq('user_id', userRow.user_id)
-        .eq('is_active', true)
-        .maybeSingle();
-      
-      const companyId = companyAccess?.company_id;
-      if (!companyId) {
-        return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...corsHeaders } });
-      }
+      // Company scope not required; return all requests across companies
 
       const { data, error } = await supabaseAdmin
         .from('time_card_change_requests')
         .select('*')
         .eq('user_id', userRow.user_id)
-        .eq('company_id', companyId)
-        .eq('status', 'pending')
         .order('requested_at', { ascending: false });
       
       if (error) return errorResponse(error.message, 500);
