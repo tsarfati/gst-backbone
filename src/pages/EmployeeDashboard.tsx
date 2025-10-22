@@ -98,6 +98,26 @@ export default function EmployeeDashboard() {
 
   useEffect(() => {
     loadData();
+    
+    // Subscribe to realtime updates for change requests
+    const channel = supabase
+      .channel('employee-change-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_card_change_requests'
+        },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const loadData = async () => {

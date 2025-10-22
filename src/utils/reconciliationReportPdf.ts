@@ -546,8 +546,8 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
     theme: 'plain',
     styles: { fontSize: 10, cellPadding: 3 },
     columnStyles: {
-      0: { cellWidth: 130 },
-      1: { halign: 'right', cellWidth: 50 }
+      0: { cellWidth: 140 },
+      1: { halign: 'right', cellWidth: 'auto' }
     },
     didParseCell: (cellData) => {
       if (cellData.row.index === 4) {
@@ -586,9 +586,9 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
       styles: { fontSize: 9, cellPadding: 2, lineColor: borderColor, lineWidth: 0.1 },
       headStyles: { fillColor: headerBgColor, textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 40 },
-        2: { halign: 'right', cellWidth: 40 }
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 30 },
+        2: { halign: 'right', cellWidth: 35 }
       },
       didParseCell: (cellData) => {
         const isTotal = cellData.row.index === cellData.table.body.length - 1;
@@ -636,9 +636,9 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
       styles: { fontSize: 9, cellPadding: 2, lineColor: borderColor, lineWidth: 0.1 },
       headStyles: { fillColor: headerBgColor, textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 40 },
-        2: { halign: 'right', cellWidth: 40 }
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 30 },
+        2: { halign: 'right', cellWidth: 35 }
       },
       didParseCell: (cellData) => {
         const isTotal = cellData.row.index === cellData.table.body.length - 1;
@@ -694,9 +694,9 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
       styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 40 },
-        2: { halign: 'right', cellWidth: 40 }
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 30 },
+        2: { halign: 'right', cellWidth: 35 }
       },
       didParseCell: (cellData) => {
         if (cellData.row.index === cellData.table.body.length - 1) {
@@ -741,9 +741,9 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
       styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: primaryColor, textColor: 255 },
       columnStyles: {
-        0: { cellWidth: 100 },
-        1: { cellWidth: 40 },
-        2: { halign: 'right', cellWidth: 40 }
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 30 },
+        2: { halign: 'right', cellWidth: 35 }
       },
       didParseCell: (cellData) => {
         if (cellData.row.index === cellData.table.body.length - 1) {
