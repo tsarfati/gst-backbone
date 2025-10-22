@@ -131,18 +131,8 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     xml = xml.replace(/(\{+)\s*(<[^>]+>)*\s*/g, '{{');
     xml = xml.replace(/\s*(<[^>]+>)*\s*(\}+)/g, '}}');
     
-    // Step 2: Aggressive pattern to rebuild broken tags
-    // Matches: "{" + (any text/xml) + "}" and extracts just alphanumeric/underscore
-    xml = xml.replace(/\{[^}]*?([a-zA-Z_][a-zA-Z0-9_\.]*)[^{]*?\}/g, (match, varName) => {
-      // Count opening/closing braces
-      const openCount = (match.match(/\{/g) || []).length;
-      const closeCount = (match.match(/\}/g) || []).length;
-      // If it looks like a template var, normalize it
-      if (openCount >= 1 && closeCount >= 1 && varName) {
-        return `{{${varName}}}`;
-      }
-      return match;
-    });
+    // Step 2: Aggressive pattern to rebuild broken tags -> convert to [[var]] delimiters
+    xml = xml.replace(/\{[^}]*?([a-zA-Z_][a-zA-Z0-9_\.]*)[^{]*?\}/g, (match, varName) => `[[${varName}]]`);
     
     // Step 3: Clean up any remaining XML fragments between braces
     xml = xml.replace(/\{\{(<[^>]+>)+/g, '{{');
@@ -178,6 +168,7 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
       paragraphLoop: true,
       linebreaks: true,
       nullGetter: () => "",
+      delimiters: { start: '[[', end: ']]' },
     });
   } catch (firstError: any) {
     console.error('Docxtemplater first parse failed:', firstError);
@@ -190,7 +181,7 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
           // Nuclear option: strip ALL formatting between { and }
           let ultraClean = content;
           
-          // Find all potential template tags and rebuild them cleanly
+          // Find all potential template tags and rebuild them cleanly as [[var]]
           const tagPattern = /\{[^{}]*?([a-zA-Z_][a-zA-Z0-9_\.]*)[^{}]*?\}/g;
           const matches = [...content.matchAll(tagPattern)];
           
@@ -198,9 +189,12 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
             const fullMatch = match[0];
             const varName = match[1];
             if (varName && fullMatch.length < 200) { // Sanity check
-              ultraClean = ultraClean.replace(fullMatch, `{{${varName}}}`);
+              ultraClean = ultraClean.replace(fullMatch, `[[${varName}]]`);
             }
           }
+          
+          // Also collapse any leftover triple braces to avoid parser confusion
+          ultraClean = ultraClean.replace(/\{\{\{+/g, '{{').replace(/\}\}\}+/g, '}}');
           
           zip.file(f, ultraClean);
         }
