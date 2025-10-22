@@ -515,6 +515,17 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     });
   };
 
+  // Compare by displayed value to avoid false positives from timezone/seconds differences
+  const formatDisplay = (dateString: string) => format(new Date(dateString), 'MMM dd, yyyy h:mm a');
+  const isSameDisplayedTime = (a?: string | null, b?: string | null) => {
+    if (!a || !b) return false;
+    try {
+      return formatDisplay(a) === formatDisplay(b);
+    } catch {
+      return false;
+    }
+  };
+
   const handleApproveChangeRequest = async () => {
     if (!pendingChangeRequest || !isManager) return;
 
@@ -978,24 +989,19 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <span className="text-sm text-muted-foreground">Punch In:</span>
                         <span className="text-sm font-medium">
                           {(() => {
-                            if (!pendingChangeRequest?.proposed_punch_in_time) {
-                              return format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a');
-                            }
-                            // Normalize timestamps for comparison
-                            const originalTime = new Date(timeCard.punch_in_time).getTime();
-                            const proposedTime = new Date(pendingChangeRequest.proposed_punch_in_time).getTime();
-                            const hasChange = Math.abs(originalTime - proposedTime) > 1000; // Allow 1 second difference
-                            
+                            const proposed = pendingChangeRequest?.proposed_punch_in_time as string | undefined;
+                            const original = timeCard.punch_in_time as string;
+                            const hasChange = proposed && !isSameDisplayedTime(original, proposed);
                             if (hasChange) {
                               return (
                                 <span>
-                                  <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="line-through text-red-600">{format(new Date(original), 'MMM dd, yyyy h:mm a')}</span>
                                   <span className="px-1">→</span>
-                                  <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
                                 </span>
                               );
                             }
-                            return format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a');
+                            return format(new Date(original), 'MMM dd, yyyy h:mm a');
                           })()}
                         </span>
                       </div>
@@ -1003,32 +1009,34 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <span className="text-sm text-muted-foreground">Punch Out:</span>
                         <span className="text-sm font-medium">
                           {(() => {
-                            if (!pendingChangeRequest?.proposed_punch_out_time) {
-                              return timeCard.punch_out_time 
-                                ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
+                            const proposed = pendingChangeRequest?.proposed_punch_out_time as string | undefined;
+                            const original = timeCard.punch_out_time as string | null;
+                            if (!proposed) {
+                              return original 
+                                ? format(new Date(original), 'MMM dd, yyyy h:mm a')
                                 : 'Still clocked in';
                             }
-                            // Normalize timestamps for comparison
-                            const originalTime = timeCard.punch_out_time ? new Date(timeCard.punch_out_time).getTime() : null;
-                            const proposedTime = new Date(pendingChangeRequest.proposed_punch_out_time).getTime();
-                            const hasChange = !originalTime || Math.abs(originalTime - proposedTime) > 1000; // Allow 1 second difference
-                            
-                            if (hasChange) {
+                            // If original missing and proposed present, show change
+                            if (!original) {
                               return (
                                 <span>
-                                  <span className="line-through text-red-600">
-                                    {timeCard.punch_out_time 
-                                      ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                                      : 'None'}
-                                  </span>
+                                  <span className="line-through text-red-600">None</span>
                                   <span className="px-1">→</span>
-                                  <span className="text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
                                 </span>
                               );
                             }
-                            return timeCard.punch_out_time 
-                              ? format(new Date(timeCard.punch_out_time), 'MMM dd, yyyy h:mm a')
-                              : 'Still clocked in';
+                            const hasChange = !isSameDisplayedTime(original, proposed);
+                            if (hasChange) {
+                              return (
+                                <span>
+                                  <span className="line-through text-red-600">{format(new Date(original), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="px-1">→</span>
+                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
+                                </span>
+                              );
+                            }
+                            return format(new Date(original), 'MMM dd, yyyy h:mm a');
                           })()}
                         </span>
                       </div>
