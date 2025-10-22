@@ -1990,6 +1990,13 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "job_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       job_punch_clock_settings: {
@@ -3117,6 +3124,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "job_photos"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "photo_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }

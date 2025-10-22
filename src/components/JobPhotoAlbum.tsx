@@ -125,11 +125,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .from('job_photos')
         .select(`
           *,
-          profiles!job_photos_uploaded_by_fkey (
-            first_name,
-            last_name,
-            avatar_url
-          )
+          profiles(first_name, last_name, avatar_url)
         `)
         .eq('job_id', jobId);
 
@@ -175,11 +171,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .from('photo_comments')
         .select(`
           *,
-          profiles!photo_comments_user_id_fkey (
-            first_name,
-            last_name,
-            avatar_url
-          )
+          profiles(first_name, last_name, avatar_url)
         `)
         .eq('photo_id', photoId)
         .order('created_at', { ascending: true });
