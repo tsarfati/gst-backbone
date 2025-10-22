@@ -4958,20 +4958,14 @@ export type Database = {
         Returns: undefined
       }
       auto_logout_visitors: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           job_id: string
           logged_out_count: number
         }[]
       }
-      generate_qr_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_visitor_qr_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_qr_code: { Args: never; Returns: string }
+      generate_visitor_qr_code: { Args: never; Returns: string }
       get_job_subcontractors: {
         Args: { p_job_id: string }
         Returns: {
@@ -4980,14 +4974,8 @@ export type Database = {
           vendor_name: string
         }[]
       }
-      get_mapbox_token: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      get_next_cash_account_number: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      get_mapbox_token: { Args: never; Returns: string }
+      get_next_cash_account_number: { Args: never; Returns: string }
       get_user_companies: {
         Args: { _user_id: string }
         Returns: {
