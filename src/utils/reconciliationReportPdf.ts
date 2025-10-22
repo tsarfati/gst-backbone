@@ -233,6 +233,20 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   });
 
+  let fallbackDone = false;
+  const downloadDocxFallback = () => {
+    if (fallbackDone) return;
+    fallbackDone = true;
+    const url = URL.createObjectURL(outputBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.left = '-10000px';
@@ -241,26 +255,31 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   container.style.background = 'white';
   document.body.appendChild(container);
 
-  await renderAsync(outputBlob, container, undefined, { inWrapper: false });
+  try {
+    await renderAsync(outputBlob, container, undefined, { inWrapper: false });
 
-  // Ensure jsPDF.html has html2canvas available
-  (window as any).html2canvas = html2canvas;
+    // Ensure jsPDF.html has html2canvas available
+    (window as any).html2canvas = html2canvas;
 
-  const pdf = new jsPDF('p', 'pt', 'letter');
-  await new Promise<void>((resolve) => {
-    (pdf as any).html(container, {
-      callback: () => {
-        pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
-        resolve();
-      },
-      x: 20,
-      y: 20,
-      width: 575,
-      windowWidth: 800,
+    const pdf = new jsPDF('p', 'pt', 'letter');
+    await new Promise<void>((resolve) => {
+      (pdf as any).html(container, {
+        callback: () => {
+          pdf.save(`Reconciliation_Report_${format(new Date(data.endingDate), 'yyyy-MM-dd')}.pdf`);
+          resolve();
+        },
+        x: 20,
+        y: 20,
+        width: 575,
+        windowWidth: 800,
+      });
     });
-  });
-
-  document.body.removeChild(container);
+  } catch (err) {
+    console.error('Template-to-PDF failed, falling back to DOCX download:', err);
+    downloadDocxFallback();
+  } finally {
+    document.body.removeChild(container);
+  }
 };
 
 // Default PDF generation (existing logic)

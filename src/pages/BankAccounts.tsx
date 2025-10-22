@@ -25,6 +25,8 @@ interface BankAccount {
   current_balance: number;
   is_active: boolean;
   created_at: string;
+  chart_account_id?: string;
+  gl_balance?: number;
 }
 
 export default function BankAccounts() {
@@ -64,8 +66,8 @@ export default function BankAccounts() {
           
           return {
             ...account,
-            current_balance: chartAccount?.current_balance ?? account.current_balance
-          };
+            gl_balance: chartAccount?.current_balance ?? account.current_balance,
+          } as BankAccount;
         }
         
         return account;
@@ -93,7 +95,7 @@ export default function BankAccounts() {
     return matchesSearch && matchesType;
   });
 
-  const totalBalance = accounts.reduce((sum, account) => sum + (account.current_balance || 0), 0);
+const totalBalance = accounts.reduce((sum, account) => sum + ((account.gl_balance ?? account.current_balance) || 0), 0);
   const checkingAccounts = accounts.filter(account => account.account_type === 'checking').length;
 
   const formatCurrency = (amount: number) => {
