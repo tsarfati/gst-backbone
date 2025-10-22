@@ -162,50 +162,41 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
             No bills need approval or coding
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {bills.map((bill) => (
               <div
                 key={bill.id}
-                className="p-3 rounded-lg border bg-accent/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
+                className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
                 onClick={() => handleBillClick(bill.id, bill.pending_coding)}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <FileText className="h-4 w-4 text-warning" />
-                      <h4 className="font-medium">
-                        {bill.invoice_number || 'No Invoice #'}
-                      </h4>
-                      {bill.pending_coding ? (
-                        <Badge variant="secondary" className="text-xs">
-                          Needs Coding
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">
-                          Needs Approval
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="ml-auto">
-                        ${bill.amount.toLocaleString()}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Vendor: {bill.vendor?.name || 'Unknown'}
-                    </p>
-                    {!jobId && bill.job && (
-                      <p className="text-sm text-muted-foreground">
-                        Job: {bill.job.name}
-                      </p>
-                    )}
-                    {bill.description && (
-                      <p className="text-sm mt-1 line-clamp-1">
-                        {bill.description}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Created {formatDistanceToNow(new Date(bill.created_at), { addSuffix: true })}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-medium min-w-[120px] truncate">
+                    {bill.invoice_number || 'No Invoice #'}
+                  </span>
+                  <span className="text-muted-foreground truncate flex-1">
+                    {bill.vendor?.name || 'Unknown'}
+                  </span>
+                  {!jobId && bill.job && (
+                    <span className="text-muted-foreground text-xs truncate max-w-[150px]">
+                      {bill.job.name}
+                    </span>
+                  )}
+                  <span className="font-medium text-foreground whitespace-nowrap">
+                    ${bill.amount.toLocaleString()}
+                  </span>
+                  {bill.pending_coding ? (
+                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                      Needs Coding
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                      Needs Approval
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-auto">
+                    {formatDistanceToNow(new Date(bill.created_at), { addSuffix: true })}
+                  </span>
                 </div>
               </div>
             ))}
