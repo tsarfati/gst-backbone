@@ -58,6 +58,7 @@ import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentDetails from "./pages/PaymentDetails";
 import PaymentReports from "./pages/PaymentReports";
+import GeneralLedger from "./pages/GeneralLedger";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
 import BankingChartOfAccounts from "./pages/BankingChartOfAccounts";
