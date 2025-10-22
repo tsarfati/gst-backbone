@@ -56,10 +56,17 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
     console.warn('Unable to load reconciliation template, using defaults');
   }
 
-// Always use PDF generation (templates are DOCX which had formatting issues)
-// If user wants custom PDF styling, modify generateDefaultReconciliationPdf instead
+  // If a Word/Excel template is uploaded, use it
+  if (templateData?.template_file_url && templateData?.template_file_type) {
+    try {
+      return await generateFromTemplate(data, templateData);
+    } catch (error) {
+      console.error('Error using uploaded template, falling back to default:', error);
+      // Fallback to default if template fails
+    }
+  }
 
-  // Default PDF generation (only when no template exists)
+  // Default PDF generation
   return await generateDefaultReconciliationPdf(data, templateData);
 };
 
