@@ -72,6 +72,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [pendingChangeRequest, setPendingChangeRequest] = useState<any>(null);
   const [approving, setApproving] = useState(false);
   const [denying, setDenying] = useState(false);
+  const [jobs, setJobs] = useState<Record<string, any>>({});
+  const [costCodes, setCostCodes] = useState<Record<string, any>>({});
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -261,6 +263,41 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       
       console.log('Pending change request:', changeRequestData);
       setPendingChangeRequest(changeRequestData || null);
+      
+      // Load job and cost code data for change request if it exists
+      if (changeRequestData) {
+        const jobIdsToLoad = [
+          timeCardData.job_id,
+          changeRequestData.proposed_job_id
+        ].filter(Boolean);
+        
+        const costCodeIdsToLoad = [
+          timeCardData.cost_code_id,
+          changeRequestData.proposed_cost_code_id
+        ].filter(Boolean);
+        
+        if (jobIdsToLoad.length > 0) {
+          const { data: jobsData } = await supabase
+            .from('jobs')
+            .select('id, name')
+            .in('id', jobIdsToLoad);
+          
+          const jobsMap: Record<string, any> = {};
+          (jobsData || []).forEach(j => { jobsMap[j.id] = j; });
+          setJobs(jobsMap);
+        }
+        
+        if (costCodeIdsToLoad.length > 0) {
+          const { data: costCodesData } = await supabase
+            .from('cost_codes')
+            .select('id, code, description')
+            .in('id', costCodeIdsToLoad);
+          
+          const costCodesMap: Record<string, any> = {};
+          (costCodesData || []).forEach(cc => { costCodesMap[cc.id] = cc; });
+          setCostCodes(costCodesMap);
+        }
+      }
       
       // Load distance warning settings if job exists
       if (timeCardData.job_id) {
@@ -707,46 +744,213 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         {pendingChangeRequest && (
           <Card className="border-warning bg-warning/5">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-warning">
-                  <AlertCircle className="h-5 w-5" />
-                  Pending Change Request
-                </CardTitle>
-                {isManager && (
-                  <Button 
-                    onClick={handleApproveChangeRequest}
-                    disabled={approving}
-                    className="gap-2 bg-warning hover:bg-warning/90 text-warning-foreground"
-                    size="sm"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    {approving ? 'Approving...' : 'Approve'}
-                  </Button>
-                )}
-              </div>
+              <CardTitle className="flex items-center gap-2 text-warning">
+                <AlertCircle className="h-5 w-5" />
+                Pending Change Request
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              {/* Reason for change */}
               <div className="bg-background rounded-md p-4 border-l-4 border-warning">
                 <p className="text-sm font-semibold text-muted-foreground mb-1">Reason for Change:</p>
                 <p className="text-base font-medium">{pendingChangeRequest.reason || 'No reason provided'}</p>
               </div>
               
-              {/* Show any change details that exist */}
-              <div className="bg-background rounded-md p-4 space-y-2">
-                <p className="text-sm font-semibold text-muted-foreground mb-2">Request Details:</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted-foreground">Requested At:</span>
-                    <span className="font-medium">
-                      {format(new Date(pendingChangeRequest.created_at), 'MMM dd, yyyy h:mm a')}
-                    </span>
+              {/* Detailed change comparison */}
+              <div className="bg-background rounded-md p-4 space-y-3">
+                <p className="text-sm font-semibold text-muted-foreground mb-2">Requested Changes:</p>
+                
+                {pendingChangeRequest.proposed_punch_in_time && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-muted-foreground">Punch In Time:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Current:</div>
+                        <div className="font-medium">{format(new Date(timeCard.punch_in_time), 'h:mm a')}</div>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Proposed:</div>
+                        <div className="font-medium">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-muted-foreground">Status:</span>
-                    <Badge variant="secondary">{pendingChangeRequest.status}</Badge>
+                )}
+                
+                {pendingChangeRequest.proposed_punch_out_time && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-muted-foreground">Punch Out Time:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Current:</div>
+                        <div className="font-medium">{format(new Date(timeCard.punch_out_time), 'h:mm a')}</div>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Proposed:</div>
+                        <div className="font-medium">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}</div>
+                      </div>
+                    </div>
                   </div>
+                )}
+                
+                {pendingChangeRequest.proposed_job_id && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-muted-foreground">Job:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Current:</div>
+                        <div className="font-medium">{jobs[timeCard.job_id]?.name || 'Unknown'}</div>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Proposed:</div>
+                        <div className="font-medium">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {pendingChangeRequest.proposed_cost_code_id && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-muted-foreground">Cost Code:</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Current:</div>
+                        <div className="font-medium">{timeCard.cost_code_id ? (costCodes[timeCard.cost_code_id]?.code || 'Unknown') : 'None'}</div>
+                      </div>
+                      <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Proposed:</div>
+                        <div className="font-medium">{costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="text-xs text-muted-foreground pt-2 border-t">
+                  Requested: {format(new Date(pendingChangeRequest.created_at), 'MMM dd, yyyy h:mm a')}
                 </div>
               </div>
+              
+              {/* Approval/Denial Buttons */}
+              {isManager && (
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={async () => {
+                      const comments = prompt('Optional approval comments:');
+                      
+                      // Build audit trail details
+                      const changes: string[] = [];
+                      if (pendingChangeRequest.proposed_punch_in_time) {
+                        changes.push(`Punch In: ${format(new Date(timeCard.punch_in_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}`);
+                      }
+                      if (pendingChangeRequest.proposed_punch_out_time) {
+                        changes.push(`Punch Out: ${format(new Date(timeCard.punch_out_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}`);
+                      }
+                      if (pendingChangeRequest.proposed_job_id) {
+                        changes.push(`Job: ${jobs[timeCard.job_id]?.name || 'Unknown'} → ${jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}`);
+                      }
+                      if (pendingChangeRequest.proposed_cost_code_id) {
+                        const oldCode = timeCard.cost_code_id ? costCodes[timeCard.cost_code_id]?.code : 'None';
+                        const newCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown';
+                        changes.push(`Cost Code: ${oldCode} → ${newCode}`);
+                      }
+                      
+                      const auditDetails = [`Change request approved`];
+                      if (changes.length > 0) {
+                        auditDetails.push('Changes: ' + changes.join('; '));
+                      }
+                      if (pendingChangeRequest.reason) {
+                        auditDetails.push('Reason: ' + pendingChangeRequest.reason);
+                      }
+                      if (comments) {
+                        auditDetails.push('Review notes: ' + comments);
+                      }
+                      
+                      try {
+                        setApproving(true);
+                        const { error } = await supabase.functions.invoke('punch-clock', {
+                          body: {
+                            action: 'review-change-request',
+                            request_id: pendingChangeRequest.id,
+                            status: 'approved',
+                            review_notes: auditDetails.join(' | ')
+                          }
+                        });
+                        if (error) throw error;
+                        toast({ title: 'Success', description: 'Change request approved' });
+                        onOpenChange(false);
+                      } catch (error: any) {
+                        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                      } finally {
+                        setApproving(false);
+                      }
+                    }}
+                    disabled={approving || denying}
+                    className="flex-1 gap-2"
+                    size="lg"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {approving ? 'Approving...' : 'Approve Change Request'}
+                  </Button>
+                  <Button 
+                    onClick={async () => {
+                      const comments = prompt('Reason for denial (optional):');
+                      
+                      // Build audit trail details
+                      const changes: string[] = [];
+                      if (pendingChangeRequest.proposed_punch_in_time) {
+                        changes.push(`Punch In: ${format(new Date(timeCard.punch_in_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}`);
+                      }
+                      if (pendingChangeRequest.proposed_punch_out_time) {
+                        changes.push(`Punch Out: ${format(new Date(timeCard.punch_out_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}`);
+                      }
+                      if (pendingChangeRequest.proposed_job_id) {
+                        changes.push(`Job: ${jobs[timeCard.job_id]?.name || 'Unknown'} → ${jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}`);
+                      }
+                      if (pendingChangeRequest.proposed_cost_code_id) {
+                        const oldCode = timeCard.cost_code_id ? costCodes[timeCard.cost_code_id]?.code : 'None';
+                        const newCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown';
+                        changes.push(`Cost Code: ${oldCode} → ${newCode}`);
+                      }
+                      
+                      const auditDetails = [`Change request rejected`];
+                      if (changes.length > 0) {
+                        auditDetails.push('Requested changes: ' + changes.join('; '));
+                      }
+                      if (pendingChangeRequest.reason) {
+                        auditDetails.push('Employee reason: ' + pendingChangeRequest.reason);
+                      }
+                      if (comments) {
+                        auditDetails.push('Rejection notes: ' + comments);
+                      }
+                      
+                      try {
+                        setDenying(true);
+                        const { error } = await supabase.functions.invoke('punch-clock', {
+                          body: {
+                            action: 'review-change-request',
+                            request_id: pendingChangeRequest.id,
+                            status: 'rejected',
+                            review_notes: auditDetails.join(' | ')
+                          }
+                        });
+                        if (error) throw error;
+                        toast({ title: 'Success', description: 'Change request denied' });
+                        onOpenChange(false);
+                      } catch (error: any) {
+                        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                      } finally {
+                        setDenying(false);
+                      }
+                    }}
+                    disabled={approving || denying}
+                    variant="destructive"
+                    className="flex-1 gap-2"
+                    size="lg"
+                  >
+                    <X className="h-4 w-4" />
+                    {denying ? 'Denying...' : 'Deny Change Request'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
