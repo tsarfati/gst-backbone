@@ -53,6 +53,10 @@ export default function SubcontractEdit() {
   const [deleting, setDeleting] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [hasPaidBills, setHasPaidBills] = useState(false);
+  const [contractFiles, setContractFiles] = useState<File[]>([]);
+  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -105,6 +109,9 @@ export default function SubcontractEdit() {
           apply_retainage: subcontractData.apply_retainage || false,
           retainage_percentage: subcontractData.retainage_percentage?.toString() || ""
         });
+
+        // Set existing file URL if available
+        setExistingFileUrl(subcontractData.contract_file_url);
 
         // Set cost distribution data
         if (subcontractData.cost_distribution) {
@@ -162,6 +169,142 @@ export default function SubcontractEdit() {
     }));
   };
 
+  const handleFileUpload = (files: File[]) => {
+    const validFiles: File[] = [];
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'image/webp'];
+    
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name}: Please upload PDF, Word document, or image files only`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: `${file.name}: Please upload files smaller than 10MB`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setContractFiles(validFiles);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileUpload(files);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(Array.from(files));
+    }
+  };
+
+  const removeNewFile = () => {
+    setContractFiles([]);
+  };
+
+  const removeExistingFile = async () => {
+    if (!existingFileUrl) return;
+
+    try {
+      // Extract file path from URL
+      const urlParts = existingFileUrl.split('/subcontract-files/');
+      if (urlParts.length === 2) {
+        const filePath = urlParts[1];
+        
+        await supabase.storage
+          .from('subcontract-files')
+          .remove([filePath]);
+      }
+
+      setExistingFileUrl(null);
+      
+      // Update database to remove file URL
+      await supabase
+        .from('subcontracts')
+        .update({ contract_file_url: null })
+        .eq('id', id);
+
+      toast({
+        title: "Success",
+        description: "Contract file removed",
+      });
+    } catch (error) {
+      console.error('Error removing file:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove contract file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const uploadFilesToStorage = async (): Promise<string | null> => {
+    if (contractFiles.length === 0) return null;
+
+    const companyId = currentCompany?.id || profile?.current_company_id;
+    if (!companyId) return null;
+
+    setUploadingFiles(true);
+
+    try {
+      const file = contractFiles[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${companyId}/${fileName}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('subcontract-files')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('subcontract-files')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload contract file",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -184,6 +327,24 @@ export default function SubcontractEdit() {
         }
       }
 
+      // Upload new file if one was selected
+      let fileUrl = existingFileUrl;
+      if (contractFiles.length > 0) {
+        const uploadedUrl = await uploadFilesToStorage();
+        if (uploadedUrl) {
+          fileUrl = uploadedUrl;
+          // Delete old file if it exists
+          if (existingFileUrl) {
+            const urlParts = existingFileUrl.split('/subcontract-files/');
+            if (urlParts.length === 2) {
+              await supabase.storage
+                .from('subcontract-files')
+                .remove([urlParts[1]]);
+            }
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('subcontracts')
         .update({
@@ -198,7 +359,8 @@ export default function SubcontractEdit() {
           apply_retainage: formData.apply_retainage,
           retainage_percentage: formData.apply_retainage ? parseFloat(formData.retainage_percentage) : null,
           cost_distribution: costDistribution.length > 0 ? JSON.stringify(costDistribution) : null,
-          total_distributed_amount: totalDistributedAmount
+          total_distributed_amount: totalDistributedAmount,
+          contract_file_url: fileUrl
         })
         .eq('id', id);
 
@@ -448,6 +610,94 @@ export default function SubcontractEdit() {
                     onChange={setCostDistribution}
                     disabled={isSubmitting || formData.status !== "planning"}
                   />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Contract File Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Contract File</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Existing file display */}
+              {existingFileUrl && (
+                <div className="p-4 border rounded-lg bg-muted/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Current contract file</span>
+                      <a 
+                        href={existingFileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-sm"
+                      >
+                        View file
+                      </a>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeExistingFile}
+                      disabled={isSubmitting}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* File upload area */}
+              <div
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                  isDragOver ? 'border-primary bg-primary/5' : 'border-border'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <input
+                  type="file"
+                  id="contract-file-upload"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                  disabled={isSubmitting}
+                />
+                <label
+                  htmlFor="contract-file-upload"
+                  className="cursor-pointer"
+                >
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Drag and drop contract file here, or click to browse
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Supported formats: PDF, Word, JPG, PNG (Max 10MB)
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* New file preview */}
+              {contractFiles.length > 0 && (
+                <div className="space-y-2">
+                  {contractFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                      <span className="text-sm font-medium truncate">{file.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeNewFile}
+                        disabled={isSubmitting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
