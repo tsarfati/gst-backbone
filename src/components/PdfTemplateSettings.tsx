@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon, Move } from 'lucide-react';
+import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon, Move, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
@@ -183,7 +183,7 @@ export default function PdfTemplateSettings() {
   const [loading, setLoading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
-  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation'>('timecard');
+  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation' | 'general_ledger'>('timecard');
   const [reconciliationTemplate, setReconciliationTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'reconciliation',
@@ -247,6 +247,21 @@ export default function PdfTemplateSettings() {
   const [receiptTemplate, setReceiptTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'receipt',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: []
+  });
+  const [generalLedgerTemplate, setGeneralLedgerTemplate] = useState<TemplateSettings>({
+    company_id: currentCompany?.id || '',
+    template_type: 'general_ledger',
     font_family: 'helvetica',
     header_html: TEMPLATE_PRESETS.professional.header_html,
     footer_html: TEMPLATE_PRESETS.professional.footer_html,
@@ -593,6 +608,8 @@ export default function PdfTemplateSettings() {
           setInvoiceTemplate(templateData);
         } else if (templateType === 'receipt') {
           setReceiptTemplate(templateData);
+        } else if (templateType === 'general_ledger') {
+          setGeneralLedgerTemplate(templateData);
         }
       } else {
         // If no saved template, try to add company logo as default
@@ -905,13 +922,14 @@ export default function PdfTemplateSettings() {
           </Alert>
 
           <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="timecard">Timecard Reports</TabsTrigger>
               <TabsTrigger value="commitment">Commitment Status</TabsTrigger>
               <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
               <TabsTrigger value="receipt">Receipt Reports</TabsTrigger>
               <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
-              <TabsTrigger value="reconciliation">Reconciliation Report</TabsTrigger>
+              <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+              <TabsTrigger value="general_ledger">General Ledger</TabsTrigger>
             </TabsList>
 
             <TabsContent value="subcontract" className="space-y-6">
@@ -1265,6 +1283,127 @@ export default function PdfTemplateSettings() {
                       <div 
                         className="mt-4" 
                         dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html) }}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="general_ledger" className="space-y-6">
+              <TemplateFileUploader
+                templateType="general_ledger"
+                displayName="General Ledger Report"
+                availableVariables={[
+                  'company_name',
+                  'period',
+                  'start_date',
+                  'end_date',
+                  'date',
+                  'page',
+                  'pages',
+                  'generated_date',
+                  'report_data'
+                ]}
+                currentTemplate={{
+                  file_url: generalLedgerTemplate.template_file_url,
+                  file_name: generalLedgerTemplate.template_file_name,
+                  file_type: generalLedgerTemplate.template_file_type,
+                }}
+                onTemplateUpdate={() => loadTemplate('general_ledger')}
+              />
+
+              <Alert className="mb-6">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
+                </AlertDescription>
+              </Alert>
+
+              {/* Template Presets */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Layout className="h-4 w-4" />
+                    Choose a Template Preset
+                  </CardTitle>
+                  <CardDescription>Start with a professionally designed template for general ledger reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Select 
+                    value={selectedPreset} 
+                    onValueChange={(presetKey) => {
+                      const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
+                      if (preset) {
+                        setGeneralLedgerTemplate(prev => ({
+                          ...prev,
+                          header_html: preset.header_html,
+                          footer_html: preset.footer_html,
+                          primary_color: preset.primary_color,
+                          table_header_bg: preset.table_header_bg,
+                        }));
+                        setSelectedPreset(presetKey);
+                        toast({
+                          title: "Template applied",
+                          description: `${preset.name} template has been applied.`,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a preset template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                        <SelectItem key={key} value={key}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+
+              {/* Save Button */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => saveTemplate(generalLedgerTemplate)}
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save General Ledger Template
+                </Button>
+              </div>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Template Preview
+                  </CardTitle>
+                  <CardDescription>Preview how your general ledger report will look</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg p-6 bg-white" style={{ fontFamily: generalLedgerTemplate.font_family }}>
+                    {generalLedgerTemplate.header_html && (
+                      <div 
+                        className="mb-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.header_html) }}
+                      />
+                    )}
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold" style={{ color: generalLedgerTemplate.primary_color }}>
+                        General Ledger Report Sample
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Period: January 1, 2025 - December 31, 2025
+                      </p>
+                    </div>
+                    {generalLedgerTemplate.footer_html && (
+                      <div 
+                        className="mt-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.footer_html) }}
                       />
                     )}
                   </div>
