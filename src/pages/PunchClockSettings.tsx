@@ -89,6 +89,7 @@ interface PunchClockSettings {
   late_grace_period_minutes: number;
   flag_timecards_over_12hrs?: boolean;
   flag_timecards_over_24hrs?: boolean;
+  disable_auto_approve_over_hours?: number | null;
 }
 
 const defaultSettings: PunchClockSettings = {
@@ -129,6 +130,7 @@ const defaultSettings: PunchClockSettings = {
   late_grace_period_minutes: 5,
   flag_timecards_over_12hrs: true,
   flag_timecards_over_24hrs: true,
+  disable_auto_approve_over_hours: null,
 };
 
 export default function PunchClockSettings() {
@@ -216,6 +218,7 @@ export default function PunchClockSettings() {
           calculate_overtime: data.calculate_overtime !== false,
           flag_timecards_over_12hrs: (data as any).flag_timecards_over_12hrs ?? true,
           flag_timecards_over_24hrs: (data as any).flag_timecards_over_24hrs ?? true,
+          disable_auto_approve_over_hours: (data as any).disable_auto_approve_over_hours ?? null,
           enable_distance_warnings: true, // Default value since not in DB
           max_distance_from_job_meters: 200, // Default value since not in DB
           pwa_icon_192_url: data.pwa_icon_192_url ? `${data.pwa_icon_192_url}?t=${Date.now()}` : '',
@@ -271,6 +274,7 @@ export default function PunchClockSettings() {
           calculate_overtime: settings.calculate_overtime,
           flag_timecards_over_12hrs: settings.flag_timecards_over_12hrs,
           flag_timecards_over_24hrs: settings.flag_timecards_over_24hrs,
+          disable_auto_approve_over_hours: settings.disable_auto_approve_over_hours,
           pwa_icon_192_url: settings.pwa_icon_192_url,
           pwa_icon_512_url: settings.pwa_icon_512_url,
           enable_install_prompt: settings.enable_install_prompt,
@@ -512,6 +516,52 @@ export default function PunchClockSettings() {
                     />
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Approval Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Time Card Approval Rules
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Require Manager Approval</Label>
+                  <p className="text-sm text-muted-foreground">
+                    All time cards must be approved by a manager
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.manager_approval_required}
+                  onCheckedChange={(checked) => updateSetting('manager_approval_required', checked)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="auto-approve-threshold">Don't Auto-Approve Over (hours)</Label>
+                <Input
+                  id="auto-approve-threshold"
+                  type="number"
+                  placeholder="Leave empty to always auto-approve"
+                  value={settings.disable_auto_approve_over_hours ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateSetting('disable_auto_approve_over_hours', val === '' ? null : parseFloat(val));
+                  }}
+                  min="8"
+                  max="24"
+                  step="0.5"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Time cards exceeding this duration will require manual approval (leave empty to disable this check)
+                </p>
               </div>
             </CardContent>
           </Card>

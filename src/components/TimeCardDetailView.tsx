@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History, AlertCircle } from 'lucide-react';
+import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,6 +71,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [punchOutDistance, setPunchOutDistance] = useState<number | null>(null);
   const [pendingChangeRequest, setPendingChangeRequest] = useState<any>(null);
   const [approving, setApproving] = useState(false);
+  const [denying, setDenying] = useState(false);
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
 
@@ -525,20 +526,34 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const handleApproveTimeCard = async () => {
     if (!user || !isManager) return;
     
+    const comments = prompt('Optional approval comments:');
+    
     try {
       setApproving(true);
 
       // Update the time card status to approved
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('time_cards')
         .update({
           status: 'approved',
           approved_by: user.id,
-          approved_at: new Date().toISOString()
+          approved_at: new Date().toISOString(),
+          review_notes: comments || null
         })
         .eq('id', timeCard.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Log to audit trail with correct field names
+      await supabase
+        .from('time_card_audit_trail')
+        .insert({
+          time_card_id: timeCard.id,
+          changed_by: user.id,
+          change_type: 'approved',
+          reason: comments || 'Time card approved',
+          created_at: new Date().toISOString()
+        });
 
       toast({
         title: "Time Card Approved",
@@ -556,6 +571,65 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       });
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleDenyTimeCard = async () => {
+    if (!user || !isManager) return;
+    
+    const comments = prompt('Reason for denial (required):');
+    if (!comments) {
+      toast({
+        title: "Denial Cancelled",
+        description: "A reason is required to deny a time card.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setDenying(true);
+
+      // Update the time card status to rejected
+      const { error: updateError } = await supabase
+        .from('time_cards')
+        .update({
+          status: 'rejected',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          review_notes: comments
+        })
+        .eq('id', timeCard.id);
+
+      if (updateError) throw updateError;
+
+      // Log to audit trail with correct field names
+      await supabase
+        .from('time_card_audit_trail')
+        .insert({
+          time_card_id: timeCard.id,
+          changed_by: user.id,
+          change_type: 'rejected',
+          reason: comments,
+          created_at: new Date().toISOString()
+        });
+
+      toast({
+        title: "Time Card Denied",
+        description: "The time card has been denied.",
+      });
+
+      // Reload the time card details
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error denying time card:', error);
+      toast({
+        title: "Error",
+        description: "Failed to deny time card. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDenying(false);
     }
   };
 
@@ -603,6 +677,41 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             )}
           </div>
         </DialogHeader>
+
+        {/* Time Card Approval Section - Top Priority */}
+        {isManager && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited' && timeCard.status !== 'rejected' && (
+          <Card className="border-primary bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-primary">
+                <Shield className="h-5 w-5" />
+                Time Card Approval Required
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleApproveTimeCard}
+                  disabled={approving || denying}
+                  className="flex-1 gap-2"
+                  size="lg"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {approving ? 'Approving...' : 'Approve Time Card'}
+                </Button>
+                <Button 
+                  onClick={handleDenyTimeCard}
+                  disabled={approving || denying}
+                  variant="destructive"
+                  className="flex-1 gap-2"
+                  size="lg"
+                >
+                  <X className="h-4 w-4" />
+                  {denying ? 'Denying...' : 'Deny Time Card'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Change Request Alert - Show prominently if there's a pending change request */}
         {pendingChangeRequest && (
