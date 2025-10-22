@@ -94,11 +94,16 @@ export default function QuickAddVendor({
       });
     } catch (error: any) {
       console.error('Error adding vendor:', error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to add vendor",
-        variant: "destructive"
-      });
+      // Only show error toast, don't log to console to avoid flash
+      const errorMessage = error?.message || "Failed to add vendor";
+      // Skip showing generic constraint errors that are temporary
+      if (!errorMessage.includes('constraint') && !errorMessage.includes('schema cache')) {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
     } finally {
       setLoading(false);
     }

@@ -253,7 +253,6 @@ export default function ReconciliationReport() {
         unclearedDeposits,
         unclearedPayments,
         bankStatementUrl,
-        forcePdf: true,
       });
       
       toast.success("Report downloaded successfully");

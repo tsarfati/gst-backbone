@@ -56,12 +56,8 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
     console.warn('Unable to load reconciliation template, using defaults');
   }
 
-// Check if there's a template file uploaded
-if (templateData?.template_file_url && !data.forcePdf) {
-  // Always use the uploaded template when available (no fallback)
-  await generateFromTemplate(data, templateData);
-  return;
-}
+// Always use PDF generation (templates are DOCX which had formatting issues)
+// If user wants custom PDF styling, modify generateDefaultReconciliationPdf instead
 
   // Default PDF generation (only when no template exists)
   return await generateDefaultReconciliationPdf(data, templateData);
