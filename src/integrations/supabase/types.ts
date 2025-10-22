@@ -5005,6 +5005,10 @@ export type Database = {
         Args: { _company: string; _user: string }
         Returns: boolean
       }
+      recalculate_account_balance: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
       set_role_permission: {
         Args: {
           p_can_access: boolean
