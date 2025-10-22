@@ -77,6 +77,11 @@ export default function BankAccountDetails() {
   const [statementYear, setStatementYear] = useState(new Date().getFullYear());
   const [previewDocument, setPreviewDocument] = useState<{ fileName: string; url: string; type: string } | null>(null);
 
+  // Account edit state
+  const [accountEditOpen, setAccountEditOpen] = useState(false);
+  const [editAccountName, setEditAccountName] = useState("");
+  const [editBankName, setEditBankName] = useState("");
+
   useEffect(() => {
     loadBankAccount();
     loadStatements();
@@ -253,6 +258,33 @@ export default function BankAccountDetails() {
     }
   };
 
+  // Save account name and bank name
+  const handleSaveAccount = async () => {
+    if (!account || !currentCompany) return;
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('bank_accounts')
+        .update({
+          account_name: editAccountName.trim(),
+          bank_name: editBankName.trim(),
+        })
+        .eq('id', account.id)
+        .eq('company_id', currentCompany.id);
+
+      if (error) throw error;
+
+      setAccount(prev => prev ? ({ ...prev, account_name: editAccountName.trim(), bank_name: editBankName.trim() }) : prev);
+      toast({ title: 'Saved', description: 'Account details updated successfully.' });
+      setAccountEditOpen(false);
+    } catch (e) {
+      console.error('Error updating account:', e);
+      toast({ title: 'Error', description: 'Failed to update account details', variant: 'destructive' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -306,7 +338,11 @@ export default function BankAccountDetails() {
               <FileText className="h-4 w-4 mr-2" />
               Reconcile
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => {
+              setEditAccountName(account.account_name || "");
+              setEditBankName(account.bank_name || "");
+              setAccountEditOpen(true);
+            }}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
@@ -320,6 +356,13 @@ export default function BankAccountDetails() {
             <CardTitle>Account Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Current Balance moved here */}
+            <div>
+              <p className="text-sm text-muted-foreground">Current Balance (General Ledger)</p>
+              <div className="text-3xl font-bold">{formatCurrency(account.gl_balance ?? account.current_balance)}</div>
+              <p className="text-sm text-muted-foreground mt-1">As of {new Date().toLocaleDateString()}</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Account Name</p>
