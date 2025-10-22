@@ -125,24 +125,37 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   // Normalize split template tags (Word often splits {{tag}} across runs)
   const normalizeXml = (xml: string) => {
     if (!xml) return xml;
-    // 1) Join run boundaries inside mustache tags
-    xml = xml.replace(/\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\{/g, '{{');
-    xml = xml.replace(/\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}/g, '}}');
-
-    // 2) Remove run boundaries between braces and variable names
-    xml = xml.replace(/\{\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '{{');
-    xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}\}/g, '}}');
-
-    // 3) Aggressively repair broken tags like "{ { { comp any _ name } } }"
-    xml = xml.replace(/\{+\s*(?:<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*)*([a-zA-Z0-9_\.]+)(?:<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*)*\}+?/g, '{{$1}}');
-
-    // 4) Collapse duplicated braces (triple braces -> double)
-    xml = xml.replace(/\{\{\s*\{\{/g, '{{').replace(/\}\}\s*\}\}/g, '}}');
-
-    // 5) Final pass for any remaining run boundaries strictly inside tags
-    xml = xml.replace(/\}\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '}}');
-    xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\{\{/g, '{{');
-
+    
+    // Step 1: Remove all XML tags between braces and variable names to collapse fragments
+    // This handles cases like {{ <w:r>comp</w:r><w:r>any_</w:r><w:r>name</w:r> }}
+    xml = xml.replace(/(\{+)\s*(<[^>]+>)*\s*/g, '{{');
+    xml = xml.replace(/\s*(<[^>]+>)*\s*(\}+)/g, '}}');
+    
+    // Step 2: Aggressive pattern to rebuild broken tags
+    // Matches: "{" + (any text/xml) + "}" and extracts just alphanumeric/underscore
+    xml = xml.replace(/\{[^}]*?([a-zA-Z_][a-zA-Z0-9_\.]*)[^{]*?\}/g, (match, varName) => {
+      // Count opening/closing braces
+      const openCount = (match.match(/\{/g) || []).length;
+      const closeCount = (match.match(/\}/g) || []).length;
+      // If it looks like a template var, normalize it
+      if (openCount >= 1 && closeCount >= 1 && varName) {
+        return `{{${varName}}}`;
+      }
+      return match;
+    });
+    
+    // Step 3: Clean up any remaining XML fragments between braces
+    xml = xml.replace(/\{\{(<[^>]+>)+/g, '{{');
+    xml = xml.replace(/(<[^>]+>)+\}\}/g, '}}');
+    
+    // Step 4: Collapse multiple braces
+    xml = xml.replace(/\{\{+/g, '{{');
+    xml = xml.replace(/\}\}+/g, '}}');
+    
+    // Step 5: Remove whitespace inside tags
+    xml = xml.replace(/\{\{\s+/g, '{{');
+    xml = xml.replace(/\s+\}\}/g, '}}');
+    
     return xml;
   };
 
@@ -151,7 +164,8 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
     try {
       const content = zip.file(f)?.asText();
       if (content) {
-        zip.file(f, normalizeXml(content));
+        const normalized = normalizeXml(content);
+        zip.file(f, normalized);
       }
     } catch (e) {
       console.warn('Skipped XML normalization for', f, e);
@@ -165,25 +179,34 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
       linebreaks: true,
       nullGetter: () => "",
     });
-  } catch (e) {
-    console.warn('Docxtemplater compile failed on first pass, retrying with aggressive normalization', e);
-    // Aggressive repair: remove stray spaces and duplicate braces inside tags
-    const xmlFiles2 = Object.keys(zip.files).filter((k) => k.startsWith('word/') && k.endsWith('.xml'));
-    for (const f of xmlFiles2) {
+  } catch (firstError: any) {
+    console.error('Docxtemplater first parse failed:', firstError);
+    
+    // Second pass: ultra-aggressive cleanup
+    for (const f of xmlFiles) {
       try {
         const content = zip.file(f)?.asText();
         if (content) {
-          let fixed = content
-            .replace(/\{\s+\{/g, '{{')
-            .replace(/\}\s+\}/g, '}}')
-            .replace(/\{\{\s+/g, '{{')
-            .replace(/\s+\}\}/g, '}}')
-            .replace(/\{\{\{*/g, '{{')
-            .replace(/\}\}\}*/g, '}}');
-          zip.file(f, fixed);
+          // Nuclear option: strip ALL formatting between { and }
+          let ultraClean = content;
+          
+          // Find all potential template tags and rebuild them cleanly
+          const tagPattern = /\{[^{}]*?([a-zA-Z_][a-zA-Z0-9_\.]*)[^{}]*?\}/g;
+          const matches = [...content.matchAll(tagPattern)];
+          
+          for (const match of matches) {
+            const fullMatch = match[0];
+            const varName = match[1];
+            if (varName && fullMatch.length < 200) { // Sanity check
+              ultraClean = ultraClean.replace(fullMatch, `{{${varName}}}`);
+            }
+          }
+          
+          zip.file(f, ultraClean);
         }
       } catch {}
     }
+    
     doc = new Docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
