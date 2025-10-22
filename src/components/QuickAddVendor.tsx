@@ -67,8 +67,8 @@ export default function QuickAddVendor({
           vendor_type: formData.vendor_type || null,
           address: formData.address || null,
           company_id: currentCompany.id,
-          created_by: user.id,
-          require_invoice_number: true
+          is_active: true,
+          require_invoice_number: true,
         })
         .select('id')
         .single();
