@@ -524,11 +524,24 @@ export default function EmployeeDashboard() {
         }
       } else {
         // Direct database insert for regular users
+        // For regular Supabase authenticated users, use auth.uid() directly from session
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (!authUser) {
+          throw new Error('Not authenticated');
+        }
+
+        console.log('Submitting change request:', {
+          time_card_id: selectedTimeCard.id,
+          user_id: authUser.id,
+          company_id: profile?.current_company_id
+        });
+
         const { error } = await supabase
           .from('time_card_change_requests')
           .insert({
             time_card_id: selectedTimeCard.id,
-            user_id: userId,
+            user_id: authUser.id, // Use auth.uid() directly
             company_id: profile?.current_company_id,
             reason: changeReason,
             status: 'pending',
@@ -539,7 +552,10 @@ export default function EmployeeDashboard() {
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Change request insert error:', error);
+          throw error;
+        }
       }
 
       toast({
@@ -557,11 +573,11 @@ export default function EmployeeDashboard() {
         proposed_cost_code_id: ''
       });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting change request:', error);
       toast({
         title: 'Error',
-        description: 'Failed to submit change request',
+        description: error.message || 'Failed to submit change request. Please try again.',
         variant: 'destructive'
       });
     }
