@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   History, 
   Plus, 
@@ -27,6 +28,7 @@ interface AuditEntry {
   user_profile?: {
     first_name: string;
     last_name: string;
+    avatar_url: string | null;
   };
 }
 
@@ -73,7 +75,7 @@ export default function BillAuditTrail({ billId }: BillAuditTrailProps) {
       // Fetch user profiles separately
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('user_id, first_name, last_name')
+        .select('user_id, first_name, last_name, avatar_url')
         .in('user_id', userIds);
 
       if (profileError) {
@@ -266,12 +268,25 @@ export default function BillAuditTrail({ billId }: BillAuditTrailProps) {
                           {format(new Date(entry.created_at), 'MMM dd, yyyy HH:mm')}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <User className="h-3 w-3" />
-                        {entry.user_profile 
-                          ? `${entry.user_profile.first_name} ${entry.user_profile.last_name}`
-                          : 'System'
-                        }
+                      <div className="flex items-center gap-2">
+                        {entry.user_profile ? (
+                          <>
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={entry.user_profile.avatar_url || undefined} />
+                              <AvatarFallback className="text-xs">
+                                {entry.user_profile.first_name[0]}{entry.user_profile.last_name[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-xs text-muted-foreground">
+                              {entry.user_profile.first_name} {entry.user_profile.last_name}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">System</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     

@@ -669,12 +669,6 @@ export default function BillDetails() {
         />
       )}
 
-      {/* Internal Notes */}
-      <BillInternalNotes 
-        billId={bill?.id || ''}
-        existingNotes={bill?.internal_notes}
-      />
-
       {/* File Preview Section */}
       <Card className="mb-6">
         <CardHeader>

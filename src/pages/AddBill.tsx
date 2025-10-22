@@ -1231,30 +1231,28 @@ export default function AddBill() {
                                   <CommandInput placeholder="Search cost codes..." />
                                   <CommandEmpty>No cost code found.</CommandEmpty>
                                   <CommandList>
-                                    <CommandGroup>
-                                      {(lineItemCostCodes[item.id] || []).map((code) => (
-                                        <CommandItem
-                                          key={code.id}
-                                          value={`${code.code} ${code.description}`}
-                                          onSelect={() => {
-                                            updateDistributionItem(item.id, 'cost_code_id', code.id);
-                                            setCostCodeOpen(prev => ({ ...prev, [item.id]: false }));
-                                          }}
-                                        >
-                                          <Check
-                                            className={`mr-2 h-4 w-4 ${
-                                              item.cost_code_id === code.id ? "opacity-100" : "opacity-0"
-                                            }`}
-                                          />
-                                          <div className="flex items-center gap-2 flex-1">
-                                            <span>{code.code} - {code.description}</span>
-                                            <Badge variant={getCostCodeTypeBadgeVariant(code.type)}>
-                                              {getCostCodeTypeLabel(code.type)}
-                                            </Badge>
-                                          </div>
-                                        </CommandItem>
-                                      ))}
-                                    </CommandGroup>
+                                    {(lineItemCostCodes[item.id] || []).map((code) => (
+                                      <CommandItem
+                                        key={code.id}
+                                        value={`${code.code} ${code.description}`}
+                                        onSelect={() => {
+                                          updateDistributionItem(item.id, 'cost_code_id', code.id);
+                                          setCostCodeOpen(prev => ({ ...prev, [item.id]: false }));
+                                        }}
+                                      >
+                                        <Check
+                                          className={`mr-2 h-4 w-4 ${
+                                            item.cost_code_id === code.id ? "opacity-100" : "opacity-0"
+                                          }`}
+                                        />
+                                        <div className="flex items-center gap-2 flex-1">
+                                          <span>{code.code} - {code.description}</span>
+                                          <Badge variant={getCostCodeTypeBadgeVariant(code.type)}>
+                                            {getCostCodeTypeLabel(code.type)}
+                                          </Badge>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
                                   </CommandList>
                                 </Command>
                               </PopoverContent>
