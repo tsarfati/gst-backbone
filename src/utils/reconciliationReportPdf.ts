@@ -121,6 +121,36 @@ const generateFromTemplate = async (data: ReconciliationReportData, templateData
   const arrayBuffer = await response.arrayBuffer();
   
   const zip = new PizZip(arrayBuffer);
+
+  // Normalize split template tags (Word often splits {{tag}} across runs)
+  const normalizeXml = (xml: string) => {
+    if (!xml) return xml;
+    // Join run boundaries inside mustache tags
+    xml = xml.replace(/\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\{/g, '{{');
+    xml = xml.replace(/\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}/g, '}}');
+    // Remove run boundaries occurring between braces and variable names
+    xml = xml.replace(/\{\{\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '{{');
+    xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*\}\}/g, '}}');
+    // Collapse duplicated braces
+    xml = xml.replace(/\{\{\s*\{\{/g, '{{').replace(/\}\}\s*\}\}/g, '}}');
+    // Remove any remaining run boundaries strictly inside tags
+    xml = xml.replace(/\}\}\s*<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>/g, '}}');
+    xml = xml.replace(/<\/w:t>\s*<w:r[^>]*>\s*<w:t[^>]*>\{\{/g, '{{');
+    return xml;
+  };
+
+  const xmlFiles = Object.keys(zip.files).filter((k) => k.startsWith('word/') && k.endsWith('.xml'));
+  for (const f of xmlFiles) {
+    try {
+      const content = zip.file(f)?.asText();
+      if (content) {
+        zip.file(f, normalizeXml(content));
+      }
+    } catch (e) {
+      console.warn('Skipped XML normalization for', f, e);
+    }
+  }
+
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
