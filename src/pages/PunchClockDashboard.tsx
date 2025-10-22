@@ -76,6 +76,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const [timeCardModalOpen, setTimeCardModalOpen] = useState(false);
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
   const [pendingChangeRequests, setPendingChangeRequests] = useState<any[]>([]);
+  const [pendingTimeCards, setPendingTimeCards] = useState<any[]>([]);
   // Punch-out cost code requirements
   const [costCodeTiming, setCostCodeTiming] = useState<'punch_in' | 'punch_out'>('punch_in');
   const [adminSelectedCostCode, setAdminSelectedCostCode] = useState<string | null>(null);
@@ -461,6 +462,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const loadPendingChangeRequests = async () => {
     if (!currentCompany?.id) return;
     
+    // Load change requests
     const { data } = await supabase
         .from('time_card_change_requests')
         .select(`
@@ -502,16 +504,35 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         }, new Map<string, any>());
       setPendingChangeRequests(Array.from(deduped.values()));
       
-      // Load profiles, jobs, and cost codes for the change requests
-      if (data && data.length > 0) {
-        const userIds = Array.from(new Set(data.map(cr => cr.user_id)));
+      // Load regular time cards that need approval (no change request)
+      const { data: timeCardsData } = await supabase
+        .from('time_cards')
+        .select('id, user_id, job_id, cost_code_id, punch_in_time, punch_out_time, total_hours, status, created_at')
+        .eq('company_id', currentCompany.id)
+        .in('status', ['submitted', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      // Filter out time cards that have pending change requests
+      const changeRequestTimeCardIds = new Set(Array.from(deduped.values()).map(cr => cr.time_card_id));
+      const pendingCards = (timeCardsData || []).filter(tc => !changeRequestTimeCardIds.has(tc.id));
+      setPendingTimeCards(pendingCards);
+      
+      // Load profiles, jobs, and cost codes for both change requests and time cards
+      if ((data && data.length > 0) || (pendingCards && pendingCards.length > 0)) {
+        const userIds = Array.from(new Set([
+          ...(data || []).map(cr => cr.user_id),
+          ...(pendingCards || []).map(tc => tc.user_id)
+        ]));
         const jobIds = Array.from(new Set([
-          ...data.map(cr => cr.time_cards?.job_id).filter(Boolean),
-          ...data.map(cr => cr.proposed_job_id).filter(Boolean)
+          ...(data || []).map(cr => cr.time_cards?.job_id).filter(Boolean),
+          ...(data || []).map(cr => cr.proposed_job_id).filter(Boolean),
+          ...(pendingCards || []).map(tc => tc.job_id).filter(Boolean)
         ])) as string[];
         const costCodeIds = Array.from(new Set([
-          ...data.map(cr => cr.time_cards?.cost_code_id).filter(Boolean),
-          ...data.map(cr => cr.proposed_cost_code_id).filter(Boolean)
+          ...(data || []).map(cr => cr.time_cards?.cost_code_id).filter(Boolean),
+          ...(data || []).map(cr => cr.proposed_cost_code_id).filter(Boolean),
+          ...(pendingCards || []).map(tc => tc.cost_code_id).filter(Boolean)
         ])) as string[];
         
         if (userIds.length) {
@@ -621,16 +642,18 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Clock className="h-6 w-6" />
-                Pending Approval ({pendingChangeRequests.length})
+                Pending Approval ({pendingChangeRequests.length + pendingTimeCards.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-12rem)]">
-              {pendingChangeRequests.length === 0 ? (
+              {pendingChangeRequests.length === 0 && pendingTimeCards.length === 0 ? (
                 <div className="flex items-center justify-center h-32">
                   <p className="text-muted-foreground text-lg">None pending approval</p>
                 </div>
               ) : (
-                pendingChangeRequests.map((cr) => {
+                <>
+                  {/* Change Requests */}
+                  {pendingChangeRequests.map((cr) => {
                   const prof = profiles[cr.user_id];
                   const tc = cr.time_cards;
                   const job = tc?.job_id ? jobs[tc.job_id] : undefined;
@@ -674,7 +697,49 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                       </div>
                     </div>
                   );
-                })
+                  })}
+                  
+                  {/* Regular Time Cards Needing Approval */}
+                  {pendingTimeCards.map((tc) => {
+                    const prof = profiles[tc.user_id];
+                    const job = tc.job_id ? jobs[tc.job_id] : undefined;
+                    
+                    return (
+                      <div 
+                        key={tc.id} 
+                        className="p-4 rounded-lg border bg-card/50 hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
+                        onClick={() => {
+                          setSelectedTimeCardId(tc.id);
+                          setTimeCardModalOpen(true);
+                        }}
+                      >
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={prof?.avatar_url} />
+                            <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
+                            <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
+                            {tc.punch_in_time && (
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                                <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                              </div>
+                            )}
+                            {tc.total_hours && (
+                              <div className="text-sm font-medium text-primary mt-1">
+                                {tc.total_hours.toFixed(2)} hours
+                              </div>
+                            )}
+                          </div>
+                          <Badge variant="default">
+                            Needs Approval
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
             </CardContent>
           </Card>
