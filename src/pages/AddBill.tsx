@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt, Search, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +68,7 @@ export default function AddBill() {
     { id: crypto.randomUUID(), job_id: "", expense_account_id: "", cost_code_id: "", amount: "" }
   ]);
   const [lineItemCostCodes, setLineItemCostCodes] = useState<Record<string, any[]>>({});
+  const [costCodeOpen, setCostCodeOpen] = useState<Record<string, boolean>>({});
   
   const [billFiles, setBillFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -198,6 +201,27 @@ export default function AddBill() {
       }));
     } catch (error) {
       console.error('Error fetching cost codes:', error);
+    }
+  };
+
+  const getCostCodeTypeLabel = (type: string) => {
+    switch(type) {
+      case 'labor': return 'Labor';
+      case 'material': return 'Material';
+      case 'equipment': return 'Equipment';
+      case 'sub': return 'Subcontractor';
+      case 'other': return 'Other';
+      default: return type;
+    }
+  };
+
+  const getCostCodeTypeBadgeVariant = (type: string): "default" | "secondary" | "outline" | "destructive" => {
+    switch(type) {
+      case 'labor': return 'default';
+      case 'material': return 'secondary';
+      case 'equipment': return 'outline';
+      case 'sub': return 'destructive';
+      default: return 'outline';
     }
   };
 
@@ -1163,21 +1187,70 @@ export default function AddBill() {
                         {item.job_id && (
                           <div className="space-y-2">
                             <Label>Cost Code</Label>
-                            <Select 
-                              value={item.cost_code_id} 
-                              onValueChange={(value) => updateDistributionItem(item.id, 'cost_code_id', value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select cost code" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(lineItemCostCodes[item.id] || []).map((code) => (
-                                  <SelectItem key={code.id} value={code.id}>
-                                    {code.code} - {code.description}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Popover open={costCodeOpen[item.id]} onOpenChange={(open) => setCostCodeOpen(prev => ({ ...prev, [item.id]: open }))}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={costCodeOpen[item.id]}
+                                  className="w-full justify-between"
+                                >
+                                  {item.cost_code_id ? (
+                                    <div className="flex items-center gap-2">
+                                      <span>
+                                        {(() => {
+                                          const code = (lineItemCostCodes[item.id] || []).find(c => c.id === item.cost_code_id);
+                                          return code ? `${code.code} - ${code.description}` : "Select cost code";
+                                        })()}
+                                      </span>
+                                      {(() => {
+                                        const code = (lineItemCostCodes[item.id] || []).find(c => c.id === item.cost_code_id);
+                                        return code ? (
+                                          <Badge variant={getCostCodeTypeBadgeVariant(code.type)}>
+                                            {getCostCodeTypeLabel(code.type)}
+                                          </Badge>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  ) : (
+                                    "Select cost code"
+                                  )}
+                                  <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[500px] p-0" align="start">
+                                <Command>
+                                  <CommandInput placeholder="Search cost codes..." />
+                                  <CommandEmpty>No cost code found.</CommandEmpty>
+                                  <CommandList>
+                                    <CommandGroup>
+                                      {(lineItemCostCodes[item.id] || []).map((code) => (
+                                        <CommandItem
+                                          key={code.id}
+                                          value={`${code.code} ${code.description}`}
+                                          onSelect={() => {
+                                            updateDistributionItem(item.id, 'cost_code_id', code.id);
+                                            setCostCodeOpen(prev => ({ ...prev, [item.id]: false }));
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${
+                                              item.cost_code_id === code.id ? "opacity-100" : "opacity-0"
+                                            }`}
+                                          />
+                                          <div className="flex items-center gap-2 flex-1">
+                                            <span>{code.code} - {code.description}</span>
+                                            <Badge variant={getCostCodeTypeBadgeVariant(code.type)}>
+                                              {getCostCodeTypeLabel(code.type)}
+                                            </Badge>
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                         )}
 
