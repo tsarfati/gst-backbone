@@ -250,19 +250,25 @@ export default function NewJournalEntry() {
         
         // For job-type lines, get account_id from cost_code
         if (line.line_type === 'job' && line.cost_code_id) {
-          const { data: costCodeData } = await supabase
+          const { data: costCodeData, error: costCodeError } = await supabase
             .from('cost_codes')
-            .select('chart_account_id')
+            .select('code, description, chart_account_id')
             .eq('id', line.cost_code_id)
             .single();
           
-          if (costCodeData?.chart_account_id) {
-            accountId = costCodeData.chart_account_id;
+          if (costCodeError) {
+            throw new Error(`Failed to load cost code information for line ${index + 1}`);
           }
+          
+          if (!costCodeData?.chart_account_id) {
+            throw new Error(`Cost code "${costCodeData?.code || 'Unknown'}" on line ${index + 1} is not linked to a chart account. Please update the cost code settings.`);
+          }
+          
+          accountId = costCodeData.chart_account_id;
         }
         
         if (!accountId) {
-          throw new Error(`Line ${index + 1} is missing account information`);
+          throw new Error(`Line ${index + 1} is missing account information. Please select a valid account or cost code.`);
         }
         
         linesToInsert.push({
