@@ -81,11 +81,11 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
           p_user_id: userId
         });
 
-      if (albumError) {
+      if (albumError || !albumId) {
         console.error('Album error:', albumError);
         toast({
           title: 'Album Error',
-          description: albumError.message || 'Failed to get album',
+          description: albumError?.message || 'Failed to get album',
           variant: 'destructive',
         });
         return;
