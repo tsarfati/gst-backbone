@@ -123,7 +123,7 @@ export default function AddSubcontract() {
         if (vendorsError) throw vendorsError;
         setVendors(vendorsData || []);
 
-        // Fetch available subcontract PDF templates
+        // Fetch available subcontract PDF templates (optional)
         const { data: templatesData } = await supabase
           .from('pdf_templates')
           .select('template_name')
@@ -136,11 +136,6 @@ export default function AddSubcontract() {
           setSelectedTemplate(templatesData[0].template_name);
         } else {
           setAvailableTemplates([]);
-          toast({
-            title: "No templates found",
-            description: "Please create a subcontract template in PDF Template Settings before generating contracts.",
-            variant: "destructive"
-          });
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -1012,56 +1007,47 @@ export default function AddSubcontract() {
             </CardContent>
           </Card>
 
-          {/* Generate Contract Document */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileDown className="h-5 w-5" />
-                Generate Contract Document
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="template_select">Contract Template</Label>
-                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTemplates.length > 0 ? (
-                      availableTemplates.map(template => (
+          {/* Generate Contract Document (Optional - only show if templates exist) */}
+          {availableTemplates.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileDown className="h-5 w-5" />
+                  Generate Contract Document (Optional)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="template_select">Contract Template</Label>
+                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTemplates.map(template => (
                         <SelectItem key={template} value={template}>
                           {template}
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none" disabled>No templates available</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {availableTemplates.length > 0 
-                    ? 'Select a template for the generated contract. Configure templates in Company Settings > PDF Template Settings.'
-                    : 'No templates found. Please create one in Company Settings > PDF Template Settings.'}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleGenerateContract}
-                disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount || availableTemplates.length === 0}
-              >
-                <FileDown className="h-4 w-4 mr-2" />
-                {isSubmitting ? 'Generating...' : 'Save & Generate Contract PDF'}
-              </Button>
-              {availableTemplates.length === 0 && (
-                <p className="text-xs text-amber-600">
-                  Please create a subcontract template in PDF Template Settings before generating contracts.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select a template for the generated contract. Configure templates in Company Settings &gt; PDF Template Settings.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleGenerateContract}
+                  disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount}
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  {isSubmitting ? 'Generating...' : 'Save & Generate Contract PDF'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Actions */}
           <div className="flex gap-4 justify-end">
