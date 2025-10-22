@@ -138,9 +138,8 @@ export default function TemplateFileUploader({
 
   const handleDownloadBlankTemplate = async () => {
     try {
-      // Create a proper DOCX template using docxtemplater
+      // Create a proper DOCX template using a minimal Word ZIP
       const PizZip = (await import('pizzip')).default;
-      const Docxtemplater = (await import('docxtemplater')).default;
       
       // Create a minimal blank Word document structure
       const zip = new PizZip();

@@ -56,8 +56,8 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
     console.warn('Unable to load reconciliation template, using defaults');
   }
 
-  // If a Word/Excel template is uploaded, use it
-  if (templateData?.template_file_url && templateData?.template_file_type) {
+  // If a Word/Excel template is uploaded and PDF is not forced, use it
+  if (!data.forcePdf && templateData?.template_file_url && templateData?.template_file_type) {
     try {
       return await generateFromTemplate(data, templateData);
     } catch (error) {
@@ -384,7 +384,15 @@ const generateDefaultReconciliationPdf = async (data: ReconciliationReportData, 
   const borderColor: [number, number, number] = templateData?.table_border_color ? hexToRgb(templateData.table_border_color) : [200, 200, 200];
   const fontFamily = templateData?.font_family || 'helvetica';
 
-  const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, '').trim();
+  const stripHtml = (html: string) => {
+    const input = html || '';
+    // Remove style and script blocks entirely to avoid CSS/JS leaking as text
+    const noStyle = input.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    const noScript = noStyle.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    // Remove remaining tags and collapse whitespace
+    const noTags = noScript.replace(/<[^>]*>/g, '');
+    return noTags.replace(/[\t\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  };
   const headerHtml = stripHtml(templateData?.header_html || '');
   const footerHtml = stripHtml(templateData?.footer_html || '');
 
