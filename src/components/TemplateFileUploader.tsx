@@ -137,67 +137,125 @@ export default function TemplateFileUploader({
   };
 
   const handleDownloadBlankTemplate = () => {
-    // Create a simple text file with variable documentation
-    const content = `${displayName} Template
-    
-Available Variables:
-${availableVariables.map(v => `  {{${v}}}`).join('\n')}
+    // Create a sample Word-compatible HTML template
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${displayName} Template</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 1in; }
+    h1 { color: #1e40af; border-bottom: 3px solid #1e40af; padding-bottom: 10px; }
+    h2 { color: #3b82f6; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f3f4f6; font-weight: bold; }
+    .placeholder { background-color: #fef3c7; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .footer { text-align: center; margin-top: 30px; font-size: 9pt; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${displayName}</h1>
+    <p><strong>Company:</strong> <span class="placeholder">{{company_name}}</span></p>
+    <p><strong>Report Period:</strong> <span class="placeholder">{{period}}</span></p>
+    <p><strong>Generated:</strong> <span class="placeholder">{{generated_date}}</span></p>
+  </div>
 
-Special Variables:
-  {{report_data}} - This will be replaced with the actual report table/data
-                    The colors and styling from PDF Template Settings will be applied to this data
+  <h2>Summary Information</h2>
+  <table>
+    <tr>
+      <td><strong>Bank Account:</strong></td>
+      <td><span class="placeholder">{{bank_account}}</span></td>
+    </tr>
+    <tr>
+      <td><strong>Beginning Balance:</strong></td>
+      <td><span class="placeholder">{{beginning_balance}}</span></td>
+    </tr>
+    <tr>
+      <td><strong>Ending Balance:</strong></td>
+      <td><span class="placeholder">{{ending_balance}}</span></td>
+    </tr>
+    <tr>
+      <td><strong>Cleared Balance:</strong></td>
+      <td><span class="placeholder">{{cleared_balance}}</span></td>
+    </tr>
+    <tr>
+      <td><strong>Difference:</strong></td>
+      <td><span class="placeholder">{{difference}}</span></td>
+    </tr>
+  </table>
 
-Color & Styling:
-- Primary Color: Used for main headers and section titles
-- Secondary Color: Used for sub-headers and secondary text
-- Accent Color: Used for table borders, highlights, and emphasis
-- Text Color: Used for main body text
-- Background Color: Used for table headers and backgrounds
+  <h2>Transaction Details</h2>
+  <p><em>The report data will appear below with all cleared and uncleared transactions:</em></p>
+  <div style="background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; border-radius: 4px;">
+    <span class="placeholder">{{report_data}}</span>
+  </div>
 
-The color scheme you configure in PDF Template Settings will automatically apply to the {{report_data}} content.
+  <h2>All Available Placeholders</h2>
+  <p><strong>Replace these with the actual placeholder syntax in your template:</strong></p>
+  <table>
+    <tr>
+      <th>Placeholder</th>
+      <th>Description</th>
+    </tr>
+    ${availableVariables.map(v => `
+    <tr>
+      <td><code>{{${v}}}</code></td>
+      <td>${v.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+    </tr>
+    `).join('')}
+    <tr>
+      <td><code>{{cleared_deposits_total}}</code></td>
+      <td>Total amount of cleared deposits</td>
+    </tr>
+    <tr>
+      <td><code>{{cleared_payments_total}}</code></td>
+      <td>Total amount of cleared payments</td>
+    </tr>
+    <tr>
+      <td><code>{{uncleared_deposits_total}}</code></td>
+      <td>Total amount of uncleared deposits</td>
+    </tr>
+    <tr>
+      <td><code>{{uncleared_payments_total}}</code></td>
+      <td>Total amount of uncleared payments</td>
+    </tr>
+    <tr>
+      <td><code>{{cleared_deposits_count}}</code></td>
+      <td>Number of cleared deposits</td>
+    </tr>
+    <tr>
+      <td><code>{{cleared_payments_count}}</code></td>
+      <td>Number of cleared payments</td>
+    </tr>
+    <tr>
+      <td><code>{{report_data}}</code></td>
+      <td>Complete formatted report with all transaction tables</td>
+    </tr>
+  </table>
 
-Instructions:
-1. Create your template in Word (.docx) or Excel (.xlsx)
-2. Use the variables above in your document (e.g., {{company_name}}, {{period}})
-3. Add {{report_data}} where you want the main report table to appear
-4. Format the document as desired - add logos, fonts, page layouts, margins
-5. Upload the template file back to this system
-6. Configure colors in PDF Template Settings - they will apply to the report data
-7. When generating reports, the system will replace variables with actual data
+  <div class="footer">
+    <p>Page <span class="placeholder">{{page}}</span> of <span class="placeholder">{{pages}}</span></p>
+    <p><em>This is a sample template. Edit this file in Word and upload it back to the system.</em></p>
+  </div>
+</body>
+</html>`;
 
-Template Structure Example:
-
-  Header Section:
-  Company: {{company_name}}
-  Report Period: {{period}}
-  Generated: {{generated_date}}
-  
-  Main Report Data:
-  {{report_data}}
-  
-  Footer Section:
-  Page {{page}} of {{pages}}
-
-Tips:
-- Leave enough space for the {{report_data}} section (it may span multiple pages)
-- Use tables in Word/Excel for structured layouts
-- The report data will inherit your color scheme from Template Settings
-- Headers will automatically use your Primary Color
-- Table borders will use your Accent Color`;
-
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${templateType}_template_guide.txt`;
+    a.download = `${templateType}_sample_template.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     toast({
-      title: "Template guide downloaded",
-      description: "Use this guide to create your custom template with report data support.",
+      title: "Sample template downloaded",
+      description: "Open the HTML file in Word, edit it, then save as .docx and upload back.",
     });
   };
 
@@ -342,10 +400,10 @@ Tips:
             className="w-full"
           >
             <Download className="h-4 w-4 mr-2" />
-            Download Template Guide
+            Download Sample Template with All Placeholders
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
-            Download a guide showing available variables and instructions for creating your template
+            Download an HTML file with all placeholders. Open in Word, edit & format as needed, then save as .docx and upload
           </p>
         </div>
       </CardContent>
