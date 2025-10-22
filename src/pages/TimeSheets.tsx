@@ -691,6 +691,7 @@ export default function TimeSheets() {
       const { data, error } = await supabase
         .from('time_card_change_requests')
         .select('time_card_id')
+        .eq('company_id', currentCompany.id)
         .eq('status', 'pending');
       
       if (!error && data) {

@@ -4065,6 +4065,7 @@ export type Database = {
       }
       time_card_change_requests: {
         Row: {
+          company_id: string
           created_at: string
           id: string
           proposed_cost_code_id: string | null
@@ -4082,6 +4083,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id: string
           created_at?: string
           id?: string
           proposed_cost_code_id?: string | null
@@ -4099,6 +4101,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string
           created_at?: string
           id?: string
           proposed_cost_code_id?: string | null
@@ -4116,6 +4119,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "time_card_change_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "time_card_change_requests_time_card_id_fkey"
             columns: ["time_card_id"]
