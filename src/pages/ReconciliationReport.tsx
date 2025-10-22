@@ -10,6 +10,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { generateReconciliationReportPdf } from "@/utils/reconciliationReportPdf";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface ReconciliationData {
   id: string;
@@ -256,7 +258,37 @@ export default function ReconciliationReport() {
       toast.success("Report downloaded successfully");
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error("Failed to generate PDF report");
+      // Fallback: generate a minimal PDF directly
+      try {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("Reconciliation Report", 14, 18);
+        doc.setFontSize(11);
+        doc.text(`Company: ${currentCompany?.display_name || currentCompany?.name || ""}`, 14, 26);
+        doc.text(`Account: ${reconciliation.bank_account.bank_name} - ${reconciliation.bank_account.account_name}`, 14, 32);
+        doc.text(`Period: ${format(new Date(reconciliation.beginning_date), 'MM/dd/yyyy')} - ${format(new Date(reconciliation.ending_date), 'MM/dd/yyyy')}`, 14, 38);
+
+        autoTable(doc, {
+          startY: 46,
+          head: [['Section', 'Total']],
+          body: [
+            ['Cleared Deposits', `${clearedDepositsTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`],
+            ['Cleared Payments', `${clearedPaymentsTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`],
+            ['Unreconciled Deposits', `${unclearedDepositsTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`],
+            ['Unreconciled Payments', `${unclearedPaymentsTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`],
+            ['Cleared Balance', `${reconciliation.cleared_balance.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`],
+          ],
+          theme: 'grid',
+          styles: { fontSize: 10 },
+          headStyles: { fillColor: [66, 139, 202], textColor: 255 },
+        });
+
+        doc.save(`Reconciliation_Report_${format(new Date(reconciliation.ending_date), 'yyyy-MM-dd')}.pdf`);
+        toast.success("Report downloaded (fallback)");
+      } catch (fallbackErr) {
+        console.error('Fallback PDF generation failed:', fallbackErr);
+        toast.error("Failed to generate PDF report");
+      }
     }
   };
 

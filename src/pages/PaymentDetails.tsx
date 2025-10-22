@@ -89,34 +89,40 @@ export default function PaymentDetails() {
         .from("payments") as any)
         .select(`
           *,
-          vendor:vendors(id, name),
+          vendor:vendors(id, name, company_id),
           bank_account:bank_accounts(id, account_name)
         `)
         .eq("id", id)
-        .eq("company_id", currentCompany.id)
         .maybeSingle();
 
       if (paymentError) throw paymentError;
-      if (!paymentData) {
-        // Fallback without company filter (for legacy records)
-        const { data: paymentDataFallback } = await (supabase
+      let paymentDataAny: any = paymentData;
+
+      if (!paymentDataAny) {
+        // Fallback: allow navigating by payment number (legacy links)
+        const { data: byNumber } = await (supabase
           .from("payments") as any)
           .select(`
             *,
-            vendor:vendors(id, name),
+            vendor:vendors(id, name, company_id),
             bank_account:bank_accounts(id, account_name)
           `)
-          .eq("id", id)
+          .eq("payment_number", id)
           .maybeSingle();
-        if (!paymentDataFallback) {
-          toast.error("Payment not found");
-          setLoading(false);
-          return;
-        }
-        // Use fallback result
-        var paymentDataAny: any = paymentDataFallback;
-      } else {
-        var paymentDataAny: any = paymentData;
+        paymentDataAny = byNumber;
+      }
+
+      if (!paymentDataAny) {
+        toast.error("Payment not found");
+        setLoading(false);
+        return;
+      }
+
+      // Access guard: ensure payment belongs to current company via vendor
+      if (currentCompany?.id && paymentDataAny.vendor?.company_id && paymentDataAny.vendor.company_id !== currentCompany.id) {
+        toast.error("Payment not found");
+        setLoading(false);
+        return;
       }
 
       // Fetch created by user
@@ -176,6 +182,99 @@ export default function PaymentDetails() {
             reconciled_at: reconData.bank_reconciliations.reconciled_at,
             reconciled_by_user: reconciledByUser,
           };
+        }
+      }
+
+      // Ensure journal entry exists for GL if missing
+      if (!paymentDataAny.journal_entry_id && paymentDataAny.bank_account_id && currentCompany?.id) {
+        try {
+          // Resolve cash (bank) account and bank fee account
+          let cashAccountId: string | null = null;
+          let bankFeeAccountId: string | null = null;
+          const { data: bank } = await supabase
+            .from('bank_accounts')
+            .select('chart_account_id, bank_fee_account_id')
+            .eq('id', paymentDataAny.bank_account_id)
+            .maybeSingle();
+          cashAccountId = (bank as any)?.chart_account_id || null;
+          bankFeeAccountId = (bank as any)?.bank_fee_account_id || null;
+
+          // Resolve Accounts Payable account
+          const { data: apAcct } = await (supabase
+            .from('chart_of_accounts') as any)
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .or('account_category.eq.accounts_payable,account_number.eq.2000')
+            .order('is_system_account', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const apAccountId = (apAcct as any)?.id || null;
+
+          if (cashAccountId && apAccountId) {
+            const total = Number(paymentDataAny.amount || 0) + Number(paymentDataAny.bank_fee || 0);
+            const { data: je } = await (supabase
+              .from('journal_entries') as any)
+              .insert({
+                description: `Payment ${paymentDataAny.payment_number}`,
+                entry_date: paymentDataAny.payment_date,
+                reference: paymentDataAny.payment_number,
+                total_debit: total,
+                total_credit: total,
+                created_by: paymentDataAny.created_by,
+                status: 'posted',
+                company_id: currentCompany.id,
+              })
+              .select('id')
+              .single();
+
+            if (je?.id) {
+              const lines: any[] = [
+                {
+                  journal_entry_id: je.id,
+                  account_id: apAccountId,
+                  debit_amount: paymentDataAny.amount,
+                  credit_amount: 0,
+                  description: 'Payment to vendor',
+                  line_order: 1,
+                },
+                {
+                  journal_entry_id: je.id,
+                  account_id: cashAccountId,
+                  debit_amount: 0,
+                  credit_amount: paymentDataAny.amount,
+                  description: 'Cash payment',
+                  line_order: 2,
+                },
+              ];
+
+              if ((paymentDataAny.bank_fee || 0) > 0 && bankFeeAccountId) {
+                lines.push(
+                  {
+                    journal_entry_id: je.id,
+                    account_id: bankFeeAccountId,
+                    debit_amount: paymentDataAny.bank_fee,
+                    credit_amount: 0,
+                    description: `Bank fee (${paymentDataAny.payment_method})`,
+                    line_order: 3,
+                  },
+                  {
+                    journal_entry_id: je.id,
+                    account_id: cashAccountId,
+                    debit_amount: 0,
+                    credit_amount: paymentDataAny.bank_fee,
+                    description: 'Bank fee deducted',
+                    line_order: 4,
+                  }
+                );
+              }
+
+              await supabase.from('journal_entry_lines').insert(lines);
+              await supabase.from('payments').update({ journal_entry_id: je.id }).eq('id', paymentDataAny.id);
+              paymentDataAny.journal_entry_id = je.id;
+            }
+          }
+        } catch (e) {
+          console.warn('Payment loaded but journal entry missing and could not be backfilled:', e);
         }
       }
 
