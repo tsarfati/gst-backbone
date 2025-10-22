@@ -446,19 +446,37 @@ export default function EmployeeDashboard() {
           }
         }
       } else {
-        // Direct database query for regular users - use profile's current company
+        // Direct database query for regular users - use profile's current company when available
         const currentCompanyId = profile?.current_company_id;
         
-        if (currentCompanyId && userId) {
-          const result = await (supabase as any)
-            .from('time_card_change_requests')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('company_id', currentCompanyId)
-            .order('requested_at', { ascending: false });
+        let changeReqs: any[] = [];
+        if (userId) {
+          if (currentCompanyId) {
+            const { data: byCompany, error: byCompanyErr } = await (supabase as any)
+              .from('time_card_change_requests')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('company_id', currentCompanyId)
+              .order('requested_at', { ascending: false });
+            
+            if (!byCompanyErr && byCompany?.length) {
+              changeReqs = byCompany;
+            }
+          }
           
-          setChangeRequests(result?.data || []);
+          // Fallback: if no current company set or no results, fetch by user only
+          if (changeReqs.length === 0) {
+            const { data: byUser, error: byUserErr } = await (supabase as any)
+              .from('time_card_change_requests')
+              .select('*')
+              .eq('user_id', userId)
+              .order('requested_at', { ascending: false });
+            if (!byUserErr && byUser) {
+              changeReqs = byUser;
+            }
+          }
         }
+        setChangeRequests(changeReqs);
       }
       
       // Load profile/avatar

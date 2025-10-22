@@ -488,7 +488,6 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .limit(20);
       
       const deduped = (data || [])
-        .filter(cr => cr.time_cards && cr.time_cards.status !== 'approved' && cr.time_cards.status !== 'approved-edited')
         .reduce((acc: Map<string, any>, cr: any) => {
           const key = cr.time_card_id || cr.id;
           const existing = acc.get(key);
