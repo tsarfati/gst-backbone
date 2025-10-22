@@ -458,11 +458,10 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     }
   };
 
-  useEffect(() => {
+  const loadPendingChangeRequests = async () => {
     if (!currentCompany?.id) return;
     
-    const loadPendingChangeRequests = async () => {
-      const { data } = await supabase
+    const { data } = await supabase
         .from('time_card_change_requests')
         .select(`
           id,
@@ -539,7 +538,10 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           setJobs(prev => ({ ...prev, ...jobMap }));
         }
       }
-    };
+  };
+
+  useEffect(() => {
+    if (!currentCompany?.id) return;
     
     loadPendingChangeRequests();
     
@@ -562,7 +564,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentCompany?.id]);
+    }, [currentCompany?.id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -612,40 +614,98 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   return (
                     <div 
                       key={cr.id} 
-                      className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer"
-                      onClick={() => {
-                        setSelectedTimeCardId(tc?.id || null);
-                        setTimeCardModalOpen(true);
-                      }}
+                      className="p-4 rounded-lg border bg-card/50"
                     >
-                      <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={prof?.avatar_url} />
-                          <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
-                          <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                          {tc?.punch_in_time && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                              <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
-                            </div>
-                          )}
-                          {tc?.total_hours && (
-                            <div className="text-sm font-medium text-primary mt-1">
-                              {tc.total_hours.toFixed(2)} hours
-                            </div>
-                          )}
-                          {cr.reason && (
-                            <div className="text-xs text-muted-foreground mt-1 italic line-clamp-1">
-                              {cr.reason}
-                            </div>
-                          )}
+                      <div className="flex items-center justify-between gap-4">
+                        <div 
+                          className="flex items-center gap-4 min-w-0 flex-1 cursor-pointer hover:opacity-80"
+                          onClick={() => {
+                            setSelectedTimeCardId(tc?.id || null);
+                            setTimeCardModalOpen(true);
+                          }}
+                        >
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={prof?.avatar_url} />
+                            <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
+                            <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
+                            {tc?.punch_in_time && (
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                                <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                              </div>
+                            )}
+                            {tc?.total_hours && (
+                              <div className="text-sm font-medium text-primary mt-1">
+                                {tc.total_hours.toFixed(2)} hours
+                              </div>
+                            )}
+                            {cr.reason && (
+                              <div className="text-xs text-muted-foreground mt-1 italic line-clamp-1">
+                                {cr.reason}
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        <Badge variant="secondary">
+                          Change Request
+                        </Badge>
                       </div>
-                      <Badge variant="secondary">
-                        Change Request
-                      </Badge>
+                      <div className="mt-4 flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          className="flex-1"
+                          onClick={async () => {
+                            const comments = prompt('Optional comments:');
+                            try {
+                              const { error } = await supabase.functions.invoke('punch-clock', {
+                                body: {
+                                  action: 'review-change-request',
+                                  request_id: cr.id,
+                                  status: 'approved',
+                                  review_notes: comments || undefined
+                                }
+                              });
+                              if (error) throw error;
+                              toast({ title: 'Success', description: 'Change request approved' });
+                              // Refresh data
+                              loadPendingChangeRequests();
+                            } catch (error: any) {
+                              toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          className="flex-1"
+                          onClick={async () => {
+                            const comments = prompt('Optional comments:');
+                            try {
+                              const { error } = await supabase.functions.invoke('punch-clock', {
+                                body: {
+                                  action: 'review-change-request',
+                                  request_id: cr.id,
+                                  status: 'rejected',
+                                  review_notes: comments || undefined
+                                }
+                              });
+                              if (error) throw error;
+                              toast({ title: 'Success', description: 'Change request rejected' });
+                              // Refresh data
+                              loadPendingChangeRequests();
+                            } catch (error: any) {
+                              toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          Deny
+                        </Button>
+                      </div>
                     </div>
                   );
                 })

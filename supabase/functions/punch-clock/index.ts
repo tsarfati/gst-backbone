@@ -250,6 +250,66 @@ serve(async (req) => {
       if (error) return errorResponse(error.message, 500);
 
       return new Response(JSON.stringify(data || []), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } else if (req.method === "POST" && body?.action === "review-change-request") {
+      // Handle approval/denial of change requests
+      const { request_id, status, review_notes } = body;
+      
+      if (!request_id || !status || !['approved', 'rejected'].includes(status)) {
+        return errorResponse("Invalid request parameters", 400);
+      }
+
+      // Get the authenticated user ID from JWT
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) return errorResponse("Unauthorized", 401);
+      
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      if (authError || !authUser) return errorResponse("Unauthorized", 401);
+
+      // Fetch the change request
+      const { data: changeRequest, error: fetchError } = await supabaseAdmin
+        .from('time_card_change_requests')
+        .select('*, time_cards(*)')
+        .eq('id', request_id)
+        .single();
+
+      if (fetchError || !changeRequest) {
+        return errorResponse("Change request not found", 404);
+      }
+
+      // Update the change request
+      const { error: updateError } = await supabaseAdmin
+        .from('time_card_change_requests')
+        .update({
+          status,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: authUser.id,
+          review_notes: review_notes || null
+        })
+        .eq('id', request_id);
+
+      if (updateError) {
+        return errorResponse(updateError.message, 500);
+      }
+
+      // Log to audit trail
+      const { error: auditError } = await supabaseAdmin
+        .from('time_card_audit_trail')
+        .insert({
+          time_card_id: changeRequest.time_card_id,
+          changed_by: authUser.id,
+          change_type: status === 'approved' ? 'change_request_approved' : 'change_request_rejected',
+          reason: review_notes || `Change request ${status}`,
+          created_at: new Date().toISOString()
+        });
+
+      if (auditError) {
+        console.error('Audit trail error:', auditError);
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
     } else if (req.method === "POST" && url.pathname.endsWith("/request-change")) {
       const body = await req.json().catch(() => null) as any;
       const { pin, time_card_id, reason, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id } = body || {};

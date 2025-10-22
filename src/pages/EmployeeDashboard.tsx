@@ -95,6 +95,7 @@ export default function EmployeeDashboard() {
   
   // Week navigation state
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
+  const [overtimeSettings, setOvertimeSettings] = useState({ flag_12hrs: true, flag_24hrs: true });
 
   useEffect(() => {
     loadData();
@@ -501,12 +502,20 @@ export default function EmployeeDashboard() {
       // Load company policies
       const { data: settingsData } = await supabase
         .from('job_punch_clock_settings')
-        .select('company_policies')
+        .select('company_policies, flag_timecards_over_12hrs, flag_timecards_over_24hrs')
         .eq('job_id', '00000000-0000-0000-0000-000000000000')
         .maybeSingle();
       
       if (settingsData?.company_policies) {
         setCompanyPolicies(settingsData.company_policies);
+      }
+      
+      // Load overtime flagging settings
+      if (settingsData) {
+        setOvertimeSettings({
+          flag_12hrs: settingsData.flag_timecards_over_12hrs ?? true,
+          flag_24hrs: settingsData.flag_timecards_over_24hrs ?? true
+        });
       }
       
     } catch (error) {
@@ -915,8 +924,13 @@ export default function EmployeeDashboard() {
                             </Badge>
                           </div>
                           <div className="space-y-2">
-                            {cards.map((card) => (
-                              <div key={card.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg">
+                            {cards.map((card) => {
+                              const is12HrsPlus = overtimeSettings.flag_12hrs && card.total_hours > 12;
+                              const is24HrsPlus = overtimeSettings.flag_24hrs && card.total_hours > 24;
+                              const shouldPulse = is12HrsPlus || is24HrsPlus;
+                              
+                              return (
+                              <div key={card.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg ${shouldPulse ? 'animate-pulse border-red-500' : ''}`}>
                                 <div className="flex-1 space-y-2">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -926,11 +940,23 @@ export default function EmployeeDashboard() {
                                     <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
                                       {card.status}
                                     </Badge>
+                                    {is24HrsPlus && (
+                                      <Badge variant="destructive" className="text-xs animate-pulse">
+                                        24+ hrs
+                                      </Badge>
+                                    )}
+                                    {is12HrsPlus && !is24HrsPlus && (
+                                      <Badge variant="destructive" className="text-xs animate-pulse">
+                                        12+ hrs
+                                      </Badge>
+                                    )}
                                   </div>
                                   <div className="text-xs sm:text-sm text-muted-foreground">
                                     {format(new Date(card.punch_in_time), 'h:mm a')} - 
                                     {format(new Date(card.punch_out_time), 'h:mm a')} 
-                                    <span className="font-medium ml-1">({card.total_hours.toFixed(2)} hrs)</span>
+                                    <span className={`font-medium ml-1 ${shouldPulse ? 'text-red-600 dark:text-red-400' : ''}`}>
+                                      ({card.total_hours.toFixed(2)} hrs)
+                                    </span>
                                   </div>
                                 </div>
                                 <Button
@@ -961,7 +987,7 @@ export default function EmployeeDashboard() {
                                   Request Change
                                 </Button>
                               </div>
-                            ))}
+                            );})}
                           </div>
                         </div>
                         );
