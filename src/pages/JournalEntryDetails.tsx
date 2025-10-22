@@ -253,6 +253,25 @@ export default function JournalEntryDetails() {
     if (!id) return;
 
     try {
+      // Check if this journal entry is linked to a payment
+      const { data: linkedPayment, error: paymentCheckError } = await supabase
+        .from('payments')
+        .select('id, payment_number')
+        .eq('journal_entry_id', id)
+        .maybeSingle();
+
+      if (paymentCheckError) throw paymentCheckError;
+
+      if (linkedPayment) {
+        toast({
+          title: "Cannot delete",
+          description: `This journal entry is linked to payment ${linkedPayment.payment_number}. Please delete or unlink the payment first.`,
+          variant: "destructive",
+        });
+        setShowDeleteDialog(false);
+        return;
+      }
+
       // Delete lines first
       const { error: linesError } = await supabase
         .from('journal_entry_lines')
@@ -275,13 +294,15 @@ export default function JournalEntryDetails() {
       });
 
       navigate('/banking/journal-entries');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting journal entry:', error);
       toast({
         title: "Error",
-        description: "Failed to delete journal entry",
+        description: error.message || "Failed to delete journal entry",
         variant: "destructive",
       });
+    } finally {
+      setShowDeleteDialog(false);
     }
   };
 
@@ -516,7 +537,7 @@ export default function JournalEntryDetails() {
             <AlertDialogTitle>Delete Journal Entry?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the journal entry
-              and all associated lines.
+              and all associated lines. Journal entries linked to payments cannot be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

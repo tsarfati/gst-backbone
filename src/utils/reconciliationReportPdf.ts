@@ -66,23 +66,55 @@ export const generateReconciliationReportPdf = async (data: ReconciliationReport
 
 // Generate report from uploaded Word template
 const generateFromTemplate = async (data: ReconciliationReportData, templateData: any) => {
-  // Extract the file path from the signed URL or use as-is
   let fileUrl = templateData.template_file_url;
   
-  // If the URL seems to be a path rather than a full URL, get a fresh signed URL
-  if (!fileUrl.startsWith('http')) {
+  // Check if this is a Supabase storage URL (signed or public)
+  if (fileUrl.includes('supabase.co/storage/v1/object')) {
+    try {
+      // Extract bucket and path from the URL
+      const urlObj = new URL(fileUrl);
+      const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/(public|sign)\/(.+?)(\?|$)/);
+      
+      if (pathMatch) {
+        const [, , fullPath] = pathMatch;
+        const [bucket, ...pathParts] = fullPath.split('/');
+        const filePath = pathParts.join('/');
+        
+        // Generate a fresh signed URL
+        const { data: signedData, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(filePath, 3600); // 1 hour
+        
+        if (error) {
+          console.error('Error creating signed URL:', error);
+          throw error;
+        }
+        
+        if (!signedData?.signedUrl) {
+          throw new Error('No signed URL returned');
+        }
+        
+        fileUrl = signedData.signedUrl;
+      }
+    } catch (urlError) {
+      console.error('Error parsing storage URL:', urlError);
+      throw new Error(`Failed to generate signed URL: ${urlError}`);
+    }
+  } else if (!fileUrl.startsWith('http')) {
+    // This is a storage path, generate signed URL
     const { data: signedData, error } = await supabase.storage
       .from('report-templates')
       .createSignedUrl(fileUrl, 3600); // 1 hour
     
     if (error) throw error;
+    if (!signedData?.signedUrl) throw new Error('No signed URL returned');
     fileUrl = signedData.signedUrl;
   }
   
   // Fetch the template file
   const response = await fetch(fileUrl);
   if (!response.ok) {
-    throw new Error(`Failed to fetch template: ${response.statusText}`);
+    throw new Error(`Failed to fetch template: ${response.status} ${response.statusText}`);
   }
   const arrayBuffer = await response.arrayBuffer();
   
