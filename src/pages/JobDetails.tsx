@@ -227,7 +227,7 @@ export default function JobDetails() {
           </TabsList>
           
           <TabsContent value="details" className="p-6">
-            {/* Bills Needing Coding for this Job */}
+            {/* Bills Needing Approval or Coding for this Job */}
             {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
               <div className="mb-6">
                 <BillsNeedingCoding jobId={id!} limit={3} />

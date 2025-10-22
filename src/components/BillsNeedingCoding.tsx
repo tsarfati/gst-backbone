@@ -18,6 +18,8 @@ interface Bill {
   vendor_id: string;
   job_id: string;
   description: string | null;
+  status: string;
+  pending_coding: boolean;
   vendor?: {
     name: string;
   };
@@ -46,7 +48,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
     if (!user || !currentCompany) return;
 
     try {
-      // Build query
+      // Build query - fetch bills needing approval or coding
       let query = supabase
         .from('invoices')
         .select(`
@@ -58,10 +60,12 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
           vendor_id,
           job_id,
           description,
+          status,
+          pending_coding,
           vendor:vendors(name),
           job:jobs(name)
         `)
-        .eq('pending_coding', true)
+        .or('pending_coding.eq.true,status.eq.pending_approval')
         .order('created_at', { ascending: false });
 
       // Filter by job if specified
@@ -114,8 +118,13 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
     }
   };
 
-  const handleBillClick = (billId: string) => {
-    navigate(`/bills/${billId}/edit`);
+  const handleBillClick = (billId: string, needsCoding: boolean) => {
+    // If needs coding, go to edit page, otherwise go to details page for approval
+    if (needsCoding) {
+      navigate(`/invoices/${billId}/edit`);
+    } else {
+      navigate(`/invoices/${billId}`);
+    }
   };
 
   if (loading) {
@@ -124,7 +133,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-warning" />
-            Bills Needing Coding
+            Bills Needing Approval or Coding
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -139,7 +148,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-warning" />
-          Bills Needing Coding
+          Bills Needing Approval or Coding
           {bills.length > 0 && (
             <Badge variant="destructive" className="ml-2">
               {bills.length}
@@ -150,7 +159,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
       <CardContent>
         {bills.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
-            No bills need coding
+            No bills need approval or coding
           </p>
         ) : (
           <div className="space-y-3">
@@ -158,7 +167,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
               <div
                 key={bill.id}
                 className="p-3 rounded-lg border bg-accent/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
-                onClick={() => handleBillClick(bill.id)}
+                onClick={() => handleBillClick(bill.id, bill.pending_coding)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -167,6 +176,15 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
                       <h4 className="font-medium">
                         {bill.invoice_number || 'No Invoice #'}
                       </h4>
+                      {bill.pending_coding ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Needs Coding
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Needs Approval
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="ml-auto">
                         ${bill.amount.toLocaleString()}
                       </Badge>
@@ -195,9 +213,9 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => navigate('/bills?filter=pending_coding')}
+                onClick={() => navigate('/invoices?filter=pending')}
               >
-                View All Bills Needing Coding
+                View All Bills Needing Action
               </Button>
             )}
           </div>

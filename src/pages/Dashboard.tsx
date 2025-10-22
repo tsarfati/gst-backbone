@@ -661,7 +661,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Bills Needing Coding - Show for Project Managers */}
+      {/* Bills Needing Approval or Coding - Show for Project Managers */}
       {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
         <div className="mb-8">
           <BillsNeedingCoding limit={5} />
