@@ -769,7 +769,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         )}
 
         {/* Change Request Alert - Show prominently if there's a pending change request */}
-        {pendingChangeRequest && (
+        {pendingChangeRequest && isManager && (
           <Card className="border-warning bg-warning/5">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-warning">
@@ -779,178 +779,35 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Reason for change */}
-              <div className="bg-background rounded-md p-3 border-l-4 border-warning">
-                <p className="text-sm font-semibold text-muted-foreground mb-1">Reason:</p>
-                <p className="text-sm">{pendingChangeRequest.reason || 'No reason provided'}</p>
-              </div>
-              
-              {/* Compact change list */}
-              <div className="bg-background rounded-md p-3 space-y-2">
-                <p className="text-sm font-semibold text-muted-foreground">Requested Changes:</p>
-                
-                {pendingChangeRequest.proposed_punch_in_time && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Punch In:</span>
-                    <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'h:mm a')}</span>
-                    <span>→</span>
-                    <span className="font-medium text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}</span>
-                  </div>
-                )}
-                
-                {pendingChangeRequest.proposed_punch_out_time && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Punch Out:</span>
-                    <span className="line-through text-red-600">{format(new Date(timeCard.punch_out_time), 'h:mm a')}</span>
-                    <span>→</span>
-                    <span className="font-medium text-green-600">{format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}</span>
-                  </div>
-                )}
-                
-                {pendingChangeRequest.proposed_job_id && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Job:</span>
-                    <span className="line-through text-red-600">{jobs[timeCard.job_id]?.name || 'Unknown'}</span>
-                    <span>→</span>
-                    <span className="font-medium text-green-600">{jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}</span>
-                  </div>
-                )}
-                
-                {pendingChangeRequest.proposed_cost_code_id && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Cost Code:</span>
-                    <span className="line-through text-red-600">{timeCard.cost_code_id ? (costCodes[timeCard.cost_code_id]?.code || 'Unknown') : 'None'}</span>
-                    <span>→</span>
-                    <span className="font-medium text-green-600">{costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown'}</span>
-                  </div>
-                )}
-                
-                <div className="text-xs text-muted-foreground pt-2 border-t">
-                  Requested: {format(new Date(pendingChangeRequest.created_at), 'MMM dd, yyyy h:mm a')}
-                </div>
-              </div>
-              
-              {/* Approval/Denial Buttons */}
-              {isManager && (
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={async () => {
-                      const comments = prompt('Optional approval comments:');
-                      
-                      // Build audit trail details
-                      const changes: string[] = [];
-                      if (pendingChangeRequest.proposed_punch_in_time) {
-                        changes.push(`Punch In: ${format(new Date(timeCard.punch_in_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}`);
-                      }
-                      if (pendingChangeRequest.proposed_punch_out_time) {
-                        changes.push(`Punch Out: ${format(new Date(timeCard.punch_out_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}`);
-                      }
-                      if (pendingChangeRequest.proposed_job_id) {
-                        changes.push(`Job: ${jobs[timeCard.job_id]?.name || 'Unknown'} → ${jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}`);
-                      }
-                      if (pendingChangeRequest.proposed_cost_code_id) {
-                        const oldCode = timeCard.cost_code_id ? costCodes[timeCard.cost_code_id]?.code : 'None';
-                        const newCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown';
-                        changes.push(`Cost Code: ${oldCode} → ${newCode}`);
-                      }
-                      
-                      const auditDetails = [`Change request approved`];
-                      if (changes.length > 0) {
-                        auditDetails.push('Changes: ' + changes.join('; '));
-                      }
-                      if (pendingChangeRequest.reason) {
-                        auditDetails.push('Reason: ' + pendingChangeRequest.reason);
-                      }
-                      if (comments) {
-                        auditDetails.push('Review notes: ' + comments);
-                      }
-                      
-                      try {
-                        setApproving(true);
-                        const { error } = await supabase.functions.invoke('punch-clock', {
-                          body: {
-                            action: 'review-change-request',
-                            request_id: pendingChangeRequest.id,
-                            status: 'approved',
-                            review_notes: auditDetails.join(' | ')
-                          }
-                        });
-                        if (error) throw error;
-                        toast({ title: 'Success', description: 'Change request approved' });
-                        onOpenChange(false);
-                      } catch (error: any) {
-                        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                      } finally {
-                        setApproving(false);
-                      }
-                    }}
-                    disabled={approving || denying}
-                    className="flex-1 gap-2"
-                    size="lg"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                    {approving ? 'Approving...' : 'Approve Change Request'}
-                  </Button>
-                  <Button 
-                    onClick={async () => {
-                      const comments = prompt('Reason for denial (optional):');
-                      
-                      // Build audit trail details
-                      const changes: string[] = [];
-                      if (pendingChangeRequest.proposed_punch_in_time) {
-                        changes.push(`Punch In: ${format(new Date(timeCard.punch_in_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_in_time), 'h:mm a')}`);
-                      }
-                      if (pendingChangeRequest.proposed_punch_out_time) {
-                        changes.push(`Punch Out: ${format(new Date(timeCard.punch_out_time), 'h:mm a')} → ${format(new Date(pendingChangeRequest.proposed_punch_out_time), 'h:mm a')}`);
-                      }
-                      if (pendingChangeRequest.proposed_job_id) {
-                        changes.push(`Job: ${jobs[timeCard.job_id]?.name || 'Unknown'} → ${jobs[pendingChangeRequest.proposed_job_id]?.name || 'Unknown'}`);
-                      }
-                      if (pendingChangeRequest.proposed_cost_code_id) {
-                        const oldCode = timeCard.cost_code_id ? costCodes[timeCard.cost_code_id]?.code : 'None';
-                        const newCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || 'Unknown';
-                        changes.push(`Cost Code: ${oldCode} → ${newCode}`);
-                      }
-                      
-                      const auditDetails = [`Change request rejected`];
-                      if (changes.length > 0) {
-                        auditDetails.push('Requested changes: ' + changes.join('; '));
-                      }
-                      if (pendingChangeRequest.reason) {
-                        auditDetails.push('Employee reason: ' + pendingChangeRequest.reason);
-                      }
-                      if (comments) {
-                        auditDetails.push('Rejection notes: ' + comments);
-                      }
-                      
-                      try {
-                        setDenying(true);
-                        const { error } = await supabase.functions.invoke('punch-clock', {
-                          body: {
-                            action: 'review-change-request',
-                            request_id: pendingChangeRequest.id,
-                            status: 'rejected',
-                            review_notes: auditDetails.join(' | ')
-                          }
-                        });
-                        if (error) throw error;
-                        toast({ title: 'Success', description: 'Change request denied' });
-                        onOpenChange(false);
-                      } catch (error: any) {
-                        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-                      } finally {
-                        setDenying(false);
-                      }
-                    }}
-                    disabled={approving || denying}
-                    variant="destructive"
-                    className="flex-1 gap-2"
-                    size="lg"
-                  >
-                    <X className="h-4 w-4" />
-                    {denying ? 'Denying...' : 'Deny Change Request'}
-                  </Button>
+              {pendingChangeRequest.reason && (
+                <div className="bg-background rounded-md p-3 border-l-4 border-warning">
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Reason:</p>
+                  <p className="text-sm">{pendingChangeRequest.reason}</p>
                 </div>
               )}
+              
+              {/* Approval/Denial Buttons */}
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleApproveChangeRequest}
+                  disabled={approving || denying}
+                  className="flex-1 gap-2"
+                  size="lg"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {approving ? 'Approving...' : 'Approve Changes'}
+                </Button>
+                <Button 
+                  onClick={handleRejectChangeRequest}
+                  disabled={approving || denying}
+                  variant="destructive"
+                  className="flex-1 gap-2"
+                  size="lg"
+                >
+                  <X className="h-4 w-4" />
+                  {denying ? 'Denying...' : 'Deny Changes'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -1078,7 +935,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Job:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_job_id ? (
+                          {pendingChangeRequest?.proposed_job_id && pendingChangeRequest.proposed_job_id !== timeCard.job_id ? (
                             <span>
                               <span className="line-through text-red-600">{job?.name || 'N/A'}</span>
                               <span className="px-1">→</span>
@@ -1092,7 +949,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Cost Code:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_cost_code_id ? (
+                          {pendingChangeRequest?.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== timeCard.cost_code_id ? (
                             <span>
                               <span className="line-through text-red-600">
                                 {costCode ? `${costCode.code} - ${costCode.description}` : 'N/A'}
@@ -1116,7 +973,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch In:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_punch_in_time ? (
+                          {pendingChangeRequest?.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time ? (
                             <span>
                               <span className="line-through text-red-600">{format(new Date(timeCard.punch_in_time), 'MMM dd, yyyy h:mm a')}</span>
                               <span className="px-1">→</span>
@@ -1130,7 +987,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Punch Out:</span>
                         <span className="text-sm font-medium">
-                          {pendingChangeRequest?.proposed_punch_out_time ? (
+                          {pendingChangeRequest?.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== timeCard.punch_out_time ? (
                             <span>
                               <span className="line-through text-red-600">
                                 {timeCard.punch_out_time 
