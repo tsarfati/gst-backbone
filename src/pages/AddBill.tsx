@@ -181,7 +181,8 @@ export default function AddBill() {
         .eq('is_dynamic_group', false);
       
       const filtered = filterCostCodesByVendorType(data || []);
-      setCostCodes(filtered);
+      const sorted = sortCostCodesNumerically(filtered);
+      setCostCodes(sorted);
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
@@ -197,13 +198,48 @@ export default function AddBill() {
         .eq('is_dynamic_group', false);
       
       const filtered = filterCostCodesByVendorType(data || []);
+      const sorted = sortCostCodesNumerically(filtered);
       setLineItemCostCodes(prev => ({
         ...prev,
-        [lineItemId]: filtered
+        [lineItemId]: sorted
       }));
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
+  };
+
+  const sortCostCodesNumerically = (codes: any[]) => {
+    return [...codes].sort((a, b) => {
+      // Extract numeric parts from cost codes for proper numerical sorting
+      const parseCode = (code: string) => {
+        // Split by periods and dashes to get numeric segments
+        const parts = code.split(/[.-]/).map(part => {
+          const num = parseFloat(part);
+          return isNaN(num) ? part : num;
+        });
+        return parts;
+      };
+      
+      const aParts = parseCode(a.code);
+      const bParts = parseCode(b.code);
+      
+      // Compare each segment
+      for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+        const aPart = aParts[i] ?? '';
+        const bPart = bParts[i] ?? '';
+        
+        // If both are numbers, compare numerically
+        if (typeof aPart === 'number' && typeof bPart === 'number') {
+          if (aPart !== bPart) return aPart - bPart;
+        } else {
+          // Otherwise compare as strings
+          const aStr = String(aPart);
+          const bStr = String(bPart);
+          if (aStr !== bStr) return aStr.localeCompare(bStr);
+        }
+      }
+      return 0;
+    });
   };
 
   const filterCostCodesByVendorType = (codes: any[]) => {
