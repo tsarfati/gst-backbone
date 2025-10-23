@@ -12,11 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Paperclip, FileText, X } from "lucide-react";
+import { ArrowLeft, Upload, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 
 export default function CreditCardTransactions() {
   const { id } = useParams();
@@ -36,16 +37,8 @@ export default function CreditCardTransactions() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [duplicatesFound, setDuplicatesFound] = useState<number>(0);
   const [matchedReceipts, setMatchedReceipts] = useState<Map<string, any[]>>(new Map());
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedCoders, setSelectedCoders] = useState<string[]>([]);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
-  const [communications, setCommunications] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [requestedUsers, setRequestedUsers] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
-  const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -127,25 +120,6 @@ export default function CreditCardTransactions() {
         .order("first_name");
 
       setUsers(usersData || []);
-
-      // Fetch expense accounts (Chart of Accounts - expense types)
-      const { data: expenseAccountsData } = await supabase
-        .from("chart_of_accounts")
-        .select("id, account_number, account_name, account_type")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .in("account_type", ["expense", "operating_expense", "cost_of_goods_sold"])
-        .order("account_number");
-      setExpenseAccounts(expenseAccountsData || []);
-
-      // Fetch vendors
-      const { data: vendorsData } = await supabase
-        .from("vendors")
-        .select("id, name")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .order("name");
-      setVendors(vendorsData || []);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -547,287 +521,10 @@ export default function CreditCardTransactions() {
     }
   };
 
-  const handleJobChange = async (transactionId: string, jobId: string | null) => {
-    try {
-      await supabase
-        .from("credit_card_transactions")
-        .update({ 
-          job_id: jobId,
-          cost_code_id: null, // Reset cost code when job changes
-        })
-        .eq("id", transactionId);
 
-      const updatedTransaction = { ...selectedTransaction, job_id: jobId, cost_code_id: null };
-      setSelectedTransaction(updatedTransaction);
-      
-      await updateCodingStatus(transactionId, updatedTransaction);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCostCodeChange = async (transactionId: string, costCodeId: string | null) => {
-    try {
-      // Update cost code
-      await supabase
-        .from("credit_card_transactions")
-        .update({ cost_code_id: costCodeId })
-        .eq("id", transactionId);
-
-      // Update local state
-      const updatedTransaction = { ...selectedTransaction, cost_code_id: costCodeId };
-      setSelectedTransaction(updatedTransaction);
-      
-      // Check if transaction should be marked as coded
-      await updateCodingStatus(transactionId, updatedTransaction);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateCodingStatus = async (transactionId: string, tx: any) => {
-    // A transaction is coded if:
-    // 1. Vendor is set
-    // 2. Either a Job or a Chart of Account is selected
-    // 3. If a Job is selected, a Cost Code is also selected
-    // 4. An attachment is present
-    const hasVendor = !!(tx.vendor_id || tx.merchant_name);
-    const hasJobOrAccount = !!(tx.job_id || tx.chart_account_id);
-    const hasCostCode = tx.job_id ? !!tx.cost_code_id : true;
-    const hasAttachment = !!tx.attachment_url;
-
-    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && hasAttachment;
-    const newStatus = isCoded ? 'coded' : 'uncoded';
-
-    const { error } = await supabase
-      .from("credit_card_transactions")
-      .update({ coding_status: newStatus })
-      .eq("id", transactionId);
-
-    if (!error && selectedTransaction) {
-      setSelectedTransaction({ ...tx, coding_status: newStatus });
-    }
-  };
-
-  const handleRequestCoding = async (transactionId: string, coderIds: string[]) => {
-    try {
-      if (coderIds.length === 0) {
-        // Remove all coding requests
-        await supabase
-          .from("credit_card_transactions")
-          .update({ 
-            requested_coder_id: null,
-            coding_status: 'uncoded',
-          })
-          .eq("id", transactionId);
-
-        await supabase
-          .from("credit_card_coding_requests")
-          .delete()
-          .eq("transaction_id", transactionId);
-      } else {
-        // Create coding requests for multiple users
-        const firstCoderId = coderIds[0];
-        await supabase
-          .from("credit_card_transactions")
-          .update({ 
-            requested_coder_id: firstCoderId,
-            coding_status: 'pending',
-          })
-          .eq("id", transactionId);
-
-        // Delete existing requests
-        await supabase
-          .from("credit_card_coding_requests")
-          .delete()
-          .eq("transaction_id", transactionId);
-
-        // Insert new requests for all selected coders
-        const requests = coderIds.map(coderId => ({
-          transaction_id: transactionId,
-          company_id: currentCompany?.id,
-          requested_by: user?.id,
-          requested_coder_id: coderId,
-          status: 'pending',
-          message: `Coding assistance requested for transaction`,
-        }));
-
-        await supabase
-          .from("credit_card_coding_requests")
-          .insert(requests);
-      }
-
-      toast({
-        title: "Success",
-        description: coderIds.length > 0 ? `Coding request sent to ${coderIds.length} user(s)` : "Coding requests removed",
-      });
-
-      setSelectedTransaction((prev: any) => prev ? { 
-        ...prev, 
-        requested_coder_id: coderIds[0] || null,
-        coding_status: coderIds.length > 0 ? 'pending' : 'uncoded'
-      } : null);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAttachmentUpload = async (transactionId: string, file: File) => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${currentCompany?.id}/${transactionId}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from("credit-card-attachments")
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from("credit-card-attachments")
-        .getPublicUrl(fileName);
-
-      await supabase
-        .from("credit_card_transactions")
-        .update({ attachment_url: publicUrl })
-        .eq("id", transactionId);
-
-      // Create preview for images and PDFs
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => setAttachmentPreview(reader.result as string);
-        reader.readAsDataURL(file);
-      } else if (file.type === 'application/pdf') {
-        setAttachmentPreview(publicUrl);
-      }
-
-      const updatedTransaction = { ...selectedTransaction, attachment_url: publicUrl };
-      setSelectedTransaction(updatedTransaction);
-      
-      await updateCodingStatus(transactionId, updatedTransaction);
-      
-      toast({
-        title: "Success",
-        description: "Attachment uploaded successfully",
-      });
-
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const openTransactionDetail = async (transaction: any) => {
-    setSelectedTransaction(transaction);
+  const openTransactionDetail = (transactionId: string) => {
+    setSelectedTransactionId(transactionId);
     setShowDetailModal(true);
-    setAttachmentPreview(null);
-    setSelectedCoders([]);
-    setNewMessage("");
-
-    // Fetch all coding requests for this transaction with user details
-    const { data: requests } = await supabase
-      .from("credit_card_coding_requests")
-      .select("requested_coder_id")
-      .eq("transaction_id", transaction.id)
-      .eq("status", "pending");
-
-    if (requests && requests.length > 0) {
-      const coderIds = requests.map(r => r.requested_coder_id);
-      setSelectedCoders(coderIds);
-      
-      // Fetch user details for requested coders
-      const { data: userDetails } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", coderIds);
-      
-      setRequestedUsers(userDetails || []);
-    } else {
-      setRequestedUsers([]);
-    }
-
-    // Fetch communications for this transaction
-    const { data: comms } = await supabase
-      .from("credit_card_transaction_communications")
-      .select(`
-        *,
-        user:user_id(user_id, first_name, last_name)
-      `)
-      .eq("transaction_id", transaction.id)
-      .order("created_at", { ascending: true });
-
-    setCommunications(comms || []);
-
-    // Load attachment preview if exists
-    if (transaction.attachment_url) {
-      if (transaction.attachment_url.includes('.jpg') || 
-          transaction.attachment_url.includes('.jpeg') || 
-          transaction.attachment_url.includes('.png')) {
-        setAttachmentPreview(transaction.attachment_url);
-      } else if (transaction.attachment_url.includes('.pdf')) {
-        setAttachmentPreview(transaction.attachment_url);
-      }
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedTransaction) return;
-
-    try {
-      const { error } = await supabase
-        .from("credit_card_transaction_communications")
-        .insert({
-          transaction_id: selectedTransaction.id,
-          company_id: currentCompany?.id,
-          user_id: user?.id,
-          message: newMessage.trim(),
-        });
-
-      if (error) throw error;
-
-      // Refresh communications
-      const { data: comms } = await supabase
-        .from("credit_card_transaction_communications")
-        .select(`
-          *,
-          user:user_id(user_id, first_name, last_name)
-        `)
-        .eq("transaction_id", selectedTransaction.id)
-        .order("created_at", { ascending: true });
-
-      setCommunications(comms || []);
-      setNewMessage("");
-
-      toast({
-        title: "Success",
-        description: "Message sent to all administrators, controllers, and assigned coders",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
   };
 
   const getStatusBadge = (transaction: any) => {
@@ -848,10 +545,6 @@ export default function CreditCardTransactions() {
     return <div className="flex items-center justify-center h-screen">Credit card not found</div>;
   }
 
-  const filteredCostCodes = (jobId: string | null) => {
-    if (!jobId) return [];
-    return costCodes.filter(cc => !cc.job_id || cc.job_id === jobId);
-  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -998,7 +691,7 @@ export default function CreditCardTransactions() {
                   <TableRow 
                     key={trans.id} 
                     className="cursor-pointer hover:bg-accent"
-                    onClick={() => openTransactionDetail(trans)}
+                    onClick={() => openTransactionDetail(trans.id)}
                   >
                     <TableCell>
                       {new Date(trans.transaction_date).toLocaleDateString()}
@@ -1026,317 +719,14 @@ export default function CreditCardTransactions() {
       </Card>
 
       {/* Transaction Detail Modal */}
-      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Transaction Details</DialogTitle>
-          </DialogHeader>
-          {selectedTransaction && (
-            <div className="space-y-6">
-              {/* Transaction Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Date</Label>
-                  <p className="font-medium">
-                    {new Date(selectedTransaction.transaction_date).toLocaleDateString()}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Amount</Label>
-                  <p className="text-lg font-semibold">
-                    ${Number(selectedTransaction.amount).toLocaleString()}
-                  </p>
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-sm text-muted-foreground">Description</Label>
-                  <p className="font-medium">{selectedTransaction.description}</p>
-                </div>
-                {selectedTransaction.merchant_name && (
-                  <div className="col-span-2">
-                    <Label className="text-sm text-muted-foreground">Merchant</Label>
-                    <p>{selectedTransaction.merchant_name}</p>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-sm text-muted-foreground">Status</Label>
-                  <div className="mt-1 flex items-center gap-2 flex-wrap">
-                    {getStatusBadge(selectedTransaction)}
-                    {requestedUsers.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
-                        {requestedUsers.map((u: any) => (
-                          <Badge key={u.user_id} variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
-                            {u.first_name} {u.last_name}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Job Selection */}
-              <div>
-                <Label>Job</Label>
-                <Select
-                  value={selectedTransaction.job_id || "none"}
-                  onValueChange={(value) => handleJobChange(selectedTransaction.id, value === "none" ? null : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select job" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Job</SelectItem>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Cost Code Selection */}
-              <div>
-                <Label>Cost Code</Label>
-                <Select
-                  value={selectedTransaction.cost_code_id || "none"}
-                  onValueChange={(value) => handleCostCodeChange(selectedTransaction.id, value === "none" ? null : value)}
-                  disabled={!selectedTransaction.job_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select cost code" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Cost Code</SelectItem>
-                    {filteredCostCodes(selectedTransaction.job_id).map((cc) => (
-                      <SelectItem key={cc.id} value={cc.id}>
-                        {cc.code} - {cc.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!selectedTransaction.job_id && (
-                  <p className="text-xs text-muted-foreground mt-1">Select a job first</p>
-                )}
-              </div>
-
-              {/* Request Assistance - Multi-select */}
-              <div>
-                <Label>Request Coding Assistance (Select Multiple Users)</Label>
-                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
-                  <div className="flex items-center space-x-2 pb-2 border-b">
-                    <Checkbox
-                      id="all-users"
-                      checked={selectedCoders.length === users.length}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedCoders(users.map(u => u.user_id));
-                        } else {
-                          setSelectedCoders([]);
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor="all-users"
-                      className="text-sm font-bold leading-none cursor-pointer"
-                    >
-                      All Users
-                    </label>
-                  </div>
-                  {users.map((u) => (
-                    <div key={u.user_id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={u.user_id}
-                        checked={selectedCoders.includes(u.user_id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            const newCoders = [...selectedCoders, u.user_id];
-                            setSelectedCoders(newCoders);
-                          } else {
-                            const newCoders = selectedCoders.filter(id => id !== u.user_id);
-                            setSelectedCoders(newCoders);
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={u.user_id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {u.first_name} {u.last_name}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  className="w-full mt-2"
-                  size="sm"
-                  onClick={() => handleRequestCoding(selectedTransaction.id, selectedCoders)}
-                >
-                  Update Coding Requests
-                </Button>
-              </div>
-
-              {/* Attachment Upload with Preview */}
-              <div>
-                <Label>Attachment</Label>
-                {selectedTransaction.attachment_url ? (
-                  <div className="space-y-3 mt-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(selectedTransaction.attachment_url, '_blank')}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        View Full Size
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          supabase
-                            .from("credit_card_transactions")
-                            .update({ attachment_url: null })
-                            .eq("id", selectedTransaction.id)
-                            .then(() => {
-                              setSelectedTransaction({ ...selectedTransaction, attachment_url: null });
-                              setAttachmentPreview(null);
-                              fetchData();
-                            });
-                        }}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Remove
-                      </Button>
-                    </div>
-                    
-                    {/* Embedded Preview */}
-                    {attachmentPreview && (
-                      <div className="border rounded-lg overflow-hidden bg-muted">
-                        {attachmentPreview.includes('.pdf') ? (
-                          <iframe
-                            src={attachmentPreview}
-                            className="w-full h-96"
-                            title="PDF Preview"
-                          />
-                        ) : (
-                          <img
-                            src={attachmentPreview}
-                            alt="Attachment preview"
-                            className="w-full h-auto max-h-96 object-contain"
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*,.pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleAttachmentUpload(selectedTransaction.id, file);
-                      }}
-                    />
-                    <Button size="sm" variant="outline" asChild className="mt-2">
-                      <span>
-                        <Paperclip className="h-4 w-4 mr-2" />
-                        Upload Attachment
-                      </span>
-                    </Button>
-                  </label>
-                )}
-              </div>
-
-              {/* Suggested Receipt Matches */}
-              {matchedReceipts.has(selectedTransaction.id) && (
-                <div>
-                  <Label>Suggested Receipt Matches</Label>
-                  <div className="mt-2 space-y-2">
-                    {matchedReceipts.get(selectedTransaction.id)?.map((receipt: any) => (
-                      <div
-                        key={receipt.id}
-                        className="p-3 border rounded-lg hover:bg-accent cursor-pointer flex items-center justify-between"
-                      >
-                        <div>
-                          <p className="font-medium">{receipt.vendor_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            ${Number(receipt.amount).toFixed(2)} on{" "}
-                            {new Date(receipt.receipt_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(`/uncoded?receipt=${receipt.id}`, '_blank')}
-                        >
-                          View Receipt
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Communication Section */}
-              <div className="border-t pt-6">
-                <Label className="text-lg font-semibold">Discussion</Label>
-                <div className="mt-3 space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3 bg-muted/30">
-                  {communications.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No messages yet. Start the discussion below.
-                    </p>
-                  ) : (
-                    communications.map((comm: any) => (
-                      <div key={comm.id} className="bg-background p-3 rounded-lg border">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-semibold">
-                            {comm.user?.first_name} {comm.user?.last_name}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(comm.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm">{comm.message}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <Textarea
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    className="resize-none"
-                    rows={2}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim()}
-                    size="sm"
-                  >
-                    Send
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowDetailModal(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedTransactionId && (
+        <CreditCardTransactionModal
+          open={showDetailModal}
+          onOpenChange={setShowDetailModal}
+          transactionId={selectedTransactionId}
+          onComplete={fetchData}
+        />
+      )}
     </div>
   );
 }
