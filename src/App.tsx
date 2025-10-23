@@ -314,6 +314,11 @@ function AuthenticatedRoutes() {
                     <BillDetails />
                   </RoleGuard>
                 } />
+                <Route path="invoices/:id/edit" element={
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <BillEdit />
+                  </RoleGuard>
+                } />
                 <Route path="invoices/payments" element={<PaymentHistory />} />
                 <Route path="invoices/payment-reports" element={<PaymentReports />} />
                 <Route path="company-files" element={<CompanyFiles />} />

@@ -89,7 +89,7 @@ export default function BillEdit() {
       // Load bill data and documents
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*, vendors!inner(company_id), purchase_orders(id, po_number)')
+        .select('*, vendors!inner(company_id, vendor_type), purchase_orders(id, po_number)')
         .eq('id', id)
         .maybeSingle();
 
@@ -195,14 +195,6 @@ export default function BillEdit() {
       
       if (allCostCodesData.data) {
         setAllCostCodes(allCostCodesData.data);
-        // Filter cost codes based on invoice type and job
-        const filteredCodes = filterCostCodesByType(
-          allCostCodesData.data,
-          typedBillData.job_id,
-          typedBillData.is_subcontract_invoice,
-          typedBillData.purchase_order_id
-        );
-        setCostCodes(filteredCodes);
       }
 
       setBill(typedBillData);
@@ -222,6 +214,19 @@ export default function BillEdit() {
         is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
         is_reimbursement: typedBillData.is_reimbursement || false
       });
+      
+      // Filter cost codes AFTER formData and vendors are set
+      if (allCostCodesData.data && vendorsData.data) {
+        const filteredCodes = filterCostCodesByType(
+          allCostCodesData.data,
+          typedBillData.job_id,
+          typedBillData.is_subcontract_invoice,
+          typedBillData.purchase_order_id,
+          typedBillData.vendor_id,
+          vendorsData.data
+        );
+        setCostCodes(filteredCodes);
+      }
     } catch (error) {
       console.error('Error loading bill:', error);
       toast({
@@ -238,15 +243,19 @@ export default function BillEdit() {
     codes: CostCode[],
     jobId: string,
     isSubcontract: boolean,
-    purchaseOrderId?: string
+    purchaseOrderId?: string,
+    vendorId?: string,
+    vendorsList?: any[]
   ) => {
+    // Filter by job first
     let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
     
-    // Get vendor type
-    const vendor = vendors.find(v => v.id === formData.vendor_id);
+    // Get vendor type - use vendorsList if provided, otherwise use state
+    const vendorList = vendorsList || vendors;
+    const vendor = vendorList.find(v => v.id === (vendorId || formData.vendor_id));
     const vendorType = (vendor as any)?.vendor_type;
     
-    // Filter by vendor type first
+    // Filter by vendor type
     if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
       // For subcontractors/design professionals, only show sub, other, or labor cost codes
       filtered = filtered.filter(cc => cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
@@ -268,13 +277,14 @@ export default function BillEdit() {
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Update cost codes when job or invoice type changes
-    if (field === 'job_id' || field === 'is_subcontract_invoice') {
+    // Update cost codes when job, invoice type, or vendor changes
+    if (field === 'job_id' || field === 'is_subcontract_invoice' || field === 'vendor_id') {
       const filteredCodes = filterCostCodesByType(
         allCostCodes,
         field === 'job_id' ? value as string : formData.job_id,
         field === 'is_subcontract_invoice' ? value as boolean : formData.is_subcontract_invoice,
-        bill?.purchase_order_id
+        bill?.purchase_order_id,
+        field === 'vendor_id' ? value as string : formData.vendor_id
       );
       setCostCodes(filteredCodes);
       // Clear cost code selection if it's no longer valid
