@@ -73,13 +73,12 @@ export function CreditCardTransactionModal({
       if (transError) throw transError;
       setTransaction(transData);
 
-      // Set initial job/account selection
-      if (transData.job_id) {
-        setSelectedJobOrAccount(`job_${transData.job_id}`);
-        setIsJobSelected(true);
-      } else if (transData.chart_account_id) {
-        setSelectedJobOrAccount(`account_${transData.chart_account_id}`);
-        setIsJobSelected(false);
+      // Set initial job/account selection based on chart_account range
+      if (transData.chart_of_accounts?.id) {
+        const acct = transData.chart_of_accounts;
+        const isJobAcct = acct.account_number >= '50000' && acct.account_number <= '58000';
+        setSelectedJobOrAccount(`${isJobAcct ? 'job' : 'account'}_${acct.id}`);
+        setIsJobSelected(isJobAcct);
       }
 
       // Set vendor if exists
@@ -87,23 +86,26 @@ export function CreditCardTransactionModal({
         setSelectedVendorId(transData.vendor_id);
       }
 
-      // Fetch jobs
-      const { data: jobsData } = await supabase
-        .from("jobs")
-        .select("id, name, status")
+      // Fetch job accounts from chart of accounts (50000-58000)
+      const { data: jobAccountsData } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
         .eq("company_id", currentCompany?.id)
-        .eq("status", "active")
-        .order("name");
+        .eq("is_active", true)
+        .gte("account_number", "50000")
+        .lte("account_number", "58000")
+        .order("account_name");
 
-      setJobs(jobsData || []);
+      setJobs(jobAccountsData || []);
 
-      // Fetch expense accounts from chart of accounts
+      // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range)
       const { data: expenseAccountsData } = await supabase
         .from("chart_of_accounts")
         .select("id, account_number, account_name, account_type")
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true)
         .in("account_type", ["expense", "operating_expense", "cost_of_goods_sold"])
+        .or("account_number.lt.50000,account_number.gt.58000")
         .order("account_number");
 
       setExpenseAccounts(expenseAccountsData || []);
@@ -242,12 +244,12 @@ export function CreditCardTransactionModal({
       await supabase
         .from("credit_card_transactions")
         .update({
-          job_id: id,
-          chart_account_id: null,
+          job_id: null,
+          chart_account_id: id,
           cost_code_id: null,
         })
         .eq("id", transactionId);
-      setTransaction({ ...transaction, job_id: id, chart_account_id: null, cost_code_id: null });
+      setTransaction({ ...transaction, job_id: null, chart_account_id: id, cost_code_id: null });
     } else if (type === "account") {
       setIsJobSelected(false);
       await supabase
@@ -474,9 +476,9 @@ export function CreditCardTransactionModal({
     }
   };
 
-  const filteredCostCodes = (jobId: string | null) => {
-    if (!jobId) return [];
-    return costCodes.filter(cc => !cc.job_id || cc.job_id === jobId);
+  const filteredCostCodes = () => {
+    if (!isJobSelected) return [];
+    return costCodes;
   };
 
   if (loading) {
@@ -575,11 +577,11 @@ export function CreditCardTransactionModal({
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                       JOBS
                     </div>
-                    {jobs.map((job) => (
-                      <SelectItem key={`job_${job.id}`} value={`job_${job.id}`}>
-                        {job.name}
-                      </SelectItem>
-                    ))}
+                      {jobs.map((job) => (
+                        <SelectItem key={`job_${job.id}`} value={`job_${job.id}`}>
+                          {job.account_name}
+                        </SelectItem>
+                      ))}
                   </>
                 )}
                 
@@ -613,7 +615,7 @@ export function CreditCardTransactionModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Cost Code</SelectItem>
-                  {filteredCostCodes(transaction.job_id).map((cc) => (
+                  {filteredCostCodes().map((cc) => (
                     <SelectItem key={cc.id} value={cc.id}>
                       {cc.code} - {cc.description}
                     </SelectItem>
