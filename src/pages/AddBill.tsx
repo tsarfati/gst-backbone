@@ -180,7 +180,9 @@ export default function AddBill() {
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
       
-      const filtered = filterCostCodesByVendorType(data || []);
+      // Filter out parent codes that have children (only show leaf nodes)
+      const leafCodes = filterLeafCostCodes(data || []);
+      const filtered = filterCostCodesByVendorType(leafCodes);
       const sorted = sortCostCodesNumerically(filtered);
       setCostCodes(sorted);
     } catch (error) {
@@ -197,7 +199,9 @@ export default function AddBill() {
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
       
-      const filtered = filterCostCodesByVendorType(data || []);
+      // Filter out parent codes that have children (only show leaf nodes)
+      const leafCodes = filterLeafCostCodes(data || []);
+      const filtered = filterCostCodesByVendorType(leafCodes);
       const sorted = sortCostCodesNumerically(filtered);
       setLineItemCostCodes(prev => ({
         ...prev,
@@ -206,6 +210,18 @@ export default function AddBill() {
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
+  };
+
+  const filterLeafCostCodes = (codes: any[]) => {
+    // Get all parent IDs that have children
+    const parentIds = new Set(
+      codes
+        .filter(code => code.parent_cost_code_id)
+        .map(code => code.parent_cost_code_id)
+    );
+    
+    // Only return codes that are NOT parents of other codes
+    return codes.filter(code => !parentIds.has(code.id));
   };
 
   const sortCostCodesNumerically = (codes: any[]) => {
