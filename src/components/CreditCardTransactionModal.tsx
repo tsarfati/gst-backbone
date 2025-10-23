@@ -53,7 +53,11 @@ export function CreditCardTransactionModal({
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
+      setAttachmentPreview(null); // Clear preview when switching transactions
       fetchData();
+    } else if (!open) {
+      // Clear state when modal closes
+      setAttachmentPreview(null);
     }
   }, [open, transactionId, currentCompany]);
 
