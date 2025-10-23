@@ -26,6 +26,11 @@ interface NotificationSettings {
   vendor_invitations: boolean;
   job_assignments: boolean;
   receipt_uploaded: boolean;
+  bill_approval_request?: boolean;
+  bill_coding_request?: boolean;
+  credit_card_coding_request?: boolean;
+  financial_overview_enabled?: boolean;
+  financial_overview_frequency?: string;
 }
 
 interface EmailTemplate {
@@ -437,6 +442,48 @@ export default function NotificationSettings() {
                       onCheckedChange={(checked) => updateSetting("receipt_uploaded", checked)}
                     />
                   </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="bill-approval">Bill Approval Requests</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when asked to approve or cost code a bill</p>
+                    </div>
+                    <Switch
+                      id="bill-approval"
+                      checked={settings.bill_approval_request || false}
+                      onCheckedChange={(checked) => updateSetting("bill_approval_request" as any, checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="credit-card-coding">Credit Card Coding Requests</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when requested to help code credit card transactions</p>
+                    </div>
+                    <Switch
+                      id="credit-card-coding"
+                      checked={settings.credit_card_coding_request || false}
+                      onCheckedChange={(checked) => updateSetting("credit_card_coding_request" as any, checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              {/* Financial Reports */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Financial Reports</h3>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="financial-overview">Financial Overview Report</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Weekly report including approved bills awaiting payment, overdue bills, and outstanding customer invoices
+                    </p>
+                  </div>
+                  <Switch
+                    id="financial-overview"
+                    checked={settings.financial_overview_enabled || false}
+                    onCheckedChange={(checked) => updateSetting("financial_overview_enabled" as any, checked)}
+                  />
                 </div>
               </div>
 

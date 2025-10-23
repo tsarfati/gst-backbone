@@ -2977,6 +2977,53 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          bill_approval_request: boolean | null
+          bill_coding_request: boolean | null
+          company_id: string
+          created_at: string | null
+          credit_card_coding_request: boolean | null
+          financial_overview_enabled: boolean | null
+          financial_overview_frequency: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bill_approval_request?: boolean | null
+          bill_coding_request?: boolean | null
+          company_id: string
+          created_at?: string | null
+          credit_card_coding_request?: boolean | null
+          financial_overview_enabled?: boolean | null
+          financial_overview_frequency?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bill_approval_request?: boolean | null
+          bill_coding_request?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          credit_card_coding_request?: boolean | null
+          financial_overview_enabled?: boolean | null
+          financial_overview_frequency?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_settings: {
         Row: {
           company_id: string

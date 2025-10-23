@@ -332,23 +332,35 @@ export default function UserSettings() {
 
         <TabsContent value="menu-access">
           <div className="space-y-6">
-            <div className="text-center">
-              {selectedUserForPermissions ? (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">
-                    Menu Access for {users.find(u => u.user_id === selectedUserForPermissions)?.display_name}
-                  </h3>
-                  <UserMenuPermissions 
-                    userId={selectedUserForPermissions}
-                    userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
-                  />
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  Select a user from the Users tab to manage their menu access permissions.
-                </p>
-              )}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Select User</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={selectedUserForPermissions || ''}
+                  onValueChange={setSelectedUserForPermissions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a user to manage menu access" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.user_id} value={user.user_id}>
+                        {user.display_name || `${user.first_name} ${user.last_name}`} - {roleLabels[user.role as keyof typeof roleLabels]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+            
+            {selectedUserForPermissions && (
+              <UserMenuPermissions 
+                userId={selectedUserForPermissions}
+                userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
+              />
+            )}
           </div>
         </TabsContent>
 
