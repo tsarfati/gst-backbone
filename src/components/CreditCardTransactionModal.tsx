@@ -164,6 +164,7 @@ export function CreditCardTransactionModal({
     const hasCostCode = !!transaction.cost_code_id;
     const hasAttachment = !!transaction.attachment_url;
 
+    // All fields including vendor are required for coded status
     const isCoded = hasVendor && hasJob && hasCostCode && hasAttachment;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
@@ -256,6 +257,7 @@ export function CreditCardTransactionModal({
     if (!newMessage.trim()) return;
 
     try {
+      // Insert the message
       const { error } = await supabase
         .from("credit_card_transaction_communications")
         .insert({
@@ -267,6 +269,7 @@ export function CreditCardTransactionModal({
 
       if (error) throw error;
 
+      // Refresh communications list
       const { data: comms } = await supabase
         .from("credit_card_transaction_communications")
         .select(`
@@ -281,7 +284,7 @@ export function CreditCardTransactionModal({
 
       toast({
         title: "Success",
-        description: "Message sent",
+        description: "Message sent to all administrators, controllers, and assigned coders",
       });
     } catch (error: any) {
       toast({
@@ -359,12 +362,6 @@ export function CreditCardTransactionModal({
               <Label className="text-sm text-muted-foreground">Description</Label>
               <p className="font-medium">{transaction.description}</p>
             </div>
-            {transaction.merchant_name && (
-              <div className="col-span-2">
-                <Label className="text-sm text-muted-foreground">Current Vendor</Label>
-                <p className="font-medium">{transaction.merchant_name}</p>
-              </div>
-            )}
             {requestedUsers.length > 0 && (
               <div className="col-span-2">
                 <Label className="text-sm text-muted-foreground">Requested Coders</Label>

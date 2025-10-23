@@ -795,7 +795,7 @@ export default function CreditCardTransactions() {
 
       toast({
         title: "Success",
-        description: "Message sent",
+        description: "Message sent to all administrators, controllers, and assigned coders",
       });
     } catch (error: any) {
       toast({
@@ -1031,12 +1031,6 @@ export default function CreditCardTransactions() {
                   <div className="col-span-2">
                     <Label className="text-sm text-muted-foreground">Merchant</Label>
                     <p>{selectedTransaction.merchant_name}</p>
-                  </div>
-                )}
-                {selectedTransaction.category && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Category</Label>
-                    <p>{selectedTransaction.category}</p>
                   </div>
                 )}
                 <div>
