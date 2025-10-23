@@ -221,7 +221,10 @@ export default function AddBill() {
     );
     
     // Only return codes that are NOT parents of other codes
-    return codes.filter(code => !parentIds.has(code.id));
+    // Also hide obvious grouping codes like "01.00" and legacy dynamic groups like "1.0"
+    const isGroupingCode = (codeText: string) => /^(\d{1,3}\.00)$/.test(codeText) || /^(\d+\.0)$/.test(codeText);
+
+    return codes.filter(code => !parentIds.has(code.id) && !isGroupingCode(code.code));
   };
 
   const sortCostCodesNumerically = (codes: any[]) => {
@@ -1342,7 +1345,7 @@ export default function AddBill() {
                                   <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                               </PopoverTrigger>
-                              <PopoverContent className="w-[500px] p-0" align="start">
+                              <PopoverContent className="w-[500px] p-0 bg-background z-[60]" align="start">
                                 <Command>
                                   <CommandInput placeholder="Search cost codes..." />
                                   <CommandEmpty>No cost code found.</CommandEmpty>
