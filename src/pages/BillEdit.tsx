@@ -32,6 +32,7 @@ interface CostCode {
   description: string;
   job_id?: string;
   type?: string;
+  is_dynamic_group?: boolean;
 }
 
 export default function BillEdit() {
@@ -174,9 +175,10 @@ export default function BillEdit() {
           .order('name'),
         supabase
           .from('cost_codes')
-          .select('id, code, description, job_id, type')
+          .select('id, code, description, job_id, type, is_dynamic_group')
           .eq('company_id', companyId)
           .eq('is_active', true)
+          .eq('is_dynamic_group', false)
           .order('code')
       ]);
 
@@ -249,6 +251,17 @@ export default function BillEdit() {
   ) => {
     // Filter by job first
     let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
+    
+    // Remove duplicates - prefer job-specific codes over company-level codes
+    const codeMap = new Map<string, CostCode>();
+    filtered.forEach(cc => {
+      const existing = codeMap.get(cc.code);
+      // If no existing or current has job_id and existing doesn't, use current
+      if (!existing || (cc.job_id && !existing.job_id)) {
+        codeMap.set(cc.code, cc);
+      }
+    });
+    filtered = Array.from(codeMap.values());
     
     // Get vendor type - use vendorsList if provided, otherwise use state
     const vendorList = vendorsList || vendors;
@@ -377,6 +390,12 @@ export default function BillEdit() {
 
       setSaving(true);
 
+      // Determine new status - if bill is pending_coding and now has job + cost code, move to pending_approval
+      let newStatus = bill?.status;
+      if (bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
+        newStatus = 'pending_approval';
+      }
+
       // Upload new files if provided
       if (billFiles.length > 0) {
         const user = await supabase.auth.getUser();
@@ -409,7 +428,7 @@ export default function BillEdit() {
         }
       }
 
-      const updateData = {
+      const updateData: any = {
         vendor_id: formData.vendor_id || null,
         job_id: formData.job_id || null,
         cost_code_id: formData.cost_code_id || null,
@@ -424,6 +443,11 @@ export default function BillEdit() {
         is_reimbursement: formData.is_reimbursement
       };
 
+      // Update status if it changed
+      if (newStatus && newStatus !== bill?.status) {
+        updateData.status = newStatus;
+      }
+
       const { error } = await supabase
         .from('invoices')
         .update(updateData)
@@ -431,9 +455,13 @@ export default function BillEdit() {
 
       if (error) throw error;
 
+      const successMessage = newStatus === 'pending_approval' && bill?.status === 'pending_coding'
+        ? "Bill updated and sent to approval"
+        : "Bill updated successfully";
+
       toast({
         title: "Success",
-        description: "Bill updated successfully",
+        description: successMessage,
       });
       
       navigate(`/invoices/${id}`);
