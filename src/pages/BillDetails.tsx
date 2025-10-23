@@ -602,27 +602,25 @@ export default function BillDetails() {
                 {bill?.subcontract_id && bill?.subcontracts && (
                   <div>
                     <p className="text-sm text-muted-foreground">Commitment</p>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto font-medium text-left"
+                    <button
+                      className="font-medium text-left hover:underline hover:text-primary flex items-center gap-1"
                       onClick={() => navigate(`/subcontracts/${bill.subcontract_id}`)}
                     >
                       Subcontract: {bill.subcontracts.name}
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
+                      <ExternalLink className="h-3 w-3" />
+                    </button>
                   </div>
                 )}
                 {bill?.purchase_order_id && bill?.purchase_orders && (
                   <div>
                     <p className="text-sm text-muted-foreground">Commitment</p>
-                    <Button
-                      variant="link"
-                      className="p-0 h-auto font-medium text-left"
+                    <button
+                      className="font-medium text-left hover:underline hover:text-primary flex items-center gap-1"
                       onClick={() => navigate(`/purchase-orders/${bill.purchase_order_id}`)}
                     >
                       Purchase Order: {bill.purchase_orders.po_number}
-                      <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
+                      <ExternalLink className="h-3 w-3" />
+                    </button>
                   </div>
                 )}
                 <div>
