@@ -401,7 +401,12 @@ export default function Reconcile() {
         }));
 
       const journalPayments: Transaction[] = (withdrawalsJournalData || [])
-        .filter((d: any) => !reconciledPaymentIds.has(d.id))
+        .filter((d: any) => {
+          // Exclude journal entries that are duplicates of payments (reference starts with "PAY-")
+          const reference = d.journal_entries?.reference || '';
+          const isDuplicatePayment = reference.startsWith('PAY-');
+          return !reconciledPaymentIds.has(d.id) && !isDuplicatePayment;
+        })
         .map((d: any) => ({
           id: d.id,
           date: d.journal_entries?.entry_date || '',
