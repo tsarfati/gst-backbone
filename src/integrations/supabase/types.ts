@@ -996,6 +996,7 @@ export type Database = {
           amount: number
           attachment_url: string | null
           category: string | null
+          chart_account_id: string | null
           coding_status: string | null
           company_id: string
           cost_code_id: string | null
@@ -1017,11 +1018,13 @@ export type Database = {
           transaction_date: string
           transaction_type: string | null
           updated_at: string | null
+          vendor_id: string | null
         }
         Insert: {
           amount: number
           attachment_url?: string | null
           category?: string | null
+          chart_account_id?: string | null
           coding_status?: string | null
           company_id: string
           cost_code_id?: string | null
@@ -1043,11 +1046,13 @@ export type Database = {
           transaction_date: string
           transaction_type?: string | null
           updated_at?: string | null
+          vendor_id?: string | null
         }
         Update: {
           amount?: number
           attachment_url?: string | null
           category?: string | null
+          chart_account_id?: string | null
           coding_status?: string | null
           company_id?: string
           cost_code_id?: string | null
@@ -1069,8 +1074,16 @@ export type Database = {
           transaction_date?: string
           transaction_type?: string | null
           updated_at?: string | null
+          vendor_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "credit_card_transactions_chart_account_id_fkey"
+            columns: ["chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "credit_card_transactions_company_id_fkey"
             columns: ["company_id"]
@@ -1126,6 +1139,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
           },
         ]
       }

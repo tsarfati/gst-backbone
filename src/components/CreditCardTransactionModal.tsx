@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Paperclip, FileText, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface CreditCardTransactionModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function CreditCardTransactionModal({
   const [jobs, setJobs] = useState<any[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCoders, setSelectedCoders] = useState<string[]>([]);
@@ -40,6 +42,10 @@ export function CreditCardTransactionModal({
   const [communications, setCommunications] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [selectedJobOrAccount, setSelectedJobOrAccount] = useState<string | null>(null);
+  const [isJobSelected, setIsJobSelected] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
@@ -57,7 +63,9 @@ export function CreditCardTransactionModal({
         .select(`
           *,
           jobs:job_id(id, name),
-          cost_codes:cost_code_id(id, code, description)
+          cost_codes:cost_code_id(id, code, description),
+          vendors:vendor_id(id, name),
+          chart_of_accounts:chart_account_id(id, account_number, account_name)
         `)
         .eq("id", transactionId)
         .single();
@@ -65,15 +73,40 @@ export function CreditCardTransactionModal({
       if (transError) throw transError;
       setTransaction(transData);
 
+      // Set initial job/account selection
+      if (transData.job_id) {
+        setSelectedJobOrAccount(`job_${transData.job_id}`);
+        setIsJobSelected(true);
+      } else if (transData.chart_account_id) {
+        setSelectedJobOrAccount(`account_${transData.chart_account_id}`);
+        setIsJobSelected(false);
+      }
+
+      // Set vendor if exists
+      if (transData.vendor_id) {
+        setSelectedVendorId(transData.vendor_id);
+      }
+
       // Fetch jobs
       const { data: jobsData } = await supabase
         .from("jobs")
-        .select("id, name")
+        .select("id, name, status")
         .eq("company_id", currentCompany?.id)
         .eq("status", "active")
         .order("name");
 
       setJobs(jobsData || []);
+
+      // Fetch expense accounts from chart of accounts
+      const { data: expenseAccountsData } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, account_type")
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .in("account_type", ["expense", "operating_expense", "cost_of_goods_sold"])
+        .order("account_number");
+
+      setExpenseAccounts(expenseAccountsData || []);
 
       // Fetch cost codes
       const { data: costCodesData } = await supabase
@@ -159,13 +192,13 @@ export function CreditCardTransactionModal({
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
-    const hasVendor = !!transaction.merchant_name;
-    const hasJob = !!transaction.job_id;
-    const hasCostCode = !!transaction.cost_code_id;
+    const hasVendor = !!selectedVendorId;
+    const hasJobOrAccount = !!selectedJobOrAccount;
+    const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
     // All fields including vendor are required for coded status
-    const isCoded = hasVendor && hasJob && hasCostCode && hasAttachment;
+    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && hasAttachment;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
     await supabase
@@ -176,16 +209,50 @@ export function CreditCardTransactionModal({
     setTransaction({ ...transaction, coding_status: newStatus });
   };
 
-  const handleJobChange = async (jobId: string | null) => {
-    await supabase
-      .from("credit_card_transactions")
-      .update({
-        job_id: jobId,
-        cost_code_id: null,
-      })
-      .eq("id", transactionId);
+  const handleJobOrAccountChange = async (value: string | null) => {
+    if (!value || value === "none") {
+      setSelectedJobOrAccount(null);
+      setIsJobSelected(false);
+      await supabase
+        .from("credit_card_transactions")
+        .update({
+          job_id: null,
+          chart_account_id: null,
+          cost_code_id: null,
+        })
+        .eq("id", transactionId);
+      setTransaction({ ...transaction, job_id: null, chart_account_id: null, cost_code_id: null });
+      await updateCodingStatus();
+      return;
+    }
 
-    setTransaction({ ...transaction, job_id: jobId, cost_code_id: null });
+    const [type, id] = value.split("_");
+    setSelectedJobOrAccount(value);
+
+    if (type === "job") {
+      setIsJobSelected(true);
+      await supabase
+        .from("credit_card_transactions")
+        .update({
+          job_id: id,
+          chart_account_id: null,
+          cost_code_id: null,
+        })
+        .eq("id", transactionId);
+      setTransaction({ ...transaction, job_id: id, chart_account_id: null, cost_code_id: null });
+    } else if (type === "account") {
+      setIsJobSelected(false);
+      await supabase
+        .from("credit_card_transactions")
+        .update({
+          job_id: null,
+          chart_account_id: id,
+          cost_code_id: null,
+        })
+        .eq("id", transactionId);
+      setTransaction({ ...transaction, job_id: null, chart_account_id: id, cost_code_id: null });
+    }
+
     await updateCodingStatus();
   };
 
@@ -199,13 +266,22 @@ export function CreditCardTransactionModal({
     await updateCodingStatus();
   };
 
-  const handleVendorChange = async (vendorName: string | null) => {
+  const handleVendorChange = async (vendorId: string | null) => {
+    setSelectedVendorId(vendorId);
+    
     await supabase
       .from("credit_card_transactions")
-      .update({ merchant_name: vendorName })
+      .update({ 
+        vendor_id: vendorId,
+        merchant_name: vendorId ? vendors.find(v => v.id === vendorId)?.name : null
+      })
       .eq("id", transactionId);
 
-    setTransaction({ ...transaction, merchant_name: vendorName });
+    setTransaction({ 
+      ...transaction, 
+      vendor_id: vendorId,
+      merchant_name: vendorId ? vendors.find(v => v.id === vendorId)?.name : null
+    });
     await updateCodingStatus();
   };
 
@@ -318,6 +394,70 @@ export function CreditCardTransactionModal({
     }
   };
 
+  const handleRequestCoding = async () => {
+    if (selectedCoders.length === 0) {
+      toast({
+        title: "No coders selected",
+        description: "Please select at least one person to request coding assistance",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Delete existing requests
+      await supabase
+        .from("credit_card_coding_requests")
+        .delete()
+        .eq("transaction_id", transactionId);
+
+      // Create new requests
+      const requests = selectedCoders.map(coderId => ({
+        transaction_id: transactionId,
+        company_id: currentCompany?.id,
+        requested_by: user?.id,
+        requested_coder_id: coderId,
+        status: "pending",
+      }));
+
+      const { error } = await supabase
+        .from("credit_card_coding_requests")
+        .insert(requests);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Coding assistance requested",
+      });
+
+      fetchData();
+      setCodingRequestDropdownOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleCoderSelection = (userId: string) => {
+    setSelectedCoders(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const toggleAllCoders = () => {
+    if (selectedCoders.length === users.length) {
+      setSelectedCoders([]);
+    } else {
+      setSelectedCoders(users.map(u => u.user_id));
+    }
+  };
+
   const filteredCostCodes = (jobId: string | null) => {
     if (!jobId) return [];
     return costCodes.filter(cc => !cc.job_id || cc.job_id === jobId);
@@ -380,7 +520,7 @@ export function CreditCardTransactionModal({
           <div>
             <Label>Vendor *</Label>
             <Select
-              value={transaction.merchant_name || "none"}
+              value={selectedVendorId || "none"}
               onValueChange={(value) => handleVendorChange(value === "none" ? null : value)}
             >
               <SelectTrigger>
@@ -389,7 +529,7 @@ export function CreditCardTransactionModal({
               <SelectContent>
                 <SelectItem value="none">No Vendor</SelectItem>
                 {vendors.map((vendor) => (
-                  <SelectItem key={vendor.id} value={vendor.name}>
+                  <SelectItem key={vendor.id} value={vendor.id}>
                     {vendor.name}
                   </SelectItem>
                 ))}
@@ -397,50 +537,133 @@ export function CreditCardTransactionModal({
             </Select>
           </div>
 
-          {/* Job Selection */}
+          {/* Job/Control Selection */}
           <div>
-            <Label>Job *</Label>
+            <Label>Job/Control *</Label>
             <Select
-              value={transaction.job_id || "none"}
-              onValueChange={(value) => handleJobChange(value === "none" ? null : value)}
+              value={selectedJobOrAccount || "none"}
+              onValueChange={handleJobOrAccountChange}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select job" />
+                <SelectValue placeholder="Select job or expense account" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Job</SelectItem>
-                {jobs.map((job) => (
-                  <SelectItem key={job.id} value={job.id}>
-                    {job.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="none">None</SelectItem>
+                
+                {/* Jobs Section */}
+                {jobs.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                      JOBS
+                    </div>
+                    {jobs.map((job) => (
+                      <SelectItem key={`job_${job.id}`} value={`job_${job.id}`}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+                
+                {/* Expense Accounts Section */}
+                {expenseAccounts.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">
+                      CHART OF ACCOUNTS
+                    </div>
+                    {expenseAccounts.map((account) => (
+                      <SelectItem key={`account_${account.id}`} value={`account_${account.id}`}>
+                        {account.account_number} - {account.account_name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Cost Code Selection */}
+          {/* Cost Code Selection - only shown for jobs */}
+          {isJobSelected && (
+            <div>
+              <Label>Cost Code *</Label>
+              <Select
+                value={transaction.cost_code_id || "none"}
+                onValueChange={(value) => handleCostCodeChange(value === "none" ? null : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cost code" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Cost Code</SelectItem>
+                  {filteredCostCodes(transaction.job_id).map((cc) => (
+                    <SelectItem key={cc.id} value={cc.id}>
+                      {cc.code} - {cc.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Request Coding Assistance */}
           <div>
-            <Label>Cost Code *</Label>
+            <Label>Request Coding Assistance</Label>
             <Select
-              value={transaction.cost_code_id || "none"}
-              onValueChange={(value) => handleCostCodeChange(value === "none" ? null : value)}
-              disabled={!transaction.job_id}
+              open={codingRequestDropdownOpen}
+              onOpenChange={setCodingRequestDropdownOpen}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select cost code" />
+                <SelectValue>
+                  {selectedCoders.length === 0
+                    ? "Select users to request assistance"
+                    : `${selectedCoders.length} user${selectedCoders.length > 1 ? 's' : ''} selected`}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Cost Code</SelectItem>
-                {filteredCostCodes(transaction.job_id).map((cc) => (
-                  <SelectItem key={cc.id} value={cc.id}>
-                    {cc.code} - {cc.description}
-                  </SelectItem>
-                ))}
+                <div className="p-2 space-y-2">
+                  <div className="flex items-center space-x-2 pb-2 border-b">
+                    <Checkbox
+                      checked={selectedCoders.length === users.length && users.length > 0}
+                      onCheckedChange={toggleAllCoders}
+                      id="select-all"
+                    />
+                    <label htmlFor="select-all" className="text-sm font-semibold cursor-pointer">
+                      Select All
+                    </label>
+                  </div>
+                  {users.map((user) => (
+                    <div key={user.user_id} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={selectedCoders.includes(user.user_id)}
+                        onCheckedChange={() => toggleCoderSelection(user.user_id)}
+                        id={`coder-${user.user_id}`}
+                      />
+                      <label
+                        htmlFor={`coder-${user.user_id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {user.first_name} {user.last_name}
+                        <span className="text-xs text-muted-foreground ml-2">({user.role})</span>
+                      </label>
+                    </div>
+                  ))}
+                  {users.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      No users available
+                    </p>
+                  )}
+                </div>
+                <div className="border-t p-2">
+                  <Button
+                    onClick={handleRequestCoding}
+                    size="sm"
+                    className="w-full"
+                    disabled={selectedCoders.length === 0}
+                  >
+                    Send Request
+                  </Button>
+                </div>
               </SelectContent>
             </Select>
-            {!transaction.job_id && (
-              <p className="text-xs text-muted-foreground mt-1">Select a job first</p>
-            )}
           </div>
 
           {/* Attachment */}
