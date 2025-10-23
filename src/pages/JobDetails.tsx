@@ -8,6 +8,7 @@ import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Pack
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
 import JobCostBudgetView from "@/components/JobCostBudgetView";
@@ -38,6 +39,7 @@ export default function JobDetails() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const permissions = useActionPermissions();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [budgetTotal, setBudgetTotal] = useState<number>(0);
@@ -163,10 +165,12 @@ export default function JobDetails() {
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
           <p className="text-muted-foreground">Job Details</p>
         </div>
-        <Button variant="outline" onClick={() => navigate(`/jobs/${id}/edit`)}>
-          <Edit className="h-4 w-4 mr-2" />
-          Edit Job
-        </Button>
+        {permissions.canEditJobs() && (
+          <Button variant="outline" onClick={() => navigate(`/jobs/${id}/edit`)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Job
+          </Button>
+        )}
       </div>
 
       {/* Tabbed Content */}

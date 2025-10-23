@@ -13,6 +13,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { useActionPermissions } from '@/hooks/useActionPermissions';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 
@@ -114,14 +115,6 @@ function ActiveJobsList() {
         ) : jobs.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-muted-foreground">No active jobs</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="mt-4"
-              onClick={() => navigate('/add-job')}
-            >
-              Create Job
-            </Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -167,6 +160,7 @@ export default function Dashboard() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const permissions = useActionPermissions();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
@@ -417,13 +411,15 @@ export default function Dashboard() {
     }
   };
 
-  const stats = [
+  // Filter stats based on permissions
+  const allStats = [
     {
       title: "Uncoded Receipts",
       value: uncodedReceiptsCount.toString(),
       icon: Clock,
       variant: "warning" as const,
       href: "/uncoded",
+      visible: permissions.canViewReceipts(),
     },
     {
       title: "Total Receipts",
@@ -431,6 +427,7 @@ export default function Dashboard() {
       icon: Receipt,
       variant: "default" as const,
       href: "/receipts",
+      visible: permissions.canViewReceipts(),
     },
     {
       title: "Active Jobs",
@@ -438,6 +435,7 @@ export default function Dashboard() {
       icon: CheckCircle,
       variant: "secondary" as const,
       href: "/jobs",
+      visible: permissions.canViewJobs(),
     },
     {
       title: "Pending Bills",
@@ -445,8 +443,11 @@ export default function Dashboard() {
       icon: DollarSign,
       variant: "destructive" as const,
       href: "/invoices",
+      visible: permissions.canViewBills(),
     },
   ];
+
+  const stats = allStats.filter(stat => stat.visible);
 
   const handleStatClick = (href: string) => {
     navigate(href);

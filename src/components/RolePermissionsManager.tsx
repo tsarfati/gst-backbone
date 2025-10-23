@@ -57,7 +57,7 @@ const menuItems = [
   { key: 'jobs', label: 'Jobs', description: 'View and manage construction jobs', category: 'Projects' },
   { key: 'jobs-add', label: 'Add Jobs', description: 'Create new construction projects', category: 'Projects' },
   { key: 'jobs-edit', label: 'Edit Jobs', description: 'Modify existing job details', category: 'Projects' },
-  { key: 'jobs-budget', label: 'Job Budgets', description: 'Manage project budgeting', category: 'Projects' },
+  { key: 'jobs-budget', label: 'Job Budgets', description: 'View and manage project budgeting', category: 'Projects' },
   { key: 'jobs-reports', label: 'Job Reports', description: 'Generate job performance reports', category: 'Projects' },
   { key: 'cost-codes', label: 'Cost Codes', description: 'Manage job cost codes', category: 'Projects' },
   { key: 'delivery-tickets', label: 'Delivery Tickets', description: 'Manage delivery tickets for jobs', category: 'Projects' },
@@ -82,7 +82,7 @@ const menuItems = [
   { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'Time Tracking' },
   
   // Financial Management
-  { key: 'bills', label: 'Bills & Invoices', description: 'Manage bills and invoices', category: 'Finance' },
+  { key: 'bills', label: 'Bills & Invoices', description: 'View bills and invoices', category: 'Finance' },
   { key: 'bills-add', label: 'Add Bills', description: 'Create new bills/invoices', category: 'Finance' },
   { key: 'bill-status', label: 'Bill Status', description: 'Track bill payment status', category: 'Finance' },
   { key: 'payment-history', label: 'Payment History', description: 'View payment records', category: 'Finance' },
@@ -96,10 +96,10 @@ const menuItems = [
   { key: 'receipt-reports', label: 'Receipt Reports', description: 'Generate receipt reports', category: 'Receipts' },
   
   // Banking
-  { key: 'banking-accounts', label: 'Bank Accounts', description: 'Manage bank accounts', category: 'Banking' },
-  { key: 'banking-credit-cards', label: 'Credit Cards', description: 'Manage credit cards', category: 'Banking' },
+  { key: 'banking-accounts', label: 'Bank Accounts', description: 'View bank accounts', category: 'Banking' },
+  { key: 'banking-credit-cards', label: 'Credit Cards', description: 'View credit cards', category: 'Banking' },
   { key: 'banking-reports', label: 'Banking Reports', description: 'Generate banking reports', category: 'Banking' },
-  { key: 'journal-entries', label: 'Journal Entries', description: 'Manage accounting entries', category: 'Banking' },
+  { key: 'journal-entries', label: 'Journal Entries', description: 'View accounting entries', category: 'Banking' },
   { key: 'deposits', label: 'Deposits', description: 'Record bank deposits', category: 'Banking' },
   { key: 'print-checks', label: 'Print Checks', description: 'Print payment checks', category: 'Banking' },
   { key: 'make-payment', label: 'Make Payments', description: 'Process payments', category: 'Banking' },
@@ -111,10 +111,10 @@ const menuItems = [
   { key: 'announcements', label: 'Announcements', description: 'Company announcements', category: 'Communication' },
   
   // Company Management
-  { key: 'company-files', label: 'Company Files', description: 'Manage company documents', category: 'Company' },
-  { key: 'company-contracts', label: 'Contracts', description: 'Manage company contracts', category: 'Company' },
-  { key: 'company-permits', label: 'Permits', description: 'Track company permits', category: 'Company' },
-  { key: 'company-insurance', label: 'Insurance', description: 'Manage insurance policies', category: 'Company' },
+  { key: 'company-files', label: 'Company Files', description: 'View company documents', category: 'Company' },
+  { key: 'company-contracts', label: 'Contracts', description: 'View company contracts', category: 'Company' },
+  { key: 'company-permits', label: 'Permits', description: 'View company permits', category: 'Company' },
+  { key: 'company-insurance', label: 'Insurance', description: 'View insurance policies', category: 'Company' },
   
   // Administration
   { key: 'settings', label: 'App Settings', description: 'Application configuration', category: 'Admin' },
@@ -131,9 +131,10 @@ const menuItems = [
 const roles = [
   { key: 'admin', label: 'Admin', color: 'bg-red-100 text-red-800', description: 'Full system access' },
   { key: 'controller', label: 'Controller', color: 'bg-blue-100 text-blue-800', description: 'Financial oversight' },
+  { key: 'company_admin', label: 'Company Admin', color: 'bg-orange-100 text-orange-800', description: 'Company-wide management' },
   { key: 'project_manager', label: 'Project Manager', color: 'bg-green-100 text-green-800', description: 'Project management' },
   { key: 'employee', label: 'Employee', color: 'bg-gray-100 text-gray-800', description: 'Basic employee access' },
-  { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access' },
+  { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access - Cannot create, edit, or delete' },
 ];
 
 export default function RolePermissionsManager() {
