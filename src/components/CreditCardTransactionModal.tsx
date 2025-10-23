@@ -10,9 +10,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Paperclip, FileText, X } from "lucide-react";
+import { Paperclip, FileText, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,6 +48,7 @@ export function CreditCardTransactionModal({
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
   const [jobCostCodes, setJobCostCodes] = useState<any[]>([]);
+  const [openPickers, setOpenPickers] = useState<{ jobControl: boolean; costCode: boolean }>({ jobControl: false, costCode: false });
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
@@ -74,37 +76,27 @@ export function CreditCardTransactionModal({
       if (transError) throw transError;
       setTransaction(transData);
 
-      // Set initial job/account selection based on chart_account range
-      if (transData.chart_of_accounts?.id) {
+      // Set initial selection: prefer job if present
+      if (transData.job_id) {
+        setSelectedJobOrAccount(`job_${transData.job_id}`);
+        setIsJobSelected(true);
+        // Preload cost codes for the job
+        const { data: jobCodes } = await supabase
+          .from('cost_codes')
+          .select('*')
+          .eq('job_id', transData.job_id)
+          .eq('company_id', currentCompany?.id || '')
+          .eq('is_active', true)
+          .eq('is_dynamic_group', false)
+          .order('code');
+        const uniqueJobCodes = Array.from(new Map((jobCodes || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
+        setJobCostCodes(uniqueJobCodes);
+      } else if (transData.chart_of_accounts?.id) {
         const acct = transData.chart_of_accounts;
         const isJobAcct = acct.account_number >= '50000' && acct.account_number <= '58000';
-        setSelectedJobOrAccount(`${isJobAcct ? 'job' : 'account'}_${acct.id}`);
-        setIsJobSelected(isJobAcct);
-
-        // If it's a job account, pre-load its associated cost codes
-        if (isJobAcct) {
-          const { data: associations } = await supabase
-            .from("account_associations")
-            .select("cost_code_id")
-            .eq("account_id", acct.id)
-            .eq("company_id", currentCompany?.id);
-
-          const costCodeIds = (associations || []).map(a => a.cost_code_id).filter(Boolean);
-
-          if (costCodeIds.length > 0) {
-            const { data: jobCostCodesData } = await supabase
-              .from("cost_codes")
-              .select("*")
-              .in("id", costCodeIds)
-              .eq("is_active", true)
-              .order("code");
-
-            const uniqueInit = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
-            setJobCostCodes(uniqueInit);
-          } else {
-            setJobCostCodes([]);
-          }
-        } else {
+        if (!isJobAcct) {
+          setSelectedJobOrAccount(`account_${acct.id}`);
+          setIsJobSelected(false);
           setJobCostCodes([]);
         }
       }
@@ -114,27 +106,23 @@ export function CreditCardTransactionModal({
         setSelectedVendorId(transData.vendor_id);
       }
 
-      // Fetch job accounts from chart of accounts (50000-58000)
-      const { data: jobAccountsData } = await supabase
-        .from("chart_of_accounts")
-        .select("id, account_number, account_name")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .gte("account_number", "50000")
-        .lte("account_number", "58000")
-        .order("account_name");
-
-      setJobs(jobAccountsData || []);
+      // Fetch jobs list
+      const { data: jobsData } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', currentCompany?.id)
+        .order('name');
+      setJobs(jobsData || []);
 
       // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range)
       const { data: expenseAccountsData } = await supabase
-        .from("chart_of_accounts")
-        .select("id, account_number, account_name, account_type")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .in("account_type", ["expense", "operating_expense", "cost_of_goods_sold"])
-        .or("account_number.lt.50000,account_number.gt.58000")
-        .order("account_number");
+        .from('chart_of_accounts')
+        .select('id, account_number, account_name, account_type')
+        .eq('company_id', currentCompany?.id)
+        .eq('is_active', true)
+        .in('account_type', ['expense', 'operating_expense', 'cost_of_goods_sold'])
+        .or('account_number.lt.50000,account_number.gt.58000')
+        .order('account_number');
 
        setExpenseAccounts(expenseAccountsData || []);
  
