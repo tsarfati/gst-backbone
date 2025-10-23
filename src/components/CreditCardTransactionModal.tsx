@@ -731,7 +731,7 @@ export function CreditCardTransactionModal({
           {isJobSelected && (
             <div>
               <Label>Cost Code *</Label>
-              <Popover key={`costcode-${transactionId}`}
+              <Popover 
                 open={openPickers.costCode} 
                 onOpenChange={(open) => setOpenPickers({ ...openPickers, costCode: open })}
               >
@@ -760,7 +760,7 @@ export function CreditCardTransactionModal({
                         {filteredCostCodes().map((cc) => (
                           <CommandItem
                             key={cc.id}
-                            value={`${cc.code} ${cc.description}`}
+                            value={`${cc.id}-${cc.code} ${cc.description}`}
                             onSelect={() => handleCostCodeChange(cc.id)}
                           >
                             <Check
