@@ -852,7 +852,15 @@ export function CreditCardTransactionModal({
                     onClick={() => {
                       const url = attachmentPreview || transaction?.attachment_url;
                       if (url) {
-                        window.open(url, '_blank', 'noopener,noreferrer');
+                        try {
+                          const win = window.open(url, '_blank', 'noopener,noreferrer');
+                          // If pop-up was blocked by Chrome/sandbox, fall back to same-tab navigation
+                          if (!win || win.closed || typeof win.closed === 'undefined') {
+                            window.location.href = url;
+                          }
+                        } catch {
+                          window.location.href = url;
+                        }
                       }
                     }}
                   >
