@@ -255,8 +255,10 @@ export default function UserRoleManagement() {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="controller">Controller</SelectItem>
+                <SelectItem value="company_admin">Company Admin</SelectItem>
                 <SelectItem value="project_manager">Project Manager</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="view_only">View Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -334,8 +336,10 @@ export default function UserRoleManagement() {
                             <SelectContent>
                               <SelectItem value="admin">Admin</SelectItem>
                               <SelectItem value="controller">Controller</SelectItem>
+                              <SelectItem value="company_admin">Company Admin</SelectItem>
                               <SelectItem value="project_manager">Project Manager</SelectItem>
                               <SelectItem value="employee">Employee</SelectItem>
+                              <SelectItem value="view_only">View Only</SelectItem>
                               {customRoles.length > 0 && (
                                 <>
                                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
