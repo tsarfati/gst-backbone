@@ -557,8 +557,35 @@ export function CreditCardTransactionModal({
 
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
-    return [...jobCostCodes]
+    
+    // Deduplicate cost codes by code+description, prioritizing job-specific and non-"other" types
+    const seen = new Map();
+    
+    jobCostCodes
       .filter(Boolean)
+      .forEach((cc: any) => {
+        const key = `${cc.code}-${cc.description}`;
+        const existing = seen.get(key);
+        
+        if (!existing) {
+          seen.set(key, cc);
+        } else {
+          // Prefer job-specific cost codes over company-wide
+          const hasJobId = cc.job_id != null;
+          const existingHasJobId = existing.job_id != null;
+          
+          if (hasJobId && !existingHasJobId) {
+            seen.set(key, cc);
+          } else if (hasJobId === existingHasJobId) {
+            // If both or neither have job_id, prefer non-"other" type
+            if (cc.type !== 'other' && existing.type === 'other') {
+              seen.set(key, cc);
+            }
+          }
+        }
+      });
+    
+    return Array.from(seen.values())
       .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
   };
   const getCostCodeCategoryBadge = (type: string) => {
