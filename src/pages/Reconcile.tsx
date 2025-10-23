@@ -400,12 +400,15 @@ export default function Reconcile() {
           is_cleared: false
         }));
 
+      // Get payment IDs to identify duplicate journal entries
+      const paymentIds = new Set((paymentsData || []).map((p: any) => p.id));
+
       const journalPayments: Transaction[] = (withdrawalsJournalData || [])
         .filter((d: any) => {
-          // Exclude journal entries that are duplicates of payments (reference starts with "PAY-")
+          // Exclude journal entries that are auto-created for payments (reference contains payment UUID)
           const reference = d.journal_entries?.reference || '';
-          const isDuplicatePayment = reference.startsWith('PAY-');
-          return !reconciledPaymentIds.has(d.id) && !isDuplicatePayment;
+          const isPaymentJournalEntry = [...paymentIds].some(paymentId => reference.includes(paymentId));
+          return !reconciledPaymentIds.has(d.id) && !isPaymentJournalEntry;
         })
         .map((d: any) => ({
           id: d.id,
