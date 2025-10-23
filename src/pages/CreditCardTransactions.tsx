@@ -125,22 +125,86 @@ export default function CreditCardTransactions() {
     try {
       Papa.parse(csvFile, {
         header: true,
+        skipEmptyLines: true,
         complete: async (results) => {
+          // Detect CSV format by checking column names
+          const headers = results.meta.fields || [];
+          const isChaseFormat = headers.includes('Card') && headers.includes('Transaction Date') && headers.includes('Post Date');
+          
           const transactions = results.data
-            .filter((row: any) => row.Date && row.Description && row.Amount)
-            .map((row: any) => ({
-              credit_card_id: id,
-              company_id: currentCompany.id,
-              transaction_date: new Date(row.Date).toISOString().split('T')[0],
-              description: row.Description || "",
-              merchant_name: row.Merchant || row.Description || "",
-              amount: Math.abs(parseFloat(row.Amount.replace(/[^0-9.-]/g, ""))),
-              category: row.Category || null,
-              reference_number: row.Reference || null,
-              created_by: user?.id,
-              imported_from_csv: true,
-              coding_status: 'uncoded',
-            }));
+            .filter((row: any) => {
+              if (isChaseFormat) {
+                // Chase format: has Transaction Date, Description, Amount, and Type
+                return row['Transaction Date'] && row.Description && row.Amount && row.Type;
+              } else {
+                // Generic format
+                return row.Date && row.Description && row.Amount;
+              }
+            })
+            .map((row: any) => {
+              if (isChaseFormat) {
+                // Parse Chase CSV format
+                const transactionDate = row['Transaction Date'];
+                const postDate = row['Post Date'];
+                const description = row.Description || "";
+                const category = row.Category || null;
+                const type = row.Type || "";
+                const memo = row.Memo || null;
+                
+                // Parse amount - Chase uses negative for charges/fees, positive for payments
+                let amount = parseFloat(row.Amount.replace(/[^0-9.-]/g, ""));
+                
+                // For payments (positive amounts), we skip them or handle differently
+                // For charges/fees (negative amounts), make them positive
+                if (amount > 0 && type === 'Payment') {
+                  // Skip payments - they're not charges
+                  return null;
+                }
+                
+                amount = Math.abs(amount);
+                
+                // Determine transaction type based on Type column
+                let transactionType = type;
+                if (type === 'Sale') {
+                  transactionType = 'purchase';
+                } else if (type === 'Fee') {
+                  transactionType = 'fee';
+                }
+
+                return {
+                  credit_card_id: id,
+                  company_id: currentCompany.id,
+                  transaction_date: new Date(transactionDate).toISOString().split('T')[0],
+                  post_date: postDate ? new Date(postDate).toISOString().split('T')[0] : null,
+                  description: description,
+                  merchant_name: description, // Use description as merchant for Chase format
+                  amount: amount,
+                  category: category,
+                  transaction_type: transactionType,
+                  notes: memo,
+                  reference_number: row.Card || null, // Store card number as reference
+                  created_by: user?.id,
+                  imported_from_csv: true,
+                  coding_status: 'uncoded',
+                };
+              } else {
+                // Parse generic CSV format
+                return {
+                  credit_card_id: id,
+                  company_id: currentCompany.id,
+                  transaction_date: new Date(row.Date).toISOString().split('T')[0],
+                  description: row.Description || "",
+                  merchant_name: row.Merchant || row.Description || "",
+                  amount: Math.abs(parseFloat(row.Amount.replace(/[^0-9.-]/g, ""))),
+                  category: row.Category || null,
+                  reference_number: row.Reference || null,
+                  created_by: user?.id,
+                  imported_from_csv: true,
+                  coding_status: 'uncoded',
+                };
+              }
+            })
+            .filter((t: any) => t !== null); // Remove null entries (like payments)
 
           if (transactions.length === 0) {
             throw new Error("No valid transactions found in CSV");
@@ -420,7 +484,11 @@ export default function CreditCardTransactions() {
                     onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
                   />
                   <p className="text-sm text-muted-foreground mt-2">
-                    Expected columns: Date, Description, Merchant, Amount, Category, Reference
+                    <strong>Supported formats:</strong><br />
+                    <span className="text-xs">
+                      • Generic: Date, Description, Merchant, Amount, Category, Reference<br />
+                      • Chase: Card, Transaction Date, Post Date, Description, Category, Type, Amount, Memo
+                    </span>
                   </p>
                 </div>
                 <Button
