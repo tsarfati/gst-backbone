@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Paperclip, FileText, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -482,6 +482,9 @@ export function CreditCardTransactionModal({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Code Transaction</DialogTitle>
+          <DialogDescription>
+            Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
           {/* Transaction Info */}

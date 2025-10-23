@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -567,6 +567,9 @@ export default function CreditCardTransactions() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Import Transactions from CSV</DialogTitle>
+                <DialogDescription>
+                  Upload a CSV from your bank; payments are ignored, purchases are imported.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -605,6 +608,9 @@ export default function CreditCardTransactions() {
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Add Transaction</DialogTitle>
+                <DialogDescription>
+                  Manually add a single card transaction.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
