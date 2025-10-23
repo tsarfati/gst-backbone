@@ -99,7 +99,8 @@ export function CreditCardTransactionModal({
               .eq("is_active", true)
               .order("code");
 
-            setJobCostCodes(jobCostCodesData || []);
+            const uniqueInit = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [cc.id, cc])).values());
+            setJobCostCodes(uniqueInit);
           } else {
             setJobCostCodes([]);
           }
@@ -135,18 +136,19 @@ export function CreditCardTransactionModal({
         .or("account_number.lt.50000,account_number.gt.58000")
         .order("account_number");
 
-      setExpenseAccounts(expenseAccountsData || []);
-
-      // Fetch cost codes
-      const { data: costCodesData } = await supabase
-        .from("cost_codes")
-        .select("*")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .eq("is_dynamic_group", false)
-        .order("code");
-
-      setCostCodes(costCodesData || []);
+       setExpenseAccounts(expenseAccountsData || []);
+ 
+       // Fetch cost codes
+       const { data: costCodesData } = await supabase
+         .from("cost_codes")
+         .select("*")
+         .eq("company_id", currentCompany?.id)
+         .eq("is_active", true)
+         .eq("is_dynamic_group", false)
+         .order("code");
+ 
+       const uniqueAll = Array.from(new Map((costCodesData || []).map((cc: any) => [cc.id, cc])).values());
+       setCostCodes(uniqueAll);
 
       // Fetch vendors
       const { data: vendorsData } = await supabase
@@ -206,15 +208,18 @@ export function CreditCardTransactionModal({
 
       setCommunications(comms as any[]);
 
-      // Set attachment preview
+      // Set attachment preview (normalize storage paths and legacy formats)
       if (transData.attachment_url) {
-        if (transData.attachment_url.includes('.jpg') ||
-            transData.attachment_url.includes('.jpeg') ||
-            transData.attachment_url.includes('.png')) {
-          setAttachmentPreview(transData.attachment_url);
-        } else if (transData.attachment_url.includes('.pdf')) {
-          setAttachmentPreview(transData.attachment_url);
+        let normalized = transData.attachment_url as string;
+        if (!normalized.startsWith('http')) {
+          if (normalized.includes('/')) {
+            const [bucket, ...rest] = normalized.split('/');
+            const filePath = rest.join('/');
+            const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+            normalized = data.publicUrl || normalized;
+          }
         }
+        setAttachmentPreview(normalized);
       }
     } catch (error: any) {
       toast({
@@ -281,14 +286,15 @@ export function CreditCardTransactionModal({
       const costCodeIds = (associations || []).map(a => a.cost_code_id).filter(Boolean);
       
       if (costCodeIds.length > 0) {
-        const { data: jobCostCodesData } = await supabase
-          .from("cost_codes")
-          .select("*")
-          .in("id", costCodeIds)
-          .eq("is_active", true)
-          .order("code");
-        
-        setJobCostCodes(jobCostCodesData || []);
+            const { data: jobCostCodesData } = await supabase
+              .from("cost_codes")
+              .select("*")
+              .in("id", costCodeIds)
+              .eq("is_active", true)
+              .order("code");
+          
+            const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [cc.id, cc])).values());
+            setJobCostCodes(unique);
       } else {
         setJobCostCodes([]);
       }
@@ -531,18 +537,22 @@ export function CreditCardTransactionModal({
 
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
-    return jobCostCodes;
+    const map = new Map<string, any>();
+    for (const cc of jobCostCodes) {
+      if (cc && cc.id && !map.has(cc.id)) map.set(cc.id, cc);
+    }
+    return Array.from(map.values());
   };
 
   const getCostCodeCategoryBadge = (type: string) => {
-    const badges: Record<string, { label: string; className: string }> = {
-      labor: { label: "Labor", className: "bg-blue-100 text-blue-800 border-blue-200" },
-      material: { label: "Material", className: "bg-green-100 text-green-800 border-green-200" },
-      equipment: { label: "Equipment", className: "bg-orange-100 text-orange-800 border-orange-200" },
-      subcontractor: { label: "Sub", className: "bg-purple-100 text-purple-800 border-purple-200" },
-      other: { label: "Other", className: "bg-gray-100 text-gray-800 border-gray-200" },
+    const labels: Record<string, string> = {
+      labor: "Labor",
+      material: "Material",
+      equipment: "Equipment",
+      subcontractor: "Sub",
+      other: "Other",
     };
-    return badges[type] || badges.other;
+    return labels[type] || labels.other;
   };
 
   if (loading) {
@@ -681,11 +691,9 @@ export function CreditCardTransactionModal({
                   <SelectItem value="none">No Cost Code</SelectItem>
                   {filteredCostCodes().map((cc) => (
                     <SelectItem key={cc.id} value={cc.id}>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={getCostCodeCategoryBadge(cc.type).className}>
-                          {getCostCodeCategoryBadge(cc.type).label}
-                        </Badge>
-                        <span>{cc.code} - {cc.description}</span>
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <span className="truncate">{cc.code} - {cc.description}</span>
+                        <Badge variant="secondary">{getCostCodeCategoryBadge(cc.type)}</Badge>
                       </div>
                     </SelectItem>
                   ))}
@@ -763,13 +771,13 @@ export function CreditCardTransactionModal({
               <div className="space-y-3 mt-2">
                 <div className="flex items-center gap-2">
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open(transaction.attachment_url, '_blank')}
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    View Full Size
-                  </Button>
+                     size="sm"
+                     variant="outline"
+                     onClick={() => window.open(attachmentPreview || transaction.attachment_url, '_blank')}
+                   >
+                     <FileText className="h-4 w-4 mr-2" />
+                     View Full Size
+                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -792,7 +800,7 @@ export function CreditCardTransactionModal({
 
                 {attachmentPreview && (
                   <div className="border rounded-lg overflow-hidden bg-muted">
-                    {attachmentPreview.includes('.pdf') ? (
+                    {attachmentPreview && attachmentPreview.toLowerCase().includes('.pdf') ? (
                       <iframe
                         src={attachmentPreview}
                         className="w-full h-96"
@@ -882,7 +890,7 @@ export function CreditCardTransactionModal({
               Close
             </Button>
             <Button onClick={handleMarkComplete}>
-              Mark Complete
+              Save
             </Button>
           </div>
         </div>
