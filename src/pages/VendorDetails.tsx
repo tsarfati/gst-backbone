@@ -118,9 +118,68 @@ export default function VendorDetails() {
     };
 
     const fetchVendorJobs = async (companyId: string) => {
-      // Only show jobs where vendor is actually associated (empty for now)
-      // Jobs should only be shown if vendor is linked via invoices or job settings
-      setJobs([]);
+      try {
+        // Get unique jobs from invoices, subcontracts, and purchase orders
+        const { data: invoiceJobs } = await supabase
+          .from('invoices')
+          .select(`
+            job_id,
+            jobs:job_id (
+              id,
+              name,
+              client,
+              status
+            )
+          `)
+          .eq('vendor_id', id)
+          .not('job_id', 'is', null);
+
+        const { data: subcontractJobs } = await supabase
+          .from('subcontracts')
+          .select(`
+            job_id,
+            jobs:job_id (
+              id,
+              name,
+              client,
+              status
+            )
+          `)
+          .eq('vendor_id', id)
+          .not('job_id', 'is', null);
+
+        const { data: poJobs } = await supabase
+          .from('purchase_orders')
+          .select(`
+            job_id,
+            jobs:job_id (
+              id,
+              name,
+              client,
+              status
+            )
+          `)
+          .eq('vendor_id', id)
+          .not('job_id', 'is', null);
+
+        // Combine and deduplicate jobs
+        const allJobs = [
+          ...(invoiceJobs || []),
+          ...(subcontractJobs || []),
+          ...(poJobs || [])
+        ];
+
+        const uniqueJobsMap = new Map();
+        allJobs.forEach(item => {
+          if (item.jobs && !uniqueJobsMap.has(item.jobs.id)) {
+            uniqueJobsMap.set(item.jobs.id, item.jobs);
+          }
+        });
+
+        setJobs(Array.from(uniqueJobsMap.values()));
+      } catch (error) {
+        console.error('Error loading vendor jobs:', error);
+      }
     };
 
     fetchVendor();
@@ -345,15 +404,27 @@ export default function VendorDetails() {
                 <CardTitle className="text-lg">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" disabled>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/invoices', { state: { vendorFilter: vendor.name } })}
+                >
                   <FileText className="h-4 w-4 mr-2" />
                   View Invoices
                 </Button>
-                <Button variant="outline" className="w-full justify-start" disabled>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate('/payables/payment-history', { state: { vendorFilter: vendor.name } })}
+                >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Payment History
                 </Button>
-                <Button variant="outline" className="w-full justify-start" disabled>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => navigate(`/vendors/${id}/edit`, { state: { scrollToDocuments: true } })}
+                >
                   <FileIcon className="h-4 w-4 mr-2" />
                   View Documents
                 </Button>
