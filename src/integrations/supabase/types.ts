@@ -2058,6 +2058,42 @@ export type Database = {
         }
         Relationships: []
       }
+      job_bill_approval_settings: {
+        Row: {
+          approval_roles: string[] | null
+          approver_user_ids: string[] | null
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          require_approval: boolean
+          updated_at: string
+        }
+        Insert: {
+          approval_roles?: string[] | null
+          approver_user_ids?: string[] | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          job_id: string
+          require_approval?: boolean
+          updated_at?: string
+        }
+        Update: {
+          approval_roles?: string[] | null
+          approver_user_ids?: string[] | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          require_approval?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       job_budgets: {
         Row: {
           actual_amount: number

@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import JobBillApprovalSettings from './JobBillApprovalSettings';
 
 const payablesSettingsSchema = z.object({
   bills_require_approval: z.boolean(),
@@ -607,6 +608,11 @@ export default function PayablesSettings() {
           </div>
         </div>
       </div>
+
+      <Separator />
+
+      {/* Job-Specific Bill Approval Settings */}
+      <JobBillApprovalSettings />
 
       <div className="flex justify-end pt-6">
         <Button onClick={saveSettings} disabled={saving}>
