@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,8 @@ export default function CreditCardTransactions() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [duplicatesFound, setDuplicatesFound] = useState<number>(0);
   const [matchedReceipts, setMatchedReceipts] = useState<Map<string, any[]>>(new Map());
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -425,6 +428,9 @@ export default function CreditCardTransactions() {
         .eq("id", transactionId);
 
       if (error) throw error;
+      
+      // Update local state
+      setSelectedTransaction((prev: any) => prev ? { ...prev, job_id: jobId, cost_code_id: null } : null);
       fetchData();
     } catch (error: any) {
       toast({
@@ -446,6 +452,9 @@ export default function CreditCardTransactions() {
         .eq("id", transactionId);
 
       if (error) throw error;
+      
+      // Update local state
+      setSelectedTransaction((prev: any) => prev ? { ...prev, cost_code_id: costCodeId, coding_status: costCodeId ? 'coded' : 'uncoded' } : null);
       fetchData();
     } catch (error: any) {
       toast({
@@ -499,6 +508,12 @@ export default function CreditCardTransactions() {
         description: requestedCoderId ? "Coding request sent" : "Coding request removed",
       });
 
+      // Update local state
+      setSelectedTransaction((prev: any) => prev ? { 
+        ...prev, 
+        requested_coder_id: requestedCoderId,
+        coding_status: requestedCoderId ? 'pending' : 'uncoded'
+      } : null);
       fetchData();
     } catch (error: any) {
       toast({
@@ -536,6 +551,8 @@ export default function CreditCardTransactions() {
         description: "Attachment uploaded successfully",
       });
 
+      // Update local state
+      setSelectedTransaction((prev: any) => prev ? { ...prev, attachment_url: publicUrl } : null);
       fetchData();
     } catch (error: any) {
       toast({
@@ -544,6 +561,21 @@ export default function CreditCardTransactions() {
         variant: "destructive",
       });
     }
+  };
+
+  const openTransactionDetail = (transaction: any) => {
+    setSelectedTransaction(transaction);
+    setShowDetailModal(true);
+  };
+
+  const getStatusBadge = (transaction: any) => {
+    if (transaction.requested_coder_id) {
+      return <Badge className="bg-purple-500">Assistance Requested</Badge>;
+    }
+    if (transaction.coding_status === 'coded') {
+      return <Badge className="bg-green-500">Coded</Badge>;
+    }
+    return <Badge variant="destructive">Uncoded</Badge>;
   };
 
   if (loading) {
@@ -689,148 +721,39 @@ export default function CreditCardTransactions() {
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Job</TableHead>
-                <TableHead>Cost Code</TableHead>
-                <TableHead>Request Coding</TableHead>
-                <TableHead>Attachment</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No transactions found. Import a CSV or add transactions manually.
                   </TableCell>
                 </TableRow>
               ) : (
                 transactions.map((trans) => (
-                  <TableRow key={trans.id}>
+                  <TableRow 
+                    key={trans.id} 
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => openTransactionDetail(trans)}
+                  >
                     <TableCell>
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{trans.description}</p>
-                    {trans.merchant_name && (
-                      <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
-                    )}
-                    {matchedReceipts.has(trans.id) && (
-                      <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                        <p className="text-xs font-semibold text-blue-700 mb-1">
-                          🔗 Possible receipt matches:
-                        </p>
-                        {matchedReceipts.get(trans.id)?.slice(0, 2).map((receipt: any) => (
-                          <div key={receipt.id} className="text-xs text-blue-600 mb-1">
-                            {receipt.vendor_name} - ${Number(receipt.amount).toFixed(2)} on{" "}
-                            {new Date(receipt.receipt_date).toLocaleDateString()}
-                            <Button
-                              size="sm"
-                              variant="link"
-                              className="h-auto p-0 ml-2 text-xs"
-                              onClick={() => window.open(`/uncoded?receipt=${receipt.id}`, '_blank')}
-                            >
-                              View Receipt
-                            </Button>
-                          </div>
-                        ))}
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{trans.description}</p>
+                        {trans.merchant_name && trans.merchant_name !== trans.description && (
+                          <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </TableCell>
+                    </TableCell>
                     <TableCell className="font-semibold">
                       ${Number(trans.amount).toLocaleString()}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={trans.job_id || "none"}
-                        onValueChange={(value) => handleJobChange(trans.id, value === "none" ? null : value)}
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Select job" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Job</SelectItem>
-                          {jobs.map((job) => (
-                            <SelectItem key={job.id} value={job.id}>
-                              {job.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={trans.cost_code_id || "none"}
-                        onValueChange={(value) => handleCostCodeChange(trans.id, value === "none" ? null : value)}
-                        disabled={!trans.job_id}
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Select cost code" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Cost Code</SelectItem>
-                          {filteredCostCodes(trans.job_id).map((cc) => (
-                            <SelectItem key={cc.id} value={cc.id}>
-                              {cc.code} - {cc.description}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={trans.requested_coder_id || "none"}
-                        onValueChange={(value) => handleRequestCoding(trans.id, value === "none" ? null : value)}
-                      >
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="Request help" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Request</SelectItem>
-                          {users.map((u) => (
-                            <SelectItem key={u.user_id} value={u.user_id}>
-                              {u.first_name} {u.last_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {trans.attachment_url ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(trans.attachment_url, '_blank')}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleAttachmentUpload(trans.id, file);
-                            }}
-                          />
-                          <Button size="sm" variant="outline" asChild>
-                            <span>
-                              <Paperclip className="h-4 w-4" />
-                            </span>
-                          </Button>
-                        </label>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        trans.coding_status === 'coded' ? 'bg-green-100 text-green-800' :
-                        trans.coding_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {trans.coding_status}
-                      </span>
+                      {getStatusBadge(trans)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -839,6 +762,208 @@ export default function CreditCardTransactions() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Transaction Detail Modal */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+          </DialogHeader>
+          {selectedTransaction && (
+            <div className="space-y-6">
+              {/* Transaction Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <Label className="text-sm text-muted-foreground">Date</Label>
+                  <p className="font-medium">
+                    {new Date(selectedTransaction.transaction_date).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm text-muted-foreground">Amount</Label>
+                  <p className="text-lg font-semibold">
+                    ${Number(selectedTransaction.amount).toLocaleString()}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-sm text-muted-foreground">Description</Label>
+                  <p className="font-medium">{selectedTransaction.description}</p>
+                </div>
+                {selectedTransaction.merchant_name && (
+                  <div className="col-span-2">
+                    <Label className="text-sm text-muted-foreground">Merchant</Label>
+                    <p>{selectedTransaction.merchant_name}</p>
+                  </div>
+                )}
+                {selectedTransaction.category && (
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Category</Label>
+                    <p>{selectedTransaction.category}</p>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-sm text-muted-foreground">Status</Label>
+                  <div className="mt-1">{getStatusBadge(selectedTransaction)}</div>
+                </div>
+              </div>
+
+              {/* Job Selection */}
+              <div>
+                <Label>Job</Label>
+                <Select
+                  value={selectedTransaction.job_id || "none"}
+                  onValueChange={(value) => handleJobChange(selectedTransaction.id, value === "none" ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Job</SelectItem>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Cost Code Selection */}
+              <div>
+                <Label>Cost Code</Label>
+                <Select
+                  value={selectedTransaction.cost_code_id || "none"}
+                  onValueChange={(value) => handleCostCodeChange(selectedTransaction.id, value === "none" ? null : value)}
+                  disabled={!selectedTransaction.job_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select cost code" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Cost Code</SelectItem>
+                    {filteredCostCodes(selectedTransaction.job_id).map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>
+                        {cc.code} - {cc.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!selectedTransaction.job_id && (
+                  <p className="text-xs text-muted-foreground mt-1">Select a job first</p>
+                )}
+              </div>
+
+              {/* Request Assistance */}
+              <div>
+                <Label>Request Coding Assistance</Label>
+                <Select
+                  value={selectedTransaction.requested_coder_id || "none"}
+                  onValueChange={(value) => handleRequestCoding(selectedTransaction.id, value === "none" ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Request help" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Request</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {u.first_name} {u.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Attachment Upload */}
+              <div>
+                <Label>Attachment</Label>
+                {selectedTransaction.attachment_url ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(selectedTransaction.attachment_url, '_blank')}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Attachment
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        // Remove attachment
+                        supabase
+                          .from("credit_card_transactions")
+                          .update({ attachment_url: null })
+                          .eq("id", selectedTransaction.id)
+                          .then(() => {
+                            setSelectedTransaction({ ...selectedTransaction, attachment_url: null });
+                            fetchData();
+                          });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAttachmentUpload(selectedTransaction.id, file);
+                      }}
+                    />
+                    <Button size="sm" variant="outline" asChild className="mt-2">
+                      <span>
+                        <Paperclip className="h-4 w-4 mr-2" />
+                        Upload Attachment
+                      </span>
+                    </Button>
+                  </label>
+                )}
+              </div>
+
+              {/* Suggested Receipt Matches */}
+              {matchedReceipts.has(selectedTransaction.id) && (
+                <div>
+                  <Label>Suggested Receipt Matches</Label>
+                  <div className="mt-2 space-y-2">
+                    {matchedReceipts.get(selectedTransaction.id)?.map((receipt: any) => (
+                      <div
+                        key={receipt.id}
+                        className="p-3 border rounded-lg hover:bg-accent cursor-pointer flex items-center justify-between"
+                      >
+                        <div>
+                          <p className="font-medium">{receipt.vendor_name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            ${Number(receipt.amount).toFixed(2)} on{" "}
+                            {new Date(receipt.receipt_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(`/uncoded?receipt=${receipt.id}`, '_blank')}
+                        >
+                          View Receipt
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowDetailModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
