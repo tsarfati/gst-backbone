@@ -1364,7 +1364,7 @@ export default function AddBill() {
                                     {(lineItemCostCodes[item.id] || []).filter(c => !isGroupingCodeText(c.code) && !c.is_dynamic_group).map((code) => (
                                       <CommandItem
                                         key={code.id}
-                                        value={`${code.code} ${code.description}`}
+                                        value={`${code.code} ${code.description} ${code.type} ${code.id}`}
                                         onSelect={() => {
                                           updateDistributionItem(item.id, 'cost_code_id', code.id);
                                           setCostCodeOpen(prev => ({ ...prev, [item.id]: false }));
