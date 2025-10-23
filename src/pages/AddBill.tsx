@@ -212,6 +212,8 @@ export default function AddBill() {
     }
   };
 
+  const isGroupingCodeText = (codeText: string) => /^(\d{1,3}\.00)$/.test(codeText) || /^(\d+\.0)$/.test(codeText);
+
   const filterLeafCostCodes = (codes: any[]) => {
     // Get all parent IDs that have children
     const parentIds = new Set(
@@ -222,9 +224,7 @@ export default function AddBill() {
     
     // Only return codes that are NOT parents of other codes
     // Also hide obvious grouping codes like "01.00" and legacy dynamic groups like "1.0"
-    const isGroupingCode = (codeText: string) => /^(\d{1,3}\.00)$/.test(codeText) || /^(\d+\.0)$/.test(codeText);
-
-    return codes.filter(code => !parentIds.has(code.id) && !isGroupingCode(code.code));
+    return codes.filter(code => !parentIds.has(code.id) && !isGroupingCodeText(code.code));
   };
 
   const sortCostCodesNumerically = (codes: any[]) => {
@@ -262,13 +262,24 @@ export default function AddBill() {
   };
 
   const filterCostCodesByVendorType = (codes: any[]) => {
-    // If vendor is subcontractor or design professional, only show sub, other, or labor cost codes
     const vendorType = selectedVendor?.vendor_type;
+    const allowedTypes = new Set(['labor','material','equipment','sub','other']);
+
+    // Always drop codes without a valid category type
+    let filtered = codes.filter(cc => cc.type && allowedTypes.has(String(cc.type).toLowerCase()));
+
+    // If vendor is contractor or design professional, only show sub/other/labor
     if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
-      return codes.filter(cc => cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
+      filtered = filtered.filter(cc => {
+        const t = String(cc.type).toLowerCase();
+        return t === 'sub' || t === 'other' || t === 'labor';
+      });
+    } else {
+      // For other vendor types, exclude subcontractor cost codes
+      filtered = filtered.filter(cc => String(cc.type).toLowerCase() !== 'sub');
     }
-    // For other vendor types, exclude subcontractor cost codes
-    return codes.filter(cc => cc.type !== 'sub');
+
+    return filtered;
   };
 
   const getCostCodeTypeLabel = (type: string) => {
@@ -1350,7 +1361,7 @@ export default function AddBill() {
                                   <CommandInput placeholder="Search cost codes..." />
                                   <CommandEmpty>No cost code found.</CommandEmpty>
                                   <CommandList>
-                                    {(lineItemCostCodes[item.id] || []).map((code) => (
+                                    {(lineItemCostCodes[item.id] || []).filter(c => !isGroupingCodeText(c.code) && !c.is_dynamic_group).map((code) => (
                                       <CommandItem
                                         key={code.id}
                                         value={`${code.code} ${code.description}`}
