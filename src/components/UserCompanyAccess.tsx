@@ -45,8 +45,10 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
   const roleOptions = [
     { value: 'admin', label: 'Administrator', variant: 'destructive' as const },
     { value: 'controller', label: 'Controller', variant: 'secondary' as const },
+    { value: 'company_admin', label: 'Company Admin', variant: 'secondary' as const },
     { value: 'project_manager', label: 'Project Manager', variant: 'default' as const },
     { value: 'employee', label: 'Employee', variant: 'outline' as const },
+    { value: 'view_only', label: 'View Only', variant: 'outline' as const },
   ];
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
         .insert({
           user_id: userId,
           company_id: selectedCompanyId,
-          role: selectedRole as 'admin' | 'controller' | 'project_manager' | 'employee',
+          role: selectedRole as 'admin' | 'controller' | 'company_admin' | 'project_manager' | 'employee' | 'view_only',
           granted_by: currentUser?.id || userId,
         });
 
@@ -140,7 +142,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
     try {
       const { error } = await supabase
         .from('user_company_access')
-        .update({ role: newRole as 'admin' | 'controller' | 'project_manager' | 'employee' })
+        .update({ role: newRole as 'admin' | 'controller' | 'company_admin' | 'project_manager' | 'employee' | 'view_only' })
         .eq('id', accessId);
 
       if (error) throw error;
