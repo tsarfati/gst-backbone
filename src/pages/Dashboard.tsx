@@ -14,6 +14,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
+import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 
 interface Notification {
   id: string;
@@ -663,8 +664,9 @@ export default function Dashboard() {
 
       {/* Bills Needing Approval or Coding - Show for Project Managers */}
       {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
-        <div className="mb-8">
+        <div className="mb-8 space-y-4">
           <BillsNeedingCoding limit={5} />
+          <CreditCardCodingRequests />
         </div>
       )}
 

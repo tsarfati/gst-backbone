@@ -826,11 +826,134 @@ export type Database = {
           },
         ]
       }
+      credit_card_coding_requests: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          message: string | null
+          requested_by: string
+          requested_coder_id: string
+          status: string
+          transaction_id: string
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          requested_by: string
+          requested_coder_id: string
+          status?: string
+          transaction_id: string
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          message?: string | null
+          requested_by?: string
+          requested_coder_id?: string
+          status?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_coding_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_coding_requests_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "credit_card_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_card_statements: {
+        Row: {
+          company_id: string
+          created_at: string
+          credit_card_id: string
+          display_name: string | null
+          file_name: string
+          file_size: number | null
+          file_url: string
+          id: string
+          notes: string | null
+          statement_date: string
+          statement_month: number
+          statement_year: number
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          credit_card_id: string
+          display_name?: string | null
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          id?: string
+          notes?: string | null
+          statement_date: string
+          statement_month: number
+          statement_year: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          credit_card_id?: string
+          display_name?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          notes?: string | null
+          statement_date?: string
+          statement_month?: number
+          statement_year?: number
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_statements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_statements_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_transactions: {
         Row: {
           amount: number
+          attachment_url: string | null
           category: string | null
+          coding_status: string | null
           company_id: string
+          cost_code_id: string | null
           created_at: string | null
           created_by: string
           credit_card_id: string
@@ -839,19 +962,24 @@ export type Database = {
           imported_from_csv: boolean | null
           invoice_id: string | null
           is_reconciled: boolean | null
+          job_id: string | null
           merchant_name: string | null
           notes: string | null
           post_date: string | null
           receipt_id: string | null
           reference_number: string | null
+          requested_coder_id: string | null
           transaction_date: string
           transaction_type: string | null
           updated_at: string | null
         }
         Insert: {
           amount: number
+          attachment_url?: string | null
           category?: string | null
+          coding_status?: string | null
           company_id: string
+          cost_code_id?: string | null
           created_at?: string | null
           created_by: string
           credit_card_id: string
@@ -860,19 +988,24 @@ export type Database = {
           imported_from_csv?: boolean | null
           invoice_id?: string | null
           is_reconciled?: boolean | null
+          job_id?: string | null
           merchant_name?: string | null
           notes?: string | null
           post_date?: string | null
           receipt_id?: string | null
           reference_number?: string | null
+          requested_coder_id?: string | null
           transaction_date: string
           transaction_type?: string | null
           updated_at?: string | null
         }
         Update: {
           amount?: number
+          attachment_url?: string | null
           category?: string | null
+          coding_status?: string | null
           company_id?: string
+          cost_code_id?: string | null
           created_at?: string | null
           created_by?: string
           credit_card_id?: string
@@ -881,11 +1014,13 @@ export type Database = {
           imported_from_csv?: boolean | null
           invoice_id?: string | null
           is_reconciled?: boolean | null
+          job_id?: string | null
           merchant_name?: string | null
           notes?: string | null
           post_date?: string | null
           receipt_id?: string | null
           reference_number?: string | null
+          requested_coder_id?: string | null
           transaction_date?: string
           transaction_type?: string | null
           updated_at?: string | null
@@ -897,6 +1032,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
           },
           {
             foreignKeyName: "credit_card_transactions_credit_card_id_fkey"
@@ -911,6 +1060,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_requested_coder_id_fkey"
+            columns: ["requested_coder_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
