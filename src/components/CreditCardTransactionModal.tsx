@@ -263,7 +263,7 @@ export function CreditCardTransactionModal({
       .update({ coding_status: newStatus })
       .eq("id", transactionId);
 
-    setTransaction({ ...transaction, coding_status: newStatus });
+    setTransaction((prev: any) => ({ ...prev, coding_status: newStatus }));
   };
 
   const handleJobOrAccountChange = async (value: string | null) => {
@@ -313,7 +313,7 @@ export function CreditCardTransactionModal({
           cost_code_id: null,
         })
         .eq("id", transactionId);
-      setTransaction({ ...transaction, job_id: id, chart_account_id: null, cost_code_id: null });
+      setTransaction((prev: any) => ({ ...prev, job_id: id, chart_account_id: null, cost_code_id: null }));
     } else if (type === "account") {
       setIsJobSelected(false);
       setJobCostCodes([]);
@@ -325,7 +325,7 @@ export function CreditCardTransactionModal({
           cost_code_id: null,
         })
         .eq("id", transactionId);
-      setTransaction({ ...transaction, job_id: null, chart_account_id: id, cost_code_id: null });
+      setTransaction((prev: any) => ({ ...prev, job_id: null, chart_account_id: id, cost_code_id: null }));
     }
 
     await updateCodingStatus();
@@ -359,11 +359,11 @@ export function CreditCardTransactionModal({
       })
       .eq("id", transactionId);
 
-    setTransaction({ 
-      ...transaction, 
+    setTransaction((prev: any) => ({ 
+      ...prev, 
       vendor_id: vendorId,
       merchant_name: vendorId ? vendors.find(v => v.id === vendorId)?.name : null
-    });
+    }));
     await updateCodingStatus();
   };
 
@@ -390,7 +390,7 @@ export function CreditCardTransactionModal({
         .update({ attachment_url: publicUrl })
         .eq("id", transactionId);
 
-      setTransaction({ ...transaction, attachment_url: publicUrl });
+      setTransaction((prev: any) => ({ ...prev, attachment_url: publicUrl }));
       await updateCodingStatus();
 
       toast({
@@ -840,12 +840,14 @@ export function CreditCardTransactionModal({
               <div className="space-y-3 mt-2">
                 <div className="flex items-center gap-2">
                   <Button
+                    asChild
                     size="sm"
                     variant="outline"
-                    onClick={() => window.open(attachmentPreview || transaction.attachment_url, '_blank')}
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    View Full Size
+                    <a href={(attachmentPreview || transaction.attachment_url) as string} target="_blank" rel="noopener noreferrer">
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Full Size
+                    </a>
                   </Button>
                   <Button
                     size="sm"
@@ -856,7 +858,7 @@ export function CreditCardTransactionModal({
                         .update({ attachment_url: null })
                         .eq("id", transactionId)
                         .then(() => {
-                          setTransaction({ ...transaction, attachment_url: null });
+                          setTransaction((prev: any) => ({ ...prev, attachment_url: null }));
                           setAttachmentPreview(null);
                           updateCodingStatus();
                         });
@@ -868,7 +870,7 @@ export function CreditCardTransactionModal({
                 </div>
 
                 { (attachmentPreview || transaction.attachment_url) && (
-                  <div className="border rounded-lg overflow-hidden bg-muted">
+                  <div key={(attachmentPreview || transaction.attachment_url) as string} className="border rounded-lg overflow-hidden bg-muted">
                     {(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
                       <UrlPdfInlinePreview 
                         url={(attachmentPreview || transaction.attachment_url) as string} 
