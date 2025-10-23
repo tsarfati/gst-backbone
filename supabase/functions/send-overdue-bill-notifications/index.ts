@@ -118,19 +118,10 @@ const handler = async (req: Request): Promise<Response> => {
     const emailsSent: string[] = [];
     
     for (const [companyId, bills] of billsByCompany.entries()) {
-      // Get company admins and controllers with their job access settings
+      // Get company admins and controllers - they receive ALL bills in their company
       const { data: companyUsers, error: usersError } = await supabase
         .from("user_company_access")
-        .select(`
-          user_id,
-          role,
-          profiles!inner (
-            user_id,
-            first_name,
-            last_name,
-            has_global_job_access
-          )
-        `)
+        .select("user_id, role")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .in("role", ["admin", "controller"]);
@@ -160,10 +151,9 @@ const handler = async (req: Request): Promise<Response> => {
           .map(u => [u.id, u.email])
       );
 
-      // For each user, determine which bills they should receive
+      // Admins and controllers receive ALL bills in their company
       for (const user of companyUsers) {
         const userId = user.user_id;
-        const hasGlobalJobAccess = user.profiles?.has_global_job_access || false;
         const email = emailMap.get(userId);
 
         if (!email) {
@@ -171,43 +161,13 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
-        // Determine which bills this user should be notified about
-        let userBills: OverdueBill[] = [];
+        // All bills for this company
+        const userBills = bills;
 
-        if (hasGlobalJobAccess) {
-          // User has access to all job bills in the company
-          userBills = bills;
-        } else {
-          // Get user's specific job access
-          const { data: jobAccess, error: jobAccessError } = await supabase
-            .from("user_job_access")
-            .select("job_id")
-            .eq("user_id", userId)
-            .eq("has_access", true);
-
-          if (jobAccessError) {
-            console.error(`Error fetching job access for user ${userId}:`, jobAccessError);
-            continue;
-          }
-
-          const accessibleJobIds = new Set(jobAccess?.map((ja: any) => ja.job_id) || []);
-
-          // Include bills for jobs they have access to, plus company-level bills (no job_id)
-          userBills = bills.filter(bill => 
-            !bill.job_id || accessibleJobIds.has(bill.job_id)
-          );
-        }
-
-        // Skip if user has no bills to be notified about
-        if (userBills.length === 0) {
-          console.log(`User ${email} has no accessible overdue bills, skipping`);
-          continue;
-        }
-
-        // Calculate total overdue amount for this user
+        // Calculate total overdue amount
         const totalOverdue = userBills.reduce((sum, bill) => sum + Number(bill.amount), 0);
         
-        console.log(`Sending notification to ${email} for ${userBills.length} bills (${hasGlobalJobAccess ? 'global access' : 'job-specific access'})`);
+        console.log(`Sending notification to ${email} for ${userBills.length} bills (admin/controller access)`);
 
         // Create HTML email content with job information
         const billsListHtml = userBills
@@ -302,7 +262,7 @@ const handler = async (req: Request): Promise<Response> => {
               metadata: { 
                 bill_count: userBills.length, 
                 bills: userBills.map(b => ({ id: b.id, job_id: b.job_id, job_name: b.job_name })),
-                has_global_job_access: hasGlobalJobAccess
+                user_role: user.role
               },
             });
           } else {
@@ -320,7 +280,7 @@ const handler = async (req: Request): Promise<Response> => {
                 bill_count: userBills.length, 
                 bills: userBills.map(b => ({ id: b.id, job_id: b.job_id, job_name: b.job_name })),
                 resend_id: emailData?.id,
-                has_global_job_access: hasGlobalJobAccess
+                user_role: user.role
               },
             });
           }
