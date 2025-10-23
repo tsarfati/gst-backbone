@@ -101,7 +101,7 @@ export default function AddCreditCard() {
       const cardNumberDigits = formData.cardNumber.replace(/\D/g, '');
       const lastFour = cardNumberDigits.slice(-4);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('credit_cards')
         .insert({
           company_id: currentCompany!.id,
@@ -117,7 +117,9 @@ export default function AddCreditCard() {
           liability_account_id: formData.liabilityAccountId,
           description: formData.description || null,
           created_by: user!.id,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -126,8 +128,8 @@ export default function AddCreditCard() {
         description: 'Credit card added successfully!',
       });
       
-      // Navigate back to credit cards page
-      navigate('/banking/credit-cards');
+      // Navigate to the new credit card's detail page
+      navigate(`/banking/credit-cards/${data.id}`);
     } catch (error) {
       console.error('Error adding credit card:', error);
       toast({
