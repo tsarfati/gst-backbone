@@ -156,17 +156,25 @@ export function CreditCardTransactionModal({
         setRequestedUsers(userDetails || []);
       }
 
-      // Fetch communications
-      const { data: comms } = await supabase
+      // Fetch communications (without FK join), then hydrate with profile names
+      const { data: commsRaw } = await supabase
         .from("credit_card_transaction_communications")
-        .select(`
-          *,
-          profiles!user_id(user_id, first_name, last_name)
-        `)
+        .select("*")
         .eq("transaction_id", transactionId)
         .order("created_at", { ascending: true });
 
-      setCommunications(comms || []);
+      let comms = commsRaw || [];
+      const userIds = Array.from(new Set((comms as any[]).map(c => c.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name")
+          .in("user_id", userIds);
+        const profileMap = new Map((profilesData || []).map((p: any) => [p.user_id, p]));
+        comms = (comms as any[]).map(c => ({ ...c, user: profileMap.get(c.user_id) || null }));
+      }
+
+      setCommunications(comms as any[]);
 
       // Set attachment preview
       if (transData.attachment_url) {
@@ -345,17 +353,25 @@ export function CreditCardTransactionModal({
 
       if (error) throw error;
 
-      // Refresh communications list
-      const { data: comms } = await supabase
+      // Refresh communications list (without FK join), then hydrate with profile names
+      const { data: commsRaw } = await supabase
         .from("credit_card_transaction_communications")
-        .select(`
-          *,
-          profiles!user_id(user_id, first_name, last_name)
-        `)
+        .select("*")
         .eq("transaction_id", transactionId)
         .order("created_at", { ascending: true });
 
-      setCommunications(comms || []);
+      let comms = commsRaw || [];
+      const userIds = Array.from(new Set((comms as any[]).map(c => c.user_id).filter(Boolean)));
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name")
+          .in("user_id", userIds);
+        const profileMap = new Map((profilesData || []).map((p: any) => [p.user_id, p]));
+        comms = (comms as any[]).map(c => ({ ...c, user: profileMap.get(c.user_id) || null }));
+      }
+
+      setCommunications(comms as any[]);
       setNewMessage("");
 
       toast({
@@ -755,7 +771,7 @@ export function CreditCardTransactionModal({
                   <div key={comm.id} className="bg-background p-3 rounded-lg border">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold">
-                        {comm.profiles?.first_name} {comm.profiles?.last_name}
+                        {comm.user?.first_name} {comm.user?.last_name}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(comm.created_at).toLocaleString()}
