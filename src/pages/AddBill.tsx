@@ -69,6 +69,8 @@ export default function AddBill() {
   ]);
   const [lineItemCostCodes, setLineItemCostCodes] = useState<Record<string, any[]>>({});
   const [costCodeOpen, setCostCodeOpen] = useState<Record<string, boolean>>({});
+  const [vendorOpen, setVendorOpen] = useState(false);
+  const [vendorSearch, setVendorSearch] = useState("");
   
   const [billFiles, setBillFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -1000,18 +1002,55 @@ export default function AddBill() {
                     <Label htmlFor="vendor">Vendor *</Label>
                     <div className="flex gap-2">
                       <div className="flex-1">
-                        <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange("vendor_id", value)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a vendor" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-background z-50">
-                            {vendors.map((vendor) => (
-                              <SelectItem key={vendor.id} value={vendor.id}>
-                                {vendor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover open={vendorOpen} onOpenChange={setVendorOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={vendorOpen}
+                              className="w-full justify-between"
+                            >
+                              {formData.vendor_id
+                                ? vendors.find((v) => v.id === formData.vendor_id)?.name
+                                : "Select a vendor"}
+                              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Search vendors..." 
+                                value={vendorSearch}
+                                onValueChange={setVendorSearch}
+                              />
+                              <CommandList>
+                                <CommandEmpty>No vendor found.</CommandEmpty>
+                                <CommandGroup>
+                                  {vendors
+                                    .filter(v => v.name.toLowerCase().includes(vendorSearch.toLowerCase()))
+                                    .map((vendor) => (
+                                      <CommandItem
+                                        key={vendor.id}
+                                        value={vendor.name}
+                                        onSelect={() => {
+                                          handleInputChange("vendor_id", vendor.id);
+                                          setVendorOpen(false);
+                                          setVendorSearch("");
+                                        }}
+                                      >
+                                        <Check
+                                          className={`mr-2 h-4 w-4 ${
+                                            formData.vendor_id === vendor.id ? "opacity-100" : "opacity-0"
+                                          }`}
+                                        />
+                                        {vendor.name}
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <QuickAddVendor 
                         onVendorAdded={(vendorId) => {
@@ -1361,27 +1400,62 @@ export default function AddBill() {
                       <Label htmlFor="vendor">Vendor *</Label>
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <Select value={formData.vendor_id} onValueChange={(value) => {
-                            handleInputChange("vendor_id", value);
-                            // Reset commitment selections when vendor changes
-                            handleInputChange("subcontract_id", "");
-                            handleInputChange("purchase_order_id", "");
-                            setCommitmentDistribution([]);
-                            setPreviouslyBilled(0);
-                          }}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a vendor" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              {getFilteredVendors().map((vendor) => (
-                                <SelectItem key={vendor.id} value={vendor.id}>
-                                  {vendor.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Popover open={vendorOpen} onOpenChange={setVendorOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={vendorOpen}
+                                className="w-full justify-between"
+                              >
+                                {formData.vendor_id
+                                  ? getFilteredVendors().find((v) => v.id === formData.vendor_id)?.name
+                                  : "Select a vendor"}
+                                <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
+                              <Command>
+                                <CommandInput 
+                                  placeholder="Search vendors..." 
+                                  value={vendorSearch}
+                                  onValueChange={setVendorSearch}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>No vendor found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {getFilteredVendors()
+                                      .filter(v => v.name.toLowerCase().includes(vendorSearch.toLowerCase()))
+                                      .map((vendor) => (
+                                        <CommandItem
+                                          key={vendor.id}
+                                          value={vendor.name}
+                                          onSelect={() => {
+                                            handleInputChange("vendor_id", vendor.id);
+                                            // Reset commitment selections when vendor changes
+                                            handleInputChange("subcontract_id", "");
+                                            handleInputChange("purchase_order_id", "");
+                                            setCommitmentDistribution([]);
+                                            setPreviouslyBilled(0);
+                                            setVendorOpen(false);
+                                            setVendorSearch("");
+                                          }}
+                                        >
+                                          <Check
+                                            className={`mr-2 h-4 w-4 ${
+                                              formData.vendor_id === vendor.id ? "opacity-100" : "opacity-0"
+                                            }`}
+                                          />
+                                          {vendor.name}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                         </div>
-                        <QuickAddVendor 
+                        <QuickAddVendor
                           onVendorAdded={(vendorId) => {
                             handleInputChange("vendor_id", vendorId);
                             // Refresh vendors list
