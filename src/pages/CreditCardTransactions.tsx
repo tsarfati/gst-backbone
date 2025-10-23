@@ -32,6 +32,8 @@ export default function CreditCardTransactions() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingCsv, setUploadingCsv] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [duplicatesFound, setDuplicatesFound] = useState<number>(0);
+  const [matchedReceipts, setMatchedReceipts] = useState<Map<string, any[]>>(new Map());
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -48,6 +50,12 @@ export default function CreditCardTransactions() {
       fetchData();
     }
   }, [id, currentCompany]);
+
+  useEffect(() => {
+    if (transactions.length > 0) {
+      findReceiptMatches();
+    }
+  }, [transactions]);
 
   const fetchData = async () => {
     try {
@@ -118,10 +126,61 @@ export default function CreditCardTransactions() {
     }
   };
 
+  const findReceiptMatches = async () => {
+    try {
+      // Fetch all receipts from the company
+      const { data: receipts, error } = await supabase
+        .from("receipts")
+        .select("*")
+        .eq("company_id", currentCompany?.id)
+        .order("receipt_date", { ascending: false });
+
+      if (error) throw error;
+
+      const matches = new Map();
+
+      // For each transaction, find potential receipt matches
+      transactions.forEach((transaction) => {
+        const potentialMatches = (receipts || []).filter((receipt) => {
+          // Check if amount is within 1% tolerance
+          const amountMatch = Math.abs(
+            Number(receipt.amount) - Number(transaction.amount)
+          ) / Number(transaction.amount) < 0.01;
+
+          // Check if dates are within 3 days
+          const transDate = new Date(transaction.transaction_date);
+          const receiptDate = new Date(receipt.receipt_date);
+          const daysDiff = Math.abs(
+            (transDate.getTime() - receiptDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+          const dateMatch = daysDiff <= 3;
+
+          // Check if vendor name matches (fuzzy matching)
+          const vendorMatch = receipt.vendor_name &&
+            transaction.merchant_name &&
+            (receipt.vendor_name.toLowerCase().includes(transaction.merchant_name.toLowerCase().substring(0, 5)) ||
+             transaction.merchant_name.toLowerCase().includes(receipt.vendor_name.toLowerCase().substring(0, 5)));
+
+          return amountMatch && dateMatch && vendorMatch;
+        });
+
+        if (potentialMatches.length > 0) {
+          matches.set(transaction.id, potentialMatches);
+        }
+      });
+
+      setMatchedReceipts(matches);
+    } catch (error: any) {
+      console.error("Error finding receipt matches:", error);
+    }
+  };
+
   const handleCsvUpload = async () => {
     if (!csvFile || !currentCompany) return;
 
     setUploadingCsv(true);
+    setDuplicatesFound(0);
+    
     try {
       Papa.parse(csvFile, {
         header: true,
@@ -130,6 +189,20 @@ export default function CreditCardTransactions() {
           // Detect CSV format by checking column names
           const headers = results.meta.fields || [];
           const isChaseFormat = headers.includes('Card') && headers.includes('Transaction Date') && headers.includes('Post Date');
+          
+          // Fetch existing transactions to check for duplicates
+          const { data: existingTransactions } = await supabase
+            .from("credit_card_transactions")
+            .select("transaction_date, amount, description, merchant_name")
+            .eq("credit_card_id", id);
+
+          const existingSet = new Set(
+            (existingTransactions || []).map(t => 
+              `${t.transaction_date}-${t.amount}-${t.description || t.merchant_name}`
+            )
+          );
+
+          let duplicateCount = 0;
           
           const transactions = results.data
             .filter((row: any) => {
@@ -163,6 +236,13 @@ export default function CreditCardTransactions() {
                 
                 amount = Math.abs(amount);
                 
+                // Check for duplicate
+                const key = `${new Date(transactionDate).toISOString().split('T')[0]}-${amount}-${description}`;
+                if (existingSet.has(key)) {
+                  duplicateCount++;
+                  return null;
+                }
+                
                 // Determine transaction type based on Type column
                 let transactionType = type;
                 if (type === 'Sale') {
@@ -189,13 +269,24 @@ export default function CreditCardTransactions() {
                 };
               } else {
                 // Parse generic CSV format
+                const transactionDate = new Date(row.Date).toISOString().split('T')[0];
+                const amount = Math.abs(parseFloat(row.Amount.replace(/[^0-9.-]/g, "")));
+                const description = row.Description || "";
+                
+                // Check for duplicate
+                const key = `${transactionDate}-${amount}-${description}`;
+                if (existingSet.has(key)) {
+                  duplicateCount++;
+                  return null;
+                }
+                
                 return {
                   credit_card_id: id,
                   company_id: currentCompany.id,
-                  transaction_date: new Date(row.Date).toISOString().split('T')[0],
-                  description: row.Description || "",
-                  merchant_name: row.Merchant || row.Description || "",
-                  amount: Math.abs(parseFloat(row.Amount.replace(/[^0-9.-]/g, ""))),
+                  transaction_date: transactionDate,
+                  description: description,
+                  merchant_name: row.Merchant || description,
+                  amount: amount,
                   category: row.Category || null,
                   reference_number: row.Reference || null,
                   created_by: user?.id,
@@ -204,10 +295,21 @@ export default function CreditCardTransactions() {
                 };
               }
             })
-            .filter((t: any) => t !== null); // Remove null entries (like payments)
+            .filter((t: any) => t !== null); // Remove null entries (like payments and duplicates)
+
+          setDuplicatesFound(duplicateCount);
 
           if (transactions.length === 0) {
-            throw new Error("No valid transactions found in CSV");
+            if (duplicateCount > 0) {
+              toast({
+                title: "No New Transactions",
+                description: `All ${duplicateCount} transactions were duplicates and skipped`,
+              });
+            } else {
+              throw new Error("No valid transactions found in CSV");
+            }
+            setCsvFile(null);
+            return;
           }
 
           const { error } = await supabase
@@ -232,9 +334,13 @@ export default function CreditCardTransactions() {
             })
             .eq("id", id);
 
+          const message = duplicateCount > 0
+            ? `Imported ${transactions.length} transactions (${duplicateCount} duplicates skipped)`
+            : `Imported ${transactions.length} transactions`;
+
           toast({
             title: "Success",
-            description: `Imported ${transactions.length} transactions`,
+            description: message,
           });
 
           setCsvFile(null);
@@ -603,14 +709,35 @@ export default function CreditCardTransactions() {
                     <TableCell>
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{trans.description}</p>
-                        {trans.merchant_name && (
-                          <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
-                        )}
+                <TableCell>
+                  <div>
+                    <p className="font-medium">{trans.description}</p>
+                    {trans.merchant_name && (
+                      <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
+                    )}
+                    {matchedReceipts.has(trans.id) && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                        <p className="text-xs font-semibold text-blue-700 mb-1">
+                          🔗 Possible receipt matches:
+                        </p>
+                        {matchedReceipts.get(trans.id)?.slice(0, 2).map((receipt: any) => (
+                          <div key={receipt.id} className="text-xs text-blue-600 mb-1">
+                            {receipt.vendor_name} - ${Number(receipt.amount).toFixed(2)} on{" "}
+                            {new Date(receipt.receipt_date).toLocaleDateString()}
+                            <Button
+                              size="sm"
+                              variant="link"
+                              className="h-auto p-0 ml-2 text-xs"
+                              onClick={() => window.open(`/uncoded?receipt=${receipt.id}`, '_blank')}
+                            >
+                              View Receipt
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    </TableCell>
+                    )}
+                  </div>
+                </TableCell>
                     <TableCell className="font-semibold">
                       ${Number(trans.amount).toLocaleString()}
                     </TableCell>
