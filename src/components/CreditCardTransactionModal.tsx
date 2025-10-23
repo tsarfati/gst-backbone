@@ -866,10 +866,9 @@ export function CreditCardTransactionModal({
                 { (attachmentPreview || transaction.attachment_url) && (
                   <div key={(attachmentPreview || transaction.attachment_url) as string} className="border rounded-lg overflow-hidden bg-muted">
                     {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                      <iframe
-                        src={(attachmentPreview || transaction.attachment_url) as string}
-                        className="w-full h-[480px] border-0 bg-background"
-                        title="Attachment Preview"
+                      <UrlPdfInlinePreview 
+                        url={(attachmentPreview || transaction.attachment_url) as string} 
+                        className="w-full max-h-96 overflow-y-auto"
                       />
                     ) : (
                       <img
