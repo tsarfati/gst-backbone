@@ -13,14 +13,10 @@ import {
   Plus, 
   Search, 
   Filter,
-  Edit,
-  Trash2,
   DollarSign,
   Calendar,
-  Eye,
   AlertTriangle,
-  Upload,
-  FileSpreadsheet
+  Upload
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -339,14 +335,17 @@ export default function CreditCards() {
                   <TableHead>Available Credit</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCards.map((card) => {
                   const availableCredit = Number(card.credit_limit || 0) - Number(card.current_balance || 0);
                   return (
-                    <TableRow key={card.id}>
+                    <TableRow 
+                      key={card.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
+                    >
                       <TableCell className="font-medium">{card.card_name}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
@@ -376,32 +375,6 @@ export default function CreditCards() {
                         <Badge variant={card.is_active ? "default" : "secondary"}>
                           {card.is_active ? "Active" : "Inactive"}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCard(card.id);
-                              setUploadDialogOpen(true);
-                            }}
-                            title="Import CSV"
-                          >
-                            <FileSpreadsheet className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
-                            title="View Details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
                       </TableCell>
                     </TableRow>
                   );
