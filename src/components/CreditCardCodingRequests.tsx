@@ -95,33 +95,6 @@ export default function CreditCardCodingRequests() {
     }
   };
 
-  const handleMarkComplete = async (requestId: string) => {
-    try {
-      const { error } = await supabase
-        .from("credit_card_coding_requests")
-        .update({ 
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", requestId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Coding request marked as complete",
-      });
-
-      fetchCodingRequests();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleOpenTransaction = (transactionId: string) => {
     setSelectedTransactionId(transactionId);
     setShowModal(true);
@@ -151,55 +124,39 @@ export default function CreditCardCodingRequests() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="flex items-start justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+              className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer"
+              onClick={() => handleOpenTransaction(request.transaction_id)}
             >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">
-                    {request.credit_card_transactions.credit_cards.card_name}
-                  </span>
-                </div>
-                <p className="text-sm font-semibold mb-1">
-                  {request.credit_card_transactions.description}
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">
+                  {request.credit_card_transactions.credit_cards.card_name}
+                </span>
+              </div>
+              <p className="text-sm font-semibold mb-1">
+                {request.credit_card_transactions.description}
+              </p>
+              {request.credit_card_transactions.merchant_name && (
+                <p className="text-sm text-muted-foreground">
+                  {request.credit_card_transactions.merchant_name}
                 </p>
-                {request.credit_card_transactions.merchant_name && (
-                  <p className="text-sm text-muted-foreground">
-                    {request.credit_card_transactions.merchant_name}
-                  </p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                  <span>
-                    ${Number(request.credit_card_transactions.amount).toLocaleString()}
-                  </span>
-                  <span>
-                    {new Date(request.credit_card_transactions.transaction_date).toLocaleDateString()}
-                  </span>
-                  <span>
-                    Requested by: {request.profiles.first_name} {request.profiles.last_name}
-                  </span>
-                </div>
-                {request.message && (
-                  <p className="text-sm text-muted-foreground mt-2 italic">
-                    "{request.message}"
-                  </p>
-                )}
+              )}
+              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                <span>
+                  ${Number(request.credit_card_transactions.amount).toLocaleString()}
+                </span>
+                <span>
+                  {new Date(request.credit_card_transactions.transaction_date).toLocaleDateString()}
+                </span>
+                <span>
+                  Requested by: {request.profiles.first_name} {request.profiles.last_name}
+                </span>
               </div>
-              <div className="flex flex-col gap-2 ml-4">
-                <Button
-                  size="sm"
-                  onClick={() => handleOpenTransaction(request.transaction_id)}
-                >
-                  Code Transaction
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleMarkComplete(request.id)}
-                >
-                  Mark Complete
-                </Button>
-              </div>
+              {request.message && (
+                <p className="text-sm text-muted-foreground mt-2 italic">
+                  "{request.message}"
+                </p>
+              )}
             </div>
           ))}
         </div>
