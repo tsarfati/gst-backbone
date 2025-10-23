@@ -46,6 +46,7 @@ export function CreditCardTransactionModal({
   const [isJobSelected, setIsJobSelected] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
+  const [jobCostCodes, setJobCostCodes] = useState<any[]>([]);
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
@@ -116,6 +117,7 @@ export function CreditCardTransactionModal({
         .select("*")
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true)
+        .eq("is_dynamic_group", false)
         .order("code");
 
       setCostCodes(costCodesData || []);
@@ -223,6 +225,7 @@ export function CreditCardTransactionModal({
     if (!value || value === "none") {
       setSelectedJobOrAccount(null);
       setIsJobSelected(false);
+      setJobCostCodes([]);
       await supabase
         .from("credit_card_transactions")
         .update({
@@ -241,6 +244,29 @@ export function CreditCardTransactionModal({
 
     if (type === "job") {
       setIsJobSelected(true);
+      
+      // Fetch cost codes associated with this job account
+      const { data: associations } = await supabase
+        .from("account_associations")
+        .select("cost_code_id")
+        .eq("account_id", id)
+        .eq("company_id", currentCompany?.id);
+      
+      const costCodeIds = (associations || []).map(a => a.cost_code_id).filter(Boolean);
+      
+      if (costCodeIds.length > 0) {
+        const { data: jobCostCodesData } = await supabase
+          .from("cost_codes")
+          .select("*")
+          .in("id", costCodeIds)
+          .eq("is_active", true)
+          .order("code");
+        
+        setJobCostCodes(jobCostCodesData || []);
+      } else {
+        setJobCostCodes([]);
+      }
+      
       await supabase
         .from("credit_card_transactions")
         .update({
@@ -252,6 +278,7 @@ export function CreditCardTransactionModal({
       setTransaction({ ...transaction, job_id: null, chart_account_id: id, cost_code_id: null });
     } else if (type === "account") {
       setIsJobSelected(false);
+      setJobCostCodes([]);
       await supabase
         .from("credit_card_transactions")
         .update({
@@ -478,7 +505,18 @@ export function CreditCardTransactionModal({
 
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
-    return costCodes;
+    return jobCostCodes;
+  };
+
+  const getCostCodeCategoryBadge = (type: string) => {
+    const badges: Record<string, { label: string; className: string }> = {
+      labor: { label: "Labor", className: "bg-blue-100 text-blue-800 border-blue-200" },
+      material: { label: "Material", className: "bg-green-100 text-green-800 border-green-200" },
+      equipment: { label: "Equipment", className: "bg-orange-100 text-orange-800 border-orange-200" },
+      subcontractor: { label: "Sub", className: "bg-purple-100 text-purple-800 border-purple-200" },
+      other: { label: "Other", className: "bg-gray-100 text-gray-800 border-gray-200" },
+    };
+    return badges[type] || badges.other;
   };
 
   if (loading) {
@@ -617,7 +655,12 @@ export function CreditCardTransactionModal({
                   <SelectItem value="none">No Cost Code</SelectItem>
                   {filteredCostCodes().map((cc) => (
                     <SelectItem key={cc.id} value={cc.id}>
-                      {cc.code} - {cc.description}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={getCostCodeCategoryBadge(cc.type).className}>
+                          {getCostCodeCategoryBadge(cc.type).label}
+                        </Badge>
+                        <span>{cc.code} - {cc.description}</span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
