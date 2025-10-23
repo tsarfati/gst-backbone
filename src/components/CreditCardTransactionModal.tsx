@@ -14,6 +14,7 @@ import { Paperclip, FileText, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
+import { cn } from "@/lib/utils";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -106,7 +107,7 @@ export function CreditCardTransactionModal({
         setSelectedVendorId(transData.vendor_id);
       }
 
-      // Fetch jobs list
+      // Fetch jobs from jobs table only
       const { data: jobsData } = await supabase
         .from('jobs')
         .select('id, name')
@@ -245,6 +246,7 @@ export function CreditCardTransactionModal({
       setSelectedJobOrAccount(null);
       setIsJobSelected(false);
       setJobCostCodes([]);
+      setOpenPickers({ ...openPickers, jobControl: false });
       await supabase
         .from("credit_card_transactions")
         .update({
@@ -260,42 +262,33 @@ export function CreditCardTransactionModal({
 
     const [type, id] = value.split("_");
     setSelectedJobOrAccount(value);
+    setOpenPickers({ ...openPickers, jobControl: false });
 
     if (type === "job") {
       setIsJobSelected(true);
       
-      // Fetch cost codes associated with this job account
-      const { data: associations } = await supabase
-        .from("account_associations")
-        .select("cost_code_id")
-        .eq("account_id", id)
-        .eq("company_id", currentCompany?.id);
+      // Fetch cost codes directly by job_id
+      const { data: jobCostCodesData } = await supabase
+        .from("cost_codes")
+        .select("*")
+        .eq("job_id", id)
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .eq("is_dynamic_group", false)
+        .order("code");
       
-      const costCodeIds = (associations || []).map(a => a.cost_code_id).filter(Boolean);
-      
-      if (costCodeIds.length > 0) {
-            const { data: jobCostCodesData } = await supabase
-              .from("cost_codes")
-              .select("*")
-              .in("id", costCodeIds)
-              .eq("is_active", true)
-              .order("code");
-          
-            const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
-            setJobCostCodes(unique);
-      } else {
-        setJobCostCodes([]);
-      }
+      const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
+      setJobCostCodes(unique);
       
       await supabase
         .from("credit_card_transactions")
         .update({
-          job_id: null,
-          chart_account_id: id,
+          job_id: id,
+          chart_account_id: null,
           cost_code_id: null,
         })
         .eq("id", transactionId);
-      setTransaction({ ...transaction, job_id: null, chart_account_id: id, cost_code_id: null });
+      setTransaction({ ...transaction, job_id: id, chart_account_id: null, cost_code_id: null });
     } else if (type === "account") {
       setIsJobSelected(false);
       setJobCostCodes([]);
@@ -314,6 +307,7 @@ export function CreditCardTransactionModal({
   };
 
   const handleCostCodeChange = async (costCodeId: string | null) => {
+    setOpenPickers({ ...openPickers, costCode: false });
     await supabase
       .from("credit_card_transactions")
       .update({ cost_code_id: costCodeId })
@@ -618,70 +612,131 @@ export function CreditCardTransactionModal({
           {/* Job/Control Selection */}
           <div>
             <Label>Job/Control *</Label>
-            <Select
-              value={selectedJobOrAccount || "none"}
-              onValueChange={handleJobOrAccountChange}
+            <Popover 
+              open={openPickers.jobControl} 
+              onOpenChange={(open) => setOpenPickers({ ...openPickers, jobControl: open })}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select job or expense account" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                
-                {/* Jobs Section */}
-                {jobs.length > 0 && (
-                  <>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                      JOBS
-                    </div>
-                      {jobs.map((job) => (
-                        <SelectItem key={`job_${job.id}`} value={`job_${job.id}`}>
-                          {job.account_name}
-                        </SelectItem>
-                      ))}
-                  </>
-                )}
-                
-                {/* Expense Accounts Section */}
-                {expenseAccounts.length > 0 && (
-                  <>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">
-                      CHART OF ACCOUNTS
-                    </div>
-                    {expenseAccounts.map((account) => (
-                      <SelectItem key={`account_${account.id}`} value={`account_${account.id}`}>
-                        {account.account_number} - {account.account_name}
-                      </SelectItem>
-                    ))}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between"
+                >
+                  {selectedJobOrAccount 
+                    ? (() => {
+                        const [type, id] = selectedJobOrAccount.split("_");
+                        if (type === "job") {
+                          const job = jobs.find(j => j.id === id);
+                          return job?.name || 'Select job or expense account';
+                        } else {
+                          const account = expenseAccounts.find(a => a.id === id);
+                          return account ? `${account.account_number} - ${account.account_name}` : 'Select job or expense account';
+                        }
+                      })()
+                    : 'Select job or expense account'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search jobs or accounts..." />
+                  <CommandList>
+                    <CommandEmpty>No results found.</CommandEmpty>
+                    {jobs.length > 0 && (
+                      <CommandGroup heading="Jobs">
+                        {jobs.map((job) => (
+                          <CommandItem
+                            key={`job_${job.id}`}
+                            value={job.name}
+                            onSelect={() => handleJobOrAccountChange(`job_${job.id}`)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedJobOrAccount === `job_${job.id}` ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {job.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {jobs.length > 0 && expenseAccounts.length > 0 && <CommandSeparator />}
+                    {expenseAccounts.length > 0 && (
+                      <CommandGroup heading="Expense Accounts">
+                        {expenseAccounts.map((account) => (
+                          <CommandItem
+                            key={`account_${account.id}`}
+                            value={`${account.account_number} ${account.account_name}`}
+                            onSelect={() => handleJobOrAccountChange(`account_${account.id}`)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedJobOrAccount === `account_${account.id}` ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {account.account_number} - {account.account_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Cost Code Selection - only shown for jobs */}
           {isJobSelected && (
             <div>
               <Label>Cost Code *</Label>
-              <Select
-                value={transaction.cost_code_id || "none"}
-                onValueChange={(value) => handleCostCodeChange(value === "none" ? null : value)}
+              <Popover 
+                open={openPickers.costCode} 
+                onOpenChange={(open) => setOpenPickers({ ...openPickers, costCode: open })}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select cost code" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Cost Code</SelectItem>
-                  {filteredCostCodes().map((cc) => (
-                    <SelectItem key={cc.id} value={cc.id}>
-                      <div className="flex items-center justify-between gap-2 w-full">
-                        <span className="truncate">{cc.code} - {cc.description}</span>
-                        <Badge variant="secondary">{getCostCodeCategoryBadge(cc.type)}</Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between"
+                  >
+                    {transaction.cost_code_id 
+                      ? (() => {
+                          const cc = filteredCostCodes().find(c => c.id === transaction.cost_code_id);
+                          return cc ? `${cc.code} - ${cc.description}` : 'Select cost code';
+                        })()
+                      : 'Select cost code'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search cost codes..." />
+                    <CommandList>
+                      <CommandEmpty>No cost codes found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredCostCodes().map((cc) => (
+                          <CommandItem
+                            key={cc.id}
+                            value={`${cc.code} ${cc.description}`}
+                            onSelect={() => handleCostCodeChange(cc.id)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                transaction.cost_code_id === cc.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <span className="flex-1">{cc.code} - {cc.description}</span>
+                            <Badge variant="secondary" className="ml-2">{getCostCodeCategoryBadge(cc.type)}</Badge>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 
@@ -784,10 +839,9 @@ export function CreditCardTransactionModal({
                 { (attachmentPreview || transaction.attachment_url) && (
                   <div className="border rounded-lg overflow-hidden bg-muted">
                     {(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                      <iframe
-                        src={(attachmentPreview || transaction.attachment_url) as string}
-                        className="w-full h-96"
-                        title="PDF Preview"
+                      <UrlPdfInlinePreview 
+                        url={(attachmentPreview || transaction.attachment_url) as string} 
+                        className="w-full max-h-96 overflow-y-auto"
                       />
                     ) : (
                       <img
