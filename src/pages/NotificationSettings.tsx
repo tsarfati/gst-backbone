@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Bell, Mail, Eye, Edit, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Bell, Mail, Eye, Edit, MessageSquare, History, Send, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +36,16 @@ interface EmailTemplate {
   subject: string;
 }
 
+interface EmailHistory {
+  id: string;
+  recipient_email: string;
+  subject: string;
+  email_type: string;
+  status: string;
+  sent_at: string;
+  error_message?: string;
+}
+
 export default function NotificationSettings() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -51,12 +63,16 @@ export default function NotificationSettings() {
     receipt_uploaded: true,
   });
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [emailHistory, setEmailHistory] = useState<EmailHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     if (user && currentCompany) {
       loadNotificationSettings();
       loadEmailTemplates();
+      loadEmailHistory();
     }
   }, [user, currentCompany]);
 
@@ -76,7 +92,6 @@ export default function NotificationSettings() {
       }
 
       if (data) {
-        // Map database fields to interface fields
         setSettings({
           ...data,
           overdue_bills: data.overdue_invoices,
@@ -109,11 +124,28 @@ export default function NotificationSettings() {
     }
   };
 
+  const loadEmailHistory = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("email_history")
+        .select("*")
+        .eq("company_id", currentCompany.id)
+        .order("sent_at", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setEmailHistory(data || []);
+    } catch (error) {
+      console.error("Error loading email history:", error);
+    }
+  };
+
   const saveSettings = async () => {
     if (!user || !currentCompany) return;
 
     try {
-      // Map interface fields back to database fields
       const dbSettings = {
         ...settings,
         overdue_invoices: settings.overdue_bills,
@@ -140,8 +172,76 @@ export default function NotificationSettings() {
     }
   };
 
+  const sendTestEmail = async () => {
+    if (!testEmail || !currentCompany) {
+      toast({
+        title: "Email required",
+        description: "Please enter an email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingTest(true);
+
+    try {
+      const { error } = await supabase.functions.invoke("send-test-email", {
+        body: {
+          email: testEmail,
+          companyId: currentCompany.id,
+          companyName: currentCompany.name,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Test email sent!",
+        description: `Test email sent successfully to ${testEmail}`,
+      });
+
+      setTestEmail("");
+      
+      // Refresh email history
+      await loadEmailHistory();
+    } catch (error: any) {
+      console.error("Error sending test email:", error);
+      toast({
+        title: "Failed to send test email",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const updateSetting = (key: keyof NotificationSettings, value: boolean) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "sent":
+        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Sent</Badge>;
+      case "failed":
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
+      case "pending":
+        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getEmailTypeLabel = (type: string) => {
+    const types: Record<string, string> = {
+      overdue_bills: "Overdue Bills",
+      test: "Test Email",
+      notification: "Notification",
+      bill_payment: "Bill Payment",
+      receipt_uploaded: "Receipt Upload",
+    };
+    return types[type] || type;
   };
 
   if (loading) {
@@ -190,6 +290,13 @@ export default function NotificationSettings() {
             Email Templates
           </TabsTrigger>
           <TabsTrigger 
+            value="email-history" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+          >
+            <History className="h-4 w-4" />
+            Email History
+          </TabsTrigger>
+          <TabsTrigger 
             value="text-messaging" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
           >
@@ -207,6 +314,41 @@ export default function NotificationSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Test Email Section */}
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium mb-3">Test Email Configuration</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Send a test email to verify your email server is configured correctly
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    disabled={sendingTest}
+                  />
+                  <Button
+                    onClick={sendTestEmail}
+                    disabled={sendingTest || !testEmail}
+                  >
+                    {sendingTest ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Test
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
               {/* General Settings */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">General</h3>
@@ -344,6 +486,55 @@ export default function NotificationSettings() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="email-history">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Email History
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                View all emails sent from your account
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {emailHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No emails sent yet</p>
+                  </div>
+                ) : (
+                  emailHistory.map((email) => (
+                    <div key={email.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-medium truncate">{email.subject}</h4>
+                          {getStatusBadge(email.status)}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span className="truncate">To: {email.recipient_email}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {getEmailTypeLabel(email.email_type)}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(email.sent_at).toLocaleString()}
+                        </p>
+                        {email.error_message && (
+                          <p className="text-xs text-destructive mt-1">
+                            Error: {email.error_message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

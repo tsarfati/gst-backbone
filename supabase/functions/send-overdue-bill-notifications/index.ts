@@ -212,7 +212,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Send email to all admins/controllers
       for (const email of uniqueEmails) {
         try {
-          const { error: emailError } = await resend.emails.send({
+          const { data: emailData, error: emailError } = await resend.emails.send({
             from: "Bills Notification <onboarding@resend.dev>",
             to: [email],
             subject: `⚠️ ${bills.length} Overdue Bill${bills.length !== 1 ? 's' : ''} - Action Required`,
@@ -221,9 +221,34 @@ const handler = async (req: Request): Promise<Response> => {
 
           if (emailError) {
             console.error(`Failed to send email to ${email}:`, emailError);
+            
+            // Log failed email
+            await supabase.from("email_history").insert({
+              company_id: companyId,
+              recipient_email: email,
+              subject: `⚠️ ${bills.length} Overdue Bill${bills.length !== 1 ? 's' : ''} - Action Required`,
+              email_type: "overdue_bills",
+              status: "failed",
+              error_message: emailError.message,
+              metadata: { bill_count: bills.length, bills: bills.map(b => b.id) },
+            });
           } else {
             emailsSent.push(email);
             console.log(`Email sent successfully to ${email}`);
+            
+            // Log successful email
+            await supabase.from("email_history").insert({
+              company_id: companyId,
+              recipient_email: email,
+              subject: `⚠️ ${bills.length} Overdue Bill${bills.length !== 1 ? 's' : ''} - Action Required`,
+              email_type: "overdue_bills",
+              status: "sent",
+              metadata: { 
+                bill_count: bills.length, 
+                bills: bills.map(b => b.id),
+                resend_id: emailData?.id
+              },
+            });
           }
         } catch (emailErr) {
           console.error(`Exception sending email to ${email}:`, emailErr);

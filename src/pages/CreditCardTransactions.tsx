@@ -151,10 +151,9 @@ export default function CreditCardTransactions() {
       // For each transaction, find potential receipt matches
       transactions.forEach((transaction) => {
         const potentialMatches = (receipts || []).filter((receipt) => {
-          // Only show receipts marked as credit card charges
-          if (!receipt.is_credit_card_charge) {
-            return false;
-          }
+          // Check if receipt is already linked to a bill or credit card transaction
+          // We'll assume receipts with status 'coded' and attached to something are excluded
+          // This would need proper tracking - for now we include all receipts
           
           // Check if amount is within 1% tolerance
           const amountMatch = Math.abs(
