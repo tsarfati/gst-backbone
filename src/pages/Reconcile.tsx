@@ -976,10 +976,12 @@ export default function Reconcile() {
   };
 
 
-  if (!account && !loading) {
+  if (!account) {
     return (
       <div className="p-6">
-        <p className="text-center text-muted-foreground">Bank account not found</p>
+        <p className="text-center text-muted-foreground">
+          {loading ? "Loading..." : "Bank account not found"}
+        </p>
       </div>
     );
   }
