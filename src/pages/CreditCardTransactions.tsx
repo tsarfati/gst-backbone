@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Paperclip, FileText } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Paperclip, FileText, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
@@ -37,6 +38,8 @@ export default function CreditCardTransactions() {
   const [matchedReceipts, setMatchedReceipts] = useState<Map<string, any[]>>(new Map());
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedCoders, setSelectedCoders] = useState<string[]>([]);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -465,10 +468,10 @@ export default function CreditCardTransactions() {
     }
   };
 
-  const handleRequestCoding = async (transactionId: string, requestedCoderId: string | null) => {
+  const handleRequestCoding = async (transactionId: string, coderIds: string[]) => {
     try {
-      if (!requestedCoderId) {
-        // Remove coding request
+      if (coderIds.length === 0) {
+        // Remove all coding requests
         await supabase
           .from("credit_card_transactions")
           .update({ 
@@ -482,37 +485,46 @@ export default function CreditCardTransactions() {
           .delete()
           .eq("transaction_id", transactionId);
       } else {
-        // Create coding request
+        // Create coding requests for multiple users
+        const firstCoderId = coderIds[0];
         await supabase
           .from("credit_card_transactions")
           .update({ 
-            requested_coder_id: requestedCoderId,
+            requested_coder_id: firstCoderId,
             coding_status: 'pending',
           })
           .eq("id", transactionId);
 
+        // Delete existing requests
         await supabase
           .from("credit_card_coding_requests")
-          .insert({
-            transaction_id: transactionId,
-            company_id: currentCompany?.id,
-            requested_by: user?.id,
-            requested_coder_id: requestedCoderId,
-            status: 'pending',
-            message: `Coding assistance requested for transaction`,
-          });
+          .delete()
+          .eq("transaction_id", transactionId);
+
+        // Insert new requests for all selected coders
+        const requests = coderIds.map(coderId => ({
+          transaction_id: transactionId,
+          company_id: currentCompany?.id,
+          requested_by: user?.id,
+          requested_coder_id: coderId,
+          status: 'pending',
+          message: `Coding assistance requested for transaction`,
+        }));
+
+        await supabase
+          .from("credit_card_coding_requests")
+          .insert(requests);
       }
 
       toast({
         title: "Success",
-        description: requestedCoderId ? "Coding request sent" : "Coding request removed",
+        description: coderIds.length > 0 ? `Coding request sent to ${coderIds.length} user(s)` : "Coding requests removed",
       });
 
-      // Update local state
       setSelectedTransaction((prev: any) => prev ? { 
         ...prev, 
-        requested_coder_id: requestedCoderId,
-        coding_status: requestedCoderId ? 'pending' : 'uncoded'
+        requested_coder_id: coderIds[0] || null,
+        coding_status: coderIds.length > 0 ? 'pending' : 'uncoded'
       } : null);
       fetchData();
     } catch (error: any) {
@@ -546,12 +558,20 @@ export default function CreditCardTransactions() {
 
       if (updateError) throw updateError;
 
+      // Create preview for images and PDFs
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => setAttachmentPreview(reader.result as string);
+        reader.readAsDataURL(file);
+      } else if (file.type === 'application/pdf') {
+        setAttachmentPreview(publicUrl);
+      }
+
       toast({
         title: "Success",
         description: "Attachment uploaded successfully",
       });
 
-      // Update local state
       setSelectedTransaction((prev: any) => prev ? { ...prev, attachment_url: publicUrl } : null);
       fetchData();
     } catch (error: any) {
@@ -563,9 +583,33 @@ export default function CreditCardTransactions() {
     }
   };
 
-  const openTransactionDetail = (transaction: any) => {
+  const openTransactionDetail = async (transaction: any) => {
     setSelectedTransaction(transaction);
     setShowDetailModal(true);
+    setAttachmentPreview(null);
+    setSelectedCoders([]);
+
+    // Fetch all coding requests for this transaction
+    const { data: requests } = await supabase
+      .from("credit_card_coding_requests")
+      .select("requested_coder_id")
+      .eq("transaction_id", transaction.id)
+      .eq("status", "pending");
+
+    if (requests && requests.length > 0) {
+      setSelectedCoders(requests.map(r => r.requested_coder_id));
+    }
+
+    // Load attachment preview if exists
+    if (transaction.attachment_url) {
+      if (transaction.attachment_url.includes('.jpg') || 
+          transaction.attachment_url.includes('.jpeg') || 
+          transaction.attachment_url.includes('.png')) {
+        setAttachmentPreview(transaction.attachment_url);
+      } else if (transaction.attachment_url.includes('.pdf')) {
+        setAttachmentPreview(transaction.attachment_url);
+      }
+    }
   };
 
   const getStatusBadge = (transaction: any) => {
@@ -853,63 +897,102 @@ export default function CreditCardTransactions() {
                 )}
               </div>
 
-              {/* Request Assistance */}
+              {/* Request Assistance - Multi-select */}
               <div>
-                <Label>Request Coding Assistance</Label>
-                <Select
-                  value={selectedTransaction.requested_coder_id || "none"}
-                  onValueChange={(value) => handleRequestCoding(selectedTransaction.id, value === "none" ? null : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Request help" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Request</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
+                <Label>Request Coding Assistance (Select Multiple Users)</Label>
+                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                  {users.map((u) => (
+                    <div key={u.user_id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={u.user_id}
+                        checked={selectedCoders.includes(u.user_id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            const newCoders = [...selectedCoders, u.user_id];
+                            setSelectedCoders(newCoders);
+                          } else {
+                            const newCoders = selectedCoders.filter(id => id !== u.user_id);
+                            setSelectedCoders(newCoders);
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={u.user_id}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
                         {u.first_name} {u.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  className="w-full mt-2"
+                  size="sm"
+                  onClick={() => handleRequestCoding(selectedTransaction.id, selectedCoders)}
+                >
+                  Update Coding Requests
+                </Button>
               </div>
 
-              {/* Attachment Upload */}
+              {/* Attachment Upload with Preview */}
               <div>
                 <Label>Attachment</Label>
                 {selectedTransaction.attachment_url ? (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => window.open(selectedTransaction.attachment_url, '_blank')}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Attachment
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        // Remove attachment
-                        supabase
-                          .from("credit_card_transactions")
-                          .update({ attachment_url: null })
-                          .eq("id", selectedTransaction.id)
-                          .then(() => {
-                            setSelectedTransaction({ ...selectedTransaction, attachment_url: null });
-                            fetchData();
-                          });
-                      }}
-                    >
-                      Remove
-                    </Button>
+                  <div className="space-y-3 mt-2">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(selectedTransaction.attachment_url, '_blank')}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Full Size
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          supabase
+                            .from("credit_card_transactions")
+                            .update({ attachment_url: null })
+                            .eq("id", selectedTransaction.id)
+                            .then(() => {
+                              setSelectedTransaction({ ...selectedTransaction, attachment_url: null });
+                              setAttachmentPreview(null);
+                              fetchData();
+                            });
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
+                    </div>
+                    
+                    {/* Embedded Preview */}
+                    {attachmentPreview && (
+                      <div className="border rounded-lg overflow-hidden bg-muted">
+                        {attachmentPreview.includes('.pdf') ? (
+                          <iframe
+                            src={attachmentPreview}
+                            className="w-full h-96"
+                            title="PDF Preview"
+                          />
+                        ) : (
+                          <img
+                            src={attachmentPreview}
+                            alt="Attachment preview"
+                            className="w-full h-auto max-h-96 object-contain"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <label className="cursor-pointer">
                     <input
                       type="file"
                       className="hidden"
+                      accept="image/*,.pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleAttachmentUpload(selectedTransaction.id, file);

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, CreditCard, Upload, FileText, DollarSign } from "lucide-react";
+import { ArrowLeft, CreditCard, Upload, FileText, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import Papa from "papaparse";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CreditCardPaymentModal } from "@/components/CreditCardPaymentModal";
 
 export default function CreditCardDetails() {
   const { id } = useParams();
@@ -24,6 +25,8 @@ export default function CreditCardDetails() {
   const [uploadingStatement, setUploadingStatement] = useState(false);
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementNotes, setStatementNotes] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [statementsOpen, setStatementsOpen] = useState(false);
 
   useEffect(() => {
     if (id && currentCompany) {
@@ -177,7 +180,7 @@ export default function CreditCardDetails() {
           </h1>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => navigate(`/payables/credit-cards/${id}/make-payment`)}>
+          <Button onClick={() => setShowPaymentModal(true)}>
             <DollarSign className="h-4 w-4 mr-2" />
             Make Payment
           </Button>
@@ -188,133 +191,151 @@ export default function CreditCardDetails() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Card Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Card Name</Label>
-              <p className="text-lg font-semibold">{creditCard.card_name}</p>
-            </div>
-            <div>
-              <Label>Cardholder</Label>
-              <p>{creditCard.cardholder_name}</p>
-            </div>
-            <div>
-              <Label>Card Number</Label>
-              <p>**** **** **** {creditCard.card_number_last_four}</p>
-            </div>
-            <div>
-              <Label>Issuer</Label>
-              <p>{creditCard.issuer}</p>
-            </div>
-            <div>
-              <Label>Credit Limit</Label>
-              <p className="text-lg font-semibold">
-                ${Number(creditCard.credit_limit || 0).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <Label>Current Balance</Label>
-              <p className="text-lg font-semibold text-destructive">
-                ${Number(creditCard.current_balance || 0).toLocaleString()}
-              </p>
-            </div>
-            <div>
-              <Label>Available Credit</Label>
-              <p className="text-lg font-semibold text-green-600">
-                ${(Number(creditCard.credit_limit || 0) - Number(creditCard.current_balance || 0)).toLocaleString()}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Card Details Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Card Details</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div>
+            <Label>Card Name</Label>
+            <p className="text-lg font-semibold">{creditCard.card_name}</p>
+          </div>
+          <div>
+            <Label>Cardholder</Label>
+            <p>{creditCard.cardholder_name}</p>
+          </div>
+          <div>
+            <Label>Card Number</Label>
+            <p>**** **** **** {creditCard.card_number_last_four}</p>
+          </div>
+          <div>
+            <Label>Issuer</Label>
+            <p>{creditCard.issuer}</p>
+          </div>
+          <div>
+            <Label>Credit Limit</Label>
+            <p className="text-lg font-semibold">
+              ${Number(creditCard.credit_limit || 0).toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <Label>Current Balance</Label>
+            <p className="text-lg font-semibold text-destructive">
+              ${Number(creditCard.current_balance || 0).toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <Label>Available Credit</Label>
+            <p className="text-lg font-semibold text-green-600">
+              ${(Number(creditCard.credit_limit || 0) - Number(creditCard.current_balance || 0)).toLocaleString()}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
+      {/* Statements Section - Collapsible */}
+      <Card>
+        <Collapsible open={statementsOpen} onOpenChange={setStatementsOpen}>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Statements
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Statement
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Upload Statement</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Statement File</Label>
-                      <Input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => setStatementFile(e.target.files?.[0] || null)}
-                      />
-                    </div>
-                    <div>
-                      <Label>Notes</Label>
-                      <Textarea
-                        value={statementNotes}
-                        onChange={(e) => setStatementNotes(e.target.value)}
-                        placeholder="Optional notes about this statement"
-                      />
-                    </div>
-                    <Button
-                      onClick={handleStatementUpload}
-                      disabled={!statementFile || uploadingStatement}
-                      className="w-full"
-                    >
-                      {uploadingStatement ? "Uploading..." : "Upload Statement"}
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between cursor-pointer">
+                <CardTitle className="flex items-center gap-2">
+                  Statements
+                  {statementsOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                </CardTitle>
+                <Dialog>
+                  <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button size="sm">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Statement
                     </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statements.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No statements uploaded yet</p>
-            ) : (
-              <div className="space-y-2">
-                {statements.map((statement) => (
-                  <div
-                    key={statement.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium">{statement.display_name || statement.file_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(statement.statement_date).toLocaleDateString()} - 
-                        {statement.notes && ` ${statement.notes}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Upload Statement</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Statement File</Label>
+                        <Input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => setStatementFile(e.target.files?.[0] || null)}
+                        />
+                      </div>
+                      <div>
+                        <Label>Notes</Label>
+                        <Textarea
+                          value={statementNotes}
+                          onChange={(e) => setStatementNotes(e.target.value)}
+                          placeholder="Optional notes about this statement"
+                        />
+                      </div>
                       <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.open(statement.file_url, '_blank')}
+                        onClick={handleStatementUpload}
+                        disabled={!statementFile || uploadingStatement}
+                        className="w-full"
                       >
-                        View
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleDeleteStatement(statement.id, statement.file_url)}
-                      >
-                        Delete
+                        {uploadingStatement ? "Uploading..." : "Upload Statement"}
                       </Button>
                     </div>
-                  </div>
-                ))}
+                  </DialogContent>
+                </Dialog>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              {statements.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No statements uploaded yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {statements.map((statement) => (
+                    <div
+                      key={statement.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium">{statement.display_name || statement.file_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(statement.statement_date).toLocaleDateString()} - 
+                          {statement.notes && ` ${statement.notes}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(statement.file_url, '_blank')}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteStatement(statement.id, statement.file_url)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+
+      <CreditCardPaymentModal
+        open={showPaymentModal}
+        onOpenChange={setShowPaymentModal}
+        creditCardId={id!}
+        onPaymentComplete={() => {
+          fetchCreditCardDetails();
+        }}
+      />
     </div>
   );
 }
