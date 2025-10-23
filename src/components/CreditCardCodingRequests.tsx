@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { CreditCard, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { CreditCard, AlertCircle } from "lucide-react";
+import { CreditCardTransactionModal } from "./CreditCardTransactionModal";
 
 interface CodingRequest {
   id: string;
@@ -35,10 +35,11 @@ interface CodingRequest {
 export default function CreditCardCodingRequests() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [requests, setRequests] = useState<CodingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (user && currentCompany) {
@@ -121,8 +122,9 @@ export default function CreditCardCodingRequests() {
     }
   };
 
-  const handleViewTransaction = (creditCardId: string) => {
-    navigate(`/payables/credit-cards/${creditCardId}/transactions`);
+  const handleOpenTransaction = (transactionId: string) => {
+    setSelectedTransactionId(transactionId);
+    setShowModal(true);
   };
 
   if (loading) {
@@ -186,7 +188,7 @@ export default function CreditCardCodingRequests() {
               <div className="flex flex-col gap-2 ml-4">
                 <Button
                   size="sm"
-                  onClick={() => handleViewTransaction(request.credit_card_transactions.credit_card_id)}
+                  onClick={() => handleOpenTransaction(request.transaction_id)}
                 >
                   Code Transaction
                 </Button>
@@ -202,6 +204,15 @@ export default function CreditCardCodingRequests() {
           ))}
         </div>
       </CardContent>
+
+      {selectedTransactionId && (
+        <CreditCardTransactionModal
+          open={showModal}
+          onOpenChange={setShowModal}
+          transactionId={selectedTransactionId}
+          onComplete={fetchCodingRequests}
+        />
+      )}
     </Card>
   );
 }

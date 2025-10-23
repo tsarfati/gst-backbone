@@ -946,6 +946,51 @@ export type Database = {
           },
         ]
       }
+      credit_card_transaction_communications: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          message: string
+          transaction_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          message: string
+          transaction_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          transaction_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_transaction_communications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transaction_communications_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "credit_card_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_transactions: {
         Row: {
           amount: number

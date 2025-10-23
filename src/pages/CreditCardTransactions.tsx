@@ -40,6 +40,9 @@ export default function CreditCardTransactions() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedCoders, setSelectedCoders] = useState<string[]>([]);
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [communications, setCommunications] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [requestedUsers, setRequestedUsers] = useState<any[]>([]);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -422,7 +425,7 @@ export default function CreditCardTransactions() {
 
   const handleJobChange = async (transactionId: string, jobId: string | null) => {
     try {
-      const { error } = await supabase
+      await supabase
         .from("credit_card_transactions")
         .update({ 
           job_id: jobId,
@@ -430,10 +433,10 @@ export default function CreditCardTransactions() {
         })
         .eq("id", transactionId);
 
-      if (error) throw error;
+      const updatedTransaction = { ...selectedTransaction, job_id: jobId, cost_code_id: null };
+      setSelectedTransaction(updatedTransaction);
       
-      // Update local state
-      setSelectedTransaction((prev: any) => prev ? { ...prev, job_id: jobId, cost_code_id: null } : null);
+      await updateCodingStatus(transactionId, updatedTransaction);
       fetchData();
     } catch (error: any) {
       toast({
@@ -446,18 +449,18 @@ export default function CreditCardTransactions() {
 
   const handleCostCodeChange = async (transactionId: string, costCodeId: string | null) => {
     try {
-      const { error } = await supabase
+      // Update cost code
+      await supabase
         .from("credit_card_transactions")
-        .update({ 
-          cost_code_id: costCodeId,
-          coding_status: costCodeId ? 'coded' : 'uncoded',
-        })
+        .update({ cost_code_id: costCodeId })
         .eq("id", transactionId);
 
-      if (error) throw error;
-      
       // Update local state
-      setSelectedTransaction((prev: any) => prev ? { ...prev, cost_code_id: costCodeId, coding_status: costCodeId ? 'coded' : 'uncoded' } : null);
+      const updatedTransaction = { ...selectedTransaction, cost_code_id: costCodeId };
+      setSelectedTransaction(updatedTransaction);
+      
+      // Check if transaction should be marked as coded
+      await updateCodingStatus(transactionId, updatedTransaction);
       fetchData();
     } catch (error: any) {
       toast({
@@ -465,6 +468,28 @@ export default function CreditCardTransactions() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const updateCodingStatus = async (transactionId: string, transaction: any) => {
+    // A transaction is only coded if:
+    // 1. Has a job assigned
+    // 2. Has a cost code assigned (if job is assigned)
+    // 3. Has an attachment
+    const hasJob = !!transaction.job_id;
+    const hasCostCode = !!transaction.cost_code_id;
+    const hasAttachment = !!transaction.attachment_url;
+    
+    const isCoded = hasJob && hasCostCode && hasAttachment;
+    const newStatus = isCoded ? 'coded' : 'uncoded';
+
+    const { error } = await supabase
+      .from("credit_card_transactions")
+      .update({ coding_status: newStatus })
+      .eq("id", transactionId);
+
+    if (!error && selectedTransaction) {
+      setSelectedTransaction({ ...transaction, coding_status: newStatus });
     }
   };
 
@@ -551,12 +576,10 @@ export default function CreditCardTransactions() {
         .from("credit-card-attachments")
         .getPublicUrl(fileName);
 
-      const { error: updateError } = await supabase
+      await supabase
         .from("credit_card_transactions")
         .update({ attachment_url: publicUrl })
         .eq("id", transactionId);
-
-      if (updateError) throw updateError;
 
       // Create preview for images and PDFs
       if (file.type.startsWith('image/')) {
@@ -567,12 +590,16 @@ export default function CreditCardTransactions() {
         setAttachmentPreview(publicUrl);
       }
 
+      const updatedTransaction = { ...selectedTransaction, attachment_url: publicUrl };
+      setSelectedTransaction(updatedTransaction);
+      
+      await updateCodingStatus(transactionId, updatedTransaction);
+      
       toast({
         title: "Success",
         description: "Attachment uploaded successfully",
       });
 
-      setSelectedTransaction((prev: any) => prev ? { ...prev, attachment_url: publicUrl } : null);
       fetchData();
     } catch (error: any) {
       toast({
@@ -588,8 +615,9 @@ export default function CreditCardTransactions() {
     setShowDetailModal(true);
     setAttachmentPreview(null);
     setSelectedCoders([]);
+    setNewMessage("");
 
-    // Fetch all coding requests for this transaction
+    // Fetch all coding requests for this transaction with user details
     const { data: requests } = await supabase
       .from("credit_card_coding_requests")
       .select("requested_coder_id")
@@ -597,8 +625,31 @@ export default function CreditCardTransactions() {
       .eq("status", "pending");
 
     if (requests && requests.length > 0) {
-      setSelectedCoders(requests.map(r => r.requested_coder_id));
+      const coderIds = requests.map(r => r.requested_coder_id);
+      setSelectedCoders(coderIds);
+      
+      // Fetch user details for requested coders
+      const { data: userDetails } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", coderIds);
+      
+      setRequestedUsers(userDetails || []);
+    } else {
+      setRequestedUsers([]);
     }
+
+    // Fetch communications for this transaction
+    const { data: comms } = await supabase
+      .from("credit_card_transaction_communications")
+      .select(`
+        *,
+        user:user_id(user_id, first_name, last_name)
+      `)
+      .eq("transaction_id", transaction.id)
+      .order("created_at", { ascending: true });
+
+    setCommunications(comms || []);
 
     // Load attachment preview if exists
     if (transaction.attachment_url) {
@@ -612,12 +663,53 @@ export default function CreditCardTransactions() {
     }
   };
 
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedTransaction) return;
+
+    try {
+      const { error } = await supabase
+        .from("credit_card_transaction_communications")
+        .insert({
+          transaction_id: selectedTransaction.id,
+          company_id: currentCompany?.id,
+          user_id: user?.id,
+          message: newMessage.trim(),
+        });
+
+      if (error) throw error;
+
+      // Refresh communications
+      const { data: comms } = await supabase
+        .from("credit_card_transaction_communications")
+        .select(`
+          *,
+          user:user_id(user_id, first_name, last_name)
+        `)
+        .eq("transaction_id", selectedTransaction.id)
+        .order("created_at", { ascending: true });
+
+      setCommunications(comms || []);
+      setNewMessage("");
+
+      toast({
+        title: "Success",
+        description: "Message sent",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (transaction: any) => {
     if (transaction.requested_coder_id) {
-      return <Badge className="bg-purple-500">Assistance Requested</Badge>;
+      return <Badge className="bg-purple-500 text-white">Assistance Requested</Badge>;
     }
     if (transaction.coding_status === 'coded') {
-      return <Badge className="bg-green-500">Coded</Badge>;
+      return <Badge className="bg-green-500 text-white">Coded</Badge>;
     }
     return <Badge variant="destructive">Uncoded</Badge>;
   };
@@ -847,7 +939,18 @@ export default function CreditCardTransactions() {
                 )}
                 <div>
                   <Label className="text-sm text-muted-foreground">Status</Label>
-                  <div className="mt-1">{getStatusBadge(selectedTransaction)}</div>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    {getStatusBadge(selectedTransaction)}
+                    {requestedUsers.length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {requestedUsers.map((u: any) => (
+                          <Badge key={u.user_id} variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
+                            {u.first_name} {u.last_name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -901,6 +1004,25 @@ export default function CreditCardTransactions() {
               <div>
                 <Label>Request Coding Assistance (Select Multiple Users)</Label>
                 <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                  <div className="flex items-center space-x-2 pb-2 border-b">
+                    <Checkbox
+                      id="all-users"
+                      checked={selectedCoders.length === users.length}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedCoders(users.map(u => u.user_id));
+                        } else {
+                          setSelectedCoders([]);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="all-users"
+                      className="text-sm font-bold leading-none cursor-pointer"
+                    >
+                      All Users
+                    </label>
+                  </div>
                   {users.map((u) => (
                     <div key={u.user_id} className="flex items-center space-x-2">
                       <Checkbox
@@ -1038,7 +1160,55 @@ export default function CreditCardTransactions() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-4">
+              {/* Communication Section */}
+              <div className="border-t pt-6">
+                <Label className="text-lg font-semibold">Discussion</Label>
+                <div className="mt-3 space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3 bg-muted/30">
+                  {communications.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No messages yet. Start the discussion below.
+                    </p>
+                  ) : (
+                    communications.map((comm: any) => (
+                      <div key={comm.id} className="bg-background p-3 rounded-lg border">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-semibold">
+                            {comm.user?.first_name} {comm.user?.last_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(comm.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm">{comm.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="resize-none"
+                    rows={2}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim()}
+                    size="sm"
+                  >
+                    Send
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button variant="outline" onClick={() => setShowDetailModal(false)}>
                   Close
                 </Button>
