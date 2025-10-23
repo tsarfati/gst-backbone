@@ -128,7 +128,7 @@ export default function AddBill() {
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
       const [vendorsRes, jobsRes, expenseAccountsRes] = await Promise.all([
-        supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number').eq('is_active', true).eq('company_id', companyId),
+        supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type')
@@ -176,10 +176,10 @@ export default function AddBill() {
         .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
-        .eq('is_dynamic_group', false)
-        .neq('type', 'sub'); // Exclude subcontractor cost codes
+        .eq('is_dynamic_group', false);
       
-      setCostCodes(data || []);
+      const filtered = filterCostCodesByVendorType(data || []);
+      setCostCodes(filtered);
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
@@ -192,16 +192,26 @@ export default function AddBill() {
         .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
-        .eq('is_dynamic_group', false)
-        .neq('type', 'sub');
+        .eq('is_dynamic_group', false);
       
+      const filtered = filterCostCodesByVendorType(data || []);
       setLineItemCostCodes(prev => ({
         ...prev,
-        [lineItemId]: data || []
+        [lineItemId]: filtered
       }));
     } catch (error) {
       console.error('Error fetching cost codes:', error);
     }
+  };
+
+  const filterCostCodesByVendorType = (codes: any[]) => {
+    // If vendor is subcontractor or design professional, only show sub, other, or labor cost codes
+    const vendorType = selectedVendor?.vendor_type;
+    if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
+      return codes.filter(cc => cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
+    }
+    // For other vendor types, exclude subcontractor cost codes
+    return codes.filter(cc => cc.type !== 'sub');
   };
 
   const getCostCodeTypeLabel = (type: string) => {

@@ -164,7 +164,7 @@ export default function BillEdit() {
       const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
         supabase
           .from('vendors')
-          .select('id, name')
+          .select('id, name, vendor_type')
           .eq('company_id', companyId)
           .order('name'),
         supabase
@@ -242,11 +242,24 @@ export default function BillEdit() {
   ) => {
     let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
     
-    // Filter by type based on invoice type
-    if (isSubcontract) {
-      filtered = filtered.filter(cc => cc.type === 'sub');
-    } else if (purchaseOrderId) {
-      filtered = filtered.filter(cc => cc.type === 'material');
+    // Get vendor type
+    const vendor = vendors.find(v => v.id === formData.vendor_id);
+    const vendorType = (vendor as any)?.vendor_type;
+    
+    // Filter by vendor type first
+    if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
+      // For subcontractors/design professionals, only show sub, other, or labor cost codes
+      filtered = filtered.filter(cc => cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
+    } else {
+      // Filter by type based on invoice type for other vendors
+      if (isSubcontract) {
+        filtered = filtered.filter(cc => cc.type === 'sub');
+      } else if (purchaseOrderId) {
+        filtered = filtered.filter(cc => cc.type === 'material');
+      } else {
+        // For non-commitment bills from non-subcontractor vendors, exclude sub type
+        filtered = filtered.filter(cc => cc.type !== 'sub');
+      }
     }
     
     return filtered;
