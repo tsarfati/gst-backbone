@@ -53,6 +53,8 @@ const getStatusVariant = (status: string) => {
     case "pending":
     case "pending_approval":
       return "warning";
+    case "pending_coding":
+      return "secondary";
     case "approved":
       return "warning"; // Orange for awaiting payment
     case "pending_payment":
@@ -70,6 +72,8 @@ const getStatusDisplayName = (status: string) => {
       return "pending approval";
     case "pending_approval":
       return "pending approval";
+    case "pending_coding":
+      return "pending coding";
     case "approved":
       return "Awaiting Payment";
     case "pending_payment":
@@ -183,17 +187,20 @@ export default function Bills() {
     }
   };
 
+  const pendingCodingBills = bills.filter(bill => bill.status === 'pending_coding');
   const pendingApprovalBills = bills.filter(bill => bill.status === 'pending' || bill.status === 'pending_approval');
   const awaitingPaymentBills = bills.filter(bill => bill.status === 'approved' || bill.status === 'pending_payment');
   const overdueBills = bills.filter(bill => {
     const dueDate = new Date(bill.due_date);
     const today = new Date();
-    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
+    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment' || bill.status === 'pending_coding') && dueDate < today;
   });
 
   // Apply status filter
   let statusFilteredBills = bills;
-  if (statusFilter === "pending_approval") {
+  if (statusFilter === "pending_coding") {
+    statusFilteredBills = pendingCodingBills;
+  } else if (statusFilter === "pending_approval") {
     statusFilteredBills = pendingApprovalBills;
   } else if (statusFilter === "awaiting_payment") {
     statusFilteredBills = awaitingPaymentBills;
@@ -228,6 +235,7 @@ export default function Bills() {
   const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
   const uniqueVendors = [...new Set(bills.map(bill => bill.vendor_name))];
 
+  const totalPendingCoding = pendingCodingBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalPendingApproval = pendingApprovalBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalAwaitingPayment = awaitingPaymentBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0);
@@ -332,7 +340,7 @@ export default function Bills() {
         </div>
 
         {/* Status Filter Counters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter('all')}
@@ -344,6 +352,22 @@ export default function Bills() {
                   <p className="text-2xl font-bold">{bills.length}</p>
                 </div>
                 <Receipt className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending_coding' ? 'ring-2 ring-secondary' : ''}`}
+            onClick={() => setStatusFilter('pending_coding')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Pending Coding</p>
+                  <p className="text-2xl font-bold">{pendingCodingBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalPendingCoding.toLocaleString()}</p>
+                </div>
+                <FileText className="h-8 w-8 text-secondary" />
               </div>
             </CardContent>
           </Card>
