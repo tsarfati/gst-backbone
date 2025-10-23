@@ -188,11 +188,21 @@ export default function UncodedReceipts() {
       return;
     }
 
-    // Validate cost distribution
-    if (costDistribution.length === 0 || !costDistribution.every(d => d.job_id && d.cost_code_id)) {
+    // Validate cost distribution exists
+    if (costDistribution.length === 0) {
+      toast({
+        title: "Missing distribution",
+        description: "Please add at least one cost distribution",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate each distribution has job and cost code
+    if (!costDistribution.every(d => d.job_id && d.cost_code_id)) {
       toast({
         title: "Missing information",
-        description: "Please complete all cost distribution items",
+        description: "Each distribution must have a job and cost code selected",
         variant: "destructive",
       });
       return;
@@ -206,8 +216,19 @@ export default function UncodedReceipts() {
       distributions[0].percentage = 100;
       setCostDistribution(distributions);
     }
-    const distributedTotal = distributions.reduce((sum, d) => sum + (d.amount || 0), 0);
     
+    // Validate distribution totals 100%
+    const totalPercentage = distributions.reduce((sum, d) => sum + (d.percentage || 0), 0);
+    if (Math.abs(totalPercentage - 100) > 0.01) {
+      toast({
+        title: "Distribution incomplete",
+        description: "Total distribution must equal 100%",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const distributedTotal = distributions.reduce((sum, d) => sum + (d.amount || 0), 0);
     if (Math.abs(totalAmount - distributedTotal) > 0.01) {
       toast({
         title: "Distribution mismatch",
