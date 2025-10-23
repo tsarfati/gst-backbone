@@ -61,12 +61,14 @@ export default function CreditCardCodingRequests() {
             transaction_date,
             credit_card_id,
             credit_cards!inner(
-              card_name
+              card_name,
+              company_id
             )
           )
         `)
         .eq("requested_coder_id", user?.id)
         .eq("status", "pending")
+        .eq("credit_card_transactions.credit_cards.company_id", currentCompany?.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
