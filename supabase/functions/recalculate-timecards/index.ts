@@ -53,6 +53,28 @@ serve(async (req) => {
     // Create a map for quick job lookup
     const jobsMap = new Map(jobs?.map(job => [job.id, job]) || [])
 
+    // Fetch punch clock settings (company-level)
+    const { data: companySettings } = await supabaseClient
+      .from('job_punch_clock_settings')
+      .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+      .eq('company_id', company_id)
+      .is('job_id', null)
+      .maybeSingle()
+
+    // Fetch job-specific settings for all relevant jobs
+    const { data: jobSettings } = await supabaseClient
+      .from('job_punch_clock_settings')
+      .select('job_id, calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+      .eq('company_id', company_id)
+      .in('job_id', uniqueJobIds)
+
+    // Create settings map (job-specific overrides company-level)
+    const settingsMap = new Map()
+    uniqueJobIds.forEach(jobId => {
+      const jobSetting = jobSettings?.find(s => s.job_id === jobId)
+      settingsMap.set(jobId, jobSetting || companySettings || {})
+    })
+
     let updatedCount = 0
     const errors: any[] = []
 
@@ -115,20 +137,23 @@ serve(async (req) => {
           }
         }
 
+        // Get settings for this job
+        const settings = settingsMap.get(card.job_id) || companySettings || {}
+        const calculateOvertime = settings.calculate_overtime === true
+        const overtimeThreshold = settings.overtime_threshold || 8
+        const autoBreakDuration = settings.auto_break_duration || 30
+        const autoBreakWaitHours = settings.auto_break_wait_hours || 6
+
         // Calculate total hours
         let totalHours = (adjustedPunchOut.getTime() - adjustedPunchIn.getTime()) / (1000 * 60 * 60)
 
         // Apply auto break deduction if over threshold
-        const autoBreakWaitHours = 6 // Could make this configurable
-        const autoBreakDuration = 30 // minutes
-        
         if (totalHours > autoBreakWaitHours) {
           totalHours -= autoBreakDuration / 60
         }
 
-        // Calculate overtime (default threshold 8 hours)
-        const overtimeThreshold = 8
-        const overtimeHours = Math.max(0, totalHours - overtimeThreshold)
+        // Calculate overtime only if enabled in settings
+        const overtimeHours = calculateOvertime ? Math.max(0, totalHours - overtimeThreshold) : 0
 
         // Update the time card
         const { error: updateError } = await supabaseClient
