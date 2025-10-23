@@ -50,6 +50,8 @@ export function CreditCardTransactionModal({
   const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
   const [jobCostCodes, setJobCostCodes] = useState<any[]>([]);
   const [openPickers, setOpenPickers] = useState<{ jobControl: boolean; costCode: boolean }>({ jobControl: false, costCode: false });
+  const [fullScreenOpen, setFullScreenOpen] = useState(false);
+
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
@@ -630,6 +632,7 @@ export function CreditCardTransactionModal({
           <div>
             <Label>Vendor *</Label>
             <Select
+              key={`vendor-${transactionId}`}
               value={selectedVendorId || ""}
               onValueChange={(value) => handleVendorChange(value || null)}
             >
@@ -649,7 +652,7 @@ export function CreditCardTransactionModal({
           {/* Job/Control Selection */}
           <div>
             <Label>Job/Control *</Label>
-            <Popover 
+            <Popover key={`jobacct-${transactionId}`}
               open={openPickers.jobControl} 
               onOpenChange={(open) => setOpenPickers({ ...openPickers, jobControl: open })}
             >
@@ -728,7 +731,7 @@ export function CreditCardTransactionModal({
           {isJobSelected && (
             <div>
               <Label>Cost Code *</Label>
-              <Popover 
+              <Popover key={`costcode-${transactionId}`}
                 open={openPickers.costCode} 
                 onOpenChange={(open) => setOpenPickers({ ...openPickers, costCode: open })}
               >
@@ -849,20 +852,7 @@ export function CreditCardTransactionModal({
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      const url = attachmentPreview || transaction?.attachment_url;
-                      if (url) {
-                        try {
-                          const win = window.open(url, '_blank', 'noopener,noreferrer');
-                          // If pop-up was blocked by Chrome/sandbox, fall back to same-tab navigation
-                          if (!win || win.closed || typeof win.closed === 'undefined') {
-                            window.location.href = url;
-                          }
-                        } catch {
-                          window.location.href = url;
-                        }
-                      }
-                    }}
+                    onClick={() => setFullScreenOpen(true)}
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     View Full Size
@@ -924,6 +914,28 @@ export function CreditCardTransactionModal({
               </label>
             )}
           </div>
+
+          <Dialog open={fullScreenOpen} onOpenChange={setFullScreenOpen}>
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] p-0">
+              {(attachmentPreview || transaction?.attachment_url) && (
+                String(attachmentPreview || transaction?.attachment_url).toLowerCase().includes('.pdf') ? (
+                  <UrlPdfInlinePreview url={(attachmentPreview || transaction?.attachment_url) as string} className="w-full h-full overflow-auto" />
+                ) : (
+                  <img src={(attachmentPreview || transaction?.attachment_url) as string} alt="Attachment full size" className="w-full h-full object-contain" />
+                )
+              )}
+              <div className="absolute top-2 right-2">
+                <a
+                  href={(attachmentPreview || transaction?.attachment_url) as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-sm"
+                >
+                  Open in new tab
+                </a>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Communication Section */}
           <div className="border-t pt-6">
