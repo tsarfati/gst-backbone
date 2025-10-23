@@ -42,6 +42,14 @@ interface BankAccount {
   bank_name: string;
 }
 
+interface CreditCard {
+  id: string;
+  card_name: string;
+  issuer: string;
+  card_number_last_four: string;
+  liability_account_id: string | null;
+}
+
 interface Invoice {
   id: string;
   invoice_number: string;
@@ -89,6 +97,7 @@ export default function MakePayment() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [codedReceipts, setCodedReceipts] = useState<CodedReceipt[]>([]);
@@ -206,6 +215,17 @@ export default function MakePayment() {
 
       if (bankAccountsError) throw bankAccountsError;
       setBankAccounts(bankAccountsData || []);
+
+      // Load credit cards
+      const { data: creditCardsData, error: creditCardsError } = await supabase
+        .from('credit_cards')
+        .select('id, card_name, issuer, card_number_last_four, liability_account_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('card_name');
+
+      if (creditCardsError) throw creditCardsError;
+      setCreditCards(creditCardsData || []);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -367,12 +387,23 @@ export default function MakePayment() {
       return;
     }
 
-    // Validate bank account for certain payment methods
+    // Validate bank account or credit card based on payment method
     const requiresBankAccount = ['check', 'ach', 'wire'].includes(payment.payment_method);
+    const requiresCreditCard = payment.payment_method === 'credit_card';
+    
     if (requiresBankAccount && !payment.bank_account_id) {
       toast({
         title: "Invalid Payment",
         description: "Please select a pay from account",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (requiresCreditCard && !payment.bank_account_id) {
+      toast({
+        title: "Invalid Payment",
+        description: "Please select a credit card",
         variant: "destructive",
       });
       return;
@@ -463,9 +494,99 @@ export default function MakePayment() {
           .in('id', selectedInvoices);
       }
 
-      // Journal entry posting is handled by a database trigger on payment insert
-      // (public.create_payment_journal_entry). No frontend posting needed here.
+      // For credit card payments, create credit card transactions
+      if (payment.payment_method === 'credit_card' && payment.bank_account_id) {
+        const creditCard = creditCards.find(cc => cc.id === payment.bank_account_id);
+        
+        // Create credit card transactions for each invoice
+        for (const invoiceId of selectedInvoices) {
+          const invoice = invoices.find(inv => inv.id === invoiceId);
+          if (!invoice) continue;
 
+          // Get the bill details to extract job and cost code information
+          const { data: billData } = await supabase
+            .from('invoices')
+            .select(`
+              *,
+              invoice_distributions(
+                job_id,
+                cost_code_id,
+                chart_account_id,
+                amount
+              )
+            `)
+            .eq('id', invoiceId)
+            .single();
+
+          const distributions = Array.isArray(billData?.invoice_distributions) 
+            ? billData.invoice_distributions 
+            : [];
+          const distribution = distributions[0];
+          
+          // Create credit card transaction
+          await supabase
+            .from('credit_card_transactions')
+            .insert({
+              credit_card_id: payment.bank_account_id,
+              company_id: currentCompany.id,
+              transaction_date: payment.payment_date,
+              description: invoice.description || `Payment for ${invoice.invoice_number}`,
+              merchant_name: invoice.vendor?.name || 'Unknown Vendor',
+              amount: invoice.amount,
+              invoice_id: invoiceId,
+              job_id: distribution?.job_id || invoice.job_id,
+              cost_code_id: distribution?.cost_code_id || null,
+              coding_status: 'coded',
+              imported_from_csv: false,
+              created_by: user.data.user?.id,
+              notes: payment.memo || null,
+            });
+
+          // Create journal entry for credit card payment
+          if (creditCard?.liability_account_id && distribution?.chart_account_id) {
+            const { data: journalData } = await supabase
+              .from('journal_entries')
+              .insert({
+                company_id: currentCompany.id,
+                entry_date: payment.payment_date,
+                description: `Credit card payment for ${invoice.invoice_number}`,
+                reference_number: invoice.invoice_number,
+                created_by: user.data.user?.id,
+                status: 'posted',
+              })
+              .select()
+              .single();
+
+            if (journalData) {
+              // Debit credit card liability (increase liability)
+              await supabase
+                .from('journal_entry_lines')
+                .insert([
+                  {
+                    journal_entry_id: journalData.id,
+                    account_id: creditCard.liability_account_id,
+                    debit_amount: invoice.amount,
+                    credit_amount: 0,
+                    description: `Credit card charge - ${invoice.vendor?.name}`,
+                    line_order: 1,
+                  },
+                  // Credit expense account
+                  {
+                    journal_entry_id: journalData.id,
+                    account_id: distribution.chart_account_id,
+                    debit_amount: 0,
+                    credit_amount: invoice.amount,
+                    description: `Credit card payment - ${invoice.vendor?.name}`,
+                    line_order: 2,
+                  }
+                ]);
+            }
+          }
+        }
+      }
+
+      // Journal entry posting for non-credit card payments is handled by a database trigger
+      // (public.create_payment_journal_entry). No frontend posting needed for those.
 
       toast({
         title: "Success",
@@ -579,7 +700,7 @@ export default function MakePayment() {
                 <Label htmlFor="payment_method">Payment Method</Label>
                 <Select 
                   value={payment.payment_method} 
-                  onValueChange={(value) => setPayment(prev => ({ ...prev, payment_method: value }))}
+                  onValueChange={(value) => setPayment(prev => ({ ...prev, payment_method: value, bank_account_id: '' }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -588,7 +709,7 @@ export default function MakePayment() {
                     <SelectItem value="check">Check</SelectItem>
                     <SelectItem value="ach">ACH</SelectItem>
                     <SelectItem value="wire">Wire Transfer</SelectItem>
-                    
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
                     <SelectItem value="cash">Cash</SelectItem>
                   </SelectContent>
                 </Select>
@@ -608,6 +729,27 @@ export default function MakePayment() {
                       {bankAccounts.map(account => (
                         <SelectItem key={account.id} value={account.id}>
                           {account.account_name} - {account.bank_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {payment.payment_method === 'credit_card' && (
+                <div>
+                  <Label htmlFor="credit_card_id">Credit Card *</Label>
+                  <Select 
+                    value={payment.bank_account_id} 
+                    onValueChange={(value) => setPayment(prev => ({ ...prev, bank_account_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select credit card" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {creditCards.map(card => (
+                        <SelectItem key={card.id} value={card.id}>
+                          {card.card_name} - {card.issuer} ****{card.card_number_last_four}
                         </SelectItem>
                       ))}
                     </SelectContent>

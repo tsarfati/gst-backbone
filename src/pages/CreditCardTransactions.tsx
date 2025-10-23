@@ -203,10 +203,10 @@ export default function CreditCardTransactions() {
           const headers = results.meta.fields || [];
           const isChaseFormat = headers.includes('Card') && headers.includes('Transaction Date') && headers.includes('Post Date');
           
-          // Fetch existing transactions to check for duplicates
+          // Fetch existing transactions to check for duplicates and merge with coded transactions
           const { data: existingTransactions } = await supabase
             .from("credit_card_transactions")
-            .select("transaction_date, amount, description, merchant_name")
+            .select("id, transaction_date, amount, description, merchant_name, invoice_id, coding_status")
             .eq("credit_card_id", id);
 
           const existingSet = new Set(
@@ -215,104 +215,170 @@ export default function CreditCardTransactions() {
             )
           );
 
-          let duplicateCount = 0;
-          
-          const transactions = results.data
-            .filter((row: any) => {
-              if (isChaseFormat) {
-                // Chase format: has Transaction Date, Description, Amount, and Type
-                return row['Transaction Date'] && row.Description && row.Amount && row.Type;
-              } else {
-                // Generic format
-                return row.Date && row.Description && row.Amount;
-              }
-            })
-            .map((row: any) => {
-              if (isChaseFormat) {
-                // Parse Chase CSV format
-                const transactionDate = row['Transaction Date'];
-                const postDate = row['Post Date'];
-                const description = row.Description || "";
-                const category = row.Category || null;
-                const type = row.Type || "";
-                const memo = row.Memo || null;
-                
-                // Parse amount - Chase uses negative for charges/fees, positive for payments
-                let amount = parseFloat(row.Amount.replace(/[^0-9.-]/g, ""));
-                
-                // For payments (positive amounts), we skip them or handle differently
-                // For charges/fees (negative amounts), make them positive
-                if (amount > 0 && type === 'Payment') {
-                  // Skip payments - they're not charges
-                  return null;
-                }
-                
-                amount = Math.abs(amount);
-                
-                // Check for duplicate
-                const key = `${new Date(transactionDate).toISOString().split('T')[0]}-${amount}-${description}`;
-                if (existingSet.has(key)) {
-                  duplicateCount++;
-                  return null;
-                }
-                
-                // Determine transaction type based on Type column
-                let transactionType = type;
-                if (type === 'Sale') {
-                  transactionType = 'purchase';
-                } else if (type === 'Fee') {
-                  transactionType = 'fee';
-                }
+          // Create a map of invoice_id to existing transaction for merging
+          const invoiceTransactionMap = new Map(
+            (existingTransactions || [])
+              .filter(t => t.invoice_id && t.coding_status === 'coded')
+              .map(t => [t.invoice_id, t])
+          );
 
-                return {
-                  credit_card_id: id,
-                  company_id: currentCompany.id,
-                  transaction_date: new Date(transactionDate).toISOString().split('T')[0],
-                  post_date: postDate ? new Date(postDate).toISOString().split('T')[0] : null,
-                  description: description,
-                  merchant_name: description, // Use description as merchant for Chase format
-                  amount: amount,
-                  category: category,
-                  transaction_type: transactionType,
-                  notes: memo,
-                  reference_number: row.Card || null, // Store card number as reference
-                  created_by: user?.id,
-                  imported_from_csv: true,
-                  coding_status: 'uncoded',
-                };
-              } else {
-                // Parse generic CSV format
-                const transactionDate = new Date(row.Date).toISOString().split('T')[0];
-                const amount = Math.abs(parseFloat(row.Amount.replace(/[^0-9.-]/g, "")));
-                const description = row.Description || "";
-                
-                // Check for duplicate
-                const key = `${transactionDate}-${amount}-${description}`;
-                if (existingSet.has(key)) {
-                  duplicateCount++;
-                  return null;
-                }
-                
-                return {
-                  credit_card_id: id,
-                  company_id: currentCompany.id,
-                  transaction_date: transactionDate,
-                  description: description,
-                  merchant_name: row.Merchant || description,
-                  amount: amount,
-                  category: row.Category || null,
-                  reference_number: row.Reference || null,
-                  created_by: user?.id,
-                  imported_from_csv: true,
-                  coding_status: 'uncoded',
-                };
+          let duplicateCount = 0;
+          let mergedCount = 0;
+          const transactionsToInsert: any[] = [];
+          const transactionsToUpdate: any[] = [];
+          
+          // Process each transaction to check for merging with coded transactions
+          for (const transaction of results.data) {
+            if (!transaction) continue;
+            
+            let parsedTransaction: any;
+            
+            if (isChaseFormat) {
+              // Parse Chase CSV format
+              const transactionDate = transaction['Transaction Date'];
+              const postDate = transaction['Post Date'];
+              const description = transaction.Description || "";
+              const category = transaction.Category || null;
+              const type = transaction.Type || "";
+              const memo = transaction.Memo || null;
+              
+              if (!transactionDate || !description || !transaction.Amount || !type) continue;
+              
+              // Parse amount - Chase uses negative for charges/fees, positive for payments
+              let amount = parseFloat(transaction.Amount.replace(/[^0-9.-]/g, ""));
+              
+              // For payments (positive amounts), we skip them or handle differently
+              if (amount > 0 && type === 'Payment') continue;
+              
+              amount = Math.abs(amount);
+              const formattedDate = new Date(transactionDate).toISOString().split('T')[0];
+              
+              // Check for duplicate
+              const key = `${formattedDate}-${amount}-${description}`;
+              if (existingSet.has(key)) {
+                duplicateCount++;
+                continue;
               }
-            })
-            .filter((t: any) => t !== null); // Remove null entries (like payments and duplicates)
+              
+              // Check if this matches a coded transaction by amount and date (within tolerance)
+              let matchedTransaction = null;
+              for (const [invoiceId, existingTrans] of invoiceTransactionMap.entries()) {
+                const amountMatch = Math.abs(existingTrans.amount - amount) < 0.01; // Within 1 cent
+                const transDate = new Date(formattedDate);
+                const existDate = new Date(existingTrans.transaction_date);
+                const daysDiff = Math.abs((transDate.getTime() - existDate.getTime()) / (1000 * 60 * 60 * 24));
+                const dateMatch = daysDiff <= 7; // Within 7 days
+                
+                if (amountMatch && dateMatch) {
+                  matchedTransaction = existingTrans;
+                  break;
+                }
+              }
+              
+              // Determine transaction type based on Type column
+              let transactionType = type;
+              if (type === 'Sale') {
+                transactionType = 'purchase';
+              } else if (type === 'Fee') {
+                transactionType = 'fee';
+              }
+              
+              parsedTransaction = {
+                credit_card_id: id,
+                company_id: currentCompany.id,
+                transaction_date: formattedDate,
+                post_date: postDate ? new Date(postDate).toISOString().split('T')[0] : null,
+                description: description,
+                merchant_name: description,
+                amount: amount,
+                category: category,
+                transaction_type: transactionType,
+                notes: memo,
+                reference_number: transaction.Card || null,
+                created_by: user?.id,
+                imported_from_csv: true,
+                coding_status: matchedTransaction ? 'coded' : 'uncoded',
+              };
+              
+              if (matchedTransaction) {
+                // Merge with existing coded transaction
+                transactionsToUpdate.push({
+                  id: matchedTransaction.id,
+                  ...parsedTransaction,
+                  invoice_id: matchedTransaction.invoice_id,
+                  job_id: matchedTransaction.job_id,
+                  cost_code_id: matchedTransaction.cost_code_id,
+                  coding_status: 'coded',
+                });
+                mergedCount++;
+                invoiceTransactionMap.delete(matchedTransaction.invoice_id); // Remove so we don't match again
+              } else {
+                transactionsToInsert.push(parsedTransaction);
+              }
+            } else {
+              // Parse generic CSV format
+              if (!transaction.Date || !transaction.Description || !transaction.Amount) continue;
+              
+              const transactionDate = new Date(transaction.Date).toISOString().split('T')[0];
+              const amount = Math.abs(parseFloat(transaction.Amount.replace(/[^0-9.-]/g, "")));
+              const description = transaction.Description || "";
+              
+              // Check for duplicate
+              const key = `${transactionDate}-${amount}-${description}`;
+              if (existingSet.has(key)) {
+                duplicateCount++;
+                continue;
+              }
+              
+              // Check if this matches a coded transaction
+              let matchedTransaction = null;
+              for (const [invoiceId, existingTrans] of invoiceTransactionMap.entries()) {
+                const amountMatch = Math.abs(existingTrans.amount - amount) < 0.01;
+                const transDate = new Date(transactionDate);
+                const existDate = new Date(existingTrans.transaction_date);
+                const daysDiff = Math.abs((transDate.getTime() - existDate.getTime()) / (1000 * 60 * 60 * 24));
+                const dateMatch = daysDiff <= 7;
+                
+                if (amountMatch && dateMatch) {
+                  matchedTransaction = existingTrans;
+                  break;
+                }
+              }
+              
+              parsedTransaction = {
+                credit_card_id: id,
+                company_id: currentCompany.id,
+                transaction_date: transactionDate,
+                description: description,
+                merchant_name: transaction.Merchant || description,
+                amount: amount,
+                category: transaction.Category || null,
+                reference_number: transaction.Reference || null,
+                created_by: user?.id,
+                imported_from_csv: true,
+                coding_status: matchedTransaction ? 'coded' : 'uncoded',
+              };
+              
+              if (matchedTransaction) {
+                transactionsToUpdate.push({
+                  id: matchedTransaction.id,
+                  ...parsedTransaction,
+                  invoice_id: matchedTransaction.invoice_id,
+                  job_id: matchedTransaction.job_id,
+                  cost_code_id: matchedTransaction.cost_code_id,
+                  coding_status: 'coded',
+                });
+                mergedCount++;
+                invoiceTransactionMap.delete(matchedTransaction.invoice_id);
+              } else {
+                transactionsToInsert.push(parsedTransaction);
+              }
+            }
+          }
 
           setDuplicatesFound(duplicateCount);
 
-          if (transactions.length === 0) {
+          if (transactionsToInsert.length === 0 && transactionsToUpdate.length === 0) {
             if (duplicateCount > 0) {
               toast({
                 title: "No New Transactions",
@@ -325,12 +391,30 @@ export default function CreditCardTransactions() {
             return;
           }
 
-          const { error } = await supabase
-            .from("credit_card_transactions")
-            .insert(transactions);
+          // Insert new transactions
+          if (transactionsToInsert.length > 0) {
+            const { error: insertError } = await supabase
+              .from("credit_card_transactions")
+              .insert(transactionsToInsert);
 
-          if (error) throw error;
+            if (insertError) throw insertError;
+          }
 
+          // Update existing coded transactions with CSV data
+          if (transactionsToUpdate.length > 0) {
+            for (const trans of transactionsToUpdate) {
+              const { id, ...updateData } = trans;
+              const { error: updateError } = await supabase
+                .from("credit_card_transactions")
+                .update(updateData)
+                .eq("id", id);
+
+              if (updateError) {
+                console.error('Error updating transaction:', updateError);
+              }
+            }
+          }
+          
           // Update credit card statistics
           const { data: currentCard } = await supabase
             .from("credit_cards")
@@ -347,9 +431,23 @@ export default function CreditCardTransactions() {
             })
             .eq("id", id);
 
-          const message = duplicateCount > 0
-            ? `Imported ${transactions.length} transactions (${duplicateCount} duplicates skipped)`
-            : `Imported ${transactions.length} transactions`;
+          let message = '';
+          if (mergedCount > 0 && transactionsToInsert.length > 0) {
+            message = `Imported ${transactionsToInsert.length} new transactions, merged ${mergedCount} with existing bills`;
+            if (duplicateCount > 0) {
+              message += ` (${duplicateCount} duplicates skipped)`;
+            }
+          } else if (mergedCount > 0) {
+            message = `Merged ${mergedCount} transactions with existing bills`;
+            if (duplicateCount > 0) {
+              message += ` (${duplicateCount} duplicates skipped)`;
+            }
+          } else {
+            message = `Imported ${transactionsToInsert.length} transactions`;
+            if (duplicateCount > 0) {
+              message += ` (${duplicateCount} duplicates skipped)`;
+            }
+          }
 
           toast({
             title: "Success",
