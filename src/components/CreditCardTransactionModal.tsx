@@ -32,6 +32,7 @@ export function CreditCardTransactionModal({
   const [transaction, setTransaction] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCoders, setSelectedCoders] = useState<string[]>([]);
@@ -83,6 +84,16 @@ export function CreditCardTransactionModal({
         .order("code");
 
       setCostCodes(costCodesData || []);
+
+      // Fetch vendors
+      const { data: vendorsData } = await supabase
+        .from("vendors")
+        .select("id, name")
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .order("name");
+
+      setVendors(vendorsData || []);
 
       // Fetch users for coding requests
       const { data: usersData } = await supabase
@@ -148,11 +159,12 @@ export function CreditCardTransactionModal({
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
+    const hasVendor = !!transaction.merchant_name;
     const hasJob = !!transaction.job_id;
     const hasCostCode = !!transaction.cost_code_id;
     const hasAttachment = !!transaction.attachment_url;
 
-    const isCoded = hasJob && hasCostCode && hasAttachment;
+    const isCoded = hasVendor && hasJob && hasCostCode && hasAttachment;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
     await supabase
@@ -183,6 +195,16 @@ export function CreditCardTransactionModal({
       .eq("id", transactionId);
 
     setTransaction({ ...transaction, cost_code_id: costCodeId });
+    await updateCodingStatus();
+  };
+
+  const handleVendorChange = async (vendorName: string | null) => {
+    await supabase
+      .from("credit_card_transactions")
+      .update({ merchant_name: vendorName })
+      .eq("id", transactionId);
+
+    setTransaction({ ...transaction, merchant_name: vendorName });
     await updateCodingStatus();
   };
 
@@ -337,6 +359,12 @@ export function CreditCardTransactionModal({
               <Label className="text-sm text-muted-foreground">Description</Label>
               <p className="font-medium">{transaction.description}</p>
             </div>
+            {transaction.merchant_name && (
+              <div className="col-span-2">
+                <Label className="text-sm text-muted-foreground">Current Vendor</Label>
+                <p className="font-medium">{transaction.merchant_name}</p>
+              </div>
+            )}
             {requestedUsers.length > 0 && (
               <div className="col-span-2">
                 <Label className="text-sm text-muted-foreground">Requested Coders</Label>
@@ -349,6 +377,27 @@ export function CreditCardTransactionModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Vendor Selection */}
+          <div>
+            <Label>Vendor *</Label>
+            <Select
+              value={transaction.merchant_name || "none"}
+              onValueChange={(value) => handleVendorChange(value === "none" ? null : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select vendor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Vendor</SelectItem>
+                {vendors.map((vendor) => (
+                  <SelectItem key={vendor.id} value={vendor.name}>
+                    {vendor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Job Selection */}
