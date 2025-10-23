@@ -65,7 +65,12 @@ interface ReceiptContextType {
   uncodedReceipts: Receipt[];
   codedReceipts: CodedReceipt[];
   messages: ReceiptMessage[];
-  addReceipts: (files: FileList, amounts?: number[]) => Promise<void>;
+  addReceipts: (files: FileList, amounts?: number[], receiptData?: {
+    vendor?: string;
+    job?: string;
+    costCode?: string;
+    date?: string;
+  }[]) => Promise<void>;
   codeReceipt: (receiptId: string, job: string, costCode: string, codedBy: string, vendorId?: string, newAmount?: string) => void;
   uncodeReceipt: (receiptId: string) => void;
   assignReceipt: (receiptId: string, userId: string, userName: string, userRole: string) => void;
@@ -196,7 +201,12 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, currentCompany?.id]);
 
-  const addReceipts = useCallback(async (files: FileList, amounts?: number[]) => {
+  const addReceipts = useCallback(async (files: FileList, amounts?: number[], receiptData?: {
+    vendor?: string;
+    job?: string;
+    costCode?: string;
+    date?: string;
+  }[]) => {
     if (!user || !currentCompany) {
       console.error('User not authenticated or no company selected');
       return;
@@ -213,6 +223,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     for (let i = 0; i < filesArray.length; i++) {
       const file = filesArray[i];
       const amount = amounts?.[i];
+      const data = receiptData?.[i];
       
       try {
         // Upload to Supabase storage
@@ -220,20 +231,23 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         
         // Apply naming pattern if available
         let displayName = file.name;
-        if (settings?.receipt_naming_pattern && amount) {
+        if (settings?.receipt_naming_pattern) {
           const today = new Date();
-          const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+          const dateStr = data?.date || today.toISOString().split('T')[0]; // YYYY-MM-DD
           
           displayName = settings.receipt_naming_pattern
             .replace('{date}', dateStr)
-            .replace('{amount}', amount.toFixed(2))
+            .replace('{amount}', amount ? amount.toFixed(2) : 'unknown')
+            .replace('{vendor}', data?.vendor || 'unknown')
+            .replace('{job}', data?.job || 'unknown')
+            .replace('{cost_code}', data?.costCode || 'unknown')
             .replace('{original_filename}', file.name.replace(/\.[^/.]+$/, '')) // filename without extension
             + '.' + fileExt;
         }
         
         const storageFileName = `${currentCompany.id}/${Date.now()}.${fileExt}`;
         
-        const { data, error } = await supabase.storage
+        const { data: uploadData, error } = await supabase.storage
           .from('receipts')
           .upload(storageFileName, file);
 
