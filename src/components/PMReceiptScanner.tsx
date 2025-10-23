@@ -315,21 +315,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
       Object.defineProperty(fileList, '0', { value: file });
       Object.defineProperty(fileList, 'length', { value: 1 });
       
-      // Prepare receipt data for naming pattern
-      const selectedJobData = jobs.find(j => j.id === selectedJob);
-      const selectedCostCodeData = costCodes.find(c => c.id === selectedCostCode);
-      const selectedVendorData = vendors.find(v => v.id === selectedVendor);
-      
-      const receiptData = [{
-        vendor: selectedVendorData?.name || vendorName || undefined,
-        job: selectedJobData?.name || undefined,
-        costCode: selectedCostCodeData ? `${selectedCostCodeData.code}` : undefined,
-        date: receiptDate || undefined
-      }];
-      
-      const amounts = receiptAmount ? [parseFloat(receiptAmount)] : undefined;
-      
-      await addReceipts(fileList as FileList, amounts, receiptData);
+      await addReceipts(fileList as FileList);
       // Check if receipt should be coded or go to uncoded
       const isComplete = selectedJob && selectedCostCode && receiptAmount;
       
