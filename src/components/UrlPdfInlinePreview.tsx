@@ -99,9 +99,13 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-4 bg-background/80 rounded">
-          <FileText className="h-6 w-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">{error}</p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-0 bg-background/0 rounded">
+          {/* Fallback to iframe if pdf.js render fails */}
+          <iframe
+            src={`${url}`}
+            className="w-full h-[480px] border-0 bg-white"
+            title="PDF Preview Fallback"
+          />
         </div>
       )}
     </div>

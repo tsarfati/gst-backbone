@@ -199,16 +199,41 @@ export function CreditCardTransactionModal({
 
       // Set attachment preview (normalize storage paths and legacy formats)
       if (transData.attachment_url) {
-        let normalized = transData.attachment_url as string;
-        if (!normalized.startsWith('http')) {
-          if (normalized.includes('/')) {
-            const [bucket, ...rest] = normalized.split('/');
-            const filePath = rest.join('/');
-            const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-            normalized = data.publicUrl || normalized;
+        const toPublicUrl = (raw: string): string => {
+          try {
+            if (!raw) return raw;
+            // Already a public URL
+            if (raw.includes('/storage/v1/object/public/')) return raw;
+            // Pattern: bucket/path
+            if (!raw.startsWith('http') && raw.includes('/')) {
+              const [bucket, ...rest] = raw.split('/');
+              const filePath = rest.join('/');
+              const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+              return data.publicUrl || raw;
+            }
+            // Pattern: signed URL
+            const m = raw.match(/storage\/v1\/object\/(?:sign|auth\/signed)\/([^/]+)\/(.+?)(?:\?|$)/);
+            if (m) {
+              const bucket = m[1];
+              const filePath = decodeURIComponent(m[2]);
+              const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+              return data.publicUrl || raw;
+            }
+            return raw;
+          } catch {
+            return raw;
           }
-        }
+        };
+        const normalized = toPublicUrl(transData.attachment_url as string);
         setAttachmentPreview(normalized);
+        if (normalized !== transData.attachment_url) {
+          // persist normalized URL for consistency
+          await supabase
+            .from('credit_card_transactions')
+            .update({ attachment_url: normalized })
+            .eq('id', transactionId);
+          setTransaction((prev: any) => ({ ...prev, attachment_url: normalized }));
+        }
       }
     } catch (error: any) {
       toast({
@@ -307,14 +332,20 @@ export function CreditCardTransactionModal({
   };
 
   const handleCostCodeChange = async (costCodeId: string | null) => {
-    setOpenPickers({ ...openPickers, costCode: false });
-    await supabase
-      .from("credit_card_transactions")
-      .update({ cost_code_id: costCodeId })
-      .eq("id", transactionId);
+    // Optimistic UI update so the selection sticks immediately
+    setTransaction((prev: any) => ({ ...prev, cost_code_id: costCodeId }));
+    setOpenPickers(prev => ({ ...prev, costCode: false }));
 
-    setTransaction({ ...transaction, cost_code_id: costCodeId });
-    await updateCodingStatus();
+    try {
+      await supabase
+        .from("credit_card_transactions")
+        .update({ cost_code_id: costCodeId })
+        .eq("id", transactionId);
+      await updateCodingStatus();
+    } catch (e) {
+      // revert on failure
+      setTransaction((prev: any) => ({ ...prev, cost_code_id: null }));
+    }
   };
 
   const handleVendorChange = async (vendorId: string | null) => {
@@ -636,7 +667,7 @@ export function CreditCardTransactionModal({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
+              <PopoverContent className="w-[400px] p-0 z-50">
                 <Command>
                   <CommandInput placeholder="Search jobs or accounts..." />
                   <CommandList>
@@ -710,7 +741,7 @@ export function CreditCardTransactionModal({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
+                 <PopoverContent className="w-[400px] p-0 z-50">
                   <Command>
                     <CommandInput placeholder="Search cost codes..." />
                     <CommandList>
