@@ -843,18 +843,21 @@ export function CreditCardTransactionModal({
           {/* Attachment */}
           <div>
             <Label>Attachment *</Label>
-            {(transaction.attachment_url || attachmentPreview) ? (
+            {(transaction?.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">
                 <div className="flex items-center gap-2">
                   <Button
-                    asChild
                     size="sm"
                     variant="outline"
+                    onClick={() => {
+                      const url = attachmentPreview || transaction?.attachment_url;
+                      if (url) {
+                        window.open(url, '_blank', 'noopener,noreferrer');
+                      }
+                    }}
                   >
-                    <a href={(attachmentPreview || transaction.attachment_url) as string} target="_blank" rel="noopener noreferrer">
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Full Size
-                    </a>
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Full Size
                   </Button>
                   <Button
                     size="sm"
