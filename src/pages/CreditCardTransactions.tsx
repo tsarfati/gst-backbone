@@ -43,6 +43,9 @@ export default function CreditCardTransactions() {
   const [communications, setCommunications] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [requestedUsers, setRequestedUsers] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
+  const [codingRequestDropdownOpen, setCodingRequestDropdownOpen] = useState(false);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -124,6 +127,25 @@ export default function CreditCardTransactions() {
         .order("first_name");
 
       setUsers(usersData || []);
+
+      // Fetch expense accounts (Chart of Accounts - expense types)
+      const { data: expenseAccountsData } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, account_type")
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .in("account_type", ["expense", "operating_expense", "cost_of_goods_sold"])
+        .order("account_number");
+      setExpenseAccounts(expenseAccountsData || []);
+
+      // Fetch vendors
+      const { data: vendorsData } = await supabase
+        .from("vendors")
+        .select("id, name")
+        .eq("company_id", currentCompany?.id)
+        .eq("is_active", true)
+        .order("name");
+      setVendors(vendorsData || []);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -573,16 +595,18 @@ export default function CreditCardTransactions() {
     }
   };
 
-  const updateCodingStatus = async (transactionId: string, transaction: any) => {
-    // A transaction is only coded if:
-    // 1. Has a job assigned
-    // 2. Has a cost code assigned (if job is assigned)
-    // 3. Has an attachment
-    const hasJob = !!transaction.job_id;
-    const hasCostCode = !!transaction.cost_code_id;
-    const hasAttachment = !!transaction.attachment_url;
-    
-    const isCoded = hasJob && hasCostCode && hasAttachment;
+  const updateCodingStatus = async (transactionId: string, tx: any) => {
+    // A transaction is coded if:
+    // 1. Vendor is set
+    // 2. Either a Job or a Chart of Account is selected
+    // 3. If a Job is selected, a Cost Code is also selected
+    // 4. An attachment is present
+    const hasVendor = !!(tx.vendor_id || tx.merchant_name);
+    const hasJobOrAccount = !!(tx.job_id || tx.chart_account_id);
+    const hasCostCode = tx.job_id ? !!tx.cost_code_id : true;
+    const hasAttachment = !!tx.attachment_url;
+
+    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && hasAttachment;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
     const { error } = await supabase
@@ -591,7 +615,7 @@ export default function CreditCardTransactions() {
       .eq("id", transactionId);
 
     if (!error && selectedTransaction) {
-      setSelectedTransaction({ ...transaction, coding_status: newStatus });
+      setSelectedTransaction({ ...tx, coding_status: newStatus });
     }
   };
 
