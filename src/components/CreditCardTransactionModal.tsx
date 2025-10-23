@@ -80,6 +80,32 @@ export function CreditCardTransactionModal({
         const isJobAcct = acct.account_number >= '50000' && acct.account_number <= '58000';
         setSelectedJobOrAccount(`${isJobAcct ? 'job' : 'account'}_${acct.id}`);
         setIsJobSelected(isJobAcct);
+
+        // If it's a job account, pre-load its associated cost codes
+        if (isJobAcct) {
+          const { data: associations } = await supabase
+            .from("account_associations")
+            .select("cost_code_id")
+            .eq("account_id", acct.id)
+            .eq("company_id", currentCompany?.id);
+
+          const costCodeIds = (associations || []).map(a => a.cost_code_id).filter(Boolean);
+
+          if (costCodeIds.length > 0) {
+            const { data: jobCostCodesData } = await supabase
+              .from("cost_codes")
+              .select("*")
+              .in("id", costCodeIds)
+              .eq("is_active", true)
+              .order("code");
+
+            setJobCostCodes(jobCostCodesData || []);
+          } else {
+            setJobCostCodes([]);
+          }
+        } else {
+          setJobCostCodes([]);
+        }
       }
 
       // Set vendor if exists
