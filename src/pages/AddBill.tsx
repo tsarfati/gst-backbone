@@ -212,7 +212,10 @@ export default function AddBill() {
     }
   };
 
-  const isGroupingCodeText = (codeText: string) => /^(\d{1,3}\.00)$/.test(codeText) || /^(\d+\.0)$/.test(codeText);
+  const isGroupingCodeText = (codeText: string) => {
+    const t = (codeText || '').trim();
+    return /^(\d{1,3}\.00)$/.test(t) || /^(\d+\.0)$/.test(t);
+  };
 
   const filterLeafCostCodes = (codes: any[]) => {
     // Get all parent IDs that have children
@@ -1363,7 +1366,7 @@ export default function AddBill() {
                                   <CommandList>
                                     {(lineItemCostCodes[item.id] || []).filter(c => !isGroupingCodeText(c.code) && !c.is_dynamic_group).map((code) => (
                                       <CommandItem
-                                        key={code.id}
+                                        key={`${code.id}-${code.type || 'unknown'}`}
                                         value={`${code.code} ${code.description} ${code.type} ${code.id}`}
                                         onSelect={() => {
                                           updateDistributionItem(item.id, 'cost_code_id', code.id);
