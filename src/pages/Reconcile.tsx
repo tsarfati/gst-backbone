@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,7 @@ export default function Reconcile() {
   const [beginningDate, setBeginningDate] = useState<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
   const [glCashBalance, setGlCashBalance] = useState<number>(0);
+  const loadTxnInFlight = useRef(false);
 
   useEffect(() => {
     if (currentCompany) {
@@ -172,9 +173,16 @@ export default function Reconcile() {
       if (data) {
         // Restore state from in-progress reconciliation
         setReconciliationId(data.id);
-        setEndingBalance(data.ending_balance);
-        setEndingDate(new Date(data.ending_date));
-        setUploadedStatementId(data.bank_statement_id);
+        if (typeof data.ending_balance === "number" && data.ending_balance !== endingBalance) {
+          setEndingBalance(data.ending_balance);
+        }
+        const newEndDate = new Date(data.ending_date);
+        if (!endingDate || endingDate.getTime() !== newEndDate.getTime()) {
+          setEndingDate(newEndDate);
+        }
+        if (data.bank_statement_id && data.bank_statement_id !== uploadedStatementId) {
+          setUploadedStatementId(data.bank_statement_id);
+        }
 
         // Load saved items and restore checked state
         const { data: items, error: itemsError } = await supabase
@@ -266,6 +274,12 @@ export default function Reconcile() {
 
   const loadTransactions = async () => {
     if (!accountId || !currentCompany) return;
+
+    if (loadTxnInFlight.current) {
+      console.log("loadTransactions skipped: in-flight");
+      return;
+    }
+    loadTxnInFlight.current = true;
     
     try {
       setLoading(true);
@@ -425,6 +439,7 @@ export default function Reconcile() {
       toast.error("Failed to load transactions");
     } finally {
       setLoading(false);
+      loadTxnInFlight.current = false;
     }
   };
 
@@ -960,15 +975,8 @@ export default function Reconcile() {
     }).format(amount);
   };
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <p className="text-center text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
 
-  if (!account) {
+  if (!account && !loading) {
     return (
       <div className="p-6">
         <p className="text-center text-muted-foreground">Bank account not found</p>
