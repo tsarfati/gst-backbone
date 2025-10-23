@@ -365,6 +365,16 @@ export default function BillEdit() {
 
   const handleSave = async () => {
     try {
+      // Validate required fields
+      if (formData.job_id && !formData.cost_code_id) {
+        toast({
+          title: "Validation Error",
+          description: "Cost code is required when a job is selected",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setSaving(true);
 
       // Upload new files if provided
@@ -551,23 +561,40 @@ export default function BillEdit() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cost_code">Cost Code</Label>
+                <Label htmlFor="cost_code">
+                  Cost Code
+                  {formData.job_id && <span className="text-destructive ml-1">*</span>}
+                </Label>
                 <Select 
                   value={formData.cost_code_id} 
                   onValueChange={(value) => handleInputChange("cost_code_id", value)}
-                  disabled={!!subcontractInfo}
+                  disabled={!!subcontractInfo || !formData.job_id}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select cost code (optional)" />
+                    <SelectValue placeholder={formData.job_id ? "Select cost code (required)" : "Select job first"} />
                   </SelectTrigger>
                   <SelectContent>
                     {costCodes.map((code) => (
                       <SelectItem key={code.id} value={code.id}>
-                        {code.code} - {code.description}
+                        <div className="flex items-center gap-2">
+                          <span>{code.code} - {code.description}</span>
+                          {code.type && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-muted">
+                              {code.type === 'labor' ? 'Labor' : 
+                               code.type === 'material' ? 'Material' : 
+                               code.type === 'equipment' ? 'Equipment' : 
+                               code.type === 'sub' ? 'Subcontractor' : 
+                               code.type === 'other' ? 'Other' : code.type}
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.job_id && !formData.cost_code_id && (
+                  <p className="text-sm text-destructive">Cost code is required when a job is selected</p>
+                )}
               </div>
             </div>
 
