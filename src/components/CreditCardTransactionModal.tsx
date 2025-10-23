@@ -592,14 +592,13 @@ export function CreditCardTransactionModal({
           <div>
             <Label>Vendor *</Label>
             <Select
-              value={selectedVendorId || "none"}
-              onValueChange={(value) => handleVendorChange(value === "none" ? null : value)}
+              value={(selectedVendorId || undefined) as unknown as string}
+              onValueChange={(value) => handleVendorChange(value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select vendor" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Vendor</SelectItem>
                 {vendors.map((vendor) => (
                   <SelectItem key={vendor.id} value={vendor.id}>
                     {vendor.name}
@@ -703,8 +702,9 @@ export function CreditCardTransactionModal({
                   >
                     {transaction.cost_code_id 
                       ? (() => {
-                          const cc = filteredCostCodes().find(c => c.id === transaction.cost_code_id);
-                          return cc ? `${cc.code} - ${cc.description}` : 'Select cost code';
+                          const ccSel = jobCostCodes.find((c:any) => c.id === transaction.cost_code_id) 
+                            || costCodes.find((c:any) => c.id === transaction.cost_code_id);
+                          return ccSel ? `${ccSel.code} - ${ccSel.description}` : 'Select cost code';
                         })()
                       : 'Select cost code'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
