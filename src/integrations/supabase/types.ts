@@ -995,6 +995,7 @@ export type Database = {
         Row: {
           amount: number
           attachment_url: string | null
+          bypass_attachment_requirement: boolean | null
           category: string | null
           chart_account_id: string | null
           coding_status: string | null
@@ -1023,6 +1024,7 @@ export type Database = {
         Insert: {
           amount: number
           attachment_url?: string | null
+          bypass_attachment_requirement?: boolean | null
           category?: string | null
           chart_account_id?: string | null
           coding_status?: string | null
@@ -1051,6 +1053,7 @@ export type Database = {
         Update: {
           amount?: number
           attachment_url?: string | null
+          bypass_attachment_requirement?: boolean | null
           category?: string | null
           chart_account_id?: string | null
           coding_status?: string | null
@@ -3080,6 +3083,7 @@ export type Database = {
           payment_dual_approval_threshold: number | null
           payments_require_approval: boolean
           require_bill_documents: boolean
+          require_cc_attachment: boolean | null
           require_receipt_attachment: boolean
           send_payment_confirmations: boolean
           show_vendor_compliance_warnings: boolean
@@ -3107,6 +3111,7 @@ export type Database = {
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
           require_bill_documents?: boolean
+          require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean
@@ -3134,6 +3139,7 @@ export type Database = {
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
           require_bill_documents?: boolean
+          require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean

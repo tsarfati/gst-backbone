@@ -33,6 +33,7 @@ const payablesSettingsSchema = z.object({
   default_payment_method: z.string(),
   require_receipt_attachment: z.boolean(),
   require_bill_documents: z.boolean(),
+  require_cc_attachment: z.boolean(),
   allowed_subcontract_vendor_types: z.array(z.string()),
   allowed_po_vendor_types: z.array(z.string()),
   show_vendor_compliance_warnings: z.boolean(),
@@ -56,6 +57,7 @@ interface PayablesSettingsData {
   default_payment_method: string;
   require_receipt_attachment: boolean;
   require_bill_documents: boolean;
+  require_cc_attachment: boolean;
   allowed_subcontract_vendor_types: string[];
   allowed_po_vendor_types: string[];
   show_vendor_compliance_warnings: boolean;
@@ -79,6 +81,7 @@ const defaultSettings: PayablesSettingsData = {
   default_payment_method: 'check',
   require_receipt_attachment: false,
   require_bill_documents: false,
+  require_cc_attachment: false,
   allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
   allowed_po_vendor_types: ['Supplier'],
   show_vendor_compliance_warnings: true,
@@ -162,6 +165,7 @@ export default function PayablesSettings() {
           default_payment_method: data.default_payment_method,
           require_receipt_attachment: data.require_receipt_attachment,
           require_bill_documents: data.require_bill_documents ?? false,
+          require_cc_attachment: data.require_cc_attachment ?? false,
           allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
           allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
           show_vendor_compliance_warnings: data.show_vendor_compliance_warnings ?? true,
@@ -593,6 +597,17 @@ export default function PayablesSettings() {
             <Switch
               checked={settings.require_bill_documents}
               onCheckedChange={(checked) => updateSettings('require_bill_documents', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between md:col-span-2">
+            <div className="space-y-1">
+              <Label>Require Credit Card Attachments</Label>
+              <p className="text-sm text-muted-foreground">Credit card transactions must have attachments to be marked as coded</p>
+            </div>
+            <Switch
+              checked={settings.require_cc_attachment}
+              onCheckedChange={(checked) => updateSettings('require_cc_attachment', checked)}
             />
           </div>
 

@@ -51,6 +51,8 @@ export function CreditCardTransactionModal({
   const [jobCostCodes, setJobCostCodes] = useState<any[]>([]);
   const [openPickers, setOpenPickers] = useState<{ jobControl: boolean; costCode: boolean }>({ jobControl: false, costCode: false });
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
+  const [bypassAttachmentRequirement, setBypassAttachmentRequirement] = useState(false);
+  const [requireCCAttachment, setRequireCCAttachment] = useState(false);
 
 
   useEffect(() => {
@@ -91,6 +93,16 @@ export function CreditCardTransactionModal({
 
       if (transError) throw transError;
       setTransaction(transData);
+      setBypassAttachmentRequirement(transData.bypass_attachment_requirement || false);
+
+      // Fetch payables settings for attachment requirement
+      const { data: payablesSettings } = await supabase
+        .from('payables_settings')
+        .select('require_cc_attachment')
+        .eq('company_id', currentCompany?.id)
+        .maybeSingle();
+      
+      setRequireCCAttachment(payablesSettings?.require_cc_attachment || false);
 
       // Set initial selection: prefer job if present
       if (transData.job_id) {
@@ -268,13 +280,20 @@ export function CreditCardTransactionModal({
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
+    // Check if attachment is required based on company setting and bypass checkbox
+    const attachmentRequired = requireCCAttachment && !bypassAttachmentRequirement;
+    const attachmentSatisfied = attachmentRequired ? hasAttachment : true;
+
     // All fields including vendor are required for coded status
-    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && hasAttachment;
+    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
     await supabase
       .from("credit_card_transactions")
-      .update({ coding_status: newStatus })
+      .update({ 
+        coding_status: newStatus,
+        bypass_attachment_requirement: bypassAttachmentRequirement
+      })
       .eq("id", transactionId);
 
     setTransaction((prev: any) => ({ ...prev, coding_status: newStatus }));
@@ -872,7 +891,31 @@ export function CreditCardTransactionModal({
 
           {/* Attachment */}
           <div>
-            <Label>Attachment *</Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Attachment {requireCCAttachment && !bypassAttachmentRequirement && '*'}</Label>
+              {requireCCAttachment && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bypass-attachment"
+                    checked={bypassAttachmentRequirement}
+                    onCheckedChange={(checked) => {
+                      setBypassAttachmentRequirement(!!checked);
+                      // Update the database immediately
+                      supabase
+                        .from("credit_card_transactions")
+                        .update({ bypass_attachment_requirement: !!checked })
+                        .eq("id", transactionId)
+                        .then(() => {
+                          updateCodingStatus();
+                        });
+                    }}
+                  />
+                  <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
+                    Don't require attachment
+                  </label>
+                </div>
+              )}
+            </div>
             {(transaction?.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">
                 <div className="flex items-center gap-2">
