@@ -99,7 +99,7 @@ export function CreditCardTransactionModal({
               .eq("is_active", true)
               .order("code");
 
-            const uniqueInit = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [cc.id, cc])).values());
+            const uniqueInit = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
             setJobCostCodes(uniqueInit);
           } else {
             setJobCostCodes([]);
@@ -293,7 +293,7 @@ export function CreditCardTransactionModal({
               .eq("is_active", true)
               .order("code");
           
-            const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [cc.id, cc])).values());
+            const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
             setJobCostCodes(unique);
       } else {
         setJobCostCodes([]);
@@ -361,7 +361,7 @@ export function CreditCardTransactionModal({
 
       const { error: uploadError } = await supabase.storage
         .from("credit-card-attachments")
-        .upload(fileName, file);
+        .upload(fileName, file, { upsert: true, contentType: file.type || undefined });
 
       if (uploadError) throw uploadError;
 
@@ -369,18 +369,13 @@ export function CreditCardTransactionModal({
         .from("credit-card-attachments")
         .getPublicUrl(fileName);
 
+      // Optimistically show the preview immediately using the public URL
+      setAttachmentPreview(publicUrl);
+
       await supabase
         .from("credit_card_transactions")
         .update({ attachment_url: publicUrl })
         .eq("id", transactionId);
-
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => setAttachmentPreview(reader.result as string);
-        reader.readAsDataURL(file);
-      } else if (file.type === 'application/pdf') {
-        setAttachmentPreview(publicUrl);
-      }
 
       setTransaction({ ...transaction, attachment_url: publicUrl });
       await updateCodingStatus();
@@ -397,7 +392,6 @@ export function CreditCardTransactionModal({
       });
     }
   };
-
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
 
@@ -539,11 +533,12 @@ export function CreditCardTransactionModal({
     if (!isJobSelected) return [];
     const map = new Map<string, any>();
     for (const cc of jobCostCodes) {
-      if (cc && cc.id && !map.has(cc.id)) map.set(cc.id, cc);
+      if (!cc) continue;
+      const key = `${cc.code}|${cc.description}`; // dedupe by business identity
+      if (!map.has(key)) map.set(key, cc);
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
   };
-
   const getCostCodeCategoryBadge = (type: string) => {
     const labels: Record<string, string> = {
       labor: "Labor",
@@ -767,17 +762,17 @@ export function CreditCardTransactionModal({
           {/* Attachment */}
           <div>
             <Label>Attachment *</Label>
-            {transaction.attachment_url ? (
+            {(transaction.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">
                 <div className="flex items-center gap-2">
                   <Button
-                     size="sm"
-                     variant="outline"
-                     onClick={() => window.open(attachmentPreview || transaction.attachment_url, '_blank')}
-                   >
-                     <FileText className="h-4 w-4 mr-2" />
-                     View Full Size
-                   </Button>
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(attachmentPreview || transaction.attachment_url, '_blank')}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Full Size
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -798,17 +793,17 @@ export function CreditCardTransactionModal({
                   </Button>
                 </div>
 
-                {attachmentPreview && (
+                { (attachmentPreview || transaction.attachment_url) && (
                   <div className="border rounded-lg overflow-hidden bg-muted">
-                    {attachmentPreview && attachmentPreview.toLowerCase().includes('.pdf') ? (
+                    {(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
                       <iframe
-                        src={attachmentPreview}
+                        src={(attachmentPreview || transaction.attachment_url) as string}
                         className="w-full h-96"
                         title="PDF Preview"
                       />
                     ) : (
                       <img
-                        src={attachmentPreview}
+                        src={(attachmentPreview || transaction.attachment_url) as string}
                         alt="Attachment preview"
                         className="w-full h-auto max-h-96 object-contain"
                       />
