@@ -105,7 +105,7 @@ export default function Reconcile() {
       loadTransactions();
       loadGLBalance();
     }
-  }, [currentCompany, accountId, account, endingDate]);
+  }, [currentCompany, accountId, account?.chart_account_id, endingDate]);
 
   const loadBankAccount = async () => {
     if (!accountId || !currentCompany) return;
