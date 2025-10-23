@@ -90,8 +90,7 @@ export function CreditCardTransactionModal({
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
           .order('code');
-        const uniqueJobCodes = Array.from(new Map((jobCodes || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
-        setJobCostCodes(uniqueJobCodes);
+        setJobCostCodes(jobCodes || []);
       } else if (transData.chart_of_accounts?.id) {
         const acct = transData.chart_of_accounts;
         const isJobAcct = acct.account_number >= '50000' && acct.account_number <= '58000';
@@ -302,8 +301,7 @@ export function CreditCardTransactionModal({
         .eq("is_dynamic_group", false)
         .order("code");
       
-      const unique = Array.from(new Map((jobCostCodesData || []).map((cc: any) => [`${cc.code}|${cc.description}`, cc])).values());
-      setJobCostCodes(unique);
+       setJobCostCodes(jobCostCodesData || []);
       
       await supabase
         .from("credit_card_transactions")
@@ -544,13 +542,9 @@ export function CreditCardTransactionModal({
 
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
-    const map = new Map<string, any>();
-    for (const cc of jobCostCodes) {
-      if (!cc) continue;
-      const key = `${cc.code}|${cc.description}`; // dedupe by business identity
-      if (!map.has(key)) map.set(key, cc);
-    }
-    return Array.from(map.values()).sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+    return [...jobCostCodes]
+      .filter(Boolean)
+      .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
   };
   const getCostCodeCategoryBadge = (type: string) => {
     const labels: Record<string, string> = {
@@ -871,10 +865,11 @@ export function CreditCardTransactionModal({
 
                 { (attachmentPreview || transaction.attachment_url) && (
                   <div key={(attachmentPreview || transaction.attachment_url) as string} className="border rounded-lg overflow-hidden bg-muted">
-                    {(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                      <UrlPdfInlinePreview 
-                        url={(attachmentPreview || transaction.attachment_url) as string} 
-                        className="w-full max-h-96 overflow-y-auto"
+                    {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
+                      <iframe
+                        src={(attachmentPreview || transaction.attachment_url) as string}
+                        className="w-full h-[480px] border-0 bg-background"
+                        title="Attachment Preview"
                       />
                     ) : (
                       <img
