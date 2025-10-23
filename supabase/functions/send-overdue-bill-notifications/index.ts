@@ -213,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
       for (const email of uniqueEmails) {
         try {
           const { data: emailData, error: emailError } = await resend.emails.send({
-            from: "Bills Notification <onboarding@resend.dev>",
+            from: "System Notifications <system@greenstarteam.com>",
             to: [email],
             subject: `⚠️ ${bills.length} Overdue Bill${bills.length !== 1 ? 's' : ''} - Action Required`,
             html: htmlContent,
