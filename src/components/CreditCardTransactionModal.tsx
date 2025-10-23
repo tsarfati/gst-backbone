@@ -161,7 +161,7 @@ export function CreditCardTransactionModal({
         .from("credit_card_transaction_communications")
         .select(`
           *,
-          user:user_id(user_id, first_name, last_name)
+          profiles!user_id(user_id, first_name, last_name)
         `)
         .eq("transaction_id", transactionId)
         .order("created_at", { ascending: true });
@@ -350,7 +350,7 @@ export function CreditCardTransactionModal({
         .from("credit_card_transaction_communications")
         .select(`
           *,
-          user:user_id(user_id, first_name, last_name)
+          profiles!user_id(user_id, first_name, last_name)
         `)
         .eq("transaction_id", transactionId)
         .order("created_at", { ascending: true });
@@ -752,7 +752,7 @@ export function CreditCardTransactionModal({
                   <div key={comm.id} className="bg-background p-3 rounded-lg border">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold">
-                        {comm.user?.first_name} {comm.user?.last_name}
+                        {comm.profiles?.first_name} {comm.profiles?.last_name}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(comm.created_at).toLocaleString()}
