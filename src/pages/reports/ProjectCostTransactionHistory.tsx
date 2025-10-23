@@ -364,18 +364,26 @@ export default function ProjectCostTransactionHistory() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {Object.entries(getGroupedTransactions()).map(([groupKey, groupTransactions]) => (
-            <Card key={groupKey}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>
-                    {groupBy === "cost_code" ? `Cost Code: ${groupKey}` : `Class: ${groupKey}`}
-                  </CardTitle>
-                  <Badge variant="outline">
-                    Total: {formatCurrency(calculateTotal(groupTransactions))}
-                  </Badge>
-                </div>
-              </CardHeader>
+          {Object.entries(getGroupedTransactions()).map(([groupKey, groupTransactions]) => {
+            const firstTransaction = groupTransactions[0];
+            let displayLabel = groupKey;
+            
+            if (groupBy === "cost_code" && firstTransaction?.cost_code_description) {
+              displayLabel = `${groupKey} - ${firstTransaction.cost_code_description}`;
+            }
+            
+            return (
+              <Card key={groupKey}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>
+                      {groupBy === "cost_code" ? `Cost Code: ${displayLabel}` : `Class: ${groupKey}`}
+                    </CardTitle>
+                    <Badge variant="outline">
+                      Total: {formatCurrency(calculateTotal(groupTransactions))}
+                    </Badge>
+                  </div>
+                </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -424,7 +432,8 @@ export default function ProjectCostTransactionHistory() {
                 </Table>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
 
           <Card>
             <CardHeader>
