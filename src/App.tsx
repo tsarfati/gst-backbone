@@ -193,7 +193,7 @@ function AuthenticatedRoutes() {
               <Route path="/" element={
                 <ProtectedRoute>
                   <AccessControl>
-                    <RoleGuard>
+                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin']}>
                       <Layout />
                     </RoleGuard>
                   </AccessControl>
