@@ -200,6 +200,7 @@ export default function MakePayment() {
       const { data: bankAccountsData, error: bankAccountsError } = await supabase
         .from('bank_accounts')
         .select('id, account_name, bank_name')
+        .eq('company_id', currentCompany.id)
         .eq('is_active', true)
         .order('account_name');
 
