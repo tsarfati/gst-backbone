@@ -234,8 +234,8 @@ export default function CreditCardMakePayment() {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
+      <div className="max-w-2xl mx-auto">
+        <Card>
           <CardHeader>
             <CardTitle>Payment Details</CardTitle>
           </CardHeader>
@@ -336,53 +336,6 @@ export default function CreditCardMakePayment() {
                 Cancel
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Accounting Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-sm text-muted-foreground">Journal Entry</Label>
-              <p className="text-sm">
-                A journal entry will be created with the following:
-              </p>
-            </div>
-            
-            <div className="space-y-3 text-sm">
-              <div className="p-3 bg-muted rounded">
-                <p className="font-medium text-green-600">Debit</p>
-                <p className="mt-1">
-                  {creditCard.liability_account?.account_name || "Credit Card Liability"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {creditCard.liability_account?.account_number || "Not configured"}
-                </p>
-              </div>
-
-              <div className="p-3 bg-muted rounded">
-                <p className="font-medium text-red-600">Credit</p>
-                <p className="mt-1">
-                  {paymentFromAccount 
-                    ? bankAccounts.find(ba => ba.id === paymentFromAccount)?.chart_account?.account_name || "Bank Account"
-                    : "Select bank account"
-                  }
-                </p>
-                {paymentFromAccount && (
-                  <p className="text-xs text-muted-foreground">
-                    {bankAccounts.find(ba => ba.id === paymentFromAccount)?.chart_account?.account_number || ""}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {!creditCard.liability_account_id && (
-              <div className="p-3 bg-destructive/10 rounded text-sm text-destructive">
-                ⚠️ Credit card does not have a liability account configured. Please configure it in settings.
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
