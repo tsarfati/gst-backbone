@@ -53,11 +53,20 @@ export function CreditCardTransactionModal({
 
   useEffect(() => {
     if (open && transactionId && currentCompany) {
-      setAttachmentPreview(null); // Clear preview when switching transactions
+      // Clear all state when switching transactions
+      setAttachmentPreview(null);
+      setSelectedVendorId(null);
+      setSelectedJobOrAccount(null);
+      setIsJobSelected(false);
+      setJobCostCodes([]);
       fetchData();
     } else if (!open) {
       // Clear state when modal closes
       setAttachmentPreview(null);
+      setSelectedVendorId(null);
+      setSelectedJobOrAccount(null);
+      setIsJobSelected(false);
+      setJobCostCodes([]);
     }
   }, [open, transactionId, currentCompany]);
 
@@ -621,8 +630,8 @@ export function CreditCardTransactionModal({
           <div>
             <Label>Vendor *</Label>
             <Select
-              value={(selectedVendorId || undefined) as unknown as string}
-              onValueChange={(value) => handleVendorChange(value)}
+              value={selectedVendorId || ""}
+              onValueChange={(value) => handleVendorChange(value || null)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select vendor" />
