@@ -12,17 +12,56 @@ interface UserMenuPermissionsProps {
   userRole: string;
 }
 
-const MENU_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'jobs', label: 'Jobs' },
-  { key: 'vendors', label: 'Vendors' },
-  { key: 'employees', label: 'Employees' },
-  { key: 'receipts', label: 'Receipts' },
-  { key: 'messages', label: 'Messages' },
-  { key: 'announcements', label: 'Announcements' },
-  { key: 'settings', label: 'Settings' },
-  { key: 'reports', label: 'Reports' },
-];
+const MENU_SECTIONS = {
+  'Core Navigation': [
+    { key: 'dashboard', label: 'Dashboard' },
+    { key: 'messages', label: 'Messages' },
+    { key: 'announcements', label: 'Announcements' },
+    { key: 'reports', label: 'Reports' },
+  ],
+  'Jobs Management': [
+    { key: 'jobs', label: 'View Jobs' },
+    { key: 'jobs-add', label: 'Create Jobs' },
+    { key: 'jobs-edit', label: 'Edit Jobs' },
+    { key: 'jobs-budget', label: 'Job Budgets' },
+    { key: 'job-reports', label: 'Job Reports' },
+  ],
+  'Bills & Payables': [
+    { key: 'bills', label: 'View Bills' },
+    { key: 'bills-add', label: 'Create Bills' },
+    { key: 'bill-approval', label: 'Approve Bills' },
+    { key: 'make-payment', label: 'Make Payments' },
+  ],
+  'Receipts': [
+    { key: 'receipts-upload', label: 'Upload Receipts' },
+    { key: 'receipts-uncoded', label: 'Code Receipts' },
+    { key: 'receipts-coded', label: 'View Coded Receipts' },
+  ],
+  'Vendors': [
+    { key: 'vendors', label: 'View Vendors' },
+    { key: 'vendors-add', label: 'Create Vendors' },
+    { key: 'vendors-edit', label: 'Edit Vendors' },
+  ],
+  'Employees & Time': [
+    { key: 'employees', label: 'View Employees' },
+    { key: 'employees-add', label: 'Create Employees' },
+    { key: 'timesheets', label: 'View Timesheets' },
+    { key: 'time-corrections', label: 'Edit Time Cards' },
+    { key: 'punch-clock-dashboard', label: 'Punch Clock Dashboard' },
+  ],
+  'Banking & Accounting': [
+    { key: 'banking-accounts', label: 'Bank Accounts' },
+    { key: 'banking-credit-cards', label: 'Credit Cards' },
+    { key: 'reconcile', label: 'Reconcile Accounts' },
+    { key: 'chart-of-accounts', label: 'Chart of Accounts' },
+    { key: 'journal-entries', label: 'Journal Entries' },
+  ],
+  'Settings & Administration': [
+    { key: 'settings', label: 'General Settings' },
+    { key: 'company-settings', label: 'Company Settings' },
+    { key: 'user-settings', label: 'User Management' },
+  ],
+};
 
 export default function UserMenuPermissions({ userId, userRole }: UserMenuPermissionsProps) {
   const { toast } = useToast();
@@ -55,8 +94,10 @@ export default function UserMenuPermissions({ userId, userRole }: UserMenuPermis
 
       // Set default permissions for demo
       const defaultUserPermissions: Record<string, boolean> = {};
-      MENU_ITEMS.forEach(item => {
-        defaultUserPermissions[item.key] = true;
+      Object.values(MENU_SECTIONS).forEach(section => {
+        section.forEach(item => {
+          defaultUserPermissions[item.key] = true;
+        });
       });
       setUserPermissions(defaultUserPermissions);
 
@@ -64,8 +105,10 @@ export default function UserMenuPermissions({ userId, userRole }: UserMenuPermis
       console.error('Error loading permissions:', error);
       // Set default permissions for demo
       const defaultUserPermissions: Record<string, boolean> = {};
-      MENU_ITEMS.forEach(item => {
-        defaultUserPermissions[item.key] = true;
+      Object.values(MENU_SECTIONS).forEach(section => {
+        section.forEach(item => {
+          defaultUserPermissions[item.key] = true;
+        });
       });
       setUserPermissions(defaultUserPermissions);
     } finally {
@@ -139,42 +182,49 @@ export default function UserMenuPermissions({ userId, userRole }: UserMenuPermis
           )}
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="text-sm text-muted-foreground mb-4">
-          Control which menu items this user can access. User-specific permissions override role-based permissions.
+          Control which features and actions this user can access. User-specific permissions override role-based permissions.
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {MENU_ITEMS.map((item) => {
-            const rolePermission = rolePermissions[item.key] || false;
-            const userPermission = userPermissions[item.key];
-            const effectivePermission = getEffectivePermission(item.key);
-            const hasUserOverride = userPermissions.hasOwnProperty(item.key);
+        {Object.entries(MENU_SECTIONS).map(([sectionName, items]) => (
+          <div key={sectionName} className="space-y-3">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+              {sectionName}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {items.map((item) => {
+                const rolePermission = rolePermissions[item.key] || false;
+                const userPermission = userPermissions[item.key];
+                const effectivePermission = getEffectivePermission(item.key);
+                const hasUserOverride = userPermissions.hasOwnProperty(item.key);
 
-            return (
-              <div key={item.key} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="space-y-1">
-                  <Label htmlFor={`menu-${item.key}`} className="text-sm font-medium">
-                    {item.label}
-                  </Label>
-                  <div className="text-xs text-muted-foreground">
-                    Role default: {rolePermission ? 'Allowed' : 'Denied'}
-                    {hasUserOverride && (
-                      <span className="ml-2 text-primary font-medium">
-                        (User override: {userPermission ? 'Allowed' : 'Denied'})
-                      </span>
-                    )}
+                return (
+                  <div key={item.key} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
+                    <div className="space-y-1 flex-1">
+                      <Label htmlFor={`menu-${item.key}`} className="text-sm font-medium cursor-pointer">
+                        {item.label}
+                      </Label>
+                      <div className="text-xs text-muted-foreground">
+                        Role default: {rolePermission ? 'Allowed' : 'Denied'}
+                        {hasUserOverride && (
+                          <span className="ml-2 text-primary font-medium">
+                            (User override: {userPermission ? 'Allowed' : 'Denied'})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Switch
+                      id={`menu-${item.key}`}
+                      checked={effectivePermission}
+                      onCheckedChange={(checked) => handlePermissionChange(item.key, checked)}
+                    />
                   </div>
-                </div>
-                <Switch
-                  id={`menu-${item.key}`}
-                  checked={effectivePermission}
-                  onCheckedChange={(checked) => handlePermissionChange(item.key, checked)}
-                />
-              </div>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
