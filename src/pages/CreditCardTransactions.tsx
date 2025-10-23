@@ -151,6 +151,11 @@ export default function CreditCardTransactions() {
       // For each transaction, find potential receipt matches
       transactions.forEach((transaction) => {
         const potentialMatches = (receipts || []).filter((receipt) => {
+          // Only show receipts marked as credit card charges
+          if (!receipt.is_credit_card_charge) {
+            return false;
+          }
+          
           // Check if amount is within 1% tolerance
           const amountMatch = Math.abs(
             Number(receipt.amount) - Number(transaction.amount)

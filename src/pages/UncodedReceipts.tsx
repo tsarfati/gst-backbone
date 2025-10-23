@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
 import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Trash2 } from "lucide-react";
@@ -39,6 +40,7 @@ export default function UncodedReceipts() {
   const [uncodedBills, setUncodedBills] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState("");
   const [selectedAmount, setSelectedAmount] = useState("");
+  const [isCreditCardCharge, setIsCreditCardCharge] = useState(false);
   const [costDistribution, setCostDistribution] = useState<CostDistribution[]>([]);
   const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const { user, profile } = useAuth();
@@ -270,7 +272,8 @@ export default function UncodedReceipts() {
             vendor_id: vendorIdToSave,
             status: 'coded',
             job_id: firstDist.job_id || null,
-            cost_code_id: firstDist.cost_code_id || null
+            cost_code_id: firstDist.cost_code_id || null,
+            is_credit_card_charge: isCreditCardCharge
           })
           .eq('id', selectedReceipt.id);
 
@@ -858,6 +861,20 @@ export default function UncodedReceipts() {
                       placeholder="Enter amount"
                       className="h-8"
                     />
+                  </div>
+
+                  <div className="flex items-center space-x-2 py-2">
+                    <Checkbox
+                      id="credit-card-charge"
+                      checked={isCreditCardCharge}
+                      onCheckedChange={(checked) => setIsCreditCardCharge(checked as boolean)}
+                    />
+                    <Label
+                      htmlFor="credit-card-charge"
+                      className="text-xs font-normal cursor-pointer"
+                    >
+                      Paid with credit card
+                    </Label>
                   </div>
 
                   <div className="mt-4">

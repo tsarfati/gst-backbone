@@ -58,6 +58,11 @@ export default function BillReceiptSuggestions({
 
     const suggestions = allReceipts
       .filter(receipt => {
+        // Exclude receipts marked as credit card charges
+        if ((receipt as any).is_credit_card_charge) {
+          return false;
+        }
+        
         // Primary filter: amount must match (within $10 tolerance) - this is the main match point
         const receiptAmount = typeof receipt.amount === 'string' 
           ? parseFloat(receipt.amount.replace(/[^0-9.\-]/g, '')) 
@@ -69,7 +74,8 @@ export default function BillReceiptSuggestions({
           receiptAmount,
           billAmount,
           diff: Math.abs(receiptAmount - billAmount),
-          matches: amountMatch
+          matches: amountMatch,
+          isCreditCard: (receipt as any).is_credit_card_charge
         });
         
         return amountMatch;

@@ -4110,6 +4110,7 @@ export type Database = {
           file_size: number | null
           file_url: string
           id: string
+          is_credit_card_charge: boolean
           job_id: string | null
           notes: string | null
           receipt_date: string | null
@@ -4129,6 +4130,7 @@ export type Database = {
           file_size?: number | null
           file_url: string
           id?: string
+          is_credit_card_charge?: boolean
           job_id?: string | null
           notes?: string | null
           receipt_date?: string | null
@@ -4148,6 +4150,7 @@ export type Database = {
           file_size?: number | null
           file_url?: string
           id?: string
+          is_credit_card_charge?: boolean
           job_id?: string | null
           notes?: string | null
           receipt_date?: string | null
