@@ -31,6 +31,9 @@ interface NotificationSettings {
   vendor_invitations: boolean;
   job_assignments: boolean;
   receipt_uploaded: boolean;
+  financial_overview_enabled?: boolean;
+  bill_approval_requests?: boolean;
+  credit_card_coding_requests?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -63,6 +66,9 @@ export default function ProfileSettings() {
     vendor_invitations: true,
     job_assignments: true,
     receipt_uploaded: true,
+    financial_overview_enabled: false,
+    bill_approval_requests: false,
+    credit_card_coding_requests: false,
   });
 
   useEffect(() => {
@@ -602,6 +608,39 @@ export default function ProfileSettings() {
                       id="receipt-uploaded"
                       checked={notificationSettings.receipt_uploaded}
                       onCheckedChange={(checked) => updateNotificationSetting('receipt_uploaded', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="financial-overview">Financial Overview Reports</Label>
+                      <p className="text-sm text-muted-foreground">Weekly summary of approved bills, overdue payments, and outstanding invoices</p>
+                    </div>
+                    <Switch
+                      id="financial-overview"
+                      checked={notificationSettings.financial_overview_enabled || false}
+                      onCheckedChange={(checked) => updateNotificationSetting('financial_overview_enabled', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="bill-approval">Bill Approval & Coding Requests</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when you're asked to approve or code a bill</p>
+                    </div>
+                    <Switch
+                      id="bill-approval"
+                      checked={notificationSettings.bill_approval_requests || false}
+                      onCheckedChange={(checked) => updateNotificationSetting('bill_approval_requests', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="credit-card-coding">Credit Card Coding Requests</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when you're requested to code a credit card transaction</p>
+                    </div>
+                    <Switch
+                      id="credit-card-coding"
+                      checked={notificationSettings.credit_card_coding_requests || false}
+                      onCheckedChange={(checked) => updateNotificationSetting('credit_card_coding_requests', checked)}
                     />
                   </div>
                 </div>
