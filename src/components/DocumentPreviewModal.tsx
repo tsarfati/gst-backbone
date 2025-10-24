@@ -43,14 +43,25 @@ export default function DocumentPreviewModal({
           const [bucket, ...pathParts] = fullPath.split('/');
           const filePath = pathParts.join('/');
           
-          // Generate a fresh signed URL
+          // Try to generate a fresh signed URL with proper error handling
           const { data, error } = await supabase.storage
             .from(bucket)
             .createSignedUrl(filePath, 3600); // 1 hour expiry
           
           if (error) {
-            console.error('Error creating signed URL:', error);
-            setRefreshedUrl(document.url);
+            console.warn('Unable to create signed URL (may lack permissions):', error.message);
+            // For view-only users, try download approach instead
+            const { data: downloadData } = await supabase.storage
+              .from(bucket)
+              .download(filePath);
+            
+            if (downloadData) {
+              const objectUrl = URL.createObjectURL(downloadData);
+              setRefreshedUrl(objectUrl);
+            } else {
+              // Fallback to original URL
+              setRefreshedUrl(document.url);
+            }
           } else if (data?.signedUrl) {
             setRefreshedUrl(data.signedUrl);
           } else {

@@ -29,7 +29,7 @@ interface Channel {
 }
 
 export default function TeamChat() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -51,6 +51,14 @@ export default function TeamChat() {
   ]);
   const [searchTerm, setSearchTerm] = useState('');
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  useEffect(() => {
+    if (profile) {
+      const displayName = profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'User';
+      setCurrentUserName(displayName);
+    }
+  }, [profile]);
 
   useEffect(() => {
     if (user) {
@@ -112,7 +120,7 @@ export default function TeamChat() {
       id: Date.now().toString(),
       content: newMessage,
       from_user_id: user.id,
-      from_user_name: 'Current User',
+      from_user_name: currentUserName || 'User',
       created_at: new Date().toISOString(),
       channel: selectedChannel.id
     };
