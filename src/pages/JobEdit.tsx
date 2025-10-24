@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
 import { formatCurrency } from "@/utils/formatNumber";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -28,6 +29,14 @@ export default function JobEdit() {
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
   const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
+  const permissions = useActionPermissions();
+
+  useEffect(() => {
+    if (!id) return;
+    if (!permissions.canEditJobs()) {
+      navigate(`/jobs/${id}`, { replace: true });
+    }
+  }, [id, permissions, navigate]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -230,6 +239,10 @@ export default function JobEdit() {
 
   const handleSave = async () => {
     if (!id || !job) return;
+    if (!permissions.canEditJobs()) {
+      toast({ title: "Permission Denied", description: "You do not have permission to edit jobs.", variant: "destructive" });
+      return;
+    }
 
     try {
       // Geocode the address to get coordinates if address changed
@@ -366,6 +379,10 @@ export default function JobEdit() {
 
   const handleDelete = async () => {
     if (!id) return;
+    if (!permissions.canDelete('jobs')) {
+      toast({ title: 'Permission Denied', description: 'You do not have permission to delete jobs.', variant: 'destructive' });
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -413,30 +430,35 @@ export default function JobEdit() {
           </div>
         </div>
         <div className="flex gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Job
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to delete this job?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the job
-                  and all associated data including receipts, photos, and documents.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          {permissions.canDelete('jobs') && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete Job
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button onClick={handleSave}>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to delete this job?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the job
+                    and all associated data including receipts, photos, and documents.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete Job
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Button onClick={handleSave} disabled={!permissions.canEditJobs()}>
+            <Save className="h-4 w-4 mr-2" />
+            Save Changes
+          </Button>
             <Save className="h-4 w-4 mr-2" />
             Save Changes
           </Button>

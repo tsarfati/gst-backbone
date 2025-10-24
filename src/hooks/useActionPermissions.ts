@@ -9,15 +9,16 @@ export function useActionPermissions() {
   const { profile } = useAuth();
   const { hasAccess } = useMenuPermissions();
 
-  // View_only users can never create, update, or delete anything
-  const isViewOnly = profile?.role === 'view_only';
+  // Normalize role and derive flags
+  const normalizedRole = (profile?.role || '').toLowerCase().replace(/-/g, '_').trim();
+  const isViewOnly = ['view_only', 'viewer', 'read_only', 'readonly', 'viewonly'].includes(normalizedRole);
   
   // Admin users can do everything
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = normalizedRole === 'admin';
   
-  // Controller and company_admin have elevated permissions
-  const isController = profile?.role === 'controller';
-  const isCompanyAdmin = profile?.role === 'company_admin';
+  // Controller and company_admin (and owner) have elevated permissions
+  const isController = normalizedRole === 'controller';
+  const isCompanyAdmin = normalizedRole === 'company_admin' || normalizedRole === 'owner';
   const hasElevatedAccess = isAdmin || isController || isCompanyAdmin;
 
   return {

@@ -81,9 +81,10 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [companyDefaults, setCompanyDefaults] = useState<Partial<AppSettings> | null>(null);
 
   const hexToHsl = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -126,7 +127,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       const cacheKey = `ui_settings_cache_${currentCompany.id}_${user.id}`;
 
-      // 1) Hydrate instantly from cache to avoid color flash
+      // Hydrate from cache immediately to minimize flash
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
         try {
@@ -139,41 +140,50 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             const hsl = toHslToken(value as string);
             root.style.setProperty(`--${key}`, hsl);
           });
-          setIsLoaded(true);
         } catch (_) {
           // ignore cache parse errors
         }
       }
 
-      // 2) Fetch from DB and update (also refresh cache)
       try {
-        const { data, error } = await supabase
-          .from('company_ui_settings')
-          .select('settings')
-          .eq('company_id', currentCompany.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
+        // Fetch company defaults and user-specific settings in parallel
+        const [companyResp, userResp] = await Promise.all([
+          supabase
+            .from('company_ui_settings')
+            .select('settings')
+            .eq('company_id', currentCompany.id)
+            .is('user_id', null)
+            .maybeSingle(),
+          supabase
+            .from('company_ui_settings')
+            .select('settings')
+            .eq('company_id', currentCompany.id)
+            .eq('user_id', user.id)
+            .maybeSingle()
+        ]);
 
-        if (!error && data?.settings && typeof data.settings === 'object') {
-          const mergedSettings = { ...defaultSettings, ...(data.settings as Partial<AppSettings>) } as AppSettings;
-          setSettings(mergedSettings);
-          const root = document.documentElement;
-          const colors = mergedSettings.customColors || defaultSettings.customColors;
-          Object.entries(colors).forEach(([key, value]) => {
-            const hsl = toHslToken(value as string);
-            root.style.setProperty(`--${key}`, hsl);
-          });
-          // refresh cache
-          localStorage.setItem(cacheKey, JSON.stringify(mergedSettings));
-        } else if (!cachedRaw) {
-          // No DB data and no cache → apply defaults
-          setSettings(defaultSettings);
-          const root = document.documentElement;
-          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-            const hsl = toHslToken(value);
-            root.style.setProperty(`--${key}`, hsl);
-          });
-        }
+        const companySettings = (companyResp?.data?.settings || null) as Partial<AppSettings> | null;
+        setCompanyDefaults(companySettings);
+        const userSettings = (userResp?.data?.settings || null) as Partial<AppSettings> | null;
+
+        const merged = { ...defaultSettings, ...(companySettings || {}), ...(userSettings || {}) } as AppSettings;
+        setSettings(merged);
+
+        // Apply effective colors: enforce company colors for non-admin/non-company_admin
+        const role = (profile?.role || '').toLowerCase();
+        const enforceCompanyColors = !!companySettings?.customColors && role !== 'admin' && role !== 'company_admin';
+        const effectiveColors = enforceCompanyColors
+          ? (companySettings!.customColors as AppSettings['customColors'])
+          : (merged.customColors || defaultSettings.customColors);
+
+        const root = document.documentElement;
+        Object.entries(effectiveColors).forEach(([key, value]) => {
+          const hsl = toHslToken(value as string);
+          root.style.setProperty(`--${key}`, hsl);
+        });
+
+        // Refresh cache
+        localStorage.setItem(cacheKey, JSON.stringify(merged));
       } catch (error) {
         console.warn('Error loading settings:', error);
       } finally {
@@ -182,7 +192,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
 
     loadSettings();
-  }, [currentCompany?.id, user?.id]);
+  }, [currentCompany?.id, user?.id, profile?.role]);
 
   // Save settings to database
   useEffect(() => {
@@ -193,12 +203,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       try {
         // Remove large data before saving
-        const settingsForStorage = { ...settings };
-        if (settingsForStorage.companyLogo?.startsWith('data:')) {
+        const settingsForStorage = { ...settings } as Partial<AppSettings> & Record<string, any>;
+        if (settingsForStorage.companyLogo && typeof settingsForStorage.companyLogo === 'string' && settingsForStorage.companyLogo.startsWith('data:')) {
           delete settingsForStorage.companyLogo;
         }
-        if (settingsForStorage.headerLogo?.startsWith('data:')) {
+        if (settingsForStorage.headerLogo && typeof settingsForStorage.headerLogo === 'string' && settingsForStorage.headerLogo.startsWith('data:')) {
           delete settingsForStorage.headerLogo;
+        }
+
+        const role = (profile?.role || '').toLowerCase();
+        const isCompanyAdmin = role === 'admin' || role === 'company_admin';
+
+        // Enforce company-wide colors: non-admins cannot persist custom color overrides
+        if (!isCompanyAdmin) {
+          delete settingsForStorage.customColors;
         }
 
         const { error } = await supabase
@@ -210,6 +228,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           }, {
             onConflict: 'company_id,user_id'
           });
+
+        // If admin/company_admin, also persist company-wide defaults (user_id = null)
+        if (isCompanyAdmin) {
+          const companySettingsForStorage: Partial<AppSettings> = {
+            customColors: settings.customColors,
+          };
+          await supabase
+            .from('company_ui_settings')
+            .upsert({
+              company_id: currentCompany.id,
+              user_id: null,
+              settings: companySettingsForStorage
+            }, { onConflict: 'company_id,user_id' });
+        }
 
         if (error) {
           console.warn('Failed to save settings:', error);
@@ -233,6 +265,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 
   const updateSettings = (updates: Partial<AppSettings>) => {
+    const role = (profile?.role || '').toLowerCase();
+    const isCompanyAdmin = role === 'admin' || role === 'company_admin';
+
     setSettings(prev => ({
       ...prev,
       ...updates,
@@ -240,9 +275,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       notifications: updates.notifications 
         ? { ...prev.notifications, ...updates.notifications }
         : prev.notifications,
-      // Handle nested color updates
+      // Handle nested color updates (block non-admins from overriding company colors)
       customColors: updates.customColors
-        ? { ...prev.customColors, ...updates.customColors }
+        ? (isCompanyAdmin ? { ...prev.customColors, ...updates.customColors } : prev.customColors)
         : prev.customColors
     }));
   };
@@ -250,12 +285,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const applyCustomColors = () => {
     const root = document.documentElement;
-    Object.entries(settings.customColors).forEach(([key, value]) => {
+    const role = (profile?.role || '').toLowerCase();
+    const enforceCompanyColors = !!companyDefaults?.customColors && role !== 'admin' && role !== 'company_admin';
+    const effectiveColors = enforceCompanyColors
+      ? (companyDefaults!.customColors as AppSettings['customColors'])
+      : (settings.customColors);
+
+    Object.entries(effectiveColors).forEach(([key, value]) => {
       const hsl = toHslToken(value as string);
       root.style.setProperty(`--${key}`, hsl);
     });
     // Ensure hover var is set explicitly as well
-    root.style.setProperty('--buttonHover', toHslToken(settings.customColors.buttonHover));
+    root.style.setProperty('--buttonHover', toHslToken(effectiveColors.buttonHover));
   };
 
   const resetSettings = async () => {
