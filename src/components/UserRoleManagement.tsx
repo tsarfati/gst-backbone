@@ -19,6 +19,7 @@ interface UserProfile {
   custom_role_id?: string;
   email?: string;
   avatar_url?: string;
+  default_page?: string;
 }
 
 interface CustomRole {
@@ -29,11 +30,31 @@ interface CustomRole {
   color: string;
 }
 
+const AVAILABLE_PAGES = [
+  { value: '/dashboard', label: 'Dashboard', roles: ['admin', 'controller', 'project_manager', 'employee', 'view_only'] },
+  { value: '/jobs', label: 'All Jobs', roles: ['admin', 'controller', 'project_manager', 'employee', 'view_only'] },
+  { value: '/payables-dashboard', label: 'Payables Dashboard', roles: ['admin', 'controller'] },
+  { value: '/punch-clock-dashboard', label: 'Punch Clock Dashboard', roles: ['admin', 'controller', 'project_manager'] },
+  { value: '/time-sheets', label: 'Timesheets', roles: ['admin', 'controller', 'project_manager', 'employee'] },
+  { value: '/vendors', label: 'All Vendors', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
+  { value: '/bills', label: 'All Bills', roles: ['admin', 'controller', 'view_only'] },
+  { value: '/upload', label: 'Upload Receipts', roles: ['admin', 'controller', 'project_manager', 'employee'] },
+  { value: '/uncoded', label: 'Uncoded Receipts', roles: ['admin', 'controller', 'project_manager'] },
+  { value: '/receipts', label: 'Coded Receipts', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
+  { value: '/employees', label: 'All Employees', roles: ['admin', 'controller', 'project_manager'] },
+  { value: '/messages', label: 'All Messages', roles: ['admin', 'controller', 'project_manager', 'employee'] },
+  { value: '/team-chat', label: 'Team Chat', roles: ['admin', 'controller', 'project_manager', 'employee'] },
+  { value: '/company-files', label: 'All Documents', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
+  { value: '/banking/accounts', label: 'Bank Accounts', roles: ['admin', 'controller'] },
+  { value: '/settings', label: 'Settings', roles: ['admin', 'controller'] },
+];
+
 export default function UserRoleManagement() {
   const { currentCompany } = useCompany();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
+  const [roleDefaultPages, setRoleDefaultPages] = useState<{ [key: string]: string }>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -41,6 +62,7 @@ export default function UserRoleManagement() {
 
   useEffect(() => {
     fetchUsers();
+    fetchRoleDefaultPages();
     if (currentCompany) {
       fetchCustomRoles();
     }
@@ -107,6 +129,24 @@ export default function UserRoleManagement() {
       setCustomRoles(data || []);
     } catch (error) {
       console.error('Error fetching custom roles:', error);
+    }
+  };
+
+  const fetchRoleDefaultPages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('role_default_pages')
+        .select('role, default_page');
+
+      if (error) throw error;
+      
+      const pagesMap: { [key: string]: string } = {};
+      data?.forEach(item => {
+        pagesMap[item.role] = item.default_page;
+      });
+      setRoleDefaultPages(pagesMap);
+    } catch (error) {
+      console.error('Error fetching role default pages:', error);
     }
   };
 
@@ -206,6 +246,61 @@ export default function UserRoleManagement() {
     };
   };
 
+  const getAvailablePagesForRole = (role: string) => {
+    return AVAILABLE_PAGES.filter(page => page.roles.includes(role));
+  };
+
+  const updateUserDefaultPage = async (userId: string, role: string, defaultPage: string) => {
+    try {
+      const roleEnum = role as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
+      
+      // Check if role_default_pages entry exists for this role
+      const { data: existing, error: fetchError } = await supabase
+        .from('role_default_pages')
+        .select('id')
+        .eq('role', roleEnum)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+      if (existing) {
+        // Update existing
+        const { error } = await supabase
+          .from('role_default_pages')
+          .update({ default_page: defaultPage })
+          .eq('role', roleEnum);
+        
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('role_default_pages')
+          .insert({ 
+            role: roleEnum, 
+            default_page: defaultPage,
+            created_by: userId 
+          });
+        
+        if (error) throw error;
+      }
+
+      // Update local state
+      setRoleDefaultPages(prev => ({ ...prev, [role]: defaultPage }));
+
+      toast({
+        title: "Success",
+        description: "Default landing page updated",
+      });
+    } catch (error) {
+      console.error('Error updating default page:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update default page",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -285,81 +380,108 @@ export default function UserRoleManagement() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredUsers.map((user) => (
-                <div 
-                  key={user.user_id} 
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={user.avatar_url} />
-                      <AvatarFallback>
-                        {user.first_name?.[0]}{user.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-medium">
-                        {user.first_name} {user.last_name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+              {filteredUsers.map((user) => {
+                const availablePages = getAvailablePagesForRole(user.role);
+                const currentDefaultPage = roleDefaultPages[user.role] || '/dashboard';
+                
+                return (
+                  <div 
+                    key={user.user_id} 
+                    className="flex flex-col gap-3 p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={user.avatar_url} />
+                          <AvatarFallback>
+                            {user.first_name?.[0]}{user.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-medium">
+                            {user.first_name} {user.last_name}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        {(() => {
+                          const roleDisplay = getUserRoleDisplay(user);
+                          return (
+                            <>
+                              <Badge 
+                                variant={roleDisplay.isCustom ? 'secondary' : getRoleBadgeVariant(user.role)}
+                                className={roleDisplay.isCustom ? roleDisplay.color : ''}
+                              >
+                                {roleDisplay.label}
+                                {roleDisplay.isCustom && (
+                                  <span className="ml-1 text-xs opacity-70">(Custom)</span>
+                                )}
+                              </Badge>
+                              
+                              <Select 
+                                value={roleDisplay.value}
+                                onValueChange={(value: string) => {
+                                  if (value.startsWith('custom_')) {
+                                    updateUserRole(user.user_id, value.replace('custom_', ''), true);
+                                  } else {
+                                    updateUserRole(user.user_id, value, false);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="w-[200px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background z-50">
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="controller">Controller</SelectItem>
+                                  <SelectItem value="company_admin">Company Admin</SelectItem>
+                                  <SelectItem value="project_manager">Project Manager</SelectItem>
+                                  <SelectItem value="employee">Employee</SelectItem>
+                                  <SelectItem value="view_only">View Only</SelectItem>
+                                  {customRoles.length > 0 && (
+                                    <>
+                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                        Custom Roles
+                                      </div>
+                                      {customRoles.map(role => (
+                                        <SelectItem key={role.id} value={`custom_${role.id}`}>
+                                          {role.role_name}
+                                        </SelectItem>
+                                      ))}
+                                    </>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    
+                    {/* Default Landing Page Selector */}
+                    <div className="flex items-center gap-3 pl-14">
+                      <span className="text-sm text-muted-foreground min-w-[120px]">Default page:</span>
+                      <Select
+                        value={currentDefaultPage}
+                        onValueChange={(value) => updateUserDefaultPage(user.user_id, user.role, value)}
+                      >
+                        <SelectTrigger className="w-[300px]">
+                          <SelectValue placeholder="Select default page" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          {availablePages.map((page) => (
+                            <SelectItem key={page.value} value={page.value}>
+                              {page.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-4">
-                    {(() => {
-                      const roleDisplay = getUserRoleDisplay(user);
-                      return (
-                        <>
-                          <Badge 
-                            variant={roleDisplay.isCustom ? 'secondary' : getRoleBadgeVariant(user.role)}
-                            className={roleDisplay.isCustom ? roleDisplay.color : ''}
-                          >
-                            {roleDisplay.label}
-                            {roleDisplay.isCustom && (
-                              <span className="ml-1 text-xs opacity-70">(Custom)</span>
-                            )}
-                          </Badge>
-                          
-                          <Select 
-                            value={roleDisplay.value}
-                            onValueChange={(value: string) => {
-                              if (value.startsWith('custom_')) {
-                                updateUserRole(user.user_id, value.replace('custom_', ''), true);
-                              } else {
-                                updateUserRole(user.user_id, value, false);
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="w-[200px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="controller">Controller</SelectItem>
-                              <SelectItem value="company_admin">Company Admin</SelectItem>
-                              <SelectItem value="project_manager">Project Manager</SelectItem>
-                              <SelectItem value="employee">Employee</SelectItem>
-                              <SelectItem value="view_only">View Only</SelectItem>
-                              {customRoles.length > 0 && (
-                                <>
-                                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                    Custom Roles
-                                  </div>
-                                  {customRoles.map(role => (
-                                    <SelectItem key={role.id} value={`custom_${role.id}`}>
-                                      {role.role_name}
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
