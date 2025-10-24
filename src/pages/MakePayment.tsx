@@ -10,8 +10,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { 
-  ArrowLeft, 
+  ArrowLeft,
   Plus, 
   Save, 
   DollarSign, 
@@ -19,7 +22,8 @@ import {
   Building,
   CreditCard,
   Printer,
-  Check
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -123,6 +127,13 @@ export default function MakePayment() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isPartialPayment, setIsPartialPayment] = useState(false);
+  const [bankFeeJobOrAccount, setBankFeeJobOrAccount] = useState<string | null>(null);
+  const [isBankFeeJob, setIsBankFeeJob] = useState(false);
+  const [bankFeeCostCodeId, setBankFeeCostCodeId] = useState<string | null>(null);
+  const [bankFeeJobCostCodes, setBankFeeJobCostCodes] = useState<any[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
+  const [bankFeeAccountPickerOpen, setBankFeeAccountPickerOpen] = useState(false);
+  const [bankFeeCostCodePickerOpen, setBankFeeCostCodePickerOpen] = useState(false);
 
   useEffect(() => {
     if (currentCompany) {
@@ -215,6 +226,18 @@ export default function MakePayment() {
 
       if (bankAccountsError) throw bankAccountsError;
       setBankAccounts(bankAccountsData || []);
+
+      // Load expense accounts for bank fee coding
+      const { data: expenseAccountsData } = await supabase
+        .from('chart_of_accounts')
+        .select('id, account_number, account_name, account_type')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .in('account_type', ['expense', 'operating_expense', 'cost_of_goods_sold'])
+        .or('account_number.lt.50000,account_number.gt.58000')
+        .order('account_number');
+      
+      setExpenseAccounts(expenseAccountsData || []);
 
       // Load credit cards
       const { data: creditCardsData, error: creditCardsError } = await supabase
@@ -429,6 +452,27 @@ export default function MakePayment() {
       return;
     }
 
+    // Validate bank fee account when bank fee is entered
+    if (payment.bank_fee && payment.bank_fee > 0) {
+      if (!bankFeeJobOrAccount) {
+        toast({
+          title: "Invalid Payment",
+          description: "Please select an expense account for the bank fee",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (isBankFeeJob && !bankFeeCostCodeId) {
+        toast({
+          title: "Invalid Payment",
+          description: "Please select a cost code for the bank fee",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
@@ -586,6 +630,86 @@ export default function MakePayment() {
 
       // Journal entry posting for non-credit card payments is handled by a database trigger
       // (public.create_payment_journal_entry). No frontend posting needed for those.
+
+      // Handle bank fee journal entry if bank fee exists
+      if (payment.bank_fee && payment.bank_fee > 0 && bankFeeJobOrAccount) {
+        const [type, id] = bankFeeJobOrAccount.split('_');
+        const expenseAccountId = type === 'account' ? id : null;
+        const jobId = type === 'job' ? id : null;
+
+        // Get cash account from bank account
+        const { data: bankAccountData } = await supabase
+          .from('bank_accounts')
+          .select('chart_account_id')
+          .eq('id', payment.bank_account_id)
+          .single();
+
+        // For job selection, we need to find an appropriate expense account
+        // Typically "Bank Charges" or similar in the job's expense range
+        let targetExpenseAccountId = expenseAccountId;
+        
+        if (!targetExpenseAccountId && jobId) {
+          // Try to find a bank charges or fees account for this company
+          const { data: bankChargesAccount } = await supabase
+            .from('chart_of_accounts')
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .eq('is_active', true)
+            .or('account_name.ilike.%bank charge%,account_name.ilike.%bank fee%,account_name.ilike.%other expense%')
+            .limit(1)
+            .single();
+          
+          targetExpenseAccountId = bankChargesAccount?.id || null;
+        }
+
+        if (bankAccountData?.chart_account_id && targetExpenseAccountId) {
+          // Create journal entry for bank fee
+          const { data: feeJournalData } = await supabase
+            .from('journal_entries')
+            .insert({
+              company_id: currentCompany.id,
+              entry_date: payment.payment_date,
+              description: `Bank fee for payment ${payment.payment_number}`,
+              reference: `FEE-${paymentData.id}`,
+              total_debit: payment.bank_fee,
+              total_credit: payment.bank_fee,
+              created_by: user.data.user?.id,
+              status: 'posted',
+            })
+            .select()
+            .single();
+
+          if (feeJournalData) {
+            const journalLines = [];
+            
+            // Debit bank fee expense account
+            journalLines.push({
+              journal_entry_id: feeJournalData.id,
+              account_id: targetExpenseAccountId,
+              debit_amount: payment.bank_fee,
+              credit_amount: 0,
+              description: 'Bank fee expense',
+              job_id: jobId || null,
+              cost_code_id: jobId ? bankFeeCostCodeId : null,
+              line_order: 1,
+            });
+
+            // Credit cash account
+            journalLines.push({
+              journal_entry_id: feeJournalData.id,
+              account_id: bankAccountData.chart_account_id,
+              debit_amount: 0,
+              credit_amount: payment.bank_fee,
+              description: 'Bank fee paid from account',
+              line_order: 2,
+            });
+
+            await supabase
+              .from('journal_entry_lines')
+              .insert(journalLines);
+          }
+        }
+      }
 
       toast({
         title: "Success",
@@ -813,20 +937,158 @@ export default function MakePayment() {
               </div>
 
               {['ach', 'wire'].includes(payment.payment_method) && (
-                <div>
-                  <Label htmlFor="bank_fee">Bank Fee (Optional)</Label>
-                  <Input
-                    id="bank_fee"
-                    type="number"
-                    step="0.01"
-                    value={payment.bank_fee || 0}
-                    onChange={(e) => setPayment(prev => ({ ...prev, bank_fee: parseFloat(e.target.value) || 0 }))}
-                    placeholder="0.00"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Enter any transaction fee charged by the bank
-                  </p>
-                </div>
+                <>
+                  <div>
+                    <Label htmlFor="bank_fee">Bank Fee (Optional)</Label>
+                    <Input
+                      id="bank_fee"
+                      type="number"
+                      step="0.01"
+                      value={payment.bank_fee || 0}
+                      onChange={(e) => setPayment(prev => ({ ...prev, bank_fee: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter any transaction fee charged by the bank
+                    </p>
+                  </div>
+
+                  {payment.bank_fee && payment.bank_fee > 0 && (
+                    <>
+                      <div>
+                        <Label>Bank Fee Expense Account *</Label>
+                        <Popover open={bankFeeAccountPickerOpen} onOpenChange={setBankFeeAccountPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between"
+                            >
+                              {bankFeeJobOrAccount ? (
+                                isBankFeeJob ? (
+                                  jobs.find(j => j.id === bankFeeJobOrAccount.split('_')[1])?.name
+                                ) : (
+                                  expenseAccounts.find(a => a.id === bankFeeJobOrAccount.split('_')[1])?.account_name
+                                )
+                              ) : (
+                                "Select job or expense account"
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[400px] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search jobs or accounts..." />
+                              <CommandList>
+                                <CommandEmpty>No results found.</CommandEmpty>
+                                
+                                <CommandGroup heading="Jobs">
+                                  {jobs.map((job) => (
+                                    <CommandItem
+                                      key={job.id}
+                                      value={`job_${job.id}`}
+                                      onSelect={async () => {
+                                        setBankFeeJobOrAccount(`job_${job.id}`);
+                                        setIsBankFeeJob(true);
+                                        setBankFeeCostCodeId(null);
+                                        setBankFeeAccountPickerOpen(false);
+                                        
+                                        // Load cost codes for this job
+                                        const { data: costCodesData } = await supabase
+                                          .from('cost_codes')
+                                          .select('*')
+                                          .eq('job_id', job.id)
+                                          .eq('company_id', currentCompany?.id || '')
+                                          .eq('is_active', true)
+                                          .eq('is_dynamic_group', false)
+                                          .in('code', (await supabase
+                                            .from('cost_codes')
+                                            .select('code')
+                                            .eq('job_id', job.id)
+                                            .or('code.ilike.%-material,code.ilike.%-other')
+                                          ).data?.map(c => c.code) || [])
+                                          .order('code');
+                                        
+                                        setBankFeeJobCostCodes(costCodesData || []);
+                                      }}
+                                    >
+                                      {job.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                                
+                                <CommandSeparator />
+                                
+                                <CommandGroup heading="Expense Accounts">
+                                  {expenseAccounts.map((account) => (
+                                    <CommandItem
+                                      key={account.id}
+                                      value={`account_${account.id}`}
+                                      onSelect={() => {
+                                        setBankFeeJobOrAccount(`account_${account.id}`);
+                                        setIsBankFeeJob(false);
+                                        setBankFeeCostCodeId(null);
+                                        setBankFeeJobCostCodes([]);
+                                        setBankFeeAccountPickerOpen(false);
+                                      }}
+                                    >
+                                      {account.account_number} - {account.account_name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      {isBankFeeJob && bankFeeJobCostCodes.length > 0 && (
+                        <div>
+                          <Label>Cost Code *</Label>
+                          <Popover open={bankFeeCostCodePickerOpen} onOpenChange={setBankFeeCostCodePickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between"
+                              >
+                                {bankFeeCostCodeId ? (
+                                  bankFeeJobCostCodes.find(cc => cc.id === bankFeeCostCodeId)?.code + ' - ' +
+                                  bankFeeJobCostCodes.find(cc => cc.id === bankFeeCostCodeId)?.description
+                                ) : (
+                                  "Select cost code"
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search cost codes..." />
+                                <CommandList>
+                                  <CommandEmpty>No cost codes found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {bankFeeJobCostCodes.map((costCode) => (
+                                      <CommandItem
+                                        key={costCode.id}
+                                        value={costCode.id}
+                                        onSelect={() => {
+                                          setBankFeeCostCodeId(costCode.id);
+                                          setBankFeeCostCodePickerOpen(false);
+                                        }}
+                                      >
+                                        {costCode.code} - {costCode.description}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
               <div>
