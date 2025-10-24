@@ -56,9 +56,8 @@ const getStatusVariant = (status: string) => {
     case "pending_coding":
       return "secondary";
     case "approved":
-      return "warning"; // Orange for awaiting payment
     case "pending_payment":
-      return "secondary";
+      return "warning"; // Orange for awaiting payment
     case "overdue":
       return "destructive";
     default:
@@ -583,9 +582,7 @@ export default function Bills() {
                     return (
                     <TableRow 
                       key={bill.id} 
-                      className={`cursor-pointer hover:bg-primary/10 hover:shadow-sm hover:scale-[1.005] transition-all duration-200 border-l-4 ${
-                        billIsOverdue ? 'border-l-destructive' : 'border-l-transparent'
-                      }`}
+                      className="cursor-pointer hover:bg-primary/10 hover:shadow-sm hover:scale-[1.005] transition-all duration-200"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -648,7 +645,7 @@ export default function Bills() {
                   <div 
                     key={bill.id} 
                     className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
-                      billIsOverdue ? 'bg-destructive/10 border-destructive' : ''
+                      billIsOverdue ? 'bg-destructive/10' : ''
                     }`}
                     style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                     onClick={() => navigate(`/bills/${bill.id}`)}
@@ -699,9 +696,7 @@ export default function Bills() {
                   return (
                   <div 
                     key={bill.id} 
-                    className={`flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
-                      billIsOverdue ? 'border-destructive' : ''
-                    }`}
+                    className="flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
                     style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     onClick={() => navigate(`/bills/${bill.id}`)}
                   >
