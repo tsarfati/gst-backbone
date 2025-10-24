@@ -446,7 +446,6 @@ export default function MakePayment() {
         bank_account_id: payment.bank_account_id,
         is_partial_payment: isPartialPayment,
         bank_fee: payment.bank_fee || 0,
-        company_id: currentCompany.id,
         created_by: user.data.user?.id
       };
 
