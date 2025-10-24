@@ -57,6 +57,7 @@ export default function UserSettings() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<string | null>(null);
+  const [selectedUserForJobAccess, setSelectedUserForJobAccess] = useState<string | null>(null);
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -366,23 +367,35 @@ export default function UserSettings() {
 
         <TabsContent value="job-access">
           <div className="space-y-6">
-            <div className="text-center">
-              {selectedUserForPermissions ? (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">
-                    Job Access for {users.find(u => u.user_id === selectedUserForPermissions)?.display_name}
-                  </h3>
-                  <UserJobAccess 
-                    userId={selectedUserForPermissions}
-                    userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
-                  />
-                </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  Select a user from the Users tab to manage their job access permissions.
-                </p>
-              )}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Select User</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={selectedUserForJobAccess || ''}
+                  onValueChange={setSelectedUserForJobAccess}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a user to manage job access" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.user_id} value={user.user_id}>
+                        {user.display_name || `${user.first_name} ${user.last_name}`} - {roleLabels[user.role as keyof typeof roleLabels]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+            
+            {selectedUserForJobAccess && (
+              <UserJobAccess 
+                userId={selectedUserForJobAccess}
+                userRole={users.find(u => u.user_id === selectedUserForJobAccess)?.role || 'employee'}
+              />
+            )}
           </div>
         </TabsContent>
       </Tabs>
