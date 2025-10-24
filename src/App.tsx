@@ -57,6 +57,7 @@ import BillDetails from "./pages/BillDetails";
 import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentDetails from "./pages/PaymentDetails";
+import PaymentEdit from "./pages/PaymentEdit";
 import PaymentReports from "./pages/PaymentReports";
 import GeneralLedger from "./pages/GeneralLedger";
 import AddBill from "./pages/AddBill";
@@ -296,8 +297,18 @@ function AuthenticatedRoutes() {
                 <Route path="payables/payment-reports" element={<PaymentReports />} />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
                 <Route path="payables/payments/:id" element={<PaymentDetails />} />
+                <Route path="payables/payments/:id/edit" element={
+                  <RoleGuard allowedRoles={['admin', 'controller']}>
+                    <PaymentEdit />
+                  </RoleGuard>
+                } />
                 <Route path="bills/payments" element={<PaymentHistory />} />
                 <Route path="bills/payments/:id" element={<PaymentDetails />} />
+                <Route path="bills/payments/:id/edit" element={
+                  <RoleGuard allowedRoles={['admin', 'controller']}>
+                    <PaymentEdit />
+                  </RoleGuard>
+                } />
                 <Route path="bills/payment-reports" element={<PaymentReports />} />
                 <Route path="subcontracts" element={<Subcontracts />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />

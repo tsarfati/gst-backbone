@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Calculator } from "lucide-react";
+import { ArrowLeft, FileText, Calculator, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -372,7 +372,15 @@ export default function PaymentDetails() {
             </p>
           </div>
         </div>
-        {getStatusBadge(payment.status)}
+        <div className="flex items-center gap-2">
+          {getStatusBadge(payment.status)}
+          {payment.status !== 'cleared' && (
+            <Button onClick={() => navigate(`/payables/payments/${payment.id}/edit`)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -446,9 +454,11 @@ export default function PaymentDetails() {
                     onClick={() => navigate(`/bills/${invoice.id}`)}
                   >
                     <div>
-                      <p className="font-medium">{invoice.invoice_number}</p>
+                      <p className="font-medium text-primary hover:underline">
+                        Invoice #{invoice.invoice_number}
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        Invoice: ${invoice.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        Total: ${invoice.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div className="text-right">
