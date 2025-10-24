@@ -14,6 +14,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
+import { useDashboardPermissions } from '@/hooks/useDashboardPermissions';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 
@@ -161,6 +162,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const permissions = useActionPermissions();
+  const dashboardPermissions = useDashboardPermissions();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
@@ -510,7 +512,7 @@ export default function Dashboard() {
         </Dialog>
       </div>
 
-      {dashboardSettings.show_stats && (
+      {dashboardSettings.show_stats && dashboardPermissions.canViewSection('stats') && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat) => (
             <Card 
@@ -539,9 +541,10 @@ export default function Dashboard() {
       )}
 
       {/* Notifications and Messages Row */}
-      {(dashboardSettings.show_notifications || dashboardSettings.show_messages) && (
+      {((dashboardSettings.show_notifications && dashboardPermissions.canViewSection('notifications')) || 
+        (dashboardSettings.show_messages && dashboardPermissions.canViewSection('messages'))) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {dashboardSettings.show_notifications && (
+          {dashboardSettings.show_notifications && dashboardPermissions.canViewSection('notifications') && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -596,7 +599,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {dashboardSettings.show_messages && (
+          {dashboardSettings.show_messages && dashboardPermissions.canViewSection('messages') && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -663,11 +666,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Bills Needing Approval or Coding - Show for Project Managers */}
-      {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
+      {/* Bills Needing Approval or Coding - Show based on permissions */}
+      {((dashboardPermissions.canViewSection('bills_overview') || dashboardPermissions.canViewSection('credit_card_coding')) && 
+        (profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller')) && (
         <div className="mb-8 space-y-4">
-          <BillsNeedingCoding limit={5} />
-          <CreditCardCodingRequests />
+          {dashboardPermissions.canViewSection('bills_overview') && <BillsNeedingCoding limit={5} />}
+          {dashboardPermissions.canViewSection('credit_card_coding') && <CreditCardCodingRequests />}
         </div>
       )}
 
@@ -704,7 +708,7 @@ export default function Dashboard() {
       )}
 
       {/* Financial Management Sections */}
-      {dashboardSettings.show_bills_overview && (
+      {dashboardSettings.show_bills_overview && dashboardPermissions.canViewSection('bills_overview') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -734,7 +738,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_payment_status && (
+      {dashboardSettings.show_payment_status && dashboardPermissions.canViewSection('payment_status') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -757,7 +761,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_invoice_summary && (
+      {dashboardSettings.show_invoice_summary && dashboardPermissions.canViewSection('invoice_summary') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -780,7 +784,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_budget_tracking && (
+      {dashboardSettings.show_budget_tracking && dashboardPermissions.canViewSection('budget_tracking') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -805,7 +809,7 @@ export default function Dashboard() {
       )}
 
       {/* Time Tracking Sections */}
-      {dashboardSettings.show_punch_clock_status && (
+      {dashboardSettings.show_punch_clock_status && dashboardPermissions.canViewSection('punch_clock') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -840,7 +844,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_timesheet_approval && (
+      {dashboardSettings.show_timesheet_approval && dashboardPermissions.canViewSection('timesheet_approval') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -857,7 +861,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_overtime_alerts && (
+      {dashboardSettings.show_overtime_alerts && dashboardPermissions.canViewSection('overtime_alerts') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -880,7 +884,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_employee_attendance && (
+      {dashboardSettings.show_employee_attendance && dashboardPermissions.canViewSection('employee_attendance') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -908,7 +912,7 @@ export default function Dashboard() {
       )}
 
       {/* Project Management Sections */}
-      {dashboardSettings.show_project_progress && (
+      {dashboardSettings.show_project_progress && dashboardPermissions.canViewSection('project_progress') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -936,7 +940,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_task_deadlines && (
+      {dashboardSettings.show_task_deadlines && dashboardPermissions.canViewSection('task_deadlines') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -959,7 +963,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {dashboardSettings.show_resource_allocation && (
+      {dashboardSettings.show_resource_allocation && dashboardPermissions.canViewSection('resource_allocation') && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -982,7 +986,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {(dashboardSettings.show_recent_activity || dashboardSettings.show_active_jobs) && (
+      {((dashboardSettings.show_recent_activity) || 
+        (dashboardSettings.show_active_jobs && dashboardPermissions.canViewSection('active_jobs'))) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {dashboardSettings.show_recent_activity && (
             <Card>
@@ -997,7 +1002,7 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {dashboardSettings.show_active_jobs && <ActiveJobsList />}
+          {dashboardSettings.show_active_jobs && dashboardPermissions.canViewSection('active_jobs') && <ActiveJobsList />}
         </div>
       )}
     </div>

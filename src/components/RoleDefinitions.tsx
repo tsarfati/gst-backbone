@@ -139,6 +139,27 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: 'admin.integrations', label: 'Manage Integrations', description: 'Can configure system integrations' },
       { key: 'admin.audit_logs', label: 'View Audit Logs', description: 'Can view system audit logs' },
     ]
+  },
+  {
+    category: 'Dashboard Sections',
+    permissions: [
+      { key: 'dashboard.stats', label: 'Stats Overview', description: 'Show key metrics and statistics' },
+      { key: 'dashboard.notifications', label: 'Notifications', description: 'Show notifications panel' },
+      { key: 'dashboard.messages', label: 'Messages', description: 'Show messages panel' },
+      { key: 'dashboard.active_jobs', label: 'Active Jobs', description: 'Show active jobs list' },
+      { key: 'dashboard.bills_overview', label: 'Bills Overview', description: 'Show bills needing coding' },
+      { key: 'dashboard.payment_status', label: 'Payment Status', description: 'Show payment tracking' },
+      { key: 'dashboard.invoice_summary', label: 'Invoice Summary', description: 'Show invoice overview' },
+      { key: 'dashboard.budget_tracking', label: 'Budget Tracking', description: 'Show budget progress' },
+      { key: 'dashboard.punch_clock', label: 'Punch Clock Status', description: 'Show punch clock tracking' },
+      { key: 'dashboard.timesheet_approval', label: 'Timesheet Approval', description: 'Show pending timesheets' },
+      { key: 'dashboard.overtime_alerts', label: 'Overtime Alerts', description: 'Show overtime warnings' },
+      { key: 'dashboard.employee_attendance', label: 'Employee Attendance', description: 'Show attendance tracking' },
+      { key: 'dashboard.project_progress', label: 'Project Progress', description: 'Show project completion status' },
+      { key: 'dashboard.task_deadlines', label: 'Task Deadlines', description: 'Show upcoming deadlines' },
+      { key: 'dashboard.resource_allocation', label: 'Resource Allocation', description: 'Show resource usage' },
+      { key: 'dashboard.credit_card_coding', label: 'Credit Card Coding', description: 'Show credit card transactions needing coding' },
+    ]
   }
 ];
 
@@ -187,6 +208,15 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'reports.vendor': true,
       'reports.export': true,
       'admin.users': true,
+      'dashboard.stats': true,
+      'dashboard.notifications': true,
+      'dashboard.messages': true,
+      'dashboard.bills_overview': true,
+      'dashboard.payment_status': true,
+      'dashboard.invoice_summary': true,
+      'dashboard.budget_tracking': true,
+      'dashboard.timesheet_approval': true,
+      'dashboard.credit_card_coding': true,
     }
   },
   {
@@ -219,6 +249,14 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'reports.job_costing': true,
       'reports.timecard': true,
       'reports.vendor': true,
+      'dashboard.stats': true,
+      'dashboard.notifications': true,
+      'dashboard.messages': true,
+      'dashboard.active_jobs': true,
+      'dashboard.project_progress': true,
+      'dashboard.task_deadlines': true,
+      'dashboard.resource_allocation': true,
+      'dashboard.employee_attendance': true,
     }
   },
   {
@@ -229,6 +267,9 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'receipts.upload': true,
       'receipts.code': true,
       'timecards.view': true,
+      'dashboard.notifications': true,
+      'dashboard.messages': true,
+      'dashboard.punch_clock': true,
     }
   },
   {
@@ -246,6 +287,8 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'reports.financial': true,
       'reports.timecard': true,
       'reports.vendor': true,
+      'dashboard.stats': true,
+      'dashboard.active_jobs': true,
     }
   }
 ];
