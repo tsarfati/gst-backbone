@@ -3029,10 +3029,12 @@ export type Database = {
           company_id: string
           created_at: string
           email_enabled: boolean
+          financial_overview_interval: string | null
           id: string
           in_app_enabled: boolean
           invoices_paid: boolean
           job_assignments: boolean
+          overdue_bills_interval: string | null
           overdue_invoices: boolean
           receipt_uploaded: boolean
           updated_at: string
@@ -3043,10 +3045,12 @@ export type Database = {
           company_id: string
           created_at?: string
           email_enabled?: boolean
+          financial_overview_interval?: string | null
           id?: string
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
+          overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
           updated_at?: string
@@ -3057,10 +3061,12 @@ export type Database = {
           company_id?: string
           created_at?: string
           email_enabled?: boolean
+          financial_overview_interval?: string | null
           id?: string
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
+          overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
           updated_at?: string

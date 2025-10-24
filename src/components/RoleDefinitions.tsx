@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -702,10 +702,17 @@ export default function RoleDefinitions() {
   const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>(defaultRoleDefinitions);
   const [openRoles, setOpenRoles] = useState<{ [key: string]: boolean }>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { profile } = useAuth();
   const { toast } = useToast();
 
   const isAdmin = profile?.role === 'admin';
+
+  useEffect(() => {
+    // Initialize with first role open by default
+    setOpenRoles({ [defaultRoleDefinitions[0].role]: true });
+    setLoading(false);
+  }, []);
 
   const toggleRole = (role: string) => {
     setOpenRoles(prev => ({ ...prev, [role]: !prev[role] }));
@@ -730,6 +737,19 @@ export default function RoleDefinitions() {
       description: 'Role permissions have been updated successfully',
     });
   };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span className="text-muted-foreground">Loading role definitions...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

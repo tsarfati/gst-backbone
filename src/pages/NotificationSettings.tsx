@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Bell, Mail, Eye, Edit, MessageSquare, History, Send, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +23,7 @@ interface NotificationSettings {
   email_enabled: boolean;
   in_app_enabled: boolean;
   overdue_bills: boolean;
+  overdue_bills_interval?: string;
   bills_paid: boolean;
   vendor_invitations: boolean;
   job_assignments: boolean;
@@ -30,7 +32,7 @@ interface NotificationSettings {
   bill_coding_request?: boolean;
   credit_card_coding_request?: boolean;
   financial_overview_enabled?: boolean;
-  financial_overview_frequency?: string;
+  financial_overview_interval?: string;
 }
 
 interface EmailTemplate {
@@ -387,16 +389,38 @@ export default function NotificationSettings() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Notification Types</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="overdue-bills">Overdue Bills</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                  <div className="space-y-3 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="overdue-bills">Overdue Bills</Label>
+                        <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                      </div>
+                      <Switch
+                        id="overdue-bills"
+                        checked={settings.overdue_bills}
+                        onCheckedChange={(checked) => updateSetting("overdue_bills", checked)}
+                      />
                     </div>
-                    <Switch
-                      id="overdue-bills"
-                      checked={settings.overdue_bills}
-                      onCheckedChange={(checked) => updateSetting("overdue_bills", checked)}
-                    />
+                    {settings.overdue_bills && (
+                      <div className="ml-0 pt-2">
+                        <Label htmlFor="overdue-bills-interval" className="text-sm text-muted-foreground">
+                          Notification Frequency
+                        </Label>
+                        <Select
+                          value={settings.overdue_bills_interval || 'daily'}
+                          onValueChange={(value) => setSettings(prev => ({ ...prev, overdue_bills_interval: value }))}
+                        >
+                          <SelectTrigger id="overdue-bills-interval" className="w-full mt-2">
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -472,18 +496,40 @@ export default function NotificationSettings() {
               {/* Financial Reports */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Financial Reports</h3>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="financial-overview">Financial Overview Report</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Weekly report including approved bills awaiting payment, overdue bills, and outstanding customer invoices
-                    </p>
+                <div className="space-y-3 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="financial-overview">Financial Overview Report</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automated report including approved bills awaiting payment, overdue bills, and outstanding customer invoices
+                      </p>
+                    </div>
+                    <Switch
+                      id="financial-overview"
+                      checked={settings.financial_overview_enabled || false}
+                      onCheckedChange={(checked) => updateSetting("financial_overview_enabled" as any, checked)}
+                    />
                   </div>
-                  <Switch
-                    id="financial-overview"
-                    checked={settings.financial_overview_enabled || false}
-                    onCheckedChange={(checked) => updateSetting("financial_overview_enabled" as any, checked)}
-                  />
+                  {settings.financial_overview_enabled && (
+                    <div className="ml-0 pt-2">
+                      <Label htmlFor="financial-overview-interval" className="text-sm text-muted-foreground">
+                        Report Frequency
+                      </Label>
+                      <Select
+                        value={settings.financial_overview_interval || 'weekly'}
+                        onValueChange={(value) => setSettings(prev => ({ ...prev, financial_overview_interval: value }))}
+                      >
+                        <SelectTrigger id="financial-overview-interval" className="w-full mt-2">
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               </div>
 
