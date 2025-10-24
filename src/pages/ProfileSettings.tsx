@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -27,11 +28,13 @@ interface NotificationSettings {
   email_enabled: boolean;
   in_app_enabled: boolean;
   overdue_bills: boolean;
+  overdue_bills_interval?: string;
   bills_paid: boolean;
   vendor_invitations: boolean;
   job_assignments: boolean;
   receipt_uploaded: boolean;
   financial_overview_enabled?: boolean;
+  financial_overview_interval?: string;
   bill_approval_requests?: boolean;
   credit_card_coding_requests?: boolean;
 }
@@ -62,11 +65,13 @@ export default function ProfileSettings() {
     email_enabled: true,
     in_app_enabled: true,
     overdue_bills: true,
+    overdue_bills_interval: 'daily',
     bills_paid: true,
     vendor_invitations: true,
     job_assignments: true,
     receipt_uploaded: true,
     financial_overview_enabled: false,
+    financial_overview_interval: 'weekly',
     bill_approval_requests: false,
     credit_card_coding_requests: false,
   });
@@ -555,16 +560,36 @@ export default function ProfileSettings() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Notification Types</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="overdue-bills">Overdue Bills</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="overdue-bills">Overdue Bills</Label>
+                        <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                      </div>
+                      <Switch
+                        id="overdue-bills"
+                        checked={notificationSettings.overdue_bills}
+                        onCheckedChange={(checked) => updateNotificationSetting('overdue_bills', checked)}
+                      />
                     </div>
-                    <Switch
-                      id="overdue-bills"
-                      checked={notificationSettings.overdue_bills}
-                      onCheckedChange={(checked) => updateNotificationSetting('overdue_bills', checked)}
-                    />
+                    {notificationSettings.overdue_bills && (
+                      <div className="pl-6">
+                        <Label htmlFor="overdue-bills-interval">Notification Frequency</Label>
+                        <Select
+                          value={notificationSettings.overdue_bills_interval || 'daily'}
+                          onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, overdue_bills_interval: value }))}
+                        >
+                          <SelectTrigger id="overdue-bills-interval" className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -610,16 +635,36 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('receipt_uploaded', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="financial-overview">Financial Overview Reports</Label>
-                      <p className="text-sm text-muted-foreground">Weekly summary of approved bills, overdue payments, and outstanding invoices</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="financial-overview">Financial Overview Reports</Label>
+                        <p className="text-sm text-muted-foreground">Summary of approved bills, overdue payments, and outstanding invoices</p>
+                      </div>
+                      <Switch
+                        id="financial-overview"
+                        checked={notificationSettings.financial_overview_enabled || false}
+                        onCheckedChange={(checked) => updateNotificationSetting('financial_overview_enabled', checked)}
+                      />
                     </div>
-                    <Switch
-                      id="financial-overview"
-                      checked={notificationSettings.financial_overview_enabled || false}
-                      onCheckedChange={(checked) => updateNotificationSetting('financial_overview_enabled', checked)}
-                    />
+                    {notificationSettings.financial_overview_enabled && (
+                      <div className="pl-6">
+                        <Label htmlFor="financial-overview-interval">Report Frequency</Label>
+                        <Select
+                          value={notificationSettings.financial_overview_interval || 'weekly'}
+                          onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, financial_overview_interval: value }))}
+                        >
+                          <SelectTrigger id="financial-overview-interval" className="mt-2">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
