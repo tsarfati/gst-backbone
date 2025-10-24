@@ -69,19 +69,19 @@ const getStatusVariant = (status: string) => {
 const getStatusDisplayName = (status: string) => {
   switch (status) {
     case "pending":
-      return "pending approval";
+      return "Pending Approval";
     case "pending_approval":
-      return "pending approval";
+      return "Pending Approval";
     case "pending_coding":
-      return "pending coding";
+      return "Pending Coding";
     case "approved":
       return "Awaiting Payment";
     case "pending_payment":
-      return "pending payment";
+      return "Awaiting Payment";
     case "paid":
-      return "paid";
+      return "Paid";
     case "overdue":
-      return "overdue";
+      return "Overdue";
     default:
       return status;
   }

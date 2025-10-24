@@ -177,7 +177,7 @@ export default function MakePayment() {
             name
           )
         `)
-        .eq('status', 'approved')
+        .in('status', ['approved', 'pending_payment'])
         .eq('vendors.company_id', currentCompany.id)
         .order('due_date');
 
