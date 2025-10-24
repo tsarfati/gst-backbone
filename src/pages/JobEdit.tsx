@@ -459,9 +459,6 @@ export default function JobEdit() {
             <Save className="h-4 w-4 mr-2" />
             Save Changes
           </Button>
-            <Save className="h-4 w-4 mr-2" />
-            Save Changes
-          </Button>
         </div>
       </div>
 
