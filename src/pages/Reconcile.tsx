@@ -318,12 +318,13 @@ export default function Reconcile() {
         );
       }
       
-      // Load all payments for this bank account up to the ending date
+      // Load all payments for this bank account up to (and including) the ending date
+      const endingDateFormatted = format(endingDate, 'yyyy-MM-dd');
       const { data: paymentsData, error: paymentsError } = await supabase
         .from("payments")
         .select("id, payment_date, payment_number, amount, payment_method, status, bank_account_id")
         .eq("bank_account_id", accountId)
-        .lte("payment_date", format(endingDate, 'yyyy-MM-dd'))
+        .lte("payment_date", endingDateFormatted)
         .order("payment_date", { ascending: false });
 
       if (paymentsError) throw paymentsError;
@@ -335,7 +336,7 @@ export default function Reconcile() {
 
       if (account?.chart_account_id) {
         try {
-          // Load withdrawals (credits to cash account) up to ending date
+          // Load withdrawals (credits to cash account) up to (and including) ending date
           const { data, error } = await supabase
             .from("journal_entry_lines")
             .select(`
@@ -351,7 +352,7 @@ export default function Reconcile() {
             `)
             .eq("account_id", account.chart_account_id)
             .eq("journal_entries.status", "posted")
-            .lte("journal_entries.entry_date", format(endingDate, 'yyyy-MM-dd'))
+            .lte("journal_entries.entry_date", endingDateFormatted)
             .gt("credit_amount", 0);
           if (error) throw error;
           withdrawalsJournalData = data || [];
@@ -361,7 +362,7 @@ export default function Reconcile() {
         }
 
         try {
-          // Load deposits (debits to cash account) up to ending date
+          // Load deposits (debits to cash account) up to (and including) ending date
           const { data, error } = await supabase
             .from("journal_entry_lines")
             .select(`
@@ -377,7 +378,7 @@ export default function Reconcile() {
             `)
             .eq("account_id", account.chart_account_id)
             .eq("journal_entries.status", "posted")
-            .lte("journal_entries.entry_date", format(endingDate, 'yyyy-MM-dd'))
+            .lte("journal_entries.entry_date", endingDateFormatted)
             .gt("debit_amount", 0);
           if (error) throw error;
           depositsData = data || [];
@@ -1094,6 +1095,26 @@ export default function Reconcile() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Transactions Date Range Info */}
+      <Card className="mb-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
+              <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Transaction Date Range</p>
+              <p className="text-xs text-muted-foreground">
+                Showing transactions from beginning date through <strong>{format(endingDate, "MMMM d, yyyy")}</strong>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Transactions dated after this date are not displayed.
+              </p>
             </div>
           </div>
         </CardContent>
