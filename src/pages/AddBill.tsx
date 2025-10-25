@@ -26,6 +26,7 @@ import CommitmentInfo from "@/components/CommitmentInfo";
 import type { CodedReceipt } from "@/contexts/ReceiptContext";
 import QuickAddVendor from "@/components/QuickAddVendor";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
+import BillDistributionSection from "@/components/BillDistributionSection";
 
 interface DistributionLineItem {
   id: string;
@@ -60,7 +61,7 @@ export default function AddBill() {
     commitment_type: "",
     is_reimbursement: false,
     use_terms: true, // toggle between due date and terms
-    pending_coding: false // Mark bill as needing coding by PM
+    request_pm_help: false // Request help from PM for coding
   });
   
   const [billType, setBillType] = useState<"non_commitment" | "commitment">("non_commitment");
@@ -82,6 +83,8 @@ export default function AddBill() {
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
+  const [billDistribution, setBillDistribution] = useState<any[]>([]);
+  const [needsDistribution, setNeedsDistribution] = useState(false);
    const [previouslyBilled, setPreviouslyBilled] = useState<number>(0);
    const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
    const [payNumber, setPayNumber] = useState<number>(0);
@@ -448,6 +451,20 @@ export default function AddBill() {
       const distribution = Array.isArray(costDist) ? costDist : [];
       setCommitmentDistribution(distribution);
       
+      // Check if distribution is needed
+      if (distribution.length === 1) {
+        // Single cost code - auto-apply
+        handleInputChange("cost_code_id", distribution[0].cost_code_id);
+        setNeedsDistribution(false);
+      } else if (distribution.length > 1) {
+        // Multiple cost codes - need distribution
+        setNeedsDistribution(true);
+        handleInputChange("cost_code_id", "");
+      } else {
+        // No distribution
+        setNeedsDistribution(false);
+      }
+      
       await fetchPreviouslyBilledAmount('subcontract', subcontractId);
       await fetchCommitmentTotals('subcontract', subcontractId, selectedSubcontract);
       await fetchPayNumber('subcontract', subcontractId);
@@ -466,6 +483,20 @@ export default function AddBill() {
       const costDist = selectedPO.cost_distribution;
       const distribution = Array.isArray(costDist) ? costDist : [];
       setCommitmentDistribution(distribution);
+      
+      // Check if distribution is needed
+      if (distribution.length === 1) {
+        // Single cost code - auto-apply
+        handleInputChange("cost_code_id", distribution[0].cost_code_id);
+        setNeedsDistribution(false);
+      } else if (distribution.length > 1) {
+        // Multiple cost codes - need distribution
+        setNeedsDistribution(true);
+        handleInputChange("cost_code_id", "");
+      } else {
+        // No distribution
+        setNeedsDistribution(false);
+      }
       
       await fetchPreviouslyBilledAmount('purchase_order', poId);
       await fetchCommitmentTotals('purchase_order', poId, selectedPO);
@@ -818,9 +849,9 @@ export default function AddBill() {
       // They should auto-apply cost codes from the subcontract distribution
       const isCommitmentBill = billType === "commitment" && (formData.subcontract_id || formData.purchase_order_id);
       
-      // If job requires PM approval OR user explicitly sent to PM for coding, mark as pending
-      // BUT: Subcontract/PO bills should never be pending_coding
-      const shouldPendCoding = !isCommitmentBill && (formData.pending_coding || requiresPmApproval);
+      // If job requires PM approval OR user requested PM help, mark as pending
+      // BUT: Subcontract/PO bills with auto-applied cost codes should never be pending_coding
+      const shouldPendCoding = !isCommitmentBill && (formData.request_pm_help || requiresPmApproval);
 
       // Fetch file naming settings
       const { data: namingSettings } = await supabase
@@ -881,17 +912,66 @@ export default function AddBill() {
         // For commitment bills, determine cost code automatically
         let costCodeId = formData.cost_code_id || null;
         
-        // If this is a subcontract/PO with cost distribution, auto-apply cost code if only one exists
-        if (isCommitmentBill && commitmentDistribution && commitmentDistribution.length === 1) {
-          costCodeId = commitmentDistribution[0].cost_code_id || null;
-        }
-        // If multiple cost codes exist in distribution, the bill will need manual distribution later
-        // But it should NOT be marked as pending_coding
-        
-        // For commitment bills, use the original single record approach
-        const { data: inserted, error } = await supabase
-          .from('invoices')
-          .insert({
+        // If this is a subcontract/PO with multi-distribution, create separate invoice records
+        if (isCommitmentBill && needsDistribution && billDistribution.length > 1) {
+          // Create multiple invoice records for distribution
+          const invoicesToInsert = billDistribution.map(dist => ({
+            vendor_id: formData.vendor_id,
+            job_id: formData.job_id,
+            cost_code_id: dist.cost_code_id,
+            subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
+            purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
+            amount: parseFloat(dist.amount),
+            invoice_number: formData.invoice_number || null,
+            issue_date: formData.issueDate,
+            due_date: dueDate,
+            payment_terms: formData.use_terms ? formData.payment_terms : null,
+            description: formData.description,
+            internal_notes: formData.internal_notes || null,
+            is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
+            is_reimbursement: formData.is_reimbursement,
+            created_by: user.data.user.id,
+            pending_coding: false,
+            assigned_to_pm: assignedToPm,
+            file_url: attachedReceipt?.file_url || null,
+            status: 'pending_approval'
+          }));
+
+          const { data: inserted, error } = await supabase
+            .from('invoices')
+            .insert(invoicesToInsert)
+            .select('id');
+
+          if (error) throw error;
+          
+          if (inserted && inserted.length) {
+            insertedInvoiceIds = inserted.map((row: any) => row.id);
+          }
+
+          // Add audit trail for attached receipt
+          if (attachedReceipt && inserted && inserted.length) {
+            const auditRows = inserted.map((row: any) => ({
+              invoice_id: row.id,
+              change_type: 'update',
+              field_name: 'attachment',
+              old_value: null,
+              new_value: attachedReceipt.id,
+              reason: `Attached coded receipt: ${attachedReceipt.filename}`,
+              changed_by: user.data.user!.id
+            }));
+            await supabase.from('invoice_audit_trail').insert(auditRows);
+          }
+        } else {
+          // Single commitment bill or single cost code
+          // If this is a subcontract/PO with cost distribution, auto-apply cost code if only one exists
+          if (isCommitmentBill && commitmentDistribution && commitmentDistribution.length === 1) {
+            costCodeId = commitmentDistribution[0].cost_code_id || null;
+          }
+          
+          // For commitment bills, use the original single record approach
+          const { data: inserted, error } = await supabase
+            .from('invoices')
+            .insert({
             vendor_id: formData.vendor_id,
             job_id: formData.job_id,
             cost_code_id: shouldPendCoding ? null : costCodeId,
@@ -931,6 +1011,7 @@ export default function AddBill() {
             reason: `Attached coded receipt: ${attachedReceipt.filename}`,
             changed_by: user.data.user.id
           });
+        }
         }
       }
 
@@ -989,9 +1070,11 @@ export default function AddBill() {
       toast({
         title: "Bill created",
         description: shouldPendCoding
-          ? "Bill sent to project manager for coding"
+          ? "Bill sent to project manager for coding assistance"
           : (billType === "non_commitment" 
             ? `Bill created with ${distributionItems.length} distribution line item(s)`
+            : needsDistribution
+            ? `Bill created with ${billDistribution.length} cost code distributions`
             : "Bill has been successfully created"),
       });
       
@@ -1009,18 +1092,10 @@ export default function AddBill() {
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && billFiles.length > 0 && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
-      (formData.pending_coding || formData.cost_code_id) // Either pending coding or has cost code
+      (formData.request_pm_help || formData.cost_code_id || (needsDistribution && billDistribution.length > 0)) // Either requesting help, has cost code, or has valid distribution
     : formData.vendor_id && formData.amount && formData.issueDate && (billFiles.length > 0 || attachedReceipt) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
-      (formData.pending_coding || isDistributionValid()); // Either pending coding or valid distribution
-
-  // Check if basic information is entered for "Send to PM for Coding" button
-  const isBasicInfoComplete = 
-    formData.vendor_id &&
-    formData.amount &&
-    formData.issueDate &&
-    ((formData.use_terms && formData.payment_terms) || (!formData.use_terms && formData.dueDate)) &&
-    (billFiles.length > 0 || attachedReceipt !== null);
+      (formData.request_pm_help || isDistributionValid()); // Either requesting help or valid distribution
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
@@ -1675,42 +1750,44 @@ export default function AddBill() {
                   )}
                 </div>
 
-                {/* Cost Distribution Display */}
-                {commitmentDistribution.length > 0 && (
+                {/* Cost Distribution Display - Show if single distribution */}
+                {commitmentDistribution.length === 1 && (
                   <div className="space-y-4">
-                    <div className="border rounded-lg p-4">
-                      <Label className="text-sm font-medium mb-3 block">Cost Code Distribution</Label>
-                      <div className="space-y-2">
-                        {commitmentDistribution.map((dist: any, index: number) => {
-                          const billAmount = parseFloat(formData.amount) || 0;
-                          const distributedAmount = billAmount * (dist.percentage / 100);
-                          return (
-                            <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                              <span className="text-sm">{dist.cost_code} - {dist.description}</span>
-                              <div className="text-right">
-                                <div className="text-sm font-medium">${distributedAmount.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground">{dist.percentage}%</div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    <div className="border rounded-lg p-4 bg-success/5">
+                      <Label className="text-sm font-medium mb-3 block">Cost Code (Auto-Applied)</Label>
+                      <div className="flex justify-between items-center p-2 bg-background rounded">
+                        <span className="text-sm font-medium">{commitmentDistribution[0].cost_code} - {commitmentDistribution[0].description}</span>
+                        <Badge variant="secondary">100%</Badge>
                       </div>
-                      {previouslyBilled > 0 && (
-                        <div className="mt-3 pt-3 border-t">
-                          <div className="flex justify-between text-sm">
-                            <span>Previously Billed:</span>
-                            <span>${previouslyBilled.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-sm font-medium">
-                            <span>Current Bill:</span>
-                            <span>${(parseFloat(formData.amount) || 0).toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-sm font-medium border-t pt-1">
-                            <span>Total Billed:</span>
-                            <span>${((parseFloat(formData.amount) || 0) + previouslyBilled).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Cost Distribution Section - Show if multiple distributions */}
+                {needsDistribution && commitmentDistribution.length > 1 && (
+                  <BillDistributionSection
+                    subcontractDistribution={commitmentDistribution}
+                    billAmount={formData.amount}
+                    onChange={setBillDistribution}
+                  />
+                )}
+
+                {/* Previously Billed Summary */}
+                {previouslyBilled > 0 && (
+                  <div className="border rounded-lg p-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Previously Billed:</span>
+                        <span>${previouslyBilled.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium">
+                        <span>Current Bill:</span>
+                        <span>${(parseFloat(formData.amount) || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-medium border-t pt-2">
+                        <span>Total Billed:</span>
+                        <span>${((parseFloat(formData.amount) || 0) + previouslyBilled).toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2008,32 +2085,44 @@ export default function AddBill() {
           </CardContent>
         </Card>
 
+        {/* Request Help Option */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="request_pm_help"
+                checked={formData.request_pm_help}
+                onCheckedChange={(checked) => {
+                  handleInputChange("request_pm_help", checked);
+                  if (checked) {
+                    // Clear cost codes when requesting help
+                    if (billType === "non_commitment") {
+                      setDistributionItems(distributionItems.map(item => ({ ...item, cost_code_id: "" })));
+                    }
+                    toast({
+                      title: "Help requested",
+                      description: "Bill will be sent to project manager for coding assistance"
+                    });
+                  }
+                }}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="request_pm_help" className="cursor-pointer">
+                  Request help from Project Manager for cost code assignment
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Check this box if you need assistance coding this bill to the correct cost codes
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Form Actions */}
         <div className="flex gap-3">
           <Button type="submit" disabled={!isFormValid}>
             <FileText className="h-4 w-4 mr-2" />
-            Add Bill
-          </Button>
-          <Button 
-            type="button" 
-            variant="secondary"
-            disabled={!isBasicInfoComplete}
-            onClick={(e) => {
-              e.preventDefault();
-              handleInputChange("pending_coding", !formData.pending_coding);
-              if (!formData.pending_coding) {
-                // Clear cost codes when enabling pending coding
-                setDistributionItems(distributionItems.map(item => ({ ...item, cost_code_id: "" })));
-                toast({
-                  title: "Coding mode enabled",
-                  description: "Bill will be sent to project manager for cost code assignment"
-                });
-              }
-            }}
-            className={formData.pending_coding ? "border-primary" : ""}
-          >
-            <AlertCircle className="h-4 w-4 mr-2" />
-            {formData.pending_coding ? "Sending to PM for Coding" : "Send to PM for Coding"}
+            {formData.request_pm_help ? "Add Bill & Request Help" : "Add Bill"}
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
             Cancel
