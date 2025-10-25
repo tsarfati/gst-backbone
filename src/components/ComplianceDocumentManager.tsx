@@ -29,12 +29,14 @@ interface ComplianceDocumentManagerProps {
   vendorId: string;
   documents: ComplianceDocument[];
   onDocumentsChange: (documents: ComplianceDocument[]) => void;
+  isEditMode?: boolean;
 }
 
 export default function ComplianceDocumentManager({
   vendorId,
   documents,
-  onDocumentsChange
+  onDocumentsChange,
+  isEditMode = false
 }: ComplianceDocumentManagerProps) {
   const { profile, user } = useAuth();
   const [editingDoc, setEditingDoc] = useState<ComplianceDocument | null>(null);
@@ -69,17 +71,18 @@ export default function ComplianceDocumentManager({
       const existingDoc = documents.find(doc => doc.type === type);
       
       if (existingDoc?.id) {
-        // Update existing document
+        // Update existing document - only update fields that are provided
+        const updateData: any = {};
+        if (updates.required !== undefined) updateData.is_required = updates.required;
+        if (updates.fileName !== undefined) updateData.file_name = updates.fileName;
+        if (updates.url !== undefined) updateData.file_url = updates.url;
+        if (updates.uploadDate !== undefined) updateData.uploaded_at = updates.uploadDate;
+        if (updates.expirationDate !== undefined) updateData.expiration_date = updates.expirationDate;
+        if (updates.uploaded !== undefined) updateData.is_uploaded = updates.uploaded;
+        
         const { error } = await supabase
           .from('vendor_compliance_documents')
-          .update({
-            is_required: updates.required,
-            file_name: updates.fileName,
-            file_url: updates.url,
-            uploaded_at: updates.uploadDate,
-            expiration_date: updates.expirationDate,
-            is_uploaded: updates.uploaded || false
-          })
+          .update(updateData)
           .eq('id', existingDoc.id);
           
         if (error) throw error;
@@ -246,7 +249,7 @@ export default function ComplianceDocumentManager({
           return (
             <Card key={type} className={expired ? "border-destructive" : ""}>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
                     <span className="font-medium">{label}</span>
@@ -257,16 +260,18 @@ export default function ComplianceDocumentManager({
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={`required-${type}`} className="text-sm">Required</Label>
-                      <Switch
-                        id={`required-${type}`}
-                        checked={doc.required}
-                        onCheckedChange={(checked) => handleRequiredToggle(type, checked)}
-                      />
+                  {isEditMode && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor={`required-${type}`} className="text-sm">Required</Label>
+                        <Switch
+                          id={`required-${type}`}
+                          checked={doc.required}
+                          onCheckedChange={(checked) => handleRequiredToggle(type, checked)}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {doc.required && (

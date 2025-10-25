@@ -552,6 +552,7 @@ export default function VendorDetails() {
             vendorId={vendor.id}
             documents={complianceDocuments}
             onDocumentsChange={setComplianceDocuments}
+            isEditMode={false}
           />
         </div>
 

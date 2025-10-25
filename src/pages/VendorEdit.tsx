@@ -808,6 +808,7 @@ export default function VendorEdit() {
                   vendorId={id!}
                   documents={complianceDocuments}
                   onDocumentsChange={setComplianceDocuments}
+                  isEditMode={true}
                 />
               </CardContent>
             </Card>
