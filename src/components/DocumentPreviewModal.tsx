@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download, X, FileText, Image as ImageIcon } from "lucide-react";
 import { useState, useEffect } from "react";
-import PdfPreview from "./PdfPreview";
+import UrlPdfInlinePreview from "./UrlPdfInlinePreview";
 import { supabase } from "@/integrations/supabase/client";
 
 interface DocumentPreviewModalProps {
@@ -143,8 +143,8 @@ export default function DocumentPreviewModal({
     
     if (fileType === 'pdf' || isPdf(document.fileName)) {
       return (
-        <div className="w-full h-[600px]">
-          <PdfPreview url={refreshedUrl} />
+        <div className="w-full h-[600px] overflow-y-auto">
+          <UrlPdfInlinePreview url={refreshedUrl} />
         </div>
       );
     } else if (fileType === 'image' || isImage(document.fileName)) {
