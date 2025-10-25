@@ -242,7 +242,16 @@ export default function ComplianceDocumentManager({
       </div>
 
       <div className="grid gap-4">
-        {documentTypes.map(({ type, label, icon: Icon }) => {
+        {documentTypes
+          .filter(({ type }) => {
+            // In edit mode, show all document types
+            if (isEditMode) return true;
+            
+            // In view mode, only show documents that are required or uploaded
+            const doc = getDocumentByType(type);
+            return doc.required || doc.uploaded;
+          })
+          .map(({ type, label, icon: Icon }) => {
           const doc = getDocumentByType(type);
           const expired = isExpired(doc);
           
@@ -274,9 +283,9 @@ export default function ComplianceDocumentManager({
                   )}
                 </div>
 
-                {doc.required && (
+                {(doc.required || doc.uploaded) && (
                   <div className="space-y-3">
-                    {!doc.uploaded ? (
+                    {!doc.uploaded && (isEditMode || doc.required) ? (
                       <div className="space-y-3">
                         <DragDropUpload
                           onFileSelect={(file) => handleFileUpload(type, file)}
