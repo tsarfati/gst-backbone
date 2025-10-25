@@ -1100,26 +1100,6 @@ export default function Reconcile() {
         </CardContent>
       </Card>
 
-      {/* Transactions Date Range Info */}
-      <Card className="mb-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-        <CardContent className="pt-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded">
-              <TrendingDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Transaction Date Range</p>
-              <p className="text-xs text-muted-foreground">
-                Showing transactions from beginning date through <strong>{format(endingDate, "MMMM d, yyyy")}</strong>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Transactions dated after this date are not displayed.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Bank Statement Upload */}
       <Card className="mb-6">
         <CardHeader>
