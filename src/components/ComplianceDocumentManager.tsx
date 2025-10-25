@@ -164,14 +164,14 @@ export default function ComplianceDocumentManager({
       
       // Upload to Supabase storage
       const { data, error } = await supabase.storage
-        .from('compliance-documents')
+        .from('vendor-compliance-docs')
         .upload(fileName, file);
 
       if (error) throw error;
 
       // Get the public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('compliance-documents')
+        .from('vendor-compliance-docs')
         .getPublicUrl(fileName);
 
       // Update document record
@@ -366,40 +366,61 @@ export default function ComplianceDocumentManager({
                           )}
                         </div>
 
-                        {type === 'insurance' && (
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor={`expiration-${type}`} className="text-sm">Expiration Date:</Label>
-                            {doc.expirationDate ? (
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm ${expired ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                  {new Date(doc.expirationDate).toLocaleDateString()}
-                                </span>
+                        {(type === 'insurance' || type === 'license') && (
+                          <div className="mt-3 pt-3 border-t">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor={`expiration-${type}`} className="text-sm font-medium">
+                                Expiration Date {type === 'insurance' && <span className="text-destructive">*</span>}
+                              </Label>
+                              {doc.expirationDate ? (
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm font-medium ${expired ? 'text-destructive' : 'text-foreground'}`}>
+                                    {new Date(doc.expirationDate).toLocaleDateString()}
+                                  </span>
+                                  {(profile?.role === 'admin' || profile?.role === 'controller') && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingDoc(doc);
+                                        setExpirationDate(doc.expirationDate || '');
+                                      }}
+                                      className="h-6 px-2"
+                                    >
+                                      Edit
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : (
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
                                   onClick={() => {
                                     setEditingDoc(doc);
-                                    setExpirationDate(doc.expirationDate || '');
+                                    setExpirationDate('');
                                   }}
                                   className="h-6 px-2"
                                 >
-                                  Edit
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  Add Date
                                 </Button>
+                              )}
+                            </div>
+                            {expired && (
+                              <div className="mt-2 flex items-center gap-1 text-xs text-destructive">
+                                <AlertTriangle className="h-3 w-3" />
+                                This document expired on {new Date(doc.expirationDate!).toLocaleDateString()}
                               </div>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingDoc(doc);
-                                  setExpirationDate('');
-                                }}
-                                className="h-6 px-2"
-                              >
-                                <Calendar className="h-3 w-3 mr-1" />
-                                Add Date
-                              </Button>
                             )}
+                            {!expired && doc.expirationDate && (() => {
+                              const daysUntil = Math.floor((new Date(doc.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                              return daysUntil <= 30 ? (
+                                <div className="mt-2 flex items-center gap-1 text-xs text-warning">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Expires in {daysUntil} days
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         )}
                       </div>
@@ -415,9 +436,13 @@ export default function ComplianceDocumentManager({
       <AlertDialog open={!!editingDoc} onOpenChange={() => setEditingDoc(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Set Insurance Expiration Date</AlertDialogTitle>
+            <AlertDialogTitle>Set Expiration Date</AlertDialogTitle>
             <AlertDialogDescription>
-              Enter the expiration date for the insurance document.
+              Enter the expiration date for this document. {editingDoc?.expirationDate && !(['admin', 'controller'].includes(profile?.role || '')) && (
+                <span className="text-warning block mt-2">
+                  Note: Once set, only admins and controllers can modify expiration dates.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
@@ -428,7 +453,13 @@ export default function ComplianceDocumentManager({
               value={expirationDate}
               onChange={(e) => setExpirationDate(e.target.value)}
               className="mt-2"
+              min={new Date().toISOString().split('T')[0]}
             />
+            {editingDoc?.expirationDate && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Current expiration: {new Date(editingDoc.expirationDate).toLocaleDateString()}
+              </p>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

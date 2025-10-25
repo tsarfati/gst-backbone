@@ -5429,6 +5429,43 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_compliance_warnings: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          days_until_expiration: number | null
+          expiration_date: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string | null
+          is_expired: boolean | null
+          is_required: boolean | null
+          is_uploaded: boolean | null
+          type: string | null
+          updated_at: string | null
+          uploaded_at: string | null
+          vendor_id: string | null
+          vendor_name: string | null
+          warning_level: string | null
+          warning_message: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_compliance_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       activate_company_access: {
