@@ -14,12 +14,14 @@ import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import PayablesViewSelector from "@/components/PayablesViewSelector";
 import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 export default function Subcontracts() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { canCreate } = useActionPermissions();
   
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -155,10 +157,12 @@ export default function Subcontracts() {
             onSetDefault={setAsDefault}
             isDefault={isDefault}
           />
-          <Button onClick={() => navigate('/subcontracts/add')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Subcontract
-          </Button>
+          {canCreate('subcontracts') && (
+            <Button onClick={() => navigate('/subcontracts/add')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Subcontract
+            </Button>
+          )}
         </div>
       </div>
 

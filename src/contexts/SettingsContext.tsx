@@ -169,11 +169,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const merged = { ...defaultSettings, ...(companySettings || {}), ...(userSettings || {}) } as AppSettings;
         setSettings(merged);
 
-        // Apply effective colors: enforce company colors for non-admin/non-company_admin
-        const role = (profile?.role || '').toLowerCase();
-        const enforceCompanyColors = !!companySettings?.customColors && role !== 'admin' && role !== 'company_admin';
-        const effectiveColors = enforceCompanyColors
-          ? (companySettings!.customColors as AppSettings['customColors'])
+        // Apply effective colors: enforce company colors for ALL users when company colors exist
+        const effectiveColors = companySettings?.customColors
+          ? (companySettings.customColors as AppSettings['customColors'])
           : (merged.customColors || defaultSettings.customColors);
 
         const root = document.documentElement;
@@ -265,9 +263,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 
   const updateSettings = (updates: Partial<AppSettings>) => {
-    const role = (profile?.role || '').toLowerCase();
-    const isCompanyAdmin = role === 'admin' || role === 'company_admin';
-
     setSettings(prev => ({
       ...prev,
       ...updates,
@@ -275,21 +270,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       notifications: updates.notifications 
         ? { ...prev.notifications, ...updates.notifications }
         : prev.notifications,
-      // Handle nested color updates (block non-admins from overriding company colors)
-      customColors: updates.customColors
-        ? (isCompanyAdmin ? { ...prev.customColors, ...updates.customColors } : prev.customColors)
-        : prev.customColors
+      // Company colors always take precedence when they exist
+      customColors: companyDefaults?.customColors
+        ? (companyDefaults.customColors as AppSettings['customColors'])
+        : updates.customColors
+          ? { ...prev.customColors, ...updates.customColors }
+          : prev.customColors
     }));
   };
 
 
   const applyCustomColors = () => {
     const root = document.documentElement;
-    const role = (profile?.role || '').toLowerCase();
-    const enforceCompanyColors = !!companyDefaults?.customColors && role !== 'admin' && role !== 'company_admin';
-    const effectiveColors = enforceCompanyColors
-      ? (companyDefaults!.customColors as AppSettings['customColors'])
-      : (settings.customColors);
+    // Always use company colors if they exist, regardless of role
+    const effectiveColors = companyDefaults?.customColors
+      ? (companyDefaults.customColors as AppSettings['customColors'])
+      : settings.customColors;
 
     Object.entries(effectiveColors).forEach(([key, value]) => {
       const hsl = toHslToken(value as string);

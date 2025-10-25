@@ -16,6 +16,7 @@ import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 interface Bill {
   id: string;
@@ -115,6 +116,7 @@ export default function Bills() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { canCreate, canDelete, canEdit } = useActionPermissions();
   const [jobFilter, setJobFilter] = useState("all");
   const [vendorFilter, setVendorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -331,10 +333,12 @@ export default function Bills() {
               onSetDefault={setAsDefault}
               isDefault={isDefault}
             />
-            <Button onClick={() => navigate("/invoices/add")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Bill
-            </Button>
+            {canCreate('bills') && (
+              <Button onClick={() => navigate("/invoices/add")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Bill
+              </Button>
+            )}
           </div>
         </div>
 
@@ -421,7 +425,7 @@ export default function Bills() {
         </div>
 
         {/* Bulk Actions */}
-        {selectedBills.length > 0 && (() => {
+        {selectedBills.length > 0 && (canEdit('bills') || canDelete('bills')) && (() => {
           const selectedBillsData = bills.filter(b => selectedBills.includes(b.id));
           const hasUnapprovedBills = selectedBillsData.some(b => b.status === 'pending' || b.status === 'pending_approval');
           
@@ -439,7 +443,7 @@ export default function Bills() {
             </div>
             
             <div className="flex items-center gap-2">
-              {hasUnapprovedBills && (
+              {hasUnapprovedBills && canEdit('bills') && (
                 <Button 
                   variant="outline" 
                   onClick={handleBulkApprove}
@@ -449,14 +453,16 @@ export default function Bills() {
                   Approve Selected ({selectedBills.length})
                 </Button>
               )}
-              <Button 
-                variant="destructive" 
-                onClick={handleBulkDelete}
-                disabled={selectedBills.length === 0}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedBills.length})
-              </Button>
+              {canDelete('bills') && (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleBulkDelete}
+                  disabled={selectedBills.length === 0}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedBills.length})
+                </Button>
+              )}
             </div>
           </div>
           );

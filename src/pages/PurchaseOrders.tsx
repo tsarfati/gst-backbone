@@ -14,12 +14,14 @@ import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import PayablesViewSelector from "@/components/PayablesViewSelector";
 import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 export default function PurchaseOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { canCreate } = useActionPermissions();
   
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -157,10 +159,12 @@ export default function PurchaseOrders() {
             onSetDefault={setAsDefault}
             isDefault={isDefault}
           />
-          <Button onClick={() => navigate('/purchase-orders/add')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Purchase Order
-          </Button>
+          {canCreate('purchase_orders') && (
+            <Button onClick={() => navigate('/purchase-orders/add')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Purchase Order
+            </Button>
+          )}
         </div>
       </div>
 

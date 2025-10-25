@@ -7,6 +7,7 @@ import { Save, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/utils/formatNumber";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const { canEdit } = useActionPermissions();
+  const canEditBudget = canEdit('job_budgets');
 
   useEffect(() => {
     loadData();
@@ -437,12 +440,14 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={saveBudget} disabled={saving} size="sm">
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Budget'}
-            </Button>
-          </div>
+          {canEditBudget && (
+            <div className="flex justify-end">
+              <Button onClick={saveBudget} disabled={saving} size="sm">
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Budget'}
+              </Button>
+            </div>
+          )}
 
 
           {/* Unified Budget List */}
@@ -516,7 +521,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                               onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
                               className="w-32"
                               placeholder="0.00"
-                              disabled={isChild && parentId ? isChildDisabled(parentId, line) : false}
+                              disabled={!canEditBudget || (isChild && parentId ? isChildDisabled(parentId, line) : false)}
                             />
                           </TableCell>
                           <TableCell>

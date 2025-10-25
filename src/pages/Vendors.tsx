@@ -13,12 +13,14 @@ import { useVendorViewPreference } from "@/hooks/useVendorViewPreference";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo, useState } from "react";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 export default function Vendors() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { canCreate } = useActionPermissions();
   const { currentView, setCurrentView } = useVendorViewPreference();
   const [letter, setLetter] = useState<string>('All');
   const letters = useMemo(() => ['All', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'], []);
@@ -119,10 +121,12 @@ export default function Vendors() {
         </div>
         <div className="flex items-center gap-4">
           <VendorViewSelector currentView={currentView} onViewChange={setCurrentView} />
-          <Button onClick={() => navigate("/vendors/add")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vendor
-          </Button>
+          {canCreate('vendors') && (
+            <Button onClick={() => navigate("/vendors/add")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Vendor
+            </Button>
+          )}
         </div>
       </div>
       {/* Alphabet navigation - rolodex style */}

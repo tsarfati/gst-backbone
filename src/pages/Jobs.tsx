@@ -9,12 +9,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 export default function Jobs() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { canCreate } = useActionPermissions();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('jobs-view', 'list');
@@ -220,10 +222,12 @@ export default function Jobs() {
             onSetDefault={setDefaultView}
             isDefault={isDefault}
           />
-          <Button onClick={() => navigate("/jobs/add")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Job
-          </Button>
+          {canCreate('jobs') && (
+            <Button onClick={() => navigate("/jobs/add")}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Job
+            </Button>
+          )}
         </div>
       </div>
 
