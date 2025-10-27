@@ -527,16 +527,32 @@ export default function CreditCardTransactions() {
     setShowDetailModal(true);
   };
 
-  const getStatusBadge = (transaction: any) => {
-    if (transaction.requested_coder_id) {
-      return <Badge className="bg-purple-500 text-white">Assistance Requested</Badge>;
-    }
-    if (transaction.coding_status === 'coded') {
-      return <Badge className="bg-green-500 text-white">Coded</Badge>;
-    }
-    return <Badge variant="destructive">Uncoded</Badge>;
-  };
+  const getStatusBadge = (t: any) => {
+    const hasVendor = !!t.vendor_id;
+    const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
+    const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected
+    const hasAttachment = !!t.attachment_url;
+    const bypass = !!t.bypass_attachment_requirement;
+    const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
 
+    const badges: JSX.Element[] = [];
+
+    if (t.requested_coder_id) {
+      badges.push(<Badge className="bg-purple-500 text-white" key="assist">Assistance Requested</Badge>);
+    }
+
+    badges.push(
+      coded
+        ? <Badge className="bg-green-500 text-white" key="coded">Coded</Badge>
+        : <Badge variant="destructive" key="uncoded">Uncoded</Badge>
+    );
+
+    if (t.is_reconciled && !hasAttachment) {
+      badges.push(<Badge variant="outline" key="noattach">*</Badge>);
+    }
+
+    return <div className="flex items-center gap-1">{badges}</div>;
+  };
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }

@@ -490,8 +490,8 @@ export function CreditCardTransactionModal({
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
-    // Check if attachment is required based on company setting and bypass checkbox
-    const attachmentRequired = requireCCAttachment && !bypassAttachmentRequirement;
+    // Attachment required unless explicitly bypassed for this transaction
+    const attachmentRequired = !bypassAttachmentRequirement;
     const attachmentSatisfied = attachmentRequired ? hasAttachment : true;
 
     // All fields including vendor are required for coded status
@@ -1179,29 +1179,27 @@ export function CreditCardTransactionModal({
           {/* Attachment */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>Attachment {requireCCAttachment && !bypassAttachmentRequirement && '*'}</Label>
-              {requireCCAttachment && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="bypass-attachment"
-                    checked={bypassAttachmentRequirement}
-                    onCheckedChange={(checked) => {
-                      setBypassAttachmentRequirement(!!checked);
-                      // Update the database immediately
-                      supabase
-                        .from("credit_card_transactions")
-                        .update({ bypass_attachment_requirement: !!checked })
-                        .eq("id", transactionId)
-                        .then(() => {
-                          updateCodingStatus();
-                        });
-                    }}
-                  />
-                  <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
-                    Don't require attachment
-                  </label>
-                </div>
-              )}
+              <Label>Attachment {!bypassAttachmentRequirement && '*'}</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="bypass-attachment"
+                  checked={bypassAttachmentRequirement}
+                  onCheckedChange={(checked) => {
+                    setBypassAttachmentRequirement(!!checked);
+                    // Update the database immediately
+                    supabase
+                      .from("credit_card_transactions")
+                      .update({ bypass_attachment_requirement: !!checked })
+                      .eq("id", transactionId)
+                      .then(() => {
+                        updateCodingStatus();
+                      });
+                  }}
+                />
+                <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
+                  Don't require attachment
+                </label>
+              </div>
             </div>
             {(transaction?.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">
