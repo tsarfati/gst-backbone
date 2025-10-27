@@ -1116,7 +1116,10 @@ export function CreditCardTransactionModal({
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select vendor" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="" className="text-muted-foreground italic">
+                    Clear selection
+                  </SelectItem>
                   {vendors.map((vendor) => (
                     <SelectItem key={vendor.id} value={vendor.id}>
                       {vendor.name}
@@ -1159,11 +1162,22 @@ export function CreditCardTransactionModal({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0 z-50">
+              <PopoverContent className="w-[400px] p-0 z-50 bg-background">
                 <Command>
                   <CommandInput placeholder="Search jobs or accounts..." />
                   <CommandList>
                     <CommandEmpty>No results found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="reset-job-account"
+                        onSelect={() => handleJobOrAccountChange(null)}
+                        className="text-muted-foreground italic"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Clear selection
+                      </CommandItem>
+                    </CommandGroup>
+                    <CommandSeparator />
                     {jobs.length > 0 && (
                       <CommandGroup heading="Jobs">
                         {jobs.map((job) => (
@@ -1233,11 +1247,22 @@ export function CreditCardTransactionModal({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                 <PopoverContent className="w-[400px] p-0 z-50">
+                 <PopoverContent className="w-[400px] p-0 z-50 bg-background">
                   <Command>
                     <CommandInput placeholder="Search cost codes..." />
                     <CommandList>
                       <CommandEmpty>No cost codes found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="reset-cost-code"
+                          onSelect={() => handleCostCodeChange(null)}
+                          className="text-muted-foreground italic"
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Clear selection
+                        </CommandItem>
+                      </CommandGroup>
+                      <CommandSeparator />
                       <CommandGroup>
                         {filteredCostCodes().map((cc) => (
                           <CommandItem
