@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Upload, Eye, Trash2, Plus } from "lucide-react";
+import { FileText, Upload, Plus, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DocumentPreviewModal from "./DocumentPreviewModal";
 
@@ -36,6 +36,7 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [editingPermit, setEditingPermit] = useState<JobPermit | null>(null);
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string; type: string } | null>(null);
   
   const [formData, setFormData] = useState({
@@ -82,10 +83,10 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !user || !currentCompany) {
+    if (!user || !currentCompany) {
       toast({
         title: "Error",
-        description: "Please select a file and fill in the required fields",
+        description: "User or company information is missing",
         variant: "destructive",
       });
       return;
@@ -100,43 +101,92 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
       return;
     }
 
+    // For new uploads, file is required
+    if (!editingPermit && !selectedFile) {
+      toast({
+        title: "Error",
+        description: "Please select a file",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setUploading(true);
 
-      // Upload file to storage
-      const fileExt = selectedFile.name.split(".").pop();
-      const fileName = `${jobId}/${Date.now()}.${fileExt}`;
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from("job-permits")
-        .upload(fileName, selectedFile);
+      let fileUrl = editingPermit?.file_url;
+      let fileName = editingPermit?.file_name;
 
-      if (uploadError) throw uploadError;
+      // If a new file is selected, upload it
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split(".").pop();
+        const storagePath = `${jobId}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("job-permits")
+          .upload(storagePath, selectedFile);
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("job-permits")
-        .getPublicUrl(fileName);
+        if (uploadError) throw uploadError;
 
-      // Insert permit record
-      const { error: insertError } = await supabase
-        .from("job_permits")
-        .insert({
-          job_id: jobId,
-          company_id: currentCompany.id,
-          permit_name: formData.permit_name,
-          permit_number: formData.permit_number || null,
-          description: formData.description || null,
-          file_name: selectedFile.name,
-          file_url: publicUrl,
-          uploaded_by: user.id,
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("job-permits")
+          .getPublicUrl(storagePath);
+
+        fileUrl = publicUrl;
+        fileName = selectedFile.name;
+
+        // If editing, delete the old file
+        if (editingPermit) {
+          const urlParts = editingPermit.file_url.split("/job-permits/");
+          if (urlParts.length > 1) {
+            await supabase.storage
+              .from("job-permits")
+              .remove([urlParts[1]]);
+          }
+        }
+      }
+
+      if (editingPermit) {
+        // Update existing permit
+        const { error: updateError } = await supabase
+          .from("job_permits")
+          .update({
+            permit_name: formData.permit_name,
+            permit_number: formData.permit_number || null,
+            description: formData.description || null,
+            file_name: fileName,
+            file_url: fileUrl,
+          })
+          .eq("id", editingPermit.id);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: "Success",
+          description: "Permit updated successfully",
         });
+      } else {
+        // Insert new permit
+        const { error: insertError } = await supabase
+          .from("job_permits")
+          .insert({
+            job_id: jobId,
+            company_id: currentCompany.id,
+            permit_name: formData.permit_name,
+            permit_number: formData.permit_number || null,
+            description: formData.description || null,
+            file_name: fileName!,
+            file_url: fileUrl!,
+            uploaded_by: user.id,
+          });
 
-      if (insertError) throw insertError;
+        if (insertError) throw insertError;
 
-      toast({
-        title: "Success",
-        description: "Permit uploaded successfully",
-      });
+        toast({
+          title: "Success",
+          description: "Permit uploaded successfully",
+        });
+      }
 
       // Reset form
       setFormData({
@@ -146,14 +196,15 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
       });
       setSelectedFile(null);
       setShowUploadDialog(false);
+      setEditingPermit(null);
       
       // Reload permits
       loadPermits();
     } catch (error: any) {
-      console.error("Error uploading permit:", error);
+      console.error("Error saving permit:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to upload permit",
+        description: error.message || "Failed to save permit",
         variant: "destructive",
       });
     } finally {
@@ -161,43 +212,15 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
     }
   };
 
-  const handleDelete = async (permitId: string, fileUrl: string) => {
-    if (!confirm("Are you sure you want to delete this permit?")) return;
-
-    try {
-      // Extract file path from URL
-      const urlParts = fileUrl.split("/job-permits/");
-      if (urlParts.length > 1) {
-        const filePath = urlParts[1];
-        
-        // Delete from storage
-        await supabase.storage
-          .from("job-permits")
-          .remove([filePath]);
-      }
-
-      // Delete record
-      const { error } = await supabase
-        .from("job_permits")
-        .delete()
-        .eq("id", permitId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Permit deleted successfully",
-      });
-
-      loadPermits();
-    } catch (error: any) {
-      console.error("Error deleting permit:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete permit",
-        variant: "destructive",
-      });
-    }
+  const handleEdit = (permit: JobPermit) => {
+    setEditingPermit(permit);
+    setFormData({
+      permit_name: permit.permit_name,
+      permit_number: permit.permit_number || "",
+      description: permit.description || "",
+    });
+    setSelectedFile(null);
+    setShowUploadDialog(true);
   };
 
   const handlePreview = (permit: JobPermit) => {
@@ -249,7 +272,11 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
       ) : (
         <div className="grid gap-4">
           {permits.map((permit) => (
-            <Card key={permit.id}>
+            <Card 
+              key={permit.id} 
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handlePreview(permit)}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
@@ -263,22 +290,17 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handlePreview(permit)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDelete(permit.id, permit.file_url)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(permit);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -296,10 +318,21 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
         </div>
       )}
 
-      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+      <Dialog open={showUploadDialog} onOpenChange={(open) => {
+        setShowUploadDialog(open);
+        if (!open) {
+          setEditingPermit(null);
+          setFormData({
+            permit_name: "",
+            permit_number: "",
+            description: "",
+          });
+          setSelectedFile(null);
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Upload Permit</DialogTitle>
+            <DialogTitle>{editingPermit ? "Edit Permit" : "Upload Permit"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -334,18 +367,22 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
             </div>
 
             <div>
-              <Label htmlFor="file">Select File *</Label>
+              <Label htmlFor="file">{editingPermit ? "Replace File (optional)" : "Select File *"}</Label>
               <Input
                 id="file"
                 type="file"
                 onChange={handleFileSelect}
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               />
-              {selectedFile && (
+              {selectedFile ? (
                 <p className="text-sm text-muted-foreground mt-2">
                   Selected: {selectedFile.name}
                 </p>
-              )}
+              ) : editingPermit ? (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Current file: {editingPermit.file_name}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex gap-2 justify-end">
@@ -353,6 +390,7 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
                 variant="outline"
                 onClick={() => {
                   setShowUploadDialog(false);
+                  setEditingPermit(null);
                   setFormData({
                     permit_name: "",
                     permit_number: "",
@@ -363,8 +401,11 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
               >
                 Cancel
               </Button>
-              <Button onClick={handleUpload} disabled={uploading || !selectedFile}>
-                {uploading ? "Uploading..." : "Upload"}
+              <Button 
+                onClick={handleUpload} 
+                disabled={uploading || (!editingPermit && !selectedFile)}
+              >
+                {uploading ? "Saving..." : editingPermit ? "Update" : "Upload"}
               </Button>
             </div>
           </div>
