@@ -26,16 +26,14 @@ interface PaymentRow {
 
 const getStatusVariant = (status: string) => {
   const s = (status || "").toLowerCase();
-  if (["paid", "cleared", "sent", "completed", "posted", "success"].includes(s)) {
+  if (s.includes("reconciled") || s.includes("paid") || ["cleared", "sent", "completed", "posted", "success"].includes(s)) {
     return "success" as const;
-  }
-  if (["pending", "draft", "processing"].includes(s)) {
-    return "warning" as const;
   }
   if (["failed", "error", "rejected"].includes(s)) {
     return "destructive" as const;
   }
-  return "default" as const;
+  // Display-only: default to success for other payment states
+  return "success" as const;
 };
 
 const getMethodIcon = (method: string) => {
@@ -55,10 +53,8 @@ const getMethodIcon = (method: string) => {
 
 const getDisplayStatus = (status: string) => {
   const s = (status || "").toLowerCase();
-  if (["paid", "cleared", "sent", "completed", "posted", "success"].includes(s)) return "Paid";
-  if (["pending", "draft", "processing"].includes(s)) return "Pending";
-  if (["failed", "error", "rejected"].includes(s)) return "Failed";
-  return (status || "").charAt(0).toUpperCase() + (status || "").slice(1);
+  if (["cleared", "reconciled"].includes(s)) return "Paid & Reconciled";
+  return "Paid";
 };
 
 export default function PaymentHistory() {
@@ -135,7 +131,7 @@ export default function PaymentHistory() {
         // Fetch invoice numbers (optional)
         const invoiceResponse: any = invoiceIds.length > 0
           // @ts-ignore - bills table may not be in generated types for some environments
-          ? await supabase.from("bills").select("id, invoice_number").in("id", invoiceIds)
+          ? await supabase.from("invoices").select("id, invoice_number").in("id", invoiceIds)
           : { data: [], error: null };
         
         const invoiceNumberMap: Record<string, string> = {};
