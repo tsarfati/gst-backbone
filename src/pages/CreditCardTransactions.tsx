@@ -748,11 +748,18 @@ export default function CreditCardTransactions() {
                         const bypass = !!trans.bypass_attachment_requirement;
                         const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
                         
-                        return coded && hasAttachment ? (
-                          <Smile className="h-5 w-5 text-green-500 inline-block" />
-                        ) : (
-                          <Frown className="h-5 w-5 text-amber-500 inline-block" />
-                        );
+                        // Show smiley if coded with attachment
+                        if (coded && hasAttachment) {
+                          return <Smile className="h-5 w-5 text-green-500 inline-block" />;
+                        }
+                        
+                        // Show sad face ONLY if coded without attachment (bypass was used)
+                        if (coded && !hasAttachment && bypass) {
+                          return <Frown className="h-5 w-5 text-amber-500 inline-block" />;
+                        }
+                        
+                        // Show nothing for uncoded transactions
+                        return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
                     <TableCell>
