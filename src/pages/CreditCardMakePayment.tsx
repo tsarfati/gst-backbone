@@ -153,20 +153,24 @@ export default function CreditCardMakePayment() {
       if (jeError) throw jeError;
 
       // Create journal entry lines
+      // Debit: Reduce credit card liability (asset/liability accounts have normal credit balance)
+      // Credit: Reduce cash account (asset accounts have normal debit balance)
       const lines = [
         {
           journal_entry_id: journalEntry.id,
           account_id: creditCard.liability_account_id, // Debit credit card liability
-          debit: paymentAmount,
-          credit: 0,
+          debit_amount: paymentAmount,
+          credit_amount: 0,
           description: `Payment to ${creditCard.card_name}`,
+          line_order: 1,
         },
         {
           journal_entry_id: journalEntry.id,
           account_id: selectedBankAccount.chart_account.id, // Credit cash account
-          debit: 0,
-          credit: paymentAmount,
+          debit_amount: 0,
+          credit_amount: paymentAmount,
           description: `Payment from ${selectedBankAccount.account_name}`,
+          line_order: 2,
         },
       ];
 

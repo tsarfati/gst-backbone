@@ -54,6 +54,8 @@ export function CreditCardTransactionModal({
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
   const [bypassAttachmentRequirement, setBypassAttachmentRequirement] = useState(false);
   const [requireCCAttachment, setRequireCCAttachment] = useState(false);
+  const [suggestedMatches, setSuggestedMatches] = useState<any[]>([]);
+  const [showMatches, setShowMatches] = useState(false);
 
 
   useEffect(() => {
@@ -224,6 +226,9 @@ export function CreditCardTransactionModal({
 
       setCommunications(comms as any[]);
 
+      // Fetch suggested matches (bills and receipts)
+      await fetchSuggestedMatches(transData);
+
       // Set attachment preview (normalize storage paths and legacy formats)
       if (transData.attachment_url) {
         const toPublicUrl = (raw: string): string => {
@@ -270,6 +275,210 @@ export function CreditCardTransactionModal({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSuggestedMatches = async (transData: any) => {
+    if (!currentCompany || !transData) return;
+
+    try {
+      const matches: any[] = [];
+      const transactionAmount = Math.abs(Number(transData.amount));
+      const transactionDate = new Date(transData.transaction_date);
+      const tolerance = transactionAmount * 0.05; // 5% tolerance
+      const minAmount = transactionAmount - tolerance;
+      const maxAmount = transactionAmount + tolerance;
+      
+      // Date range: +/- 7 days
+      const startDate = new Date(transactionDate);
+      startDate.setDate(startDate.getDate() - 7);
+      const endDate = new Date(transactionDate);
+      endDate.setDate(endDate.getDate() + 7);
+
+      // Fetch unpaid bills
+      const billsQuery = await supabase
+        .from("bills" as any)
+        .select(`
+          id,
+          invoice_number,
+          invoice_date,
+          amount,
+          status,
+          vendors!inner(id, name)
+        ` as any)
+        .eq("company_id", currentCompany.id)
+        .in("status", ["pending", "approved"])
+        .gte("amount", minAmount)
+        .lte("amount", maxAmount)
+        .gte("invoice_date", startDate.toISOString().split('T')[0])
+        .lte("invoice_date", endDate.toISOString().split('T')[0])
+        .limit(5);
+
+      const bills = billsQuery.data;
+
+      if (bills) {
+        bills.forEach((bill: any) => {
+          const match = {
+            id: bill.id,
+            type: "bill",
+            display: `Bill #${bill.invoice_number}`,
+            amount: bill.amount,
+            date: bill.invoice_date,
+            vendor: bill.vendors?.name,
+            status: bill.status,
+            matchScore: calculateMatchScore(transData, bill, "bill"),
+          };
+          matches.push(match);
+        });
+      }
+
+      // Fetch uncoded receipts
+      const uncodedReceiptsQuery = await supabase
+        .from("receipts" as any)
+        .select(`
+          id,
+          receipt_number,
+          receipt_date,
+          amount,
+          coding_status,
+          vendors!inner(id, name)
+        ` as any)
+        .eq("company_id", currentCompany.id)
+        .eq("coding_status", "uncoded")
+        .gte("amount", minAmount)
+        .lte("amount", maxAmount)
+        .gte("receipt_date", startDate.toISOString().split('T')[0])
+        .lte("receipt_date", endDate.toISOString().split('T')[0])
+        .limit(5);
+
+      const uncodedReceipts = uncodedReceiptsQuery.data;
+
+      if (uncodedReceipts) {
+        uncodedReceipts.forEach((receipt: any) => {
+          const match = {
+            id: receipt.id,
+            type: "uncoded_receipt",
+            display: `Receipt #${receipt.receipt_number}`,
+            amount: receipt.amount,
+            date: receipt.receipt_date,
+            vendor: receipt.vendors?.name,
+            status: "uncoded",
+            matchScore: calculateMatchScore(transData, receipt, "receipt"),
+          };
+          matches.push(match);
+        });
+      }
+
+      // Fetch coded receipts
+      const codedReceiptsQuery = await supabase
+        .from("receipts" as any)
+        .select(`
+          id,
+          receipt_number,
+          receipt_date,
+          amount,
+          coding_status,
+          vendors!inner(id, name)
+        ` as any)
+        .eq("company_id", currentCompany.id)
+        .eq("coding_status", "coded")
+        .gte("amount", minAmount)
+        .lte("amount", maxAmount)
+        .gte("receipt_date", startDate.toISOString().split('T')[0])
+        .lte("receipt_date", endDate.toISOString().split('T')[0])
+        .limit(5);
+
+      const codedReceipts = codedReceiptsQuery.data;
+
+      if (codedReceipts) {
+        codedReceipts.forEach((receipt: any) => {
+          const match = {
+            id: receipt.id,
+            type: "coded_receipt",
+            display: `Receipt #${receipt.receipt_number}`,
+            amount: receipt.amount,
+            date: receipt.receipt_date,
+            vendor: receipt.vendors?.name,
+            status: "coded",
+            matchScore: calculateMatchScore(transData, receipt, "receipt"),
+          };
+          matches.push(match);
+        });
+      }
+
+      // Sort by match score (highest first)
+      matches.sort((a, b) => b.matchScore - a.matchScore);
+      
+      setSuggestedMatches(matches);
+      setShowMatches(matches.length > 0);
+    } catch (error) {
+      console.error("Error fetching suggested matches:", error);
+    }
+  };
+
+  const calculateMatchScore = (transaction: any, item: any, itemType: string) => {
+    let score = 0;
+    const transAmount = Math.abs(Number(transaction.amount));
+    const itemAmount = Math.abs(Number(item.amount));
+    const transDate = new Date(transaction.transaction_date);
+    const itemDate = new Date(itemType === "bill" ? item.invoice_date : item.receipt_date);
+
+    // Amount match (0-50 points)
+    const amountDiff = Math.abs(transAmount - itemAmount);
+    const amountScore = Math.max(0, 50 - (amountDiff / transAmount) * 50);
+    score += amountScore;
+
+    // Date proximity (0-30 points)
+    const daysDiff = Math.abs((transDate.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+    const dateScore = Math.max(0, 30 - daysDiff * 4);
+    score += dateScore;
+
+    // Vendor match (0-20 points)
+    if (transaction.vendor_id && item.vendors?.id === transaction.vendor_id) {
+      score += 20;
+    } else if (transaction.merchant_name && item.vendors?.name) {
+      const merchantLower = transaction.merchant_name.toLowerCase();
+      const vendorLower = item.vendors.name.toLowerCase();
+      if (merchantLower.includes(vendorLower) || vendorLower.includes(merchantLower)) {
+        score += 10;
+      }
+    }
+
+    return score;
+  };
+
+  const linkToMatch = async (match: any) => {
+    try {
+      if (match.type === "bill") {
+        await supabase
+          .from("credit_card_transactions")
+          .update({ invoice_id: match.id })
+          .eq("id", transactionId);
+        
+        toast({
+          title: "Linked",
+          description: `Transaction linked to ${match.display}`,
+        });
+      } else if (match.type === "uncoded_receipt" || match.type === "coded_receipt") {
+        await supabase
+          .from("credit_card_transactions")
+          .update({ receipt_id: match.id })
+          .eq("id", transactionId);
+        
+        toast({
+          title: "Linked",
+          description: `Transaction linked to ${match.display}`,
+        });
+      }
+      
+      // Refresh transaction data
+      await fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -689,6 +898,62 @@ export function CreditCardTransactionModal({
               </div>
             )}
           </div>
+
+          {/* Suggested Matches */}
+          {showMatches && suggestedMatches.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  Suggested Matches
+                </Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMatches(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {suggestedMatches.slice(0, 5).map((match) => (
+                  <div
+                    key={`${match.type}-${match.id}`}
+                    className="flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded border"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{match.display}</span>
+                        <Badge variant={
+                          match.type === "bill" ? "default" :
+                          match.type === "uncoded_receipt" ? "secondary" :
+                          "outline"
+                        }>
+                          {match.type === "bill" ? "Bill" :
+                           match.type === "uncoded_receipt" ? "Uncoded Receipt" :
+                           "Coded Receipt"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                        <span>${Number(match.amount).toLocaleString()}</span>
+                        <span>{new Date(match.date).toLocaleDateString()}</span>
+                        {match.vendor && <span>{match.vendor}</span>}
+                        <span className="text-blue-600 dark:text-blue-400">
+                          {Math.round(match.matchScore)}% match
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => linkToMatch(match)}
+                    >
+                      Link
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Vendor Selection */}
           <div>
