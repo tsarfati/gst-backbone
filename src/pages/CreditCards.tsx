@@ -33,6 +33,7 @@ export default function CreditCards() {
   const [loading, setLoading] = useState(true);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string>("");
+  const [uploadingCsv, setUploadingCsv] = useState(false);
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -66,6 +67,7 @@ export default function CreditCards() {
     const file = event.target.files?.[0];
     if (!file || !selectedCard) return;
 
+    setUploadingCsv(true);
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
 
@@ -115,6 +117,10 @@ export default function CreditCards() {
             title: "Import successful",
             description: `Imported ${transactions.length} transactions from CSV`
           });
+          
+          // Reset the form
+          setSelectedCard("");
+          event.target.value = ""; // Clear the file input
           setUploadDialogOpen(false);
         } catch (error) {
           console.error('Error importing transactions:', error);
@@ -123,6 +129,8 @@ export default function CreditCards() {
             description: "There was an error importing the transactions",
             variant: "destructive"
           });
+        } finally {
+          setUploadingCsv(false);
         }
       },
       error: (error) => {
@@ -132,6 +140,7 @@ export default function CreditCards() {
           description: "Unable to parse the CSV file",
           variant: "destructive"
         });
+        setUploadingCsv(false);
       }
     });
   };
@@ -201,11 +210,14 @@ export default function CreditCards() {
                     type="file"
                     accept=".csv"
                     onChange={handleFileUpload}
-                    disabled={!selectedCard}
+                    disabled={!selectedCard || uploadingCsv}
                   />
                   <p className="text-xs text-muted-foreground">
                     CSV should include columns: date, description, amount, type (debit/credit)
                   </p>
+                  {uploadingCsv && (
+                    <p className="text-xs text-muted-foreground">Importing transactions...</p>
+                  )}
                 </div>
               </div>
             </DialogContent>

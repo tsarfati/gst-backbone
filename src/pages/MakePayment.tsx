@@ -823,7 +823,22 @@ export default function MakePayment() {
                 <Label htmlFor="payment_method">Payment Method</Label>
                 <Select 
                   value={payment.payment_method} 
-                  onValueChange={(value) => setPayment(prev => ({ ...prev, payment_method: value, bank_account_id: '' }))}
+                  onValueChange={(value) => {
+                    setPayment(prev => ({ 
+                      ...prev, 
+                      payment_method: value, 
+                      bank_account_id: '', // Clear account/card when method changes
+                      check_number: value === 'check' ? prev.check_number : '', // Keep check number only for checks
+                      bank_fee: ['ach', 'wire'].includes(value) ? prev.bank_fee : 0 // Keep bank fee only for ACH/Wire
+                    }));
+                    // Clear bank fee related fields when switching from ACH/Wire
+                    if (!['ach', 'wire'].includes(value)) {
+                      setBankFeeJobOrAccount(null);
+                      setIsBankFeeJob(false);
+                      setBankFeeCostCodeId(null);
+                      setBankFeeJobCostCodes([]);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
