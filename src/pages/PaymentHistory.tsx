@@ -21,6 +21,7 @@ interface PaymentRow {
   reference: string;
   vendor: string;
   invoiceId?: string;
+  invoiceNumber?: string;
 }
 
 const getStatusVariant = (status: string) => {
@@ -116,23 +117,44 @@ export default function PaymentHistory() {
         if (invoiceLineError) throw invoiceLineError;
 
         const invoiceMap: Record<string, string> = {};
+        const invoiceIds: string[] = [];
         invoiceLineData?.forEach((line: any) => {
           if (!invoiceMap[line.payment_id]) {
             invoiceMap[line.payment_id] = line.invoice_id;
+            invoiceIds.push(line.invoice_id);
           }
         });
 
-        const mapped: PaymentRow[] = paymentData.map((p: any) => ({
-          id: p.id,
-          payment_number: p.payment_number || "",
-          amount: Number(p.amount) || 0,
-          payment_date: p.payment_date || "",
-          payment_method: p.payment_method || "",
-          status: p.status || "",
-          reference: p.memo || "",
-          vendor: (p.vendor_id && vendorMap[p.vendor_id]) || "",
-          invoiceId: invoiceMap[p.id],
-        }));
+        // Fetch invoice numbers
+        const invoiceResponse: any = invoiceIds.length > 0
+          // @ts-ignore - Supabase type inference issue with bills table
+          ? await supabase.from("bills").select("id, invoice_number").in("id", invoiceIds)
+          : { data: [], error: null };
+        
+        const { data: invoiceData, error: invoiceError } = invoiceResponse;
+
+        if (invoiceError) throw invoiceError;
+
+        const invoiceNumberMap: Record<string, string> = {};
+        invoiceData?.forEach((inv: any) => {
+          invoiceNumberMap[inv.id] = inv.invoice_number;
+        });
+
+        const mapped: PaymentRow[] = paymentData.map((p: any) => {
+          const invoiceId = invoiceMap[p.id];
+          return {
+            id: p.id,
+            payment_number: p.payment_number || "",
+            amount: Number(p.amount) || 0,
+            payment_date: p.payment_date || "",
+            payment_method: p.payment_method || "",
+            status: p.status || "",
+            reference: p.memo || "",
+            vendor: (p.vendor_id && vendorMap[p.vendor_id]) || "",
+            invoiceId: invoiceId,
+            invoiceNumber: invoiceId ? invoiceNumberMap[invoiceId] : undefined,
+          };
+        });
 
         setRows(mapped);
       } catch (e) {
@@ -360,7 +382,7 @@ export default function PaymentHistory() {
                           if (p.invoiceId) navigate(`/bills/${p.invoiceId}`);
                         }}
                       >
-                        {p.invoiceId || "—"}
+                        {p.invoiceNumber || "—"}
                       </Button>
                     </TableCell>
                     <TableCell>{p.vendor}</TableCell>
