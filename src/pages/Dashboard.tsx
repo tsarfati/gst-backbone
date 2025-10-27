@@ -274,21 +274,39 @@ export default function Dashboard() {
   };
 
   const fetchMessages = async () => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
     
     try {
-      const { data, error } = await supabase
+      // Fetch direct messages
+      const { data: directMessages, error: messagesError } = await supabase
         .from('messages')
         .select('*')
         .eq('to_user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (error) throw error;
+      if (messagesError) throw messagesError;
       
-      // Fetch sender profiles separately
+      // Fetch bill communications for dashboard
+      const { data: billComms, error: billCommsError } = await supabase
+        .from('bill_communications')
+        .select(`
+          *,
+          profiles:user_id (
+            display_name,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('company_id', currentCompany.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (billCommsError) throw billCommsError;
+
+      // Fetch sender profiles for direct messages
       const messagesWithProfiles = await Promise.all(
-        (data || []).map(async (message) => {
+        (directMessages || []).map(async (message) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('display_name')
@@ -301,8 +319,28 @@ export default function Dashboard() {
           };
         })
       );
+
+      // Format bill communications
+      const formattedBillComms = (billComms || []).map((comm: any) => ({
+        id: comm.id,
+        from_user_id: comm.user_id,
+        subject: `Bill Discussion`,
+        content: comm.message,
+        created_at: comm.created_at,
+        read: false,
+        from_profile: {
+          display_name: comm.profiles?.display_name || 
+            `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() || 
+            'Team Member'
+        }
+      }));
       
-      setMessages(messagesWithProfiles);
+      // Combine and sort by date
+      const allMessages = [...messagesWithProfiles, ...formattedBillComms]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5);
+
+      setMessages(allMessages);
     } catch (error) {
       console.error('Error fetching messages:', error);
     }

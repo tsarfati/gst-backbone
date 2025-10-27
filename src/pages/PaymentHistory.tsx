@@ -70,8 +70,14 @@ export default function PaymentHistory() {
       setLoading(true);
       try {
         // Fetch payments for current company
-        const paymentsQuery = supabase.from("payments").select("*").eq("company_id", currentCompany.id);
-        const { data: paymentData, error: paymentError } = await paymentsQuery.order("payment_date", { ascending: false });
+        // @ts-ignore - Supabase type inference issue with deeply nested types
+        const paymentResponse: any = await supabase
+          .from("payments")
+          .select("*")
+          .eq("company_id", currentCompany.id)
+          .order("payment_date", { ascending: false });
+        
+        const { data: paymentData, error: paymentError } = paymentResponse;
 
         if (paymentError) throw paymentError;
         if (!paymentData) {
@@ -86,9 +92,11 @@ export default function PaymentHistory() {
         
         const uniqueVendorIds = [...new Set(vendorIds)];
         
-        const { data: vendorData, error: vendorError } = uniqueVendorIds.length > 0
-          ? await supabase.from("vendors").select("id, name").in("id", uniqueVendorIds)
+        const vendorResponse: any = uniqueVendorIds.length > 0
+          ? await supabase.from("vendors").select("id, name").in("id", uniqueVendorIds as string[])
           : { data: [], error: null };
+        
+        const { data: vendorData, error: vendorError } = vendorResponse;
 
         if (vendorError) throw vendorError;
 
@@ -99,9 +107,11 @@ export default function PaymentHistory() {
 
         // Fetch invoice lines
         const paymentIds = paymentData.map((p: any) => p.id);
-        const { data: invoiceLineData, error: invoiceLineError } = paymentIds.length > 0
+        const invoiceLineResponse: any = paymentIds.length > 0
           ? await supabase.from("payment_invoice_lines").select("payment_id, invoice_id").in("payment_id", paymentIds)
           : { data: [], error: null };
+        
+        const { data: invoiceLineData, error: invoiceLineError } = invoiceLineResponse;
 
         if (invoiceLineError) throw invoiceLineError;
 

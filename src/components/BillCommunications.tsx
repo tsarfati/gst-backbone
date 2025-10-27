@@ -15,16 +15,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface Message {
   id: string;
   content: string;
-  from_user_id: string;
-  created_at: string;
-  from_user?: {
-    first_name: string;
-    last_name: string;
-  };
+  sender: string;
+  timestamp: string;
 }
 
 interface BillCommunicationsProps {
@@ -35,86 +32,76 @@ interface BillCommunicationsProps {
 export default function BillCommunications({ billId, vendorId }: BillCommunicationsProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [intercompanyMessages, setIntercompanyMessages] = useState<Message[]>([]);
   const [vendorMessages, setVendorMessages] = useState<Message[]>([]);
   const [newIntercompanyMessage, setNewIntercompanyMessage] = useState("");
   const [newVendorMessage, setNewVendorMessage] = useState("");
   const [loadingIntercompany, setLoadingIntercompany] = useState(false);
   const [loadingVendor, setLoadingVendor] = useState(false);
-  const [companyUsers, setCompanyUsers] = useState<any[]>([]);
 
   useEffect(() => {
     loadMessages();
-    loadCompanyUsers();
-  }, [billId, vendorId]);
+  }, [billId]);
 
   const loadMessages = async () => {
+    if (!billId) return;
+    
     try {
-      // Load intercompany messages (messages between company users about this bill)
-      const { data: intercompanyData, error: intercompanyError } = await supabase
-        .from('messages')
+      // Load intercompany messages from bill_communications table
+      const { data: commData, error: commError } = await supabase
+        .from('bill_communications')
         .select(`
           *,
-          profiles:from_user_id (
+          profiles:user_id (
+            display_name,
             first_name,
             last_name
           )
         `)
-        .contains('content', billId)
+        .eq('bill_id', billId)
         .order('created_at', { ascending: true });
 
-      if (intercompanyError) {
-        console.error('Error loading intercompany messages:', intercompanyError);
+      if (commError) {
+        console.error('Error loading bill communications:', commError);
       } else {
-        setIntercompanyMessages(intercompanyData || []);
+        const formatted = (commData || []).map((msg: any) => ({
+          id: msg.id,
+          content: msg.message,
+          sender: msg.profiles?.display_name || `${msg.profiles?.first_name || ''} ${msg.profiles?.last_name || ''}`.trim() || 'Unknown User',
+          timestamp: msg.created_at,
+        }));
+        setIntercompanyMessages(formatted);
       }
 
-      // Vendor messages would require a separate vendor messaging system
-      // For now, we'll show a placeholder
+      // Vendor messages - placeholder for future implementation
       setVendorMessages([]);
-
     } catch (error) {
       console.error('Error loading messages:', error);
     }
   };
 
-  const loadCompanyUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, role')
-        .neq('user_id', user?.id || '');
-
-      if (error) throw error;
-      setCompanyUsers(data || []);
-    } catch (error) {
-      console.error('Error loading company users:', error);
-    }
-  };
-
   const sendIntercompanyMessage = async () => {
-    if (!newIntercompanyMessage.trim() || !user) return;
+    if (!newIntercompanyMessage.trim() || !user || !currentCompany) return;
 
     try {
       setLoadingIntercompany(true);
       
-      // For now, we'll send to all company users - in a real app you'd select specific users
-      for (const companyUser of companyUsers.slice(0, 1)) { // Just send to first user for demo
-        const { error } = await supabase
-          .from('messages')
-          .insert({
-            from_user_id: user.id,
-            to_user_id: companyUser.user_id,
-            subject: `Bill Discussion - ${billId}`,
-            content: `Regarding Bill ID: ${billId}\n\n${newIntercompanyMessage}`,
-          });
+      // Insert into bill_communications table
+      const { error } = await supabase
+        .from('bill_communications')
+        .insert({
+          bill_id: billId,
+          company_id: currentCompany.id,
+          user_id: user.id,
+          message: newIntercompanyMessage.trim(),
+        });
 
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Message sent to company team",
+        title: "Message sent",
+        description: "Your message has been posted to the team",
       });
 
       setNewIntercompanyMessage("");
@@ -202,11 +189,11 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
                       <div className="flex items-center gap-2 mb-2">
                         <User className="h-3 w-3" />
                         <span className="text-sm font-medium">
-                          {message.from_user?.first_name} {message.from_user?.last_name}
+                          {message.sender}
                         </span>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          {new Date(message.created_at).toLocaleDateString()}
+                          {new Date(message.timestamp).toLocaleDateString()}
                         </div>
                       </div>
                       <p className="text-sm">{message.content}</p>
@@ -252,7 +239,7 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
                         <span className="text-sm font-medium">Vendor</span>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          {new Date(message.created_at).toLocaleDateString()}
+                          {new Date(message.timestamp).toLocaleDateString()}
                         </div>
                       </div>
                       <p className="text-sm">{message.content}</p>
