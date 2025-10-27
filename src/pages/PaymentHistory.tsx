@@ -234,24 +234,36 @@ export default function PaymentHistory() {
   );
   
   const paidCount = useMemo(
-    () => dateFilteredRows.filter((r) => !r.status.toLowerCase().includes("reconciled")).length,
+    () => dateFilteredRows.filter((r) => {
+      const s = r.status.toLowerCase();
+      return !["cleared", "reconciled"].includes(s);
+    }).length,
     [dateFilteredRows]
   );
   
   const reconciledCount = useMemo(
-    () => dateFilteredRows.filter((r) => r.status.toLowerCase().includes("reconciled")).length,
+    () => dateFilteredRows.filter((r) => {
+      const s = r.status.toLowerCase();
+      return ["cleared", "reconciled"].includes(s);
+    }).length,
     [dateFilteredRows]
   );
 
   const totalNotReconciled = useMemo(
     () => dateFilteredRows
-      .filter((r) => !r.status.toLowerCase().includes("reconciled"))
+      .filter((r) => {
+        const s = r.status.toLowerCase();
+        return !["cleared", "reconciled"].includes(s);
+      })
       .reduce((s, r) => s + Number(r.amount || 0), 0),
     [dateFilteredRows]
   );
   
   const notReconciledCount = useMemo(
-    () => dateFilteredRows.filter((r) => !r.status.toLowerCase().includes("reconciled")).length,
+    () => dateFilteredRows.filter((r) => {
+      const s = r.status.toLowerCase();
+      return !["cleared", "reconciled"].includes(s);
+    }).length,
     [dateFilteredRows]
   );
 
