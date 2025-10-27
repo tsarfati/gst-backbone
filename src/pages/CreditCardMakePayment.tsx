@@ -176,7 +176,8 @@ export default function CreditCardMakePayment() {
 
       const { error: linesError } = await supabase
         .from("journal_entry_lines")
-        .insert(lines);
+        .insert(lines)
+        .select('id');
 
       if (linesError) throw linesError;
 

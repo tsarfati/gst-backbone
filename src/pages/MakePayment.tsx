@@ -622,7 +622,8 @@ export default function MakePayment() {
                     description: `Credit card payment - ${invoice.vendor?.name}`,
                     line_order: 2,
                   }
-                ]);
+                ])
+                .select('id');
             }
           }
         }

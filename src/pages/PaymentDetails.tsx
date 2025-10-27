@@ -268,7 +268,7 @@ export default function PaymentDetails() {
                 );
               }
 
-              await supabase.from('journal_entry_lines').insert(lines);
+              await supabase.from('journal_entry_lines').insert(lines).select('id');
               await supabase.from('payments').update({ journal_entry_id: je.id }).eq('id', paymentDataAny.id);
               paymentDataAny.journal_entry_id = je.id;
             }
