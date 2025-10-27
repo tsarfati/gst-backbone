@@ -12,7 +12,7 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
 import JobCostBudgetView from "@/components/JobCostBudgetView";
-import JobDeliveryTicketsView from "@/components/JobDeliveryTicketsView";
+import JobFilingCabinet from "@/components/JobFilingCabinet";
 import JobVisitorLogsView from "@/components/JobVisitorLogsView";
 import JobForecastingView from "@/components/JobForecastingView";
 import JobPhotoAlbum from "@/components/JobPhotoAlbum";
@@ -207,11 +207,11 @@ export default function JobDetails() {
             </TabsTrigger>
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
-                value="delivery-tickets"
+                value="filing-cabinet"
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
               >
-                <Package className="h-4 w-4 mr-2" />
-                Delivery Tickets
+                <FileText className="h-4 w-4 mr-2" />
+                Filing Cabinet
               </TabsTrigger>
             )}
             <TabsTrigger 
@@ -330,8 +330,8 @@ export default function JobDetails() {
             <JobForecastingView />
           </TabsContent>
 
-          <TabsContent value="delivery-tickets" className="p-6">
-            <JobDeliveryTicketsView />
+          <TabsContent value="filing-cabinet" className="p-6">
+            <JobFilingCabinet jobId={id!} />
           </TabsContent>
 
           <TabsContent value="visitor-logs" className="p-6">

@@ -69,29 +69,59 @@ export default function PaymentHistory() {
       if (!currentCompany) return;
       setLoading(true);
       try {
-        // Fetch payments joined to vendor and invoice line(s)
-        const { data, error } = await supabase
-          .from("payments")
-          .select(
-            `id, payment_number, amount, payment_date, payment_method, status, memo, 
-             vendors:vendors ( name, company_id ),
-             payment_invoice_lines ( invoice_id )`
-          )
-          .eq("vendors.company_id", currentCompany.id)
-          .order("payment_date", { ascending: false });
+        // Fetch payments for current company
+        const paymentsQuery = supabase.from("payments").select("*").eq("company_id", currentCompany.id);
+        const { data: paymentData, error: paymentError } = await paymentsQuery.order("payment_date", { ascending: false });
 
-        if (error) throw error;
+        if (paymentError) throw paymentError;
+        if (!paymentData) {
+          setRows([]);
+          return;
+        }
 
-        const mapped: PaymentRow[] = (data || []).map((p: any) => ({
+        // Fetch vendors
+        const vendorIds = paymentData
+          .map((p: any) => p.vendor_id)
+          .filter((id: any): id is string => !!id);
+        
+        const uniqueVendorIds = [...new Set(vendorIds)];
+        
+        const { data: vendorData, error: vendorError } = uniqueVendorIds.length > 0
+          ? await supabase.from("vendors").select("id, name").in("id", uniqueVendorIds)
+          : { data: [], error: null };
+
+        if (vendorError) throw vendorError;
+
+        const vendorMap: Record<string, string> = {};
+        vendorData?.forEach((v: any) => {
+          vendorMap[v.id] = v.name;
+        });
+
+        // Fetch invoice lines
+        const paymentIds = paymentData.map((p: any) => p.id);
+        const { data: invoiceLineData, error: invoiceLineError } = paymentIds.length > 0
+          ? await supabase.from("payment_invoice_lines").select("payment_id, invoice_id").in("payment_id", paymentIds)
+          : { data: [], error: null };
+
+        if (invoiceLineError) throw invoiceLineError;
+
+        const invoiceMap: Record<string, string> = {};
+        invoiceLineData?.forEach((line: any) => {
+          if (!invoiceMap[line.payment_id]) {
+            invoiceMap[line.payment_id] = line.invoice_id;
+          }
+        });
+
+        const mapped: PaymentRow[] = paymentData.map((p: any) => ({
           id: p.id,
-          payment_number: p.payment_number,
-          amount: p.amount,
-          payment_date: p.payment_date,
-          payment_method: p.payment_method,
-          status: p.status,
+          payment_number: p.payment_number || "",
+          amount: Number(p.amount) || 0,
+          payment_date: p.payment_date || "",
+          payment_method: p.payment_method || "",
+          status: p.status || "",
           reference: p.memo || "",
-          vendor: p.vendors?.name || "",
-          invoiceId: p.payment_invoice_lines?.[0]?.invoice_id,
+          vendor: (p.vendor_id && vendorMap[p.vendor_id]) || "",
+          invoiceId: invoiceMap[p.id],
         }));
 
         setRows(mapped);
@@ -103,7 +133,7 @@ export default function PaymentHistory() {
       }
     };
     load();
-  }, [currentCompany]);
+  }, [currentCompany, toast]);
 
   const filteredPayments = useMemo(() => {
     let list = [...rows];
