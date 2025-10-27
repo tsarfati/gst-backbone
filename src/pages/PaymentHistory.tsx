@@ -25,18 +25,17 @@ interface PaymentRow {
 }
 
 const getStatusVariant = (status: string) => {
-  switch (status) {
-    case "cleared":
-    case "sent":
-      return "success" as const;
-    case "pending":
-    case "draft":
-      return "warning" as const;
-    case "failed":
-      return "destructive" as const;
-    default:
-      return "default" as const;
+  const s = (status || "").toLowerCase();
+  if (["paid", "cleared", "sent", "completed", "posted", "success"].includes(s)) {
+    return "success" as const;
   }
+  if (["pending", "draft", "processing"].includes(s)) {
+    return "warning" as const;
+  }
+  if (["failed", "error", "rejected"].includes(s)) {
+    return "destructive" as const;
+  }
+  return "default" as const;
 };
 
 const getMethodIcon = (method: string) => {
@@ -52,6 +51,14 @@ const getMethodIcon = (method: string) => {
     default:
       return "💰";
   }
+};
+
+const getDisplayStatus = (status: string) => {
+  const s = (status || "").toLowerCase();
+  if (["paid", "cleared", "sent", "completed", "posted", "success"].includes(s)) return "Paid";
+  if (["pending", "draft", "processing"].includes(s)) return "Pending";
+  if (["failed", "error", "rejected"].includes(s)) return "Failed";
+  return (status || "").charAt(0).toUpperCase() + (status || "").slice(1);
 };
 
 export default function PaymentHistory() {
@@ -125,20 +132,20 @@ export default function PaymentHistory() {
           }
         });
 
-        // Fetch invoice numbers
+        // Fetch invoice numbers (optional)
         const invoiceResponse: any = invoiceIds.length > 0
-          // @ts-ignore - Supabase type inference issue with bills table
+          // @ts-ignore - bills table may not be in generated types for some environments
           ? await supabase.from("bills").select("id, invoice_number").in("id", invoiceIds)
           : { data: [], error: null };
         
-        const { data: invoiceData, error: invoiceError } = invoiceResponse;
-
-        if (invoiceError) throw invoiceError;
-
         const invoiceNumberMap: Record<string, string> = {};
-        invoiceData?.forEach((inv: any) => {
-          invoiceNumberMap[inv.id] = inv.invoice_number;
-        });
+        if (invoiceResponse?.error) {
+          console.warn("Could not fetch invoice numbers from bills table", invoiceResponse.error);
+        } else {
+          invoiceResponse?.data?.forEach((inv: any) => {
+            invoiceNumberMap[inv.id] = inv.invoice_number;
+          });
+        }
 
         const mapped: PaymentRow[] = paymentData.map((p: any) => {
           const invoiceId = invoiceMap[p.id];
@@ -382,7 +389,7 @@ export default function PaymentHistory() {
                           if (p.invoiceId) navigate(`/bills/${p.invoiceId}`);
                         }}
                       >
-                        {p.invoiceNumber || "—"}
+                        {p.invoiceNumber || (p.invoiceId ? p.invoiceId.slice(0, 8) : "—")}
                       </Button>
                     </TableCell>
                     <TableCell>{p.vendor}</TableCell>
@@ -396,7 +403,7 @@ export default function PaymentHistory() {
                     </TableCell>
                     <TableCell className="font-mono text-sm">{p.reference || "—"}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(p.status)}>{p.status}</Badge>
+                      <Badge variant={getStatusVariant(getDisplayStatus(p.status))}>{getDisplayStatus(p.status)}</Badge>
                     </TableCell>
                   </TableRow>
                 ))
