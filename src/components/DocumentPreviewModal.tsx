@@ -18,12 +18,15 @@ interface DocumentPreviewModalProps {
   } | null;
   editMode?: boolean;
   editData?: {
-    permit_name: string;
-    permit_number: string;
-    description: string;
+    permit_name?: string;
+    permit_number?: string;
+    description?: string;
+    plan_name?: string;
+    plan_number?: string;
+    revision?: string;
   };
-  onEditDataChange?: (data: { permit_name: string; permit_number: string; description: string }) => void;
-  onFileSelect?: (file: File) => void;
+  onEditDataChange?: (data: any) => void;
+  onFileSelect?: (file: File | null) => void;
   selectedFile?: File | null;
   onSave?: () => void;
   saving?: boolean;
@@ -229,36 +232,86 @@ export default function DocumentPreviewModal({
 
         {editMode && editData && onEditDataChange && (
           <div className="flex-shrink-0 border-b pb-4 space-y-4">
-            <div>
-              <Label htmlFor="edit_permit_name">Permit Name *</Label>
-              <Input
-                id="edit_permit_name"
-                value={editData.permit_name}
-                onChange={(e) => onEditDataChange({ ...editData, permit_name: e.target.value })}
-                placeholder="e.g., Building Permit, Electrical Permit"
-              />
-            </div>
+            {editData.permit_name !== undefined ? (
+              // Permit editing
+              <>
+                <div>
+                  <Label htmlFor="edit_permit_name">Permit Name *</Label>
+                  <Input
+                    id="edit_permit_name"
+                    value={editData.permit_name || ""}
+                    onChange={(e) => onEditDataChange({ ...editData, permit_name: e.target.value })}
+                    placeholder="e.g., Building Permit, Electrical Permit"
+                  />
+                </div>
 
-            <div>
-              <Label htmlFor="edit_permit_number">Permit Number</Label>
-              <Input
-                id="edit_permit_number"
-                value={editData.permit_number}
-                onChange={(e) => onEditDataChange({ ...editData, permit_number: e.target.value })}
-                placeholder="Optional permit number"
-              />
-            </div>
+                <div>
+                  <Label htmlFor="edit_permit_number">Permit Number</Label>
+                  <Input
+                    id="edit_permit_number"
+                    value={editData.permit_number || ""}
+                    onChange={(e) => onEditDataChange({ ...editData, permit_number: e.target.value })}
+                    placeholder="Optional permit number"
+                  />
+                </div>
 
-            <div>
-              <Label htmlFor="edit_description">Description</Label>
-              <Textarea
-                id="edit_description"
-                value={editData.description}
-                onChange={(e) => onEditDataChange({ ...editData, description: e.target.value })}
-                placeholder="Optional description or notes"
-                rows={2}
-              />
-            </div>
+                <div>
+                  <Label htmlFor="edit_description">Description</Label>
+                  <Textarea
+                    id="edit_description"
+                    value={editData.description || ""}
+                    onChange={(e) => onEditDataChange({ ...editData, description: e.target.value })}
+                    placeholder="Optional description or notes"
+                    rows={2}
+                  />
+                </div>
+              </>
+            ) : (
+              // Plan editing
+              <>
+                <div>
+                  <Label htmlFor="edit_plan_name">Plan Name *</Label>
+                  <Input
+                    id="edit_plan_name"
+                    value={editData.plan_name || ""}
+                    onChange={(e) => onEditDataChange({ ...editData, plan_name: e.target.value })}
+                    placeholder="e.g., Site Plan, Floor Plan"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit_plan_number">Plan Number</Label>
+                    <Input
+                      id="edit_plan_number"
+                      value={editData.plan_number || ""}
+                      onChange={(e) => onEditDataChange({ ...editData, plan_number: e.target.value })}
+                      placeholder="e.g., A-101"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_revision">Revision</Label>
+                    <Input
+                      id="edit_revision"
+                      value={editData.revision || ""}
+                      onChange={(e) => onEditDataChange({ ...editData, revision: e.target.value })}
+                      placeholder="e.g., Rev 2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="edit_description">Description</Label>
+                  <Textarea
+                    id="edit_description"
+                    value={editData.description || ""}
+                    onChange={(e) => onEditDataChange({ ...editData, description: e.target.value })}
+                    placeholder="Optional description or notes"
+                    rows={2}
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <Label htmlFor="edit_file">Replace File (optional)</Label>
@@ -271,7 +324,7 @@ export default function DocumentPreviewModal({
                     onFileSelect(file);
                   }
                 }}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.dwg,.dxf"
               />
               {selectedFile ? (
                 <p className="text-sm text-muted-foreground mt-2">

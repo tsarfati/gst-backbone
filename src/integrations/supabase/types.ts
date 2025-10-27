@@ -2417,6 +2417,57 @@ export type Database = {
           },
         ]
       }
+      job_plans: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          file_name: string
+          file_size: number | null
+          file_url: string
+          id: string
+          job_id: string
+          plan_name: string
+          plan_number: string | null
+          revision: string | null
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          id?: string
+          job_id: string
+          plan_name: string
+          plan_number?: string | null
+          revision?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          job_id?: string
+          plan_name?: string
+          plan_number?: string | null
+          revision?: string | null
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       job_punch_clock_settings: {
         Row: {
           allow_early_punch_in: boolean | null
@@ -4473,6 +4524,129 @@ export type Database = {
           },
         ]
       }
+      rfi_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_url: string
+          id: string
+          rfi_id: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_url: string
+          id?: string
+          rfi_id: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          rfi_id?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
+      rfi_messages: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_internal: boolean
+          message: string
+          rfi_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          message: string
+          rfi_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_internal?: boolean
+          message?: string
+          rfi_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rfis: {
+        Row: {
+          assigned_to: string | null
+          ball_in_court: Database["public"]["Enums"]["rfi_ball_status"]
+          closed_at: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          job_id: string
+          responded_at: string | null
+          response: string | null
+          rfi_number: string
+          status: Database["public"]["Enums"]["rfi_status"]
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          ball_in_court?: Database["public"]["Enums"]["rfi_ball_status"]
+          closed_at?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id: string
+          responded_at?: string | null
+          response?: string | null
+          rfi_number: string
+          status?: Database["public"]["Enums"]["rfi_status"]
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          ball_in_court?: Database["public"]["Enums"]["rfi_ball_status"]
+          closed_at?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id?: string
+          responded_at?: string | null
+          response?: string | null
+          rfi_number?: string
+          status?: Database["public"]["Enums"]["rfi_status"]
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       role_default_pages: {
         Row: {
           created_at: string | null
@@ -5696,6 +5870,8 @@ export type Database = {
         | "renovation"
         | "maintenance"
       punch_status: "punched_in" | "punched_out"
+      rfi_ball_status: "manager" | "design_professional"
+      rfi_status: "draft" | "submitted" | "in_review" | "responded" | "closed"
       template_editor: "richtext" | "html"
       user_role:
         | "admin"
@@ -5849,6 +6025,8 @@ export const Constants = {
         "maintenance",
       ],
       punch_status: ["punched_in", "punched_out"],
+      rfi_ball_status: ["manager", "design_professional"],
+      rfi_status: ["draft", "submitted", "in_review", "responded", "closed"],
       template_editor: ["richtext", "html"],
       user_role: [
         "admin",

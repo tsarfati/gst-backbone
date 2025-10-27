@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,8 @@ import JobVisitorLogsView from "@/components/JobVisitorLogsView";
 import JobForecastingView from "@/components/JobForecastingView";
 import JobPhotoAlbum from "@/components/JobPhotoAlbum";
 import BillsNeedingCoding from "@/components/BillsNeedingCoding";
+import JobPlans from "@/components/JobPlans";
+import JobRFIs from "@/components/JobRFIs";
 
 
 interface Job {
@@ -205,6 +207,20 @@ export default function JobDetails() {
               <TrendingUp className="h-4 w-4 mr-2" />
               Forecasting
             </TabsTrigger>
+            <TabsTrigger 
+              value="plans"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <LayoutTemplate className="h-4 w-4 mr-2" />
+              Plans
+            </TabsTrigger>
+            <TabsTrigger 
+              value="rfis"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <ClipboardList className="h-4 w-4 mr-2" />
+              RFIs
+            </TabsTrigger>
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
                 value="filing-cabinet"
@@ -328,6 +344,14 @@ export default function JobDetails() {
 
           <TabsContent value="forecasting" className="p-6">
             <JobForecastingView />
+          </TabsContent>
+
+          <TabsContent value="plans" className="p-6">
+            <JobPlans jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="rfis" className="p-6">
+            <JobRFIs jobId={id!} />
           </TabsContent>
 
           <TabsContent value="filing-cabinet" className="p-6">
