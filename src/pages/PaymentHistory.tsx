@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { CreditCard, Download, Search, Calendar, DollarSign, FileText } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { CreditCard, Download, Search, Calendar, DollarSign, FileText, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface PaymentRow {
   id: string;
@@ -65,6 +69,8 @@ export default function PaymentHistory() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMethod, setFilterMethod] = useState("all");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<PaymentRow[]>([]);
 
@@ -173,6 +179,14 @@ export default function PaymentHistory() {
   const filteredPayments = useMemo(() => {
     let list = [...rows];
 
+    // Date range filter
+    if (startDate) {
+      list = list.filter((p) => new Date(p.payment_date) >= startDate);
+    }
+    if (endDate) {
+      list = list.filter((p) => new Date(p.payment_date) <= endDate);
+    }
+
     // Text search
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -186,7 +200,12 @@ export default function PaymentHistory() {
 
     // Status filter
     if (filterStatus !== "all") {
-      list = list.filter((p) => p.status === filterStatus);
+      const statusLower = filterStatus.toLowerCase();
+      if (statusLower === "reconciled") {
+        list = list.filter((p) => p.status.toLowerCase().includes("reconciled"));
+      } else if (statusLower === "paid") {
+        list = list.filter((p) => !p.status.toLowerCase().includes("reconciled"));
+      }
     }
 
     // Method filter
@@ -195,16 +214,47 @@ export default function PaymentHistory() {
     }
 
     return list;
-  }, [rows, searchTerm, filterStatus, filterMethod]);
+  }, [rows, searchTerm, filterStatus, filterMethod, startDate, endDate]);
+
+  // Apply date filtering to rows for counter calculations
+  const dateFilteredRows = useMemo(() => {
+    let list = [...rows];
+    if (startDate) {
+      list = list.filter((r) => new Date(r.payment_date) >= startDate);
+    }
+    if (endDate) {
+      list = list.filter((r) => new Date(r.payment_date) <= endDate);
+    }
+    return list;
+  }, [rows, startDate, endDate]);
 
   const totalPaid = useMemo(
-    () => rows.filter((r) => r.status === "cleared" || r.status === "sent").reduce((s, r) => s + Number(r.amount || 0), 0),
-    [rows]
+    () => dateFilteredRows.reduce((s, r) => s + Number(r.amount || 0), 0),
+    [dateFilteredRows]
   );
-  const totalProcessing = useMemo(
-    () => rows.filter((r) => r.status === "pending" || r.status === "draft").reduce((s, r) => s + Number(r.amount || 0), 0),
-    [rows]
+  
+  const paidCount = useMemo(
+    () => dateFilteredRows.filter((r) => !r.status.toLowerCase().includes("reconciled")).length,
+    [dateFilteredRows]
   );
+  
+  const reconciledCount = useMemo(
+    () => dateFilteredRows.filter((r) => r.status.toLowerCase().includes("reconciled")).length,
+    [dateFilteredRows]
+  );
+
+  const totalNotReconciled = useMemo(
+    () => dateFilteredRows
+      .filter((r) => !r.status.toLowerCase().includes("reconciled"))
+      .reduce((s, r) => s + Number(r.amount || 0), 0),
+    [dateFilteredRows]
+  );
+  
+  const notReconciledCount = useMemo(
+    () => dateFilteredRows.filter((r) => !r.status.toLowerCase().includes("reconciled")).length,
+    [dateFilteredRows]
+  );
+
   const thisMonthTotal = useMemo(() => {
     const now = new Date();
     return rows
@@ -243,21 +293,22 @@ export default function PaymentHistory() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalPaid.toLocaleString()}</div>
-            <Badge variant="success" className="mt-2">
-              {rows.filter((r) => r.status === "cleared" || r.status === "sent").length} completed
-            </Badge>
+            <div className="flex gap-2 mt-2">
+              <Badge variant="success">{paidCount} Paid</Badge>
+              <Badge variant="success">{reconciledCount} Reconciled</Badge>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Processing</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Not Reconciled</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalProcessing.toLocaleString()}</div>
+            <div className="text-2xl font-bold">${totalNotReconciled.toLocaleString()}</div>
             <Badge variant="warning" className="mt-2">
-              {rows.filter((r) => r.status === "pending" || r.status === "draft").length} pending
+              {notReconciledCount} pending reconciliation
             </Badge>
           </CardContent>
         </Card>
@@ -286,7 +337,55 @@ export default function PaymentHistory() {
           <CardTitle>Filter Payments</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "PPP") : "Start date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-start text-left font-normal",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "PPP") : "End date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -296,16 +395,17 @@ export default function PaymentHistory() {
                 className="pl-9"
               />
             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger>
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="cleared">Cleared</SelectItem>
-                <SelectItem value="sent">Sent</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="paid">Paid (Not Reconciled)</SelectItem>
+                <SelectItem value="reconciled">Paid & Reconciled</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterMethod} onValueChange={setFilterMethod}>
@@ -326,6 +426,8 @@ export default function PaymentHistory() {
                 setSearchTerm("");
                 setFilterStatus("all");
                 setFilterMethod("all");
+                setStartDate(undefined);
+                setEndDate(undefined);
               }}
             >
               Clear Filters
