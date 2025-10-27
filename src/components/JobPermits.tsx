@@ -37,7 +37,7 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
   const [uploading, setUploading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [editingPermit, setEditingPermit] = useState<JobPermit | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ name: string; url: string; type: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ permit: JobPermit; editMode: boolean } | null>(null);
   
   const [formData, setFormData] = useState({
     permit_name: "",
@@ -220,16 +220,11 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
       description: permit.description || "",
     });
     setSelectedFile(null);
-    setShowUploadDialog(true);
+    setPreviewFile({ permit, editMode: true });
   };
 
   const handlePreview = (permit: JobPermit) => {
-    const fileType = permit.file_name.split(".").pop()?.toLowerCase() || "";
-    setPreviewFile({
-      name: permit.file_name,
-      url: permit.file_url,
-      type: fileType,
-    });
+    setPreviewFile({ permit, editMode: false });
   };
 
   if (loading) {
@@ -415,12 +410,28 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
       {previewFile && (
         <DocumentPreviewModal
           isOpen={!!previewFile}
-          onClose={() => setPreviewFile(null)}
-          document={{
-            fileName: previewFile.name,
-            url: previewFile.url,
-            type: previewFile.type,
+          onClose={() => {
+            setPreviewFile(null);
+            setEditingPermit(null);
+            setFormData({
+              permit_name: "",
+              permit_number: "",
+              description: "",
+            });
+            setSelectedFile(null);
           }}
+          document={{
+            fileName: previewFile.permit.file_name,
+            url: previewFile.permit.file_url,
+            type: previewFile.permit.file_name.split(".").pop()?.toLowerCase() || "",
+          }}
+          editMode={previewFile.editMode}
+          editData={previewFile.editMode ? formData : undefined}
+          onEditDataChange={previewFile.editMode ? setFormData : undefined}
+          onFileSelect={previewFile.editMode ? setSelectedFile : undefined}
+          selectedFile={previewFile.editMode ? selectedFile : undefined}
+          onSave={previewFile.editMode ? handleUpload : undefined}
+          saving={uploading}
         />
       )}
     </div>

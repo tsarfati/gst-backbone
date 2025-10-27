@@ -1,5 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Download, X, FileText, Image as ImageIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import UrlPdfInlinePreview from "./UrlPdfInlinePreview";
@@ -13,12 +16,30 @@ interface DocumentPreviewModalProps {
     url: string;
     type: string;
   } | null;
+  editMode?: boolean;
+  editData?: {
+    permit_name: string;
+    permit_number: string;
+    description: string;
+  };
+  onEditDataChange?: (data: { permit_name: string; permit_number: string; description: string }) => void;
+  onFileSelect?: (file: File) => void;
+  selectedFile?: File | null;
+  onSave?: () => void;
+  saving?: boolean;
 }
 
 export default function DocumentPreviewModal({
   isOpen,
   onClose,
-  document
+  document,
+  editMode = false,
+  editData,
+  onEditDataChange,
+  onFileSelect,
+  selectedFile,
+  onSave,
+  saving = false
 }: DocumentPreviewModalProps) {
   const [loading, setLoading] = useState(false);
   const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
@@ -185,24 +206,95 @@ export default function DocumentPreviewModal({
               ) : (
                 <FileText className="h-5 w-5" />
               )}
-              {document.fileName}
+              {editMode ? "Edit Permit" : document.fileName}
             </DialogTitle>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                disabled={loading}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {loading ? 'Downloading...' : 'Download'}
-              </Button>
+              {!editMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  disabled={loading}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {loading ? 'Downloading...' : 'Download'}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={onClose}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </DialogHeader>
+
+        {editMode && editData && onEditDataChange && (
+          <div className="flex-shrink-0 border-b pb-4 space-y-4">
+            <div>
+              <Label htmlFor="edit_permit_name">Permit Name *</Label>
+              <Input
+                id="edit_permit_name"
+                value={editData.permit_name}
+                onChange={(e) => onEditDataChange({ ...editData, permit_name: e.target.value })}
+                placeholder="e.g., Building Permit, Electrical Permit"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit_permit_number">Permit Number</Label>
+              <Input
+                id="edit_permit_number"
+                value={editData.permit_number}
+                onChange={(e) => onEditDataChange({ ...editData, permit_number: e.target.value })}
+                placeholder="Optional permit number"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit_description">Description</Label>
+              <Textarea
+                id="edit_description"
+                value={editData.description}
+                onChange={(e) => onEditDataChange({ ...editData, description: e.target.value })}
+                placeholder="Optional description or notes"
+                rows={2}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="edit_file">Replace File (optional)</Label>
+              <Input
+                id="edit_file"
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && onFileSelect) {
+                    onFileSelect(file);
+                  }
+                }}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              />
+              {selectedFile ? (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Selected: {selectedFile.name}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Current file: {document.fileName}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={onSave} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 min-h-0 overflow-auto">
           {renderPreview()}
         </div>
