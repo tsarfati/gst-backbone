@@ -1048,6 +1048,10 @@ export type Database = {
           invoice_id: string | null
           is_reconciled: boolean | null
           job_id: string | null
+          match_confirmed: boolean | null
+          matched_bill_id: string | null
+          matched_payment_id: string | null
+          matched_receipt_id: string | null
           merchant_name: string | null
           notes: string | null
           post_date: string | null
@@ -1077,6 +1081,10 @@ export type Database = {
           invoice_id?: string | null
           is_reconciled?: boolean | null
           job_id?: string | null
+          match_confirmed?: boolean | null
+          matched_bill_id?: string | null
+          matched_payment_id?: string | null
+          matched_receipt_id?: string | null
           merchant_name?: string | null
           notes?: string | null
           post_date?: string | null
@@ -1106,6 +1114,10 @@ export type Database = {
           invoice_id?: string | null
           is_reconciled?: boolean | null
           job_id?: string | null
+          match_confirmed?: boolean | null
+          matched_bill_id?: string | null
+          matched_payment_id?: string | null
+          matched_receipt_id?: string | null
           merchant_name?: string | null
           notes?: string | null
           post_date?: string | null

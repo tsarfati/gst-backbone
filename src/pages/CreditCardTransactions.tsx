@@ -84,7 +84,9 @@ export default function CreditCardTransactions() {
           *,
           jobs:job_id(id, name),
           cost_codes:cost_code_id(id, code, description),
-          requested_coder:requested_coder_id(user_id, first_name, last_name)
+          requested_coder:requested_coder_id(user_id, first_name, last_name),
+          vendors:vendor_id(id, name),
+          chart_of_accounts:chart_account_id(id, account_number, account_name)
         `)
         .eq("credit_card_id", id)
         .order("transaction_date", { ascending: false });
@@ -533,9 +535,16 @@ export default function CreditCardTransactions() {
     const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected
     const hasAttachment = !!t.attachment_url;
     const bypass = !!t.bypass_attachment_requirement;
+    const hasMatches = !!t.invoice_id || !!t.receipt_id;
+    const matchConfirmed = !!t.match_confirmed;
     const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
 
     const badges: JSX.Element[] = [];
+
+    // Show match confirmation status if there are potential matches
+    if (hasMatches && !matchConfirmed) {
+      badges.push(<Badge className="bg-amber-500 text-white" key="needsconfirm">Needs Confirmation</Badge>);
+    }
 
     if (t.requested_coder_id) {
       badges.push(<Badge className="bg-purple-500 text-white" key="assist">Assistance Requested</Badge>);

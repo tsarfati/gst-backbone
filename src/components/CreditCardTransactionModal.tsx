@@ -229,7 +229,7 @@ export function CreditCardTransactionModal({
       // Fetch suggested matches (bills and receipts)
       await fetchSuggestedMatches(transData);
 
-      // Set attachment preview (normalize storage paths and legacy formats)
+      // Set attachment preview (normalize storage paths and validate company)
       if (transData.attachment_url) {
         const toPublicUrl = (raw: string): string => {
           try {
@@ -256,15 +256,46 @@ export function CreditCardTransactionModal({
             return raw;
           }
         };
+        
         const normalized = toPublicUrl(transData.attachment_url as string);
-        setAttachmentPreview(normalized);
-        if (normalized !== transData.attachment_url) {
-          // persist normalized URL for consistency
+        
+        // Validate company ID in attachment path
+        const validateCompanyAttachment = (url: string): boolean => {
+          try {
+            // Extract path from public URL
+            const match = url.match(/credit-card-attachments\/([^/]+)\//);
+            if (match) {
+              const attachmentCompanyId = match[1];
+              return attachmentCompanyId === currentCompany?.id;
+            }
+            return true; // Allow if we can't determine company (legacy format)
+          } catch {
+            return true;
+          }
+        };
+        
+        if (validateCompanyAttachment(normalized)) {
+          setAttachmentPreview(normalized);
+          if (normalized !== transData.attachment_url) {
+            // persist normalized URL for consistency
+            await supabase
+              .from('credit_card_transactions')
+              .update({ attachment_url: normalized })
+              .eq('id', transactionId);
+            setTransaction((prev: any) => ({ ...prev, attachment_url: normalized }));
+          }
+        } else {
+          // Attachment belongs to another company - remove it
           await supabase
             .from('credit_card_transactions')
-            .update({ attachment_url: normalized })
+            .update({ attachment_url: null })
             .eq('id', transactionId);
-          setTransaction((prev: any) => ({ ...prev, attachment_url: normalized }));
+          setTransaction((prev: any) => ({ ...prev, attachment_url: null }));
+          toast({
+            title: "Attachment Removed",
+            description: "Attachment from another company was removed",
+            variant: "destructive",
+          });
         }
       }
     } catch (error: any) {
@@ -410,7 +441,10 @@ export function CreditCardTransactionModal({
       matches.sort((a, b) => b.matchScore - a.matchScore);
       
       setSuggestedMatches(matches);
-      setShowMatches(matches.length > 0);
+      // Only show matches if not yet confirmed
+      if (matches.length > 0 && !transData.match_confirmed) {
+        setShowMatches(true);
+      }
     } catch (error) {
       console.error("Error fetching suggested matches:", error);
     }
@@ -449,30 +483,54 @@ export function CreditCardTransactionModal({
 
   const linkToMatch = async (match: any) => {
     try {
+      const updateData: any = {
+        match_confirmed: true
+      };
+      
       if (match.type === "bill") {
-        await supabase
-          .from("credit_card_transactions")
-          .update({ invoice_id: match.id })
-          .eq("id", transactionId);
-        
-        toast({
-          title: "Linked",
-          description: `Transaction linked to ${match.display}`,
-        });
+        updateData.matched_bill_id = match.id;
+        updateData.invoice_id = match.id;
       } else if (match.type === "uncoded_receipt" || match.type === "coded_receipt") {
-        await supabase
-          .from("credit_card_transactions")
-          .update({ receipt_id: match.id })
-          .eq("id", transactionId);
-        
-        toast({
-          title: "Linked",
-          description: `Transaction linked to ${match.display}`,
-        });
+        updateData.matched_receipt_id = match.id;
+        updateData.receipt_id = match.id;
       }
       
+      await supabase
+        .from("credit_card_transactions")
+        .update(updateData)
+        .eq("id", transactionId);
+      
+      toast({
+        title: "Confirmed",
+        description: `Transaction confirmed and linked to ${match.display}`,
+      });
+      
+      setShowMatches(false);
       // Refresh transaction data
       await fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const dismissMatches = async () => {
+    try {
+      await supabase
+        .from("credit_card_transactions")
+        .update({ match_confirmed: true })
+        .eq("id", transactionId);
+      
+      setShowMatches(false);
+      setTransaction((prev: any) => ({ ...prev, match_confirmed: true }));
+      
+      toast({
+        title: "Matches Dismissed",
+        description: "You can proceed with coding this transaction",
+      });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -901,20 +959,18 @@ export function CreditCardTransactionModal({
 
           {/* Suggested Matches */}
           {showMatches && suggestedMatches.length > 0 && (
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="bg-amber-50 dark:bg-amber-950 border-2 border-amber-400 dark:border-amber-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                  Suggested Matches
-                </Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowMatches(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div>
+                  <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                    ⚠️ Confirmation Required
+                  </Label>
+                  <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                    This transaction may match existing bills/receipts. Please confirm or dismiss before proceeding.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 mb-3">
                 {suggestedMatches.slice(0, 5).map((match) => (
                   <div
                     key={`${match.type}-${match.id}`}
@@ -944,13 +1000,21 @@ export function CreditCardTransactionModal({
                     </div>
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={() => linkToMatch(match)}
                     >
-                      Link
+                      Confirm & Link
                     </Button>
                   </div>
                 ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={dismissMatches}
+                >
+                  Not a Match - Dismiss
+                </Button>
               </div>
             </div>
           )}
