@@ -14,6 +14,7 @@ import { Paperclip, FileText, X, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
+import QuickAddVendor from "@/components/QuickAddVendor";
 import { cn } from "@/lib/utils";
 interface CreditCardTransactionModalProps {
   open: boolean;
@@ -399,6 +400,21 @@ export function CreditCardTransactionModal({
     await updateCodingStatus();
   };
 
+  const handleQuickAddVendor = async (vendorId: string) => {
+    // Refetch vendors list to include the newly added vendor
+    const { data: vendorsData } = await supabase
+      .from("vendors")
+      .select("id, name")
+      .eq("company_id", currentCompany?.id)
+      .eq("is_active", true)
+      .order("name");
+    
+    setVendors(vendorsData || []);
+    
+    // Now set the vendor on the transaction
+    await handleVendorChange(vendorId);
+  };
+
   const handleAttachmentUpload = async (file: File) => {
     try {
       const fileExt = file.name.split('.').pop();
@@ -677,22 +693,28 @@ export function CreditCardTransactionModal({
           {/* Vendor Selection */}
           <div>
             <Label>Vendor *</Label>
-            <Select
-              key={`vendor-${transactionId}`}
-              value={selectedVendorId || ""}
-              onValueChange={(value) => handleVendorChange(value || null)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select vendor" />
-              </SelectTrigger>
-              <SelectContent>
-                {vendors.map((vendor) => (
-                  <SelectItem key={vendor.id} value={vendor.id}>
-                    {vendor.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select
+                key={`vendor-${transactionId}`}
+                value={selectedVendorId || ""}
+                onValueChange={(value) => handleVendorChange(value || null)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select vendor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <QuickAddVendor 
+                onVendorAdded={handleQuickAddVendor}
+                variant="outline"
+              />
+            </div>
           </div>
 
           {/* Job/Control Selection */}
