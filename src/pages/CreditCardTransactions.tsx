@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Papa from "papaparse";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
+import { formatCurrency } from "@/utils/formatNumber";
 
 export default function CreditCardTransactions() {
   const { id } = useParams();
@@ -524,6 +525,29 @@ export default function CreditCardTransactions() {
   };
 
 
+  // Calculate running balance for all transactions
+  const runningBalances = useMemo(() => {
+    const balanceMap = new Map<string, number>();
+    
+    // Sort transactions chronologically (oldest first)
+    const sortedTransactions = [...transactions].sort((a, b) => 
+      new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+    );
+    
+    let balance = 0;
+    sortedTransactions.forEach((trans) => {
+      // Payment transactions reduce the balance (they're already negative or marked as payment type)
+      if (trans.transaction_type === 'payment' || trans.amount < 0) {
+        balance += trans.amount; // Amount is negative for payments
+      } else {
+        balance += Number(trans.amount); // Add charges
+      }
+      balanceMap.set(trans.id, balance);
+    });
+    
+    return balanceMap;
+  }, [transactions]);
+
   const openTransactionDetail = (transactionId: string) => {
     setSelectedTransactionId(transactionId);
     setShowDetailModal(true);
@@ -707,6 +731,7 @@ export default function CreditCardTransactions() {
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead className="text-right">Running Balance</TableHead>
                 <TableHead>Attachment</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -714,7 +739,7 @@ export default function CreditCardTransactions() {
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     No transactions found. Import a CSV or add transactions manually.
                   </TableCell>
                 </TableRow>
@@ -737,7 +762,13 @@ export default function CreditCardTransactions() {
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold">
-                      ${Number(trans.amount).toLocaleString()}
+                      {trans.transaction_type === 'payment' || trans.amount < 0 
+                        ? `(${formatCurrency(Math.abs(trans.amount))})`
+                        : formatCurrency(trans.amount)
+                      }
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
                     <TableCell className="text-center">
                       {(() => {
