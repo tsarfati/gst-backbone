@@ -23,10 +23,12 @@ export function useCreditCardBalance(
       // 1) Sum all credit card transactions
       const { data: txns, error: txErr } = await supabase
         .from("credit_card_transactions")
-        .select("amount")
+        .select("amount, transaction_type")
         .eq("credit_card_id", creditCardId);
       if (txErr) throw txErr;
-      const totalTransactions = (txns || []).reduce((sum, t: any) => sum + (Number(t.amount) || 0), 0);
+      const totalTransactions = (txns || [])
+        .filter((t: any) => t.transaction_type !== 'payment')
+        .reduce((sum, t: any) => sum + (Number(t.amount) || 0), 0);
 
       // 2) Sum all payments (journal entry lines debiting the liability account)
       const { data: jel, error: jeErr } = await supabase

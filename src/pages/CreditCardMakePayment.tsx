@@ -146,6 +146,8 @@ export default function CreditCardMakePayment() {
           reference: `CC Payment - ${creditCard.card_number_last_four}`,
           created_by: user?.id,
           status: "posted",
+          total_debit: paymentAmount,
+          total_credit: paymentAmount,
         })
         .select()
         .single();
@@ -180,6 +182,22 @@ export default function CreditCardMakePayment() {
         .select('id');
 
       if (linesError) throw linesError;
+
+      // Record a payment transaction entry for visibility in the transactions list (excluded from balance calc)
+      await supabase
+        .from('credit_card_transactions')
+        .insert({
+          credit_card_id: id as string,
+          company_id: currentCompany?.id as string,
+          transaction_date: paymentDate,
+          description: `Payment to ${creditCard.card_name}`,
+          merchant_name: selectedBankAccount?.bank_name || selectedBankAccount?.account_name || 'Bank',
+          amount: -paymentAmount,
+          attachment_url: attachmentUrl,
+          transaction_type: 'payment',
+          coding_status: 'coded',
+          created_by: user?.id as string,
+        });
 
       // Balance is now computed dynamically; no need to update stored current_balance
 

@@ -42,16 +42,18 @@ export function useCreditCardBalances(companyId?: string) {
       // 2. Get sum of transactions per card
       const { data: transactions, error: txErr } = await supabase
         .from("credit_card_transactions")
-        .select("credit_card_id, amount")
+        .select("credit_card_id, amount, transaction_type")
         .in("credit_card_id", cardIds);
       
       if (txErr) throw txErr;
 
       const transactionTotals = new Map<string, number>();
-      (transactions || []).forEach((tx: any) => {
-        const current = transactionTotals.get(tx.credit_card_id) || 0;
-        transactionTotals.set(tx.credit_card_id, current + (Number(tx.amount) || 0));
-      });
+      (transactions || [])
+        .filter((tx: any) => tx.transaction_type !== 'payment')
+        .forEach((tx: any) => {
+          const current = transactionTotals.get(tx.credit_card_id) || 0;
+          transactionTotals.set(tx.credit_card_id, current + (Number(tx.amount) || 0));
+        });
 
       // 3. Get sum of payments (debits to liability accounts)
       const { data: payments, error: payErr } = await supabase
