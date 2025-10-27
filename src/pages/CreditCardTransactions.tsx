@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Smile, Frown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
@@ -707,13 +707,14 @@ export default function CreditCardTransactions() {
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Attachment</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No transactions found. Import a CSV or add transactions manually.
                   </TableCell>
                 </TableRow>
@@ -737,6 +738,22 @@ export default function CreditCardTransactions() {
                     </TableCell>
                     <TableCell className="font-semibold">
                       ${Number(trans.amount).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const hasVendor = !!trans.vendor_id;
+                        const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
+                        const hasCostCode = trans.job_id ? !!trans.cost_code_id : true;
+                        const hasAttachment = !!trans.attachment_url;
+                        const bypass = !!trans.bypass_attachment_requirement;
+                        const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
+                        
+                        return coded && hasAttachment ? (
+                          <Smile className="h-5 w-5 text-green-500 inline-block" />
+                        ) : (
+                          <Frown className="h-5 w-5 text-amber-500 inline-block" />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {getStatusBadge(trans)}
