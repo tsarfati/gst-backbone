@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditCardBalances } from "@/hooks/useCreditCardBalances";
 import Papa from "papaparse";
 
 export default function CreditCards() {
@@ -34,6 +35,8 @@ export default function CreditCards() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string>("");
   const [uploadingCsv, setUploadingCsv] = useState(false);
+
+  const { balances: creditCardBalances, loading: balancesLoading } = useCreditCardBalances(currentCompany?.id);
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -351,7 +354,8 @@ export default function CreditCards() {
               </TableHeader>
               <TableBody>
                 {filteredCards.map((card) => {
-                  const availableCredit = Number(card.credit_limit || 0) - Number(card.current_balance || 0);
+                  const computedBalance = creditCardBalances.get(card.id) || 0;
+                  const availableCredit = Number(card.credit_limit || 0) - computedBalance;
                   return (
                     <TableRow 
                       key={card.id}
@@ -368,8 +372,8 @@ export default function CreditCards() {
                       <TableCell>{card.issuer}</TableCell>
                       <TableCell>${Number(card.credit_limit || 0).toLocaleString()}</TableCell>
                       <TableCell className="font-semibold">
-                        <span className={card.current_balance > 0 ? "text-red-600" : "text-green-600"}>
-                          ${Number(card.current_balance || 0).toLocaleString()}
+                        <span className={computedBalance > 0 ? "text-red-600" : "text-green-600"}>
+                          ${computedBalance.toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell>

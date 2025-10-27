@@ -29,7 +29,7 @@ export default function CreditCardDetails() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
    const [statementsOpen, setStatementsOpen] = useState(false);
 
-  const { balance: computedBalance, loading: balanceLoading } = useCreditCardBalance(id, creditCard?.liability_account_id);
+  const { balance: computedBalance, loading: balanceLoading, refresh: refreshBalance } = useCreditCardBalance(id, creditCard?.liability_account_id);
 
   useEffect(() => {
     if (id && currentCompany) {
@@ -199,40 +199,50 @@ export default function CreditCardDetails() {
         <CardHeader>
           <CardTitle>Card Details</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div>
-            <Label>Card Name</Label>
-            <p className="text-lg font-semibold">{creditCard.card_name}</p>
+        <CardContent className="space-y-6">
+          <div className="p-4 bg-muted rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <Label className="text-muted-foreground">Credit Limit</Label>
+                <p className="text-2xl font-bold mt-1">
+                  ${Number(creditCard.credit_limit || 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="text-center">
+                <Label className="text-muted-foreground">Current Balance</Label>
+                <p className="text-2xl font-bold text-destructive mt-1">
+                  ${Number(balanceLoading ? 0 : computedBalance || 0).toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  (Charges - Payments)
+                </p>
+              </div>
+              <div className="text-center">
+                <Label className="text-muted-foreground">Available Credit</Label>
+                <p className="text-2xl font-bold text-green-600 mt-1">
+                  ${(Number(creditCard.credit_limit || 0) - Number(balanceLoading ? 0 : computedBalance || 0)).toLocaleString()}
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <Label>Cardholder</Label>
-            <p>{creditCard.cardholder_name}</p>
-          </div>
-          <div>
-            <Label>Card Number</Label>
-            <p>**** **** **** {creditCard.card_number_last_four}</p>
-          </div>
-          <div>
-            <Label>Issuer</Label>
-            <p>{creditCard.issuer}</p>
-          </div>
-          <div>
-            <Label>Credit Limit</Label>
-            <p className="text-lg font-semibold">
-              ${Number(creditCard.credit_limit || 0).toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <Label>Current Balance</Label>
-            <p className="text-lg font-semibold text-destructive">
-              ${Number(balanceLoading ? 0 : computedBalance || 0).toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <Label>Available Credit</Label>
-            <p className="text-lg font-semibold text-green-600">
-              ${(Number(creditCard.credit_limit || 0) - Number(balanceLoading ? 0 : computedBalance || 0)).toLocaleString()}
-            </p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <Label>Card Name</Label>
+              <p className="text-lg font-semibold">{creditCard.card_name}</p>
+            </div>
+            <div>
+              <Label>Cardholder</Label>
+              <p>{creditCard.cardholder_name}</p>
+            </div>
+            <div>
+              <Label>Card Number</Label>
+              <p>**** **** **** {creditCard.card_number_last_four}</p>
+            </div>
+            <div>
+              <Label>Issuer</Label>
+              <p>{creditCard.issuer}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -337,6 +347,7 @@ export default function CreditCardDetails() {
         creditCardId={id!}
         onPaymentComplete={() => {
           fetchCreditCardDetails();
+          refreshBalance();
         }}
       />
     </div>

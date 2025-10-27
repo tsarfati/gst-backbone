@@ -181,15 +181,7 @@ export default function CreditCardMakePayment() {
 
       if (linesError) throw linesError;
 
-      // Update credit card balance
-      const newBalance = Number(creditCard.current_balance || 0) - paymentAmount;
-      await supabase
-        .from("credit_cards")
-        .update({ 
-          current_balance: newBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      // Balance is now computed dynamically; no need to update stored current_balance
 
       // Update bank account balance
       const newBankBalance = Number(selectedBankAccount.current_balance || 0) - paymentAmount;
