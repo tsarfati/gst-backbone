@@ -12,6 +12,7 @@ import { ArrowLeft, CreditCard, Upload, FileText, DollarSign, ChevronDown, Chevr
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CreditCardPaymentModal } from "@/components/CreditCardPaymentModal";
+import { useCreditCardBalance } from "@/hooks/useCreditCardBalance";
 
 export default function CreditCardDetails() {
   const { id } = useParams();
@@ -26,7 +27,9 @@ export default function CreditCardDetails() {
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementNotes, setStatementNotes] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [statementsOpen, setStatementsOpen] = useState(false);
+   const [statementsOpen, setStatementsOpen] = useState(false);
+
+  const { balance: computedBalance, loading: balanceLoading } = useCreditCardBalance(id, creditCard?.liability_account_id);
 
   useEffect(() => {
     if (id && currentCompany) {
@@ -222,13 +225,13 @@ export default function CreditCardDetails() {
           <div>
             <Label>Current Balance</Label>
             <p className="text-lg font-semibold text-destructive">
-              ${Number(creditCard.current_balance || 0).toLocaleString()}
+              ${Number(balanceLoading ? 0 : computedBalance || 0).toLocaleString()}
             </p>
           </div>
           <div>
             <Label>Available Credit</Label>
             <p className="text-lg font-semibold text-green-600">
-              ${(Number(creditCard.credit_limit || 0) - Number(creditCard.current_balance || 0)).toLocaleString()}
+              ${(Number(creditCard.credit_limit || 0) - Number(balanceLoading ? 0 : computedBalance || 0)).toLocaleString()}
             </p>
           </div>
         </CardContent>

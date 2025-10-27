@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { useCreditCardBalance } from "@/hooks/useCreditCardBalance";
 
 interface CreditCardPaymentModalProps {
   open: boolean;
@@ -36,6 +37,8 @@ export function CreditCardPaymentModal({
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+
+  const { balance: computedBalance, loading: balanceLoading } = useCreditCardBalance(creditCardId, creditCard?.liability_account_id);
 
   useEffect(() => {
     if (open && creditCardId && currentCompany) {
@@ -159,33 +162,29 @@ export function CreditCardPaymentModal({
         {
           journal_entry_id: journalEntry.id,
           account_id: creditCard.liability_account_id,
-          debit: paymentAmount,
-          credit: 0,
+          debit_amount: paymentAmount,
+          credit_amount: 0,
           description: `Payment to ${creditCard.card_name}`,
+          line_order: 1,
         },
         {
           journal_entry_id: journalEntry.id,
           account_id: selectedBankAccount.chart_account.id,
-          debit: 0,
-          credit: paymentAmount,
+          debit_amount: 0,
+          credit_amount: paymentAmount,
           description: `Payment from ${selectedBankAccount.account_name}`,
+          line_order: 2,
         },
       ];
 
       const { error: linesError } = await supabase
         .from("journal_entry_lines")
-        .insert(lines);
+        .insert(lines)
+        .select('id');
 
       if (linesError) throw linesError;
 
-      const newBalance = Number(creditCard.current_balance || 0) - paymentAmount;
-      await supabase
-        .from("credit_cards")
-        .update({ 
-          current_balance: newBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", creditCardId);
+      // Balance is derived; no need to update stored current_balance here.
 
       const newBankBalance = Number(selectedBankAccount.current_balance || 0) - paymentAmount;
       await supabase
@@ -239,7 +238,7 @@ export function CreditCardPaymentModal({
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Current Balance</span>
               <span className="text-lg font-semibold text-destructive">
-                ${Number(creditCard?.current_balance || 0).toLocaleString()}
+                ${Number(balanceLoading ? 0 : computedBalance || 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
