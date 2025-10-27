@@ -69,12 +69,12 @@ export default function PaymentHistory() {
       if (!currentCompany) return;
       setLoading(true);
       try {
-        // Fetch payments for current company
+        // Fetch payments for current company through vendors
         // @ts-ignore - Supabase type inference issue with deeply nested types
         const paymentResponse: any = await supabase
           .from("payments")
-          .select("*")
-          .eq("company_id", currentCompany.id)
+          .select("*, vendors!inner(company_id)")
+          .eq("vendors.company_id", currentCompany.id)
           .order("payment_date", { ascending: false });
         
         const { data: paymentData, error: paymentError } = paymentResponse;
