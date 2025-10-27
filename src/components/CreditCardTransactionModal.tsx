@@ -95,6 +95,91 @@ export function CreditCardTransactionModal({
         .single();
 
       if (transError) throw transError;
+      
+      // Validate vendor belongs to current company
+      if (transData.vendor_id && transData.vendors) {
+        const { data: vendorCheck } = await supabase
+          .from("vendors")
+          .select("id")
+          .eq("id", transData.vendor_id)
+          .eq("company_id", currentCompany?.id)
+          .maybeSingle();
+        
+        if (!vendorCheck) {
+          // Vendor belongs to another company - clear it
+          await supabase
+            .from("credit_card_transactions")
+            .update({ vendor_id: null })
+            .eq("id", transactionId);
+          transData.vendor_id = null;
+          transData.vendors = null;
+          toast({
+            title: "Vendor Removed",
+            description: "Vendor from another company was removed",
+            variant: "destructive",
+          });
+        }
+      }
+      
+      // Validate job belongs to current company
+      if (transData.job_id && transData.jobs) {
+        const { data: jobCheck } = await supabase
+          .from("jobs")
+          .select("id")
+          .eq("id", transData.job_id)
+          .eq("company_id", currentCompany?.id)
+          .maybeSingle();
+        
+        if (!jobCheck) {
+          await supabase
+            .from("credit_card_transactions")
+            .update({ job_id: null, cost_code_id: null })
+            .eq("id", transactionId);
+          transData.job_id = null;
+          transData.jobs = null;
+          transData.cost_code_id = null;
+          transData.cost_codes = null;
+        }
+      }
+      
+      // Validate chart account belongs to current company
+      if (transData.chart_account_id && transData.chart_of_accounts) {
+        const { data: accountCheck } = await supabase
+          .from("chart_of_accounts")
+          .select("id")
+          .eq("id", transData.chart_account_id)
+          .eq("company_id", currentCompany?.id)
+          .maybeSingle();
+        
+        if (!accountCheck) {
+          await supabase
+            .from("credit_card_transactions")
+            .update({ chart_account_id: null })
+            .eq("id", transactionId);
+          transData.chart_account_id = null;
+          transData.chart_of_accounts = null;
+        }
+      }
+      
+      // Validate cost code belongs to current company
+      if (transData.cost_code_id && transData.cost_codes) {
+        const { data: costCodeCheck } = await supabase
+          .from("cost_codes")
+          .select("id")
+          .eq("id", transData.cost_code_id)
+          .eq("company_id", currentCompany?.id)
+          .maybeSingle();
+        
+        if (!costCodeCheck) {
+          await supabase
+            .from("credit_card_transactions")
+            .update({ cost_code_id: null })
+            .eq("id", transactionId);
+          transData.cost_code_id = null;
+          transData.cost_codes = null;
+        }
+      }
+      
       setTransaction(transData);
       setBypassAttachmentRequirement(transData.bypass_attachment_requirement || false);
 
