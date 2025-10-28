@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   FileText, 
   Plus, 
@@ -45,6 +46,7 @@ interface CostCode {
   job_id?: string | null;
   chart_account_id?: string | null;
   chart_account_number?: string | null;
+  require_attachment?: boolean;
 }
 
 interface Job {
@@ -164,7 +166,8 @@ export default function JobCostSetup() {
         type: newTemplate.type,
         company_id: currentCompany?.id,
         is_active: true,
-        job_id: null // General cost code template
+        job_id: null, // General cost code template
+        require_attachment: true
       };
 
       const { error } = await supabase
@@ -873,6 +876,7 @@ export default function JobCostSetup() {
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead className="text-center">Require Attachment</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -888,6 +892,23 @@ export default function JobCostSetup() {
                         <span>{costTypeOptions.find(t => t.value === code.type)?.label}</span>
                       </span>
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={code.require_attachment ?? true}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase
+                          .from('cost_codes')
+                          .update({ require_attachment: !!checked })
+                          .eq('id', code.id);
+                        if (!error) {
+                          setCostCodes(prev => prev.map(c => c.id === code.id ? { ...c, require_attachment: !!checked } : c));
+                          toast({ title: 'Updated', description: 'Attachment requirement updated' });
+                        } else {
+                          toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
+                        }
+                      }}
+                    />
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center space-x-2">
