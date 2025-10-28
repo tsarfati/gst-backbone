@@ -76,6 +76,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const ensuredEmployeeAlbumRef = useRef(false);
 
   useEffect(() => {
     loadPhotos();
@@ -160,6 +161,33 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       if (error) throw error;
       setAlbums(data || []);
+
+      // Ensure the auto employee album exists once per mount
+      if (!ensuredEmployeeAlbumRef.current && user?.id) {
+        const hasEmployeeAlbum = (data || []).some(a => a.is_auto_employee_album);
+        if (!hasEmployeeAlbum) {
+          const { error: rpcError } = await supabase.rpc('get_or_create_employee_album', {
+            p_job_id: jobId,
+            p_user_id: user.id,
+          });
+          if (!rpcError) {
+            ensuredEmployeeAlbumRef.current = true;
+            // Reload albums to include the newly created one
+            const { data: refreshed } = await supabase
+              .from('photo_albums')
+              .select('*')
+              .eq('job_id', jobId)
+              .order('is_auto_employee_album', { ascending: false })
+              .order('created_at', { ascending: true });
+            setAlbums(refreshed || []);
+            toast({ title: 'Employee album ready', description: 'Created Employee Uploads album for this job.' });
+          } else {
+            console.error('Error creating employee album:', rpcError);
+          }
+        } else {
+          ensuredEmployeeAlbumRef.current = true;
+        }
+      }
     } catch (error) {
       console.error('Error loading albums:', error);
     }
