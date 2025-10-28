@@ -5377,12 +5377,14 @@ export type Database = {
           created_at: string
           id: string
           is_primary: boolean
+          login_information: string | null
           pickup_location: string | null
           routing_number: string | null
           type: string
           updated_at: string
           vendor_id: string
           voided_check_url: string | null
+          website_address: string | null
         }
         Insert: {
           account_number?: string | null
@@ -5392,12 +5394,14 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary?: boolean
+          login_information?: string | null
           pickup_location?: string | null
           routing_number?: string | null
           type: string
           updated_at?: string
           vendor_id: string
           voided_check_url?: string | null
+          website_address?: string | null
         }
         Update: {
           account_number?: string | null
@@ -5407,12 +5411,14 @@ export type Database = {
           created_at?: string
           id?: string
           is_primary?: boolean
+          login_information?: string | null
           pickup_location?: string | null
           routing_number?: string | null
           type?: string
           updated_at?: string
           vendor_id?: string
           voided_check_url?: string | null
+          website_address?: string | null
         }
         Relationships: [
           {

@@ -385,6 +385,8 @@ export default function VendorEdit() {
       pickup_location: data.pickup_location || null,
       voided_check_url: data.voided_check_url || null,
       account_type: data.account_type || null,
+      website_address: data.website_address || null,
+      login_information: data.login_information || null,
     });
 
     try {
