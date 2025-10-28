@@ -741,7 +741,7 @@ export default function CreditCardTransactions() {
           <CardTitle>Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table className="border-separate border-spacing-0">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -763,13 +763,13 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer hover:bg-primary/5 transition-all duration-200 group relative hover:outline hover:outline-2 hover:outline-primary hover:rounded-lg"
+                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
                     onClick={() => openTransactionDetail(trans.id)}
                   >
-                    <TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
@@ -777,7 +777,7 @@ export default function CreditCardTransactions() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold">
+                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {trans.transaction_type === 'payment' || trans.amount < 0 
                           ? `${formatCurrency(Math.abs(trans.amount))}`
@@ -785,10 +785,10 @@ export default function CreditCardTransactions() {
                         }
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell className="text-right font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       {(() => {
                         const hasVendor = !!trans.vendor_id;
                         const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
@@ -811,7 +811,7 @@ export default function CreditCardTransactions() {
                         return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       {getStatusBadge(trans)}
                     </TableCell>
                   </TableRow>
