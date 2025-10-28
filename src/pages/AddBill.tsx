@@ -75,6 +75,7 @@ export default function AddBill() {
   
   const [billFiles, setBillFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [noAttachmentNeeded, setNoAttachmentNeeded] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
@@ -136,7 +137,7 @@ export default function AddBill() {
         supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
-          .select('id, account_number, account_name, account_type')
+          .select('id, account_number, account_name, account_type, bypass_attachment_requirement')
           .eq('company_id', companyId)
           .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
           .eq('is_active', true)
@@ -178,7 +179,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*')
+        .select('*, bypass_attachment_requirement')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
@@ -197,7 +198,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*')
+        .select('*, bypass_attachment_requirement')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
@@ -1089,11 +1090,53 @@ export default function AddBill() {
     }
   };
 
+  // Check if any selected account or cost code allows bypassing attachment requirement
+  const canBypassAttachment = () => {
+    if (billType === "commitment") {
+      // Check expense account
+      if (formData.expense_account_id) {
+        const account = expenseAccounts.find(a => a.id === formData.expense_account_id);
+        if (account?.bypass_attachment_requirement) return true;
+      }
+      // Check cost code
+      if (formData.cost_code_id) {
+        const costCode = costCodes.find(c => c.id === formData.cost_code_id);
+        if (costCode?.bypass_attachment_requirement) return true;
+      }
+      // Check bill distribution cost codes
+      if (needsDistribution && billDistribution.length > 0) {
+        return billDistribution.some(dist => {
+          const costCode = costCodes.find(c => c.id === dist.cost_code_id);
+          return costCode?.bypass_attachment_requirement;
+        });
+      }
+    } else {
+      // Non-commitment: check distribution items
+      return distributionItems.some(item => {
+        // Check expense account
+        if (item.expense_account_id) {
+          const account = expenseAccounts.find(a => a.id === item.expense_account_id);
+          if (account?.bypass_attachment_requirement) return true;
+        }
+        // Check cost code
+        if (item.cost_code_id) {
+          const codes = lineItemCostCodes[item.id] || [];
+          const costCode = codes.find(c => c.id === item.cost_code_id);
+          if (costCode?.bypass_attachment_requirement) return true;
+        }
+        return false;
+      });
+    }
+    return false;
+  };
+
+  const attachmentRequired = !noAttachmentNeeded || !canBypassAttachment();
+
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
-      formData.issueDate && billFiles.length > 0 && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
+      formData.issueDate && (attachmentRequired ? billFiles.length > 0 : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
       (formData.request_pm_help || formData.cost_code_id || (needsDistribution && billDistribution.length > 0)) // Either requesting help, has cost code, or has valid distribution
-    : formData.vendor_id && formData.amount && formData.issueDate && (billFiles.length > 0 || attachedReceipt) && 
+    : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
       (formData.request_pm_help || isDistributionValid()); // Either requesting help or valid distribution
 
@@ -1903,10 +1946,28 @@ export default function AddBill() {
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Bill Document
-              <Badge variant="destructive" className="text-xs">Required</Badge>
+              {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* No Attachment Needed Checkbox */}
+            {canBypassAttachment() && (
+              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                <Checkbox
+                  id="no_attachment_needed"
+                  checked={noAttachmentNeeded}
+                  onCheckedChange={(checked) => setNoAttachmentNeeded(!!checked)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="no_attachment_needed" className="cursor-pointer font-medium">
+                    No attachment needed for this bill
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    The selected cost code or account allows bills without attachments
+                  </p>
+                </div>
+              </div>
+            )}
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
@@ -2076,7 +2137,7 @@ export default function AddBill() {
               </div>
             )}
             
-            {billFiles.length === 0 && !attachedReceipt && (
+            {billFiles.length === 0 && !attachedReceipt && attachmentRequired && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <AlertCircle className="h-4 w-4" />
                 <span>Bill document or receipt attachment is required before saving</span>
