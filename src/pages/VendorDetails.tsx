@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 export default function VendorDetails() {
@@ -788,6 +789,9 @@ export default function VendorDetails() {
         <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Voided Check - {viewingVoidedCheck?.bank_name}</DialogTitle>
+            <DialogDescription>
+              View the voided check document for this payment method
+            </DialogDescription>
           </DialogHeader>
           <div className="overflow-auto max-h-[70vh]">
             {viewingVoidedCheck?.voided_check_url && (
