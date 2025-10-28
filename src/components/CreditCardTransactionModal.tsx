@@ -444,8 +444,7 @@ useEffect(() => {
         .in("status", ["pending", "approved", "pending_payment", "paid"])
         .gte("amount", minAmount)
         .lte("amount", maxAmount)
-        .gte("issue_date", startDate.toISOString().split('T')[0])
-        .lte("issue_date", endDate.toISOString().split('T')[0])
+        // Do not filter by issue_date; bills might be issued long before the card charge
         .limit(10);
 
       const invoices = invoicesQuery.data || [];
