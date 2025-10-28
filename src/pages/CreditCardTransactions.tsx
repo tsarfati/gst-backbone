@@ -567,7 +567,7 @@ export default function CreditCardTransactions() {
 
     // Show match confirmation status if there are potential matches
     if (hasMatches && !matchConfirmed) {
-      badges.push(<Badge className="bg-amber-500 text-white" key="needsconfirm">Needs Confirmation</Badge>);
+      badges.push(<Badge className="bg-amber-500 text-white" key="needsconfirm">Matches Found</Badge>);
     }
 
     if (t.requested_coder_id) {
