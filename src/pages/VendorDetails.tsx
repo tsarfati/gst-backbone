@@ -98,7 +98,21 @@ export default function VendorDetails() {
           .order('type');
 
         if (error) throw error;
-        setComplianceDocuments(data || []);
+        
+        // Transform database format to component format
+        const transformedDocs = (data || []).map(doc => ({
+          id: doc.id,
+          type: doc.type,
+          required: doc.is_required,
+          uploaded: doc.is_uploaded,
+          fileName: doc.file_name || undefined,
+          uploadDate: doc.uploaded_at || undefined,
+          expirationDate: doc.expiration_date || undefined,
+          url: doc.file_url || undefined,
+          status: doc.is_uploaded ? 'uploaded' : 'missing'
+        }));
+        
+        setComplianceDocuments(transformedDocs);
       } catch (error) {
         console.error('Error loading compliance documents:', error);
       }

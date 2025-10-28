@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -114,13 +114,19 @@ const getJobColor = (jobName: string) => {
 
 export default function Bills() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { canCreate, canDelete, canEdit } = useActionPermissions();
+  
+  // Initialize filters from navigation state if provided
+  const initialVendorFilter = (location.state as any)?.vendorFilter || "all";
+  const initialShowPaid = (location.state as any)?.vendorFilter ? true : false;
+  
   const [jobFilter, setJobFilter] = useState("all");
-  const [vendorFilter, setVendorFilter] = useState("all");
+  const [vendorFilter, setVendorFilter] = useState(initialVendorFilter);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [showPaidBills, setShowPaidBills] = useState(false);
+  const [showPaidBills, setShowPaidBills] = useState(initialShowPaid);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [bills, setBills] = useState<Bill[]>([]);
