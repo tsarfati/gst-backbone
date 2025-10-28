@@ -30,6 +30,11 @@ interface PaymentDetails {
     id: string;
     account_name: string;
   };
+  credit_card?: {
+    id: string;
+    card_name: string;
+    company_id: string;
+  };
   created_by_user?: {
     first_name: string;
     last_name: string;
@@ -90,10 +95,13 @@ export default function PaymentDetails() {
         .select(`
           *,
           vendor:vendors(id, name, company_id),
-          bank_account:bank_accounts(id, account_name)
+          bank_account:bank_accounts(id, account_name),
+          credit_card:credit_cards(id, card_name, company_id)
         `)
         .eq("id", id)
         .maybeSingle();
+
+      console.log('Payment query result:', { paymentData, paymentError, id });
 
       if (paymentError) throw paymentError;
       let paymentDataAny: any = paymentData;
@@ -118,12 +126,15 @@ export default function PaymentDetails() {
         return;
       }
 
-      // Access guard: ensure payment belongs to current company via vendor
-      if (currentCompany?.id && paymentDataAny.vendor?.company_id && paymentDataAny.vendor.company_id !== currentCompany.id) {
+      // Access guard: ensure payment belongs to current company via vendor or credit card
+      const paymentCompanyId = paymentDataAny.vendor?.company_id || paymentDataAny.credit_card?.company_id;
+      if (currentCompany?.id && paymentCompanyId && paymentCompanyId !== currentCompany.id) {
         toast.error("Payment not found");
         setLoading(false);
         return;
       }
+      
+      console.log('Payment company check:', { currentCompanyId: currentCompany?.id, paymentCompanyId, vendorCompanyId: paymentDataAny.vendor?.company_id, creditCardCompanyId: paymentDataAny.credit_card?.company_id });
 
       // Fetch created by user
       let createdByUser = null;
@@ -415,6 +426,12 @@ export default function PaymentDetails() {
                 <div>
                   <p className="text-sm text-muted-foreground">Vendor</p>
                   <p className="font-medium">{payment.vendor.name}</p>
+                </div>
+              )}
+              {payment.credit_card && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Credit Card</p>
+                  <p className="font-medium">{payment.credit_card.card_name}</p>
                 </div>
               )}
               {payment.bank_account && (
