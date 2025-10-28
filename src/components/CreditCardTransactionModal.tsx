@@ -65,6 +65,8 @@ export function CreditCardTransactionModal({
       setSelectedVendorId(null);
       setSelectedJobOrAccount(null);
       setIsJobSelected(false);
+      setSuggestedMatches([]);
+      setShowMatches(false);
       setJobCostCodes([]);
       fetchData();
     } else if (!open) {
@@ -587,10 +589,14 @@ export function CreditCardTransactionModal({
       // Sort by match score (highest first)
       matches.sort((a, b) => b.matchScore - a.matchScore);
       
+      console.log('Suggested matches found:', matches.length, 'matches:', matches);
       setSuggestedMatches(matches);
       // Show matches if not yet confirmed (including for payment transactions)
       if (matches.length > 0 && !transData.match_confirmed) {
+        console.log('Setting showMatches to true');
         setShowMatches(true);
+      } else {
+        console.log('Not showing matches - length:', matches.length, 'confirmed:', transData.match_confirmed);
       }
     } catch (error) {
       console.error("Error fetching suggested matches:", error);
