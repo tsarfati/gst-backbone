@@ -1138,19 +1138,161 @@ export function CreditCardTransactionModal({
           </div>
 
           {/* Suggested Matches */}
-          {showMatches && suggestedMatches.length > 0 && (
+          {showMatches && (
             <div className="bg-amber-50 dark:bg-amber-950 border-2 border-amber-400 dark:border-amber-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ⚠️ Confirmation Required - Potential Matches Found
+                    ⚠️ Potential Matches
                   </Label>
                   <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
-                    {suggestedMatches.length} potential {suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.
+                    {suggestedMatches.length > 0
+                      ? `${suggestedMatches.length} potential ${suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.`
+                      : 'No potential matches found for this transaction. You can refresh to try again.'}
                   </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => fetchSuggestedMatches(transaction)}>
+                    Refresh
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={dismissMatches}>
+                    <X className="h-4 w-4 mr-1" />
+                    Dismiss
+                  </Button>
+                </div>
               </div>
-              <div className="space-y-3 mb-3">
+
+              {suggestedMatches.length > 0 && (
+                <>
+                  <div className="space-y-3 mb-3">
+                    {suggestedMatches.slice(0, 5).map((match) => (
+                      <div
+                        key={`${match.type}-${match.id}`}
+                        className="bg-white dark:bg-gray-900 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors"
+                      >
+                        <div className="flex gap-4">
+                          {/* Attachment Preview */}
+                          {match.attachmentUrl && (
+                            <div className="flex-shrink-0">
+                              <div className="w-20 h-20 border rounded overflow-hidden bg-muted">
+                                {match.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <FileText className="h-8 w-8 text-muted-foreground" />
+                                  </div>
+                                ) : (
+                                  <img 
+                                    src={match.attachmentUrl} 
+                                    alt="Attachment preview"
+                                    className="w-full h-full object-cover"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Match Details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium text-sm">{match.display}</span>
+                              <Badge variant={
+                                match.type === "bill" ? "default" :
+                                match.type === "uncoded_receipt" ? "secondary" :
+                                match.type === "transaction" ? "default" :
+                                "outline"
+                              }>
+                                {match.type === "bill" ? "Bill" :
+                                 match.type === "uncoded_receipt" ? "Uncoded Receipt" :
+                                 match.type === "transaction" ? "Credit Card Charge" :
+                                 "Coded Receipt"}
+                              </Badge>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                                {Math.round(match.matchScore)}% match
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                              <div><span className="font-medium">Amount:</span> ${Number(match.amount).toLocaleString()}</div>
+                              <div><span className="font-medium">Date:</span> {new Date(match.date).toLocaleDateString()}</div>
+                              {match.vendor && <div><span className="font-medium">Vendor:</span> {match.vendor}</div>}
+                              {match.jobName && <div><span className="font-medium">Job:</span> {match.jobName}</div>}
+                              {match.costCode && <div className="col-span-2"><span className="font-medium">Cost Code:</span> {match.costCode}</div>}
+                            </div>
+                            
+                            {match.attachmentUrl && (
+                              <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                <Check className="h-3 w-3" />
+                                <span>Attachment available</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Action Button */}
+                          <div className="flex-shrink-0 flex items-center">
+                            <Button
+                              size="sm"
+                              onClick={() => linkToMatch(match)}
+                              className="whitespace-nowrap"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Select Match
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={dismissMatches}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      No Match - Dismiss All
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {/* Vendor Selection - Not required for payments */}
+          {transaction.transaction_type !== 'payment' && (
+          <div>
+            <Label>Vendor *</Label>
+            <div className="flex gap-2">
+              <Select
+                key={`vendor-${transactionId}`}
+                value={selectedVendorId || undefined}
+                onValueChange={(value) => handleVendorChange(value === "clear-vendor" ? null : (value || null))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select vendor" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="clear-vendor" className="text-muted-foreground italic">
+                    Clear selection
+                  </SelectItem>
+                  {vendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <QuickAddVendor 
+                onVendorAdded={handleQuickAddVendor}
+                variant="outline"
+              />
+            </div>
+          </div>
+          )}
+
+          {/* Rest of the component content... */}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
                 {suggestedMatches.slice(0, 5).map((match) => (
                   <div
                     key={`${match.type}-${match.id}`}
