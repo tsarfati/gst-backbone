@@ -48,8 +48,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
     if (!user || !currentCompany) return;
 
     try {
-      // Build query - fetch bills needing approval or coding
-      // Show bills that need coding (pending_coding=true and not approved/pending_approval) OR need approval (status=pending_approval)
+      // Build base query
       let query = supabase
         .from('invoices')
         .select(`
@@ -63,11 +62,19 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
           description,
           status,
           pending_coding,
+          assigned_to_pm,
           vendor:vendors(name),
           job:jobs(name)
         `)
-        .or('and(pending_coding.eq.true,status.neq.approved,status.neq.pending_approval),status.eq.pending_approval')
         .order('created_at', { ascending: false });
+
+      // When viewing within a specific job, ONLY show items that truly need coding
+      if (jobId) {
+        query = query.eq('status', 'pending_coding');
+      } else {
+        // On dashboards, show both coding and approval items
+        query = query.in('status', ['pending_coding', 'pending_approval']);
+      }
 
       // Filter by job if specified
       if (jobId) {
