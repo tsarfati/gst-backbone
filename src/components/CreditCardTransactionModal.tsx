@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Paperclip, FileText, X, ChevronsUpDown, Check } from "lucide-react";
+import { Paperclip, FileText, X, ChevronsUpDown, Check, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
@@ -1135,6 +1135,20 @@ export function CreditCardTransactionModal({
               </div>
             )}
           </div>
+
+          {/* Show Matches Button */}
+          {(!showMatches || suggestedMatches.length === 0) && (
+            <div className="flex justify-center">
+              <Button 
+                variant="outline" 
+                onClick={() => fetchSuggestedMatches(transaction)}
+                className="flex items-center gap-2"
+              >
+                <Search className="h-4 w-4" />
+                Show Potential Matches
+              </Button>
+            </div>
+          )}
 
           {/* Suggested Matches */}
           {showMatches && suggestedMatches.length > 0 && (
