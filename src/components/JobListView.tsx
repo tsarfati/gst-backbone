@@ -21,7 +21,7 @@ interface JobListViewProps {
 export default function JobListView({ jobs, onJobClick }: JobListViewProps) {
   return (
     <div className="border border-border rounded-md">
-      <Table>
+      <Table className="border-separate border-spacing-0">
         <TableHeader>
           <TableRow>
             <TableHead>Job Name</TableHead>
@@ -39,21 +39,21 @@ export default function JobListView({ jobs, onJobClick }: JobListViewProps) {
             const budgetUsage = Math.round((parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100);
             
             return (
-              <TableRow key={job.id} className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group" onClick={() => onJobClick(job)}>
-                <TableCell>
+              <TableRow key={job.id} className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]" onClick={() => onJobClick(job)}>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                   <div className="flex items-center gap-2">
                     <FolderOpen className="h-4 w-4 text-primary" />
                     <span className="font-medium group-hover:text-primary transition-colors">{job.name}</span>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                   <Badge variant={job.status === "active" ? "default" : "success"}>
                     {job.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-medium">{job.budget}</TableCell>
-                <TableCell className="font-medium">{job.spent}</TableCell>
-                <TableCell>
+                <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{job.budget}</TableCell>
+                <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{job.spent}</TableCell>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                   <div className="flex items-center gap-2">
                     <div className="w-16 bg-muted rounded-full h-2">
                       <div 
@@ -64,9 +64,9 @@ export default function JobListView({ jobs, onJobClick }: JobListViewProps) {
                     <span className="text-sm text-muted-foreground">{budgetUsage}%</span>
                   </div>
                 </TableCell>
-                <TableCell>{job.receipts}</TableCell>
-                <TableCell>{job.startDate}</TableCell>
-                <TableCell>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{job.receipts}</TableCell>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{job.startDate}</TableCell>
+                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                   <Button 
                     variant="outline" 
                     size="sm"

@@ -345,7 +345,7 @@ export default function CreditCards() {
               )}
             </div>
           ) : (
-            <Table>
+            <Table className="border-separate border-spacing-0">
               <TableHeader>
                 <TableRow>
                   <TableHead>Card Name</TableHead>
@@ -365,35 +365,35 @@ export default function CreditCards() {
                   return (
                     <TableRow 
                       key={card.id}
-                      className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group"
+                      className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
                       onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
                     >
-                      <TableCell className="font-medium group-hover:text-primary transition-colors">{card.card_name}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-medium group-hover:text-primary transition-colors border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{card.card_name}</TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <div className="flex items-center">
                           <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />
                           ****{card.card_number_last_four}
                         </div>
                       </TableCell>
-                      <TableCell>{card.issuer}</TableCell>
-                      <TableCell>${Number(card.credit_limit || 0).toLocaleString()}</TableCell>
-                      <TableCell className="font-semibold">
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{card.issuer}</TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${Number(card.credit_limit || 0).toLocaleString()}</TableCell>
+                      <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <span className={computedBalance > 0 ? "text-red-600" : "text-green-600"}>
                           ${computedBalance.toLocaleString()}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <span className="text-green-600">
                           ${availableCredit.toLocaleString()}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <div className="flex items-center">
                           <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
                           {card.due_date ? new Date(card.due_date).toLocaleDateString() : 'N/A'}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <Badge variant={card.is_active ? "default" : "secondary"}>
                           {card.is_active ? "Active" : "Inactive"}
                         </Badge>

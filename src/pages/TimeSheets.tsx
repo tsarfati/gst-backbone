@@ -907,7 +907,7 @@ export default function TimeSheets() {
               <div className="space-y-4">
                 {/* Render different views based on viewMode */}
                 {currentView === 'table' && (
-                  <Table>
+                  <Table className="border-separate border-spacing-0">
                     <TableHeader>
                       <TableRow>
                         {isManager && (
@@ -925,28 +925,28 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getFilteredAndSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group">
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]">
                           {isManager && (
-                            <TableCell className="font-medium group-hover:text-primary transition-colors">
+                            <TableCell className="font-medium group-hover:text-primary transition-colors border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                               {getEmployeeName(timeCard)}
                             </TableCell>
                           )}
-                           <TableCell>
+                           <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             <div>
-                              <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
+                              <div className="font-medium group-hover:text-primary transition-colors">{timeCard.jobs?.name || 'Unknown Job'}</div>
                               <div className="text-sm text-muted-foreground">
                                 {timeCard.cost_codes ? `${timeCard.cost_codes.code} - ${timeCard.cost_codes.description}` : 'N/A'}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
                               weekday: 'short',
                               month: 'short', 
                               day: 'numeric' 
                             })}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             <div className="text-sm">
                               <div>
                                 In: {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', { 
@@ -962,7 +962,7 @@ export default function TimeSheets() {
                               </div>
                             </div>
                           </TableCell>
-<TableCell className="font-medium">
+<TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
   <div className="flex items-center gap-2">
     {timeCard.total_hours.toFixed(1)}h
     {timeCard.over_24h && (
@@ -973,7 +973,7 @@ export default function TimeSheets() {
     )}
   </div>
 </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             {timeCard.overtime_hours > 0 ? (
                               <span className="text-warning font-medium">
                                 {timeCard.overtime_hours.toFixed(1)}h
@@ -982,7 +982,7 @@ export default function TimeSheets() {
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             <div className="flex items-center gap-2">
                               <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)}>
                                 {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
@@ -994,7 +994,7 @@ export default function TimeSheets() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             <div className="flex items-center gap-2">
                               <PhotoDisplay url={timeCard.punch_in_photo_url || undefined} type="in" />
                               <PhotoDisplay url={timeCard.punch_out_photo_url || undefined} type="out" />
@@ -1003,7 +1003,7 @@ export default function TimeSheets() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                             <div className="flex items-center gap-3">
                               {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
                                 <a

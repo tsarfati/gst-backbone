@@ -552,7 +552,7 @@ export default function Bills() {
         <CardContent>
           {currentView === 'list' ? (
             // List View (Table)
-            <Table>
+            <Table className="border-separate border-spacing-0">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
@@ -588,34 +588,34 @@ export default function Bills() {
                     return (
                     <TableRow 
                       key={bill.id} 
-                      className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group"
+                      className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <Checkbox
                           checked={selectedBills.includes(bill.id)}
                           onCheckedChange={() => handleSelectBill(bill.id)}
                         />
                       </TableCell>
-                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                     <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                           <div className="flex items-center gap-3">
                             <VendorAvatar 
                               name={bill.vendor_name}
                               logoUrl={bill.vendor_logo_url}
                               size="sm"
                             />
-                        <span className="font-medium">{bill.vendor_name}</span>
+                        <span className="font-medium group-hover:text-primary transition-colors">{bill.vendor_name}</span>
                         </div>
                       </TableCell>
-                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                           {bill.job_name}
                         </Badge>
                       </TableCell>
-                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold">${bill.amount.toLocaleString()}</TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)}>
+                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                            <div className="flex items-center gap-2">
                              <Badge variant={getStatusVariant(bill.status)}>
                                {getStatusDisplayName(bill.status)}

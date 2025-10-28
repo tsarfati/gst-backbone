@@ -35,7 +35,7 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
   
   return (
     <div className="border border-border rounded-md">
-      <Table>
+      <Table className="border-separate border-spacing-0">
         <TableHeader>
           <TableRow>
             <TableHead>Vendor Name</TableHead>
@@ -50,8 +50,8 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
         </TableHeader>
         <TableBody>
           {vendors.map((vendor) => (
-            <TableRow key={vendor.id} className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group" onClick={() => onVendorClick(vendor)}>
-              <TableCell>
+            <TableRow key={vendor.id} className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]" onClick={() => onVendorClick(vendor)}>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                 <div className="flex items-center gap-3">
                   <VendorAvatar 
                     name={vendor.name}
@@ -61,7 +61,7 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
                   <span className="font-medium group-hover:text-primary transition-colors">{vendor.name}</span>
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                 <div className="flex gap-2">
                   <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
                     {vendor.category}
@@ -74,12 +74,12 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
                   )}
                 </div>
               </TableCell>
-              <TableCell>{vendor.contact !== "N/A" ? vendor.contact : "-"}</TableCell>
-              <TableCell>{vendor.phone}</TableCell>
-              <TableCell>{vendor.email}</TableCell>
-              <TableCell className="font-medium">{vendor.totalSpent}</TableCell>
-              <TableCell>{vendor.bills}</TableCell>
-              <TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{vendor.contact !== "N/A" ? vendor.contact : "-"}</TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{vendor.phone}</TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{vendor.email}</TableCell>
+              <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{vendor.totalSpent}</TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{vendor.bills}</TableCell>
+              <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                 <Button 
                   variant="outline" 
                   size="sm"

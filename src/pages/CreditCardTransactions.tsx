@@ -763,13 +763,13 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
+                    className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
                     onClick={() => openTransactionDetail(trans.id)}
                   >
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="first:rounded-l-lg last:rounded-r-lg">
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="first:rounded-l-lg last:rounded-r-lg">
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
@@ -777,7 +777,7 @@ export default function CreditCardTransactions() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="font-semibold first:rounded-l-lg last:rounded-r-lg">
                       <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {trans.transaction_type === 'payment' || trans.amount < 0 
                           ? `${formatCurrency(Math.abs(trans.amount))}`
@@ -785,10 +785,10 @@ export default function CreditCardTransactions() {
                         }
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="text-right font-semibold first:rounded-l-lg last:rounded-r-lg">
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
-                    <TableCell className="text-center border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="text-center first:rounded-l-lg last:rounded-r-lg">
                       {(() => {
                         const hasVendor = !!trans.vendor_id;
                         const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
@@ -811,7 +811,7 @@ export default function CreditCardTransactions() {
                         return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="first:rounded-l-lg last:rounded-r-lg">
                       {getStatusBadge(trans)}
                     </TableCell>
                   </TableRow>
