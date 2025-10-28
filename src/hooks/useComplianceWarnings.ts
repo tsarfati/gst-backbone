@@ -30,18 +30,45 @@ export function useComplianceWarnings(vendorIds: string[]) {
     const fetchWarnings = async () => {
       setLoading(true);
       try {
-        // Fetch basic compliance document data
-        const { data, error } = await supabase
-          .from('vendor_compliance_documents')
-          .select('vendor_id, type, is_required, is_uploaded, expiration_date')
-          .in('vendor_id', vendorIds);
+        // Batch vendor IDs to avoid too many simultaneous requests
+        // Process in chunks of 10 to prevent ERR_INSUFFICIENT_RESOURCES
+        const BATCH_SIZE = 10;
+        const batches: string[][] = [];
+        
+        for (let i = 0; i < vendorIds.length; i += BATCH_SIZE) {
+          batches.push(vendorIds.slice(i, i + BATCH_SIZE));
+        }
 
-        if (error) throw error;
+        let allDocData: any[] = [];
+        let allDetailedData: any[] = [];
+
+        // Process batches sequentially
+        for (const batch of batches) {
+          // Fetch basic compliance document data
+          const { data, error } = await supabase
+            .from('vendor_compliance_documents')
+            .select('vendor_id, type, is_required, is_uploaded, expiration_date')
+            .in('vendor_id', batch);
+
+          if (!error && data) {
+            allDocData = [...allDocData, ...data];
+          }
+
+          // Fetch detailed warnings from the view
+          const { data: detailedData, error: detailedError } = await supabase
+            .from('vendor_compliance_warnings')
+            .select('*')
+            .in('vendor_id', batch);
+
+          if (!detailedError && detailedData) {
+            allDetailedData = [...allDetailedData, ...detailedData];
+          }
+        }
 
         const warningsMap: Record<string, number> = {};
         
         vendorIds.forEach(vendorId => {
-          const vendorDocs = data?.filter(doc => doc.vendor_id === vendorId) || [];
+          const vendorDocs = allDocData?.filter(doc => doc.vendor_id === vendorId) || [];
           let warningCount = 0;
           
           vendorDocs.forEach(doc => {
@@ -67,16 +94,7 @@ export function useComplianceWarnings(vendorIds: string[]) {
           }
         });
 
-        // Fetch detailed warnings from the view
-        const { data: detailedData, error: detailedError } = await supabase
-          .from('vendor_compliance_warnings')
-          .select('*')
-          .in('vendor_id', vendorIds);
-
-        if (!detailedError && detailedData) {
-          setDetailedWarnings(detailedData as ComplianceWarning[]);
-        }
-
+        setDetailedWarnings(allDetailedData as ComplianceWarning[]);
         setWarnings(warningsMap);
       } catch (error) {
         console.error('Error fetching compliance warnings:', error);

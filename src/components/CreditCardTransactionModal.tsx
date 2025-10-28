@@ -1110,14 +1110,14 @@ export function CreditCardTransactionModal({
             <div className="flex gap-2">
               <Select
                 key={`vendor-${transactionId}`}
-                value={selectedVendorId || ""}
-                onValueChange={(value) => handleVendorChange(value || null)}
+                value={selectedVendorId || undefined}
+                onValueChange={(value) => handleVendorChange(value === "clear-vendor" ? null : (value || null))}
               >
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select vendor" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="" className="text-muted-foreground italic">
+                  <SelectItem value="clear-vendor" className="text-muted-foreground italic">
                     Clear selection
                   </SelectItem>
                   {vendors.map((vendor) => (
