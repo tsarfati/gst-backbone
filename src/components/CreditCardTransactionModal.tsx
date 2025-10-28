@@ -21,13 +21,15 @@ interface CreditCardTransactionModalProps {
   onOpenChange: (open: boolean) => void;
   transactionId: string;
   onComplete: () => void;
+  initialMatches?: any[];
 }
 
 export function CreditCardTransactionModal({
   open,
   onOpenChange,
   transactionId,
-  onComplete
+  onComplete,
+  initialMatches
 }: CreditCardTransactionModalProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
@@ -58,26 +60,33 @@ export function CreditCardTransactionModal({
   const [showMatches, setShowMatches] = useState(false);
 
 
-  useEffect(() => {
-    if (open && transactionId && currentCompany) {
-      // Clear all state when switching transactions
-      setAttachmentPreview(null);
-      setSelectedVendorId(null);
-      setSelectedJobOrAccount(null);
-      setIsJobSelected(false);
-      setSuggestedMatches([]);
+useEffect(() => {
+  if (open && transactionId && currentCompany) {
+    // Preload matches passed in from parent
+    if (initialMatches && initialMatches.length > 0) {
+      setSuggestedMatches(initialMatches);
       setShowMatches(true);
-      setJobCostCodes([]);
-      fetchData();
-    } else if (!open) {
-      // Clear state when modal closes
-      setAttachmentPreview(null);
-      setSelectedVendorId(null);
-      setSelectedJobOrAccount(null);
-      setIsJobSelected(false);
-      setJobCostCodes([]);
+    } else {
+      setSuggestedMatches([]);
+      setShowMatches(false);
     }
-  }, [open, transactionId, currentCompany]);
+
+    // Clear state when switching transactions
+    setAttachmentPreview(null);
+    setSelectedVendorId(null);
+    setSelectedJobOrAccount(null);
+    setIsJobSelected(false);
+    setJobCostCodes([]);
+    fetchData();
+  } else if (!open) {
+    // Clear state when modal closes
+    setAttachmentPreview(null);
+    setSelectedVendorId(null);
+    setSelectedJobOrAccount(null);
+    setIsJobSelected(false);
+    setJobCostCodes([]);
+  }
+}, [open, transactionId, currentCompany, initialMatches]);
 
   const fetchData = async () => {
     try {

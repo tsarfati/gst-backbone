@@ -817,6 +817,7 @@ export default function CreditCardTransactions() {
           onOpenChange={setShowDetailModal}
           transactionId={selectedTransactionId}
           onComplete={fetchData}
+          initialMatches={matchedReceipts.get(selectedTransactionId) || []}
         />
       )}
     </div>

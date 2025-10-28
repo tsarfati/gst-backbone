@@ -597,24 +597,62 @@ export default function MakePayment() {
             : [];
           const distribution = distributions[0];
           
-          // Create credit card transaction
-          await supabase
+          // Try to merge with existing imported CSV transaction (avoid duplicates)
+          const payDate = new Date(payment.payment_date);
+          const startDate = new Date(payDate.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const endDate = new Date(payDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          const minAmount = Number(invoice.amount) - 0.01;
+          const maxAmount = Number(invoice.amount) + 0.01;
+
+          const { data: candidates } = await supabase
             .from('credit_card_transactions')
-            .insert({
-              credit_card_id: payment.bank_account_id,
-              company_id: currentCompany.id,
-              transaction_date: payment.payment_date,
-              description: invoice.description || `Payment for ${invoice.invoice_number}`,
-              merchant_name: invoice.vendor?.name || 'Unknown Vendor',
-              amount: invoice.amount,
-              invoice_id: invoiceId,
-              job_id: distribution?.job_id || invoice.job_id,
-              cost_code_id: distribution?.cost_code_id || null,
-              coding_status: 'coded',
-              imported_from_csv: false,
-              created_by: user.data.user?.id,
-              notes: payment.memo || null,
-            });
+            .select('id, transaction_date, amount, invoice_id, coding_status')
+            .eq('credit_card_id', payment.bank_account_id)
+            .gte('transaction_date', startDate)
+            .lte('transaction_date', endDate)
+            .gte('amount', minAmount)
+            .lte('amount', maxAmount)
+            .order('transaction_date', { ascending: true });
+
+          const candidate = (candidates || []).find(c => !c.invoice_id);
+
+          if (candidate) {
+            // Update existing CSV transaction to become the coded bill payment
+            await supabase
+              .from('credit_card_transactions')
+              .update({
+                company_id: currentCompany.id,
+                description: invoice.description || `Payment for ${invoice.invoice_number}`,
+                merchant_name: invoice.vendor?.name || 'Unknown Vendor',
+                invoice_id: invoiceId,
+                job_id: distribution?.job_id || invoice.job_id,
+                cost_code_id: distribution?.cost_code_id || null,
+                coding_status: 'coded',
+                imported_from_csv: true,
+                created_by: user.data.user?.id,
+                notes: payment.memo || null,
+              })
+              .eq('id', candidate.id);
+          } else {
+            // Insert a new credit card transaction
+            await supabase
+              .from('credit_card_transactions')
+              .insert({
+                credit_card_id: payment.bank_account_id,
+                company_id: currentCompany.id,
+                transaction_date: payment.payment_date,
+                description: invoice.description || `Payment for ${invoice.invoice_number}`,
+                merchant_name: invoice.vendor?.name || 'Unknown Vendor',
+                amount: invoice.amount,
+                invoice_id: invoiceId,
+                job_id: distribution?.job_id || invoice.job_id,
+                cost_code_id: distribution?.cost_code_id || null,
+                coding_status: 'coded',
+                imported_from_csv: false,
+                created_by: user.data.user?.id,
+                notes: payment.memo || null,
+              });
+          }
 
           // Create journal entry for credit card payment
           if (creditCard?.liability_account_id && distribution?.chart_account_id) {
