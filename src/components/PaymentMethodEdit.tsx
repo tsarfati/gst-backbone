@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Eye, EyeOff, Trash2, Upload, FileText, Lock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
 interface PaymentMethod {
   id?: string;
@@ -62,6 +63,7 @@ export default function PaymentMethodEdit({
   const [showConfirmAccountNumber, setShowConfirmAccountNumber] = useState(false);
   const [showRoutingNumber, setShowRoutingNumber] = useState(false);
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [editField, setEditField] = useState<'account' | 'routing' | null>(null);
   const [allowAccountEdit, setAllowAccountEdit] = useState(false);
@@ -101,11 +103,23 @@ export default function PaymentMethodEdit({
     const file = event.target.files?.[0];
     if (file) {
       setVoidedCheckFile(file);
+      // Create preview URL
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
       // In a real app, you'd upload this to Supabase storage
       // For now, we'll just store the file name
       handleInputChange('voided_check_url', `uploads/voided-checks/${file.name}`);
     }
   };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const handleSave = () => {
     if ((formData.type === 'ACH' || formData.type === 'Wire') && !isEditing && formData.account_number !== confirmAccountNumber) {
@@ -125,7 +139,7 @@ export default function PaymentMethodEdit({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" aria-describedby="payment-method-description">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="payment-method-description">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Payment Method' : 'Add Payment Method'}
@@ -245,7 +259,7 @@ export default function PaymentMethodEdit({
                         className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                       />
                     </div>
-                    {formData.voided_check_url && (
+                    {formData.voided_check_url && !previewUrl && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <FileText className="h-4 w-4" />
                         <span>Voided check uploaded</span>
@@ -253,6 +267,19 @@ export default function PaymentMethodEdit({
                           <Button variant="ghost" size="sm" className="h-6 px-2">
                             View
                           </Button>
+                        )}
+                      </div>
+                    )}
+                    {previewUrl && voidedCheckFile && (
+                      <div className="mt-4 border rounded-lg overflow-hidden">
+                        {voidedCheckFile.type === 'application/pdf' ? (
+                          <UrlPdfInlinePreview url={previewUrl} className="max-h-96" />
+                        ) : (
+                          <img 
+                            src={previewUrl} 
+                            alt="Voided check preview" 
+                            className="w-full h-auto max-h-96 object-contain"
+                          />
                         )}
                       </div>
                     )}
