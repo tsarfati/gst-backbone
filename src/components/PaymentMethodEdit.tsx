@@ -90,6 +90,11 @@ export default function PaymentMethodEdit({
           website_address: paymentMethod.website_address || '',
           login_information: paymentMethod.login_information || ''
         });
+        setOriginalAccountNumber(paymentMethod.account_number || '');
+        // Set preview URL if voided check exists
+        if (paymentMethod.voided_check_url) {
+          setPreviewUrl(paymentMethod.voided_check_url);
+        }
       } else {
         // Reset to default for new payment method
         setFormData({
@@ -104,8 +109,9 @@ export default function PaymentMethodEdit({
           website_address: '',
           login_information: ''
         });
+        setOriginalAccountNumber('');
+        setPreviewUrl(null);
       }
-      setOriginalAccountNumber(paymentMethod?.account_number || '');
       // Reset all edit states
       setConfirmAccountNumber('');
       setShowAccountNumber(false);
@@ -115,7 +121,6 @@ export default function PaymentMethodEdit({
       setAllowRoutingEdit(false);
       setAccountMismatchError(false);
       setVoidedCheckFile(null);
-      setPreviewUrl(null);
     }
   }, [isOpen, paymentMethod]);
 
@@ -370,9 +375,9 @@ export default function PaymentMethodEdit({
                         )}
                       </div>
                     )}
-                    {previewUrl && voidedCheckFile && (
+                    {previewUrl && (
                       <div className="mt-4 border rounded-lg overflow-auto max-h-96">
-                        {voidedCheckFile.type === 'application/pdf' ? (
+                        {previewUrl.toLowerCase().endsWith('.pdf') ? (
                           <UrlPdfInlinePreview url={previewUrl} />
                         ) : (
                           <img 
