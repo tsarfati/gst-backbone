@@ -434,7 +434,6 @@ useEffect(() => {
           issue_date,
           amount,
           status,
-          attachment_url,
           job_id,
           cost_code_id,
           vendors!inner(id, name, company_id),
@@ -474,7 +473,7 @@ useEffect(() => {
           vendor: inv.vendors?.name,
           vendorId: inv.vendors?.id,
           status: inv.status,
-          attachmentUrl: inv.attachment_url,
+          attachmentUrl: null,
           jobId: inv.job_id,
           jobName: inv.jobs?.name,
           costCodeId: inv.cost_code_id,
@@ -490,14 +489,14 @@ useEffect(() => {
         .from("receipts" as any)
         .select(`
           id,
-          receipt_number,
+          file_name,
           receipt_date,
           amount,
-          coding_status,
+          status,
           vendors!inner(id, name)
         ` as any)
         .eq("company_id", currentCompany.id)
-        .eq("coding_status", "uncoded")
+        .eq("status", "uncoded")
         .gte("amount", minAmount)
         .lte("amount", maxAmount)
         .gte("receipt_date", startDate.toISOString().split('T')[0])
@@ -511,11 +510,11 @@ useEffect(() => {
           const match = {
             id: receipt.id,
             type: "uncoded_receipt",
-            display: `Receipt #${receipt.receipt_number}`,
+            display: receipt.file_name || `Receipt ${receipt.id.slice(0,6)}`,
             amount: receipt.amount,
             date: receipt.receipt_date,
-            vendor: receipt.vendors?.name,
-            status: "uncoded",
+            vendor: receipt.vendors?.name || receipt.vendor_name,
+            status: receipt.status,
             matchScore: calculateMatchScore(transData, receipt, "receipt"),
           };
           matches.push(match);
@@ -527,14 +526,14 @@ useEffect(() => {
         .from("receipts" as any)
         .select(`
           id,
-          receipt_number,
+          file_name,
           receipt_date,
           amount,
-          coding_status,
+          status,
           vendors!inner(id, name)
         ` as any)
         .eq("company_id", currentCompany.id)
-        .eq("coding_status", "coded")
+        .eq("status", "coded")
         .gte("amount", minAmount)
         .lte("amount", maxAmount)
         .gte("receipt_date", startDate.toISOString().split('T')[0])
@@ -548,11 +547,11 @@ useEffect(() => {
           const match = {
             id: receipt.id,
             type: "coded_receipt",
-            display: `Receipt #${receipt.receipt_number}`,
+            display: receipt.file_name || `Receipt ${receipt.id.slice(0,6)}`,
             amount: receipt.amount,
             date: receipt.receipt_date,
-            vendor: receipt.vendors?.name,
-            status: "coded",
+            vendor: receipt.vendors?.name || receipt.vendor_name,
+            status: receipt.status,
             matchScore: calculateMatchScore(transData, receipt, "receipt"),
           };
           matches.push(match);
