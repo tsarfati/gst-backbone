@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowLeft, Edit, FileText, Download, Trash2, Calendar, Eye } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Download, Trash2, Calendar, Eye, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
@@ -77,6 +77,11 @@ export default function BankAccountDetails() {
   const [statementYear, setStatementYear] = useState(new Date().getFullYear());
   const [previewDocument, setPreviewDocument] = useState<{ fileName: string; url: string; type: string } | null>(null);
 
+  // New statement upload state
+  const [newStatementFile, setNewStatementFile] = useState<File | null>(null);
+  const [statementUploading, setStatementUploading] = useState(false);
+  const [bankStatementNamingPattern, setBankStatementNamingPattern] = useState<string>('{bank_name}_{account_name}_{month}_{year}');
+
   // Account edit state
   const [accountEditOpen, setAccountEditOpen] = useState(false);
   const [editAccountName, setEditAccountName] = useState("");
@@ -86,6 +91,7 @@ export default function BankAccountDetails() {
     loadBankAccount();
     loadStatements();
     loadReconcileReports();
+    loadFileUploadSettings();
   }, [id, currentCompany]);
 
   const loadBankAccount = async () => {
@@ -207,6 +213,82 @@ export default function BankAccountDetails() {
     }
   };
 
+  // Load naming pattern for bank statements
+  const loadFileUploadSettings = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data } = await supabase
+        .from('file_upload_settings')
+        .select('bank_statement_naming_pattern')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      if (data?.bank_statement_naming_pattern) {
+        setBankStatementNamingPattern(data.bank_statement_naming_pattern);
+      }
+    } catch (e) {
+      console.error('Error loading file upload settings', e);
+    }
+  };
+
+  // Upload new bank statement
+  const handleStatementFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setNewStatementFile(file);
+  };
+
+  const handleUploadStatement = async () => {
+    if (!newStatementFile || !currentCompany || !id || !user) {
+      toast({ title: 'Error', description: 'Select a statement PDF first', variant: 'destructive' });
+      return;
+    }
+    setStatementUploading(true);
+    try {
+      const path = `${currentCompany.id}/${id}/${Date.now()}-${newStatementFile.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('bank-statements')
+        .upload(path, newStatementFile);
+      if (uploadError) throw uploadError;
+
+      const { data: signed, error: signedErr } = await supabase.storage
+        .from('bank-statements')
+        .createSignedUrl(path, 315360000);
+      if (signedErr) throw signedErr;
+
+      const month = statementMonth;
+      const year = statementYear;
+
+      let displayName = bankStatementNamingPattern
+        .replace('{bank_name}', account?.bank_name || 'Bank')
+        .replace('{account_name}', account?.account_name || 'Account')
+        .replace('{month}', String(month).padStart(2, '0'))
+        .replace('{year}', String(year));
+
+      const { error: insertErr } = await supabase
+        .from('bank_statements')
+        .insert({
+          bank_account_id: id,
+          company_id: currentCompany.id,
+          statement_date: `${year}-${String(month).padStart(2,'0')}-01`,
+          statement_month: month,
+          statement_year: year,
+          file_name: newStatementFile.name,
+          display_name: displayName,
+          file_url: signed.signedUrl,
+          file_size: newStatementFile.size,
+          uploaded_by: user.id,
+        });
+      if (insertErr) throw insertErr;
+
+      setNewStatementFile(null);
+      await loadStatements();
+      toast({ title: 'Uploaded', description: 'Bank statement uploaded' });
+    } catch (err) {
+      console.error('Upload statement error:', err);
+      toast({ title: 'Error', description: 'Failed to upload bank statement', variant: 'destructive' });
+    } finally {
+      setStatementUploading(false);
+    }
+  };
   const handleEditStatement = (statement: BankStatement) => {
     setEditingStatement(statement);
     setStatementName(statement.display_name || statement.file_name.replace(/\.[^/.]+$/, ""));
@@ -411,6 +493,26 @@ export default function BankAccountDetails() {
               <span className="text-base font-semibold">Bank Statements</span>
             </AccordionTrigger>
             <AccordionContent>
+              <div className="mb-4 space-y-3">
+                <Label htmlFor="new-statement">Upload Statement (PDF)</Label>
+                <div className="flex flex-col md:flex-row items-start md:items-end gap-3">
+                  <Input id="new-statement" type="file" accept=".pdf" onChange={handleStatementFileChange} />
+                  <div className="flex items-end gap-2">
+                    <div>
+                      <Label htmlFor="stmt-month" className="text-xs">Month</Label>
+                      <Input id="stmt-month" type="number" min={1} max={12} value={statementMonth} onChange={(e) => setStatementMonth(Math.max(1, Math.min(12, parseInt(e.target.value) || 1)))} className="w-24" />
+                    </div>
+                    <div>
+                      <Label htmlFor="stmt-year" className="text-xs">Year</Label>
+                      <Input id="stmt-year" type="number" value={statementYear} onChange={(e) => setStatementYear(parseInt(e.target.value) || new Date().getFullYear())} className="w-28" />
+                    </div>
+                    <Button onClick={handleUploadStatement} disabled={!newStatementFile || statementUploading}>
+                      <Upload className="h-4 w-4 mr-2" />
+                      {statementUploading ? 'Uploading...' : 'Upload Statement'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
               {statements.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No bank statements uploaded</p>
               ) : (
