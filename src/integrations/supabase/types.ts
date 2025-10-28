@@ -1937,7 +1937,7 @@ export type Database = {
           created_at: string
           field_name: string | null
           id: string
-          invoice_id: string
+          invoice_id: string | null
           new_value: string | null
           old_value: string | null
           reason: string | null
@@ -1948,7 +1948,7 @@ export type Database = {
           created_at?: string
           field_name?: string | null
           id?: string
-          invoice_id: string
+          invoice_id?: string | null
           new_value?: string | null
           old_value?: string | null
           reason?: string | null
@@ -1959,7 +1959,7 @@ export type Database = {
           created_at?: string
           field_name?: string | null
           id?: string
-          invoice_id?: string
+          invoice_id?: string | null
           new_value?: string | null
           old_value?: string | null
           reason?: string | null
