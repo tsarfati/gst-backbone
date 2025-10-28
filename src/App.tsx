@@ -96,6 +96,7 @@ import BankAccounts from "./pages/BankAccounts";
 import BankAccountDetails from "./pages/BankAccountDetails";
 import CreditCards from "./pages/CreditCards";
 import CreditCardDetails from "./pages/CreditCardDetails";
+import CreditCardEdit from "./pages/CreditCardEdit";
 import CreditCardTransactions from "./pages/CreditCardTransactions";
 import CreditCardMakePayment from "./pages/CreditCardMakePayment";
 import BankingReports from "./pages/BankingReports";
@@ -345,6 +346,7 @@ function AuthenticatedRoutes() {
                 <Route path="payables/credit-cards" element={<CreditCards />} />
                 <Route path="payables/credit-cards/add" element={<AddCreditCard />} />
                 <Route path="payables/credit-cards/:id" element={<CreditCardDetails />} />
+                <Route path="payables/credit-cards/:id/edit" element={<CreditCardEdit />} />
                 <Route path="payables/credit-cards/:id/transactions" element={<CreditCardTransactions />} />
                 <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
                 <Route path="banking/reports" element={<BankingReports />} />

@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Smile, Frown } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
@@ -606,6 +606,10 @@ export default function CreditCardTransactions() {
           <h1 className="text-3xl font-bold">{creditCard.card_name} - Transactions</h1>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate(`/payables/credit-cards/${id}/edit`)}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit Credit Card
+          </Button>
           <Dialog>
             <DialogTrigger asChild>
               <Button>

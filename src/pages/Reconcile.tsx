@@ -84,6 +84,7 @@ export default function Reconcile() {
   useEffect(() => {
     if (currentCompany) {
       loadChartAccounts();
+      loadFileUploadSettings();
     }
   }, [currentCompany]);
   // Bank statement upload state
@@ -92,6 +93,7 @@ export default function Reconcile() {
   const [uploadedStatementId, setUploadedStatementId] = useState<string | null>(null);
   const [uploadedStatementName, setUploadedStatementName] = useState<string | null>(null);
   const [uploadedStatementUrl, setUploadedStatementUrl] = useState<string | null>(null);
+  const [bankStatementNamingPattern, setBankStatementNamingPattern] = useState<string>('{bank_name}_{account_name}_{month}_{year}');
 
   useEffect(() => {
     if (currentCompany && accountId) {
@@ -235,6 +237,23 @@ export default function Reconcile() {
       }
     } catch (error: any) {
       console.error("Error loading GL balance:", error);
+    }
+  };
+
+  const loadFileUploadSettings = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data } = await supabase
+        .from('file_upload_settings')
+        .select('bank_statement_naming_pattern')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      
+      if (data?.bank_statement_naming_pattern) {
+        setBankStatementNamingPattern(data.bank_statement_naming_pattern);
+      }
+    } catch (e) {
+      console.error('Error loading file upload settings', e);
     }
   };
 
@@ -477,6 +496,14 @@ export default function Reconcile() {
 
       const month = (endingDate?.getMonth?.() ?? new Date().getMonth()) + 1;
       const year = (endingDate?.getFullYear?.() ?? new Date().getFullYear());
+      
+      // Generate display name based on naming pattern
+      let displayName = bankStatementNamingPattern
+        .replace('{bank_name}', account?.bank_name || 'Bank')
+        .replace('{account_name}', account?.account_name || 'Account')
+        .replace('{month}', String(month).padStart(2, '0'))
+        .replace('{year}', String(year));
+      
       const { data: inserted, error: insertErr } = await supabase
         .from('bank_statements')
         .insert({
@@ -486,7 +513,7 @@ export default function Reconcile() {
           statement_month: month,
           statement_year: year,
           file_name: statementFile.name,
-          display_name: statementFile.name.replace(/\.[^/.]+$/, ''),
+          display_name: displayName,
           file_url: signed.signedUrl,
           file_size: statementFile.size,
           uploaded_by: user.id,
