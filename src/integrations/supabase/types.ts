@@ -5823,6 +5823,17 @@ export type Database = {
         Args: { _company: string; _user: string }
         Returns: boolean
       }
+      pin_insert_job_photo: {
+        Args: {
+          p_job_id: string
+          p_location_lat: number
+          p_location_lng: number
+          p_note: string
+          p_photo_url: string
+          p_uploader_hint: string
+        }
+        Returns: string
+      }
       recalculate_account_balance: {
         Args: { p_account_id: string }
         Returns: undefined

@@ -130,7 +130,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
         throw new Error('User not authenticated');
       }
 
-      // Save to database
+      // Save to database; fall back to RPC in PIN mode when FK fails
       const { error: insertError } = await supabase
         .from('job_photos')
         .insert({
@@ -142,7 +142,23 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
           ...locationData,
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        const msg = String(insertError.message || '').toLowerCase();
+        // Foreign key violation means uploaded_by is not a profiles.user_id (likely PIN mode). Use server-side helper.
+        if (msg.includes('foreign key') || msg.includes('job_photos_uploaded_by_fkey')) {
+          const { error: rpcError } = await supabase.rpc('pin_insert_job_photo', {
+            p_job_id: jobId,
+            p_uploader_hint: uploadedByUserId,
+            p_photo_url: publicUrl,
+            p_note: note.trim() || null,
+            p_location_lat: (locationData as any).location_lat ?? null,
+            p_location_lng: (locationData as any).location_lng ?? null,
+          });
+          if (rpcError) throw rpcError;
+        } else {
+          throw insertError;
+        }
+      }
 
       toast({ 
         title: 'Success', 
