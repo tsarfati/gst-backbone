@@ -142,7 +142,7 @@ export default function JournalEntries() {
               </Button>
             </div>
           ) : (
-            <Table>
+            <Table className="border-separate border-spacing-0">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -161,34 +161,34 @@ export default function JournalEntries() {
                   className="cursor-pointer group hover:bg-primary/5 transition-colors"
                   onClick={() => window.location.href = `/banking/journal-entries/${entry.id}`}
                 >
-                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                     <div className="flex items-center">
                       <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
                        {entry.entry_date}
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium border-y border-transparent group-hover:border-primary">{entry.reference}</TableCell>
-                  <TableCell className="border-y border-transparent group-hover:border-primary">{entry.description}</TableCell>
-                  <TableCell className="border-y border-transparent group-hover:border-primary">
+                  <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{entry.reference}</TableCell>
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{entry.description}</TableCell>
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                     <div className="flex items-center">
                       <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
                        {entry.total_debit ?? "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="border-y border-transparent group-hover:border-primary">
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                     <div className="flex items-center">
                       <DollarSign className="h-3 w-3 mr-1 text-muted-foreground" />
                        {entry.total_credit ?? "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="border-y border-transparent group-hover:border-primary">
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                     <span className={`px-2 py-1 text-xs rounded ${
                       entry.status === "posted" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                     }`}>
                       {entry.status}
                     </span>
                   </TableCell>
-                  <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                  <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                     <span className={`px-2 py-1 text-xs rounded ${
                       entry.reconciliation_status === "reconciled" 
                         ? "bg-blue-100 text-blue-800" 
