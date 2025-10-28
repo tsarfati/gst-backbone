@@ -763,10 +763,10 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
                     onClick={() => openTransactionDetail(trans.id)}
+                    className="cursor-pointer hover:bg-primary/5 transition-colors"
                   >
-                    <TableCell className="first:rounded-l-lg last:rounded-r-lg">
+                    <TableCell>
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="first:rounded-l-lg last:rounded-r-lg">

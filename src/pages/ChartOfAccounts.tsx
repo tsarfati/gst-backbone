@@ -47,6 +47,7 @@ interface Account {
   is_system_account: boolean;
   is_active: boolean;
   parent_account_id?: string;
+  require_attachment?: boolean;
 }
 
 const accountTypes = [
@@ -245,7 +246,8 @@ export default function ChartOfAccounts() {
         account_name: editingAccount.account_name,
         account_type: isCashType ? 'asset' : editingAccount.account_type,
         account_category: isCashType ? 'cash_accounts' : editingAccount.account_category,
-        normal_balance: editingAccount.normal_balance
+        normal_balance: editingAccount.normal_balance,
+        require_attachment: editingAccount.require_attachment ?? true
       };
       
       const { error } = await supabase
@@ -977,6 +979,19 @@ export default function ChartOfAccounts() {
                     <SelectItem value="credit">Credit</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="require_attachment"
+                  checked={editingAccount.require_attachment ?? true}
+                  onChange={(e) => setEditingAccount({ ...editingAccount, require_attachment: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="require_attachment" className="cursor-pointer">
+                  Require attachments for bills/transactions using this account
+                </Label>
               </div>
 
               <div className="flex justify-between">

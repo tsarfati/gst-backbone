@@ -101,9 +101,9 @@ useEffect(() => {
         .select(`
           *,
           jobs:job_id(id, name),
-          cost_codes:cost_code_id(id, code, description),
+          cost_codes:cost_code_id(id, code, description, require_attachment),
           vendors:vendor_id(id, name),
-          chart_of_accounts:chart_account_id(id, account_number, account_name)
+          chart_of_accounts:chart_account_id(id, account_number, account_name, require_attachment)
         `)
         .eq("id", transactionId)
         .single();
@@ -1717,25 +1717,40 @@ useEffect(() => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>Attachment {!bypassAttachmentRequirement && '*'}</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="bypass-attachment"
-                  checked={bypassAttachmentRequirement}
-                  onCheckedChange={(checked) => {
-                    setBypassAttachmentRequirement(!!checked);
-                    supabase
-                      .from("credit_card_transactions")
-                      .update({ bypass_attachment_requirement: !!checked })
-                      .eq("id", transactionId)
-                      .then(() => {
-                        updateCodingStatus();
-                      });
-                  }}
-                />
-                <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
-                  Don't require attachment
-                </label>
-              </div>
+              {(() => {
+                // Check if cost code or account requires attachment
+                const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
+                const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
+                const anyRequiresAttachment = (transaction?.cost_code_id && costCodeRequiresAttachment) || 
+                                            (transaction?.chart_account_id && accountRequiresAttachment);
+                
+                // Don't show bypass checkbox if cost code or account requires attachment
+                if (anyRequiresAttachment) {
+                  return null;
+                }
+                
+                return (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="bypass-attachment"
+                      checked={bypassAttachmentRequirement}
+                      onCheckedChange={(checked) => {
+                        setBypassAttachmentRequirement(!!checked);
+                        supabase
+                          .from("credit_card_transactions")
+                          .update({ bypass_attachment_requirement: !!checked })
+                          .eq("id", transactionId)
+                          .then(() => {
+                            updateCodingStatus();
+                          });
+                      }}
+                    />
+                    <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
+                      Don't require attachment
+                    </label>
+                  </div>
+                );
+              })()}
             </div>
             {(transaction?.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">

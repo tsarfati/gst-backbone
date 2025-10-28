@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet, Building, Calculator } from "lucide-react";
+import { FileText, Plus, Trash2, Loader2, Wrench, Hammer, Users, Truck, Package, Upload, Download, FileSpreadsheet, Building, Calculator, Paperclip } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ interface CostCode {
   type: 'material' | 'labor' | 'sub' | 'equipment' | 'other';
   is_active: boolean;
   job_id?: string | null;
+  require_attachment?: boolean;
 }
 
 export default function CostCodes() {
@@ -492,6 +494,7 @@ export default function CostCodes() {
                   <TableHead>Code</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead className="text-center">Require Attachment</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -508,6 +511,27 @@ export default function CostCodes() {
                           <Icon className="h-3 w-3 mr-1" />
                           {typeInfo.label}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Checkbox
+                          checked={code.require_attachment ?? true}
+                          onCheckedChange={async (checked) => {
+                            const { error } = await supabase
+                              .from('cost_codes')
+                              .update({ require_attachment: !!checked })
+                              .eq('id', code.id);
+                            
+                            if (!error) {
+                              setCostCodes(prev => prev.map(c => 
+                                c.id === code.id ? { ...c, require_attachment: !!checked } : c
+                              ));
+                              toast({
+                                title: "Updated",
+                                description: "Cost code attachment requirement updated",
+                              });
+                            }
+                          }}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

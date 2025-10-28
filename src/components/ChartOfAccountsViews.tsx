@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Building2, Landmark, TrendingUp, TrendingDown, CreditCard, Wallet, DollarSign } from 'lucide-react';
+import { Pencil, Building2, Landmark, TrendingUp, TrendingDown, CreditCard, Wallet, DollarSign, Paperclip } from 'lucide-react';
 
 interface Account {
   id: string;
@@ -13,6 +13,7 @@ interface Account {
   normal_balance: string | null;
   is_active: boolean;
   is_system_account: boolean;
+  require_attachment?: boolean;
 }
 
 interface ChartOfAccountsViewsProps {
@@ -34,6 +35,7 @@ export function ChartOfAccountsListView({ accounts, onEdit, formatCurrency, getA
             <th className="p-3 text-left text-sm font-medium">Category</th>
             <th className="p-3 text-right text-sm font-medium">Balance</th>
             <th className="p-3 text-center text-sm font-medium">Normal Balance</th>
+            <th className="p-3 text-center text-sm font-medium">Require Attachment</th>
             <th className="p-3 text-center text-sm font-medium">Status</th>
             <th className="p-3 text-center text-sm font-medium">Actions</th>
           </tr>
@@ -63,6 +65,13 @@ export function ChartOfAccountsListView({ accounts, onEdit, formatCurrency, getA
                 <Badge variant={account.normal_balance === 'debit' ? 'default' : 'secondary'}>
                   {account.normal_balance}
                 </Badge>
+              </td>
+              <td className="p-3 text-center">
+                {(account.require_attachment ?? true) ? (
+                  <Paperclip className="h-4 w-4 inline-block text-primary" />
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
               </td>
               <td className="p-3 text-center">
                 <Badge variant={account.is_active ? 'default' : 'secondary'}>

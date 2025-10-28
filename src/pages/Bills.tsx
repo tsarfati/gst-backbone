@@ -588,10 +588,10 @@ export default function Bills() {
                     return (
                     <TableRow 
                       key={bill.id} 
-                      className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
+                      className="cursor-pointer hover:bg-primary/5 transition-colors"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedBills.includes(bill.id)}
                           onCheckedChange={() => handleSelectBill(bill.id)}

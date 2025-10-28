@@ -365,11 +365,11 @@ export default function CreditCards() {
                   return (
                     <TableRow 
                       key={card.id}
-                      className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]"
+                      className="cursor-pointer hover:bg-primary/5 transition-colors"
                       onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
                     >
-                      <TableCell className="font-medium group-hover:text-primary transition-colors border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{card.card_name}</TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                      <TableCell className="font-medium">{card.card_name}</TableCell>
+                      <TableCell>
                         <div className="flex items-center">
                           <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />
                           ****{card.card_number_last_four}

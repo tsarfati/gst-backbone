@@ -466,6 +466,7 @@ export type Database = {
           is_system_account: boolean | null
           normal_balance: string | null
           parent_account_id: string | null
+          require_attachment: boolean
           updated_at: string
         }
         Insert: {
@@ -482,6 +483,7 @@ export type Database = {
           is_system_account?: boolean | null
           normal_balance?: string | null
           parent_account_id?: string | null
+          require_attachment?: boolean
           updated_at?: string
         }
         Update: {
@@ -498,6 +500,7 @@ export type Database = {
           is_system_account?: boolean | null
           normal_balance?: string | null
           parent_account_id?: string | null
+          require_attachment?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -786,6 +789,7 @@ export type Database = {
           is_dynamic_group: boolean | null
           job_id: string | null
           parent_cost_code_id: string | null
+          require_attachment: boolean
           type: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at: string
         }
@@ -801,6 +805,7 @@ export type Database = {
           is_dynamic_group?: boolean | null
           job_id?: string | null
           parent_cost_code_id?: string | null
+          require_attachment?: boolean
           type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }
@@ -816,6 +821,7 @@ export type Database = {
           is_dynamic_group?: boolean | null
           job_id?: string | null
           parent_cost_code_id?: string | null
+          require_attachment?: boolean
           type?: Database["public"]["Enums"]["cost_code_type"] | null
           updated_at?: string
         }

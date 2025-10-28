@@ -39,8 +39,8 @@ export default function JobListView({ jobs, onJobClick }: JobListViewProps) {
             const budgetUsage = Math.round((parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100);
             
             return (
-              <TableRow key={job.id} className="cursor-pointer group hover:bg-primary/5 transition-all duration-200 hover:rounded-lg hover:shadow-[0_0_0_2px_hsl(var(--primary))]" onClick={() => onJobClick(job)}>
-                <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+              <TableRow key={job.id} className="cursor-pointer hover:bg-primary/5 transition-colors" onClick={() => onJobClick(job)}>
+                <TableCell>
                   <div className="flex items-center gap-2">
                     <FolderOpen className="h-4 w-4 text-primary" />
                     <span className="font-medium group-hover:text-primary transition-colors">{job.name}</span>
