@@ -487,7 +487,8 @@ export default function MakePayment() {
         memo: payment.memo,
         status: 'pending',
         check_number: payment.check_number,
-        bank_account_id: payment.bank_account_id,
+        bank_account_id: payment.payment_method === 'credit_card' ? null : payment.bank_account_id,
+        credit_card_id: payment.payment_method === 'credit_card' ? payment.bank_account_id : null,
         is_partial_payment: isPartialPayment,
         bank_fee: payment.bank_fee || 0,
         created_by: user.data.user?.id
