@@ -10,6 +10,7 @@ import { Eye, EyeOff, Trash2, Upload, FileText, Lock } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
 interface PaymentMethod {
@@ -45,7 +46,7 @@ export default function PaymentMethodEdit({
 }) {
   const { settings } = useSettings();
   const { profile } = useAuth();
-  const [formData, setFormData] = useState<PaymentMethod>(() => paymentMethod || {
+  const [formData, setFormData] = useState<PaymentMethod>({
     type: 'ach',
     account_number: '',
     routing_number: '',
@@ -72,6 +73,50 @@ export default function PaymentMethodEdit({
  
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
+
+  // Update form data when payment method changes or dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      if (paymentMethod) {
+        setFormData({
+          type: paymentMethod.type || 'ach',
+          account_number: paymentMethod.account_number || '',
+          routing_number: paymentMethod.routing_number || '',
+          bank_name: paymentMethod.bank_name || '',
+          is_primary: paymentMethod.is_primary || false,
+          check_delivery: paymentMethod.check_delivery || 'mail',
+          pickup_location: paymentMethod.pickup_location || '',
+          voided_check_url: paymentMethod.voided_check_url || '',
+          website_address: paymentMethod.website_address || '',
+          login_information: paymentMethod.login_information || ''
+        });
+      } else {
+        // Reset to default for new payment method
+        setFormData({
+          type: 'ach',
+          account_number: '',
+          routing_number: '',
+          bank_name: '',
+          is_primary: false,
+          check_delivery: 'mail',
+          pickup_location: '',
+          voided_check_url: '',
+          website_address: '',
+          login_information: ''
+        });
+      }
+      // Reset all edit states
+      setConfirmAccountNumber('');
+      setShowAccountNumber(false);
+      setShowConfirmAccountNumber(false);
+      setShowRoutingNumber(false);
+      setAllowAccountEdit(false);
+      setAllowRoutingEdit(false);
+      setAccountMismatchError(false);
+      setVoidedCheckFile(null);
+      setPreviewUrl(null);
+    }
+  }, [isOpen, paymentMethod]);
 
   const maskAccountNumber = (accountNumber: string) => {
     if (accountNumber.length <= 4) return accountNumber;
@@ -100,16 +145,34 @@ export default function PaymentMethodEdit({
     }
   };
  
-  const handleVoidedCheckUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVoidedCheckUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setVoidedCheckFile(file);
       // Create preview URL
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
-      // In a real app, you'd upload this to Supabase storage
-      // For now, we'll just store the file name
-      handleInputChange('voided_check_url', `uploads/voided-checks/${file.name}`);
+      
+      // Upload to Supabase storage
+      try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `voided-checks/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(filePath);
+
+        handleInputChange('voided_check_url', publicUrl);
+      } catch (error) {
+        console.error('Error uploading voided check:', error);
+      }
     }
   };
 

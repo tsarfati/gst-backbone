@@ -775,13 +775,23 @@ export default function VendorDetails() {
           <DialogHeader>
             <DialogTitle>Voided Check - {viewingVoidedCheck?.bank_name}</DialogTitle>
           </DialogHeader>
-          <div className="overflow-auto">
+          <div className="overflow-auto max-h-[70vh]">
             {viewingVoidedCheck?.voided_check_url && (
-              <img 
-                src={viewingVoidedCheck.voided_check_url} 
-                alt="Voided Check" 
-                className="w-full h-auto"
-              />
+              <>
+                {viewingVoidedCheck.voided_check_url.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={viewingVoidedCheck.voided_check_url}
+                    className="w-full h-[70vh] border-0"
+                    title="Voided Check PDF"
+                  />
+                ) : (
+                  <img 
+                    src={viewingVoidedCheck.voided_check_url} 
+                    alt="Voided Check" 
+                    className="w-full h-auto"
+                  />
+                )}
+              </>
             )}
           </div>
         </DialogContent>
