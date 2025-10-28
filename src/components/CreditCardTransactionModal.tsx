@@ -545,9 +545,9 @@ useEffect(() => {
         });
       }
 
-      // Fetch other credit card transactions (for matching payments to charges)
-      // Only fetch if this is a payment transaction
-      if (transData.transaction_type === 'payment') {
+      // Fetch other credit card transactions (for matching payments to charges OR charges to payments)
+      {
+        const counterpartFilter = transData.transaction_type === 'payment' ? 'charge' : 'payment';
         const { data: otherTransactions, error: txError } = await supabase
           .from("credit_card_transactions")
           .select(`
@@ -566,8 +566,8 @@ useEffect(() => {
           `)
           .eq("company_id", currentCompany.id)
           .eq("credit_card_id", transData.credit_card_id)
-          .neq("id", transactionId) // Don't match with itself
-          .neq("transaction_type", "payment") // Only match with charges
+          .neq("id", transactionId)
+          .eq("transaction_type", counterpartFilter)
           .gte("amount", minAmount)
           .lte("amount", maxAmount)
           .gte("transaction_date", startDate.toISOString().split('T')[0])
@@ -579,7 +579,7 @@ useEffect(() => {
             const match = {
               id: tx.id,
               type: "transaction",
-              display: tx.description || "Credit Card Charge",
+              display: tx.description || (tx.transaction_type === 'payment' ? 'Credit Card Payment' : 'Credit Card Charge'),
               amount: tx.amount,
               date: tx.transaction_date,
               vendor: tx.vendors?.name || tx.merchant_name,
