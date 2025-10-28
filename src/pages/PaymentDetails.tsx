@@ -95,8 +95,7 @@ export default function PaymentDetails() {
         .select(`
           *,
           vendor:vendors(id, name, company_id),
-          bank_account:bank_accounts(id, account_name),
-          credit_card:credit_cards(id, card_name, company_id)
+          bank_account:bank_accounts(id, account_name)
         `)
         .eq("id", id)
         .maybeSingle();
@@ -126,15 +125,24 @@ export default function PaymentDetails() {
         return;
       }
 
+      // Fetch credit card if credit_card_id exists
+      let creditCard = null;
+      if (paymentDataAny.credit_card_id) {
+        const { data: ccData } = await supabase
+          .from("credit_cards")
+          .select("id, card_name, company_id")
+          .eq("id", paymentDataAny.credit_card_id)
+          .maybeSingle();
+        creditCard = ccData;
+      }
+
       // Access guard: ensure payment belongs to current company via vendor or credit card
-      const paymentCompanyId = paymentDataAny.vendor?.company_id || paymentDataAny.credit_card?.company_id;
+      const paymentCompanyId = paymentDataAny.vendor?.company_id || creditCard?.company_id;
       if (currentCompany?.id && paymentCompanyId && paymentCompanyId !== currentCompany.id) {
         toast.error("Payment not found");
         setLoading(false);
         return;
       }
-      
-      console.log('Payment company check:', { currentCompanyId: currentCompany?.id, paymentCompanyId, vendorCompanyId: paymentDataAny.vendor?.company_id, creditCardCompanyId: paymentDataAny.credit_card?.company_id });
 
       // Fetch created by user
       let createdByUser = null;
@@ -324,6 +332,7 @@ export default function PaymentDetails() {
         ...paymentDataAny,
         status: computedStatus,
         created_by_user: createdByUser,
+        credit_card: creditCard,
         reconciliation: reconciliationInfo,
         journal_entry: journalEntry,
         invoices: invoiceLines?.map((line: any) => ({
