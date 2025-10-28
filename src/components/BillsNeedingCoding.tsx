@@ -168,7 +168,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
               <div
                 key={bill.id}
                 className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
-                onClick={() => handleBillClick(bill.id, bill.pending_coding)}
+                onClick={() => handleBillClick(bill.id, bill.status === 'pending_coding')}
               >
                 <div className="flex items-center gap-3 text-sm">
                   <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -186,7 +186,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
                   <span className="font-medium text-foreground whitespace-nowrap">
                     ${bill.amount.toLocaleString()}
                   </span>
-                  {bill.pending_coding ? (
+                  {bill.status === 'pending_coding' ? (
                     <Badge variant="secondary" className="text-xs whitespace-nowrap">
                       Needs Coding
                     </Badge>
