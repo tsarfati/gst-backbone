@@ -644,6 +644,21 @@ export function CreditCardTransactionModal({
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
+    // Payment transactions don't need to be coded
+    if (transaction.transaction_type === 'payment') {
+      const newStatus = 'coded'; // Payments are automatically considered coded
+      await supabase
+        .from("credit_card_transactions")
+        .update({ 
+          coding_status: newStatus,
+          bypass_attachment_requirement: bypassAttachmentRequirement
+        })
+        .eq("id", transactionId);
+      setTransaction((prev: any) => ({ ...prev, coding_status: newStatus }));
+      return;
+    }
+
+    // For charge transactions, check all requirements
     const hasVendor = !!selectedVendorId;
     const hasJobOrAccount = !!selectedJobOrAccount;
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
@@ -1036,7 +1051,10 @@ export function CreditCardTransactionModal({
             </div>
             <div>
               <Label className="text-sm text-muted-foreground">Amount</Label>
-              <p className="text-lg font-semibold">
+              <p className={cn(
+                "text-lg font-semibold",
+                transaction.transaction_type === "payment" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+              )}>
                 ${Number(transaction.amount).toLocaleString()}
               </p>
             </div>
@@ -1159,7 +1177,8 @@ export function CreditCardTransactionModal({
             </div>
           )}
 
-          {/* Vendor Selection */}
+          {/* Vendor Selection - Not required for payments */}
+          {transaction.transaction_type !== 'payment' && (
           <div>
             <Label>Vendor *</Label>
             <div className="flex gap-2">
@@ -1188,8 +1207,10 @@ export function CreditCardTransactionModal({
               />
             </div>
           </div>
+          )}
 
-          {/* Job/Control Selection */}
+          {/* Job/Control Selection - Not required for payments */}
+          {transaction.transaction_type !== 'payment' && (
           <div>
             <Label>Job/Control *</Label>
             <Popover key={`jobacct-${transactionId}`}
@@ -1277,9 +1298,10 @@ export function CreditCardTransactionModal({
               </PopoverContent>
             </Popover>
           </div>
+          )}
 
-          {/* Cost Code Selection - only shown for jobs */}
-          {isJobSelected && (
+          {/* Cost Code Selection - only shown for jobs and not for payments */}
+          {transaction.transaction_type !== 'payment' && isJobSelected && (
             <div>
               <Label>Cost Code *</Label>
               <Popover 
