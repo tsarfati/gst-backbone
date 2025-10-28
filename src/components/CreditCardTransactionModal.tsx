@@ -1750,7 +1750,7 @@ useEffect(() => {
                       }}
                     />
                     <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
-                      Don't require attachment
+                      No receipts necessary
                     </label>
                   </div>
                 );
