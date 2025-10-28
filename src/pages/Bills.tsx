@@ -588,7 +588,7 @@ export default function Bills() {
                     return (
                     <TableRow 
                       key={bill.id} 
-                      className="cursor-pointer border hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all duration-200 group"
+                      className="cursor-pointer border-y border-x hover:border-primary hover:bg-primary/5 hover:shadow-md hover:rounded-lg transition-all duration-200 group"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
