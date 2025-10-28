@@ -925,7 +925,7 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getFilteredAndSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-primary/5 transition-colors">
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg">
                           {isManager && (
                             <TableCell className="font-medium">
                               {getEmployeeName(timeCard)}

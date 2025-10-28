@@ -503,7 +503,7 @@ export default function CostCodes() {
                   const typeInfo = getTypeInfo(code.type);
                   const Icon = typeInfo.icon;
                   return (
-                    <TableRow key={code.id}>
+                    <TableRow key={code.id} className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg">
                       <TableCell className="font-medium">{code.code}</TableCell>
                       <TableCell>{code.description}</TableCell>
                       <TableCell>
@@ -513,25 +513,28 @@ export default function CostCodes() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Checkbox
-                          checked={code.require_attachment ?? true}
-                          onCheckedChange={async (checked) => {
-                            const { error } = await supabase
-                              .from('cost_codes')
-                              .update({ require_attachment: !!checked })
-                              .eq('id', code.id);
-                            
-                            if (!error) {
-                              setCostCodes(prev => prev.map(c => 
-                                c.id === code.id ? { ...c, require_attachment: !!checked } : c
-                              ));
-                              toast({
-                                title: "Updated",
-                                description: "Cost code attachment requirement updated",
-                              });
-                            }
-                          }}
-                        />
+                        <div className="flex items-center justify-center gap-2">
+                          <Checkbox
+                            checked={code.require_attachment ?? true}
+                            onCheckedChange={async (checked) => {
+                              const { error } = await supabase
+                                .from('cost_codes')
+                                .update({ require_attachment: !!checked })
+                                .eq('id', code.id);
+                              
+                              if (!error) {
+                                setCostCodes(prev => prev.map(c => 
+                                  c.id === code.id ? { ...c, require_attachment: !!checked } : c
+                                ));
+                                toast({
+                                  title: "Updated",
+                                  description: "Cost code attachment requirement updated",
+                                });
+                              }
+                            }}
+                          />
+                          <Paperclip className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

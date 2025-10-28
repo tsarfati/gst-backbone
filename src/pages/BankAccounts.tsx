@@ -228,7 +228,7 @@ export default function BankAccounts() {
                 {filteredAccounts.map((account) => (
                   <TableRow 
                     key={account.id}
-                    className="cursor-pointer hover:bg-primary/5 transition-colors"
+                    className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
                     onClick={() => navigate(`/banking/accounts/${account.id}`)}
                   >
                     <TableCell className="font-medium">{account.account_name}</TableCell>

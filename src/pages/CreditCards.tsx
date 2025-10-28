@@ -365,7 +365,7 @@ export default function CreditCards() {
                   return (
                     <TableRow 
                       key={card.id}
-                      className="cursor-pointer hover:bg-primary/5 transition-colors"
+                      className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
                       onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
                     >
                       <TableCell className="font-medium">{card.card_name}</TableCell>
