@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils';
 export function CompanySwitcher() {
   const { currentCompany, userCompanies, loading, switchCompany } = useCompany();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
   const [pendingCompanyName, setPendingCompanyName] = useState<string>('');
@@ -40,9 +42,10 @@ export function CompanySwitcher() {
     setShowConfirmDialog(true);
   };
 
-  const confirmSwitch = () => {
+  const confirmSwitch = async () => {
     if (pendingCompanyId) {
-      switchCompany(pendingCompanyId);
+      await switchCompany(pendingCompanyId);
+      navigate('/');
     }
     setShowConfirmDialog(false);
     setPendingCompanyId(null);
