@@ -423,9 +423,9 @@ useEffect(() => {
       const endDate = new Date(transactionDate);
       endDate.setDate(endDate.getDate() + 7);
 
-      // Fetch unpaid bills with full details
-      const billsQuery = await supabase
-        .from("bills" as any)
+      // Fetch invoices (including paid) with full details
+      const invoicesQuery = await supabase
+        .from("invoices" as any)
         .select(`
           id,
           invoice_number,
@@ -435,41 +435,53 @@ useEffect(() => {
           attachment_url,
           job_id,
           cost_code_id,
-          vendors!inner(id, name),
+          vendors!inner(id, name, company_id),
           jobs(id, name),
           cost_codes(id, code, description)
         ` as any)
-        .eq("company_id", currentCompany.id)
-        .in("status", ["pending", "approved"])
+        .eq("vendors.company_id", currentCompany.id)
+        .in("status", ["pending", "approved", "pending_payment", "paid"])
         .gte("amount", minAmount)
         .lte("amount", maxAmount)
         .gte("invoice_date", startDate.toISOString().split('T')[0])
         .lte("invoice_date", endDate.toISOString().split('T')[0])
-        .limit(5);
+        .limit(10);
 
-      const bills = billsQuery.data;
+      const invoices = invoicesQuery.data || [];
 
-      if (bills) {
-        bills.forEach((bill: any) => {
-          const match = {
-            id: bill.id,
-            type: "bill",
-            display: `Bill #${bill.invoice_number}`,
-            amount: bill.amount,
-            date: bill.invoice_date,
-            vendor: bill.vendors?.name,
-            vendorId: bill.vendors?.id,
-            status: bill.status,
-            attachmentUrl: bill.attachment_url,
-            jobId: bill.job_id,
-            jobName: bill.jobs?.name,
-            costCodeId: bill.cost_code_id,
-            costCode: bill.cost_codes ? `${bill.cost_codes.code} - ${bill.cost_codes.description}` : null,
-            matchScore: calculateMatchScore(transData, bill, "bill"),
-          };
-          matches.push(match);
-        });
+      // Determine which invoices were paid using this credit card
+      const invoiceIds = invoices.map((inv: any) => inv.id);
+      let invoicesPaidByThisCard = new Set<string>();
+      if (invoiceIds.length > 0) {
+        const { data: ccLinks } = await supabase
+          .from('credit_card_transactions')
+          .select('invoice_id')
+          .eq('credit_card_id', transData.credit_card_id)
+          .in('invoice_id', invoiceIds);
+        invoicesPaidByThisCard = new Set((ccLinks || []).map((r: any) => r.invoice_id).filter(Boolean));
       }
+
+      invoices.forEach((inv: any) => {
+        const paidByThisCard = invoicesPaidByThisCard.has(inv.id);
+        const match = {
+          id: inv.id,
+          type: "bill",
+          display: `Bill #${inv.invoice_number}`,
+          amount: inv.amount,
+          date: inv.invoice_date,
+          vendor: inv.vendors?.name,
+          vendorId: inv.vendors?.id,
+          status: inv.status,
+          attachmentUrl: inv.attachment_url,
+          jobId: inv.job_id,
+          jobName: inv.jobs?.name,
+          costCodeId: inv.cost_code_id,
+          costCode: inv.cost_codes ? `${inv.cost_codes.code} - ${inv.cost_codes.description}` : null,
+          paidByThisCard,
+          matchScore: calculateMatchScore(transData, { ...inv, paidByThisCard }, 'bill'),
+        };
+        matches.push(match);
+      });
 
       // Fetch uncoded receipts
       const uncodedReceiptsQuery = await supabase
@@ -618,7 +630,7 @@ useEffect(() => {
     const transAmount = Math.abs(Number(transaction.amount));
     const itemAmount = Math.abs(Number(item.amount));
     const transDate = new Date(transaction.transaction_date);
-    const itemDate = new Date(itemType === "bill" ? item.invoice_date : item.receipt_date);
+    const itemDate = new Date(itemType === 'bill' ? item.invoice_date : item.receipt_date);
 
     // Amount match (0-50 points)
     const amountDiff = Math.abs(transAmount - itemAmount);
@@ -639,6 +651,12 @@ useEffect(() => {
       if (merchantLower.includes(vendorLower) || vendorLower.includes(merchantLower)) {
         score += 10;
       }
+    }
+
+    // Bonuses for invoices paid by this credit card
+    if (itemType === 'bill') {
+      if (item.status === 'paid') score += 25;
+      if (item.paidByThisCard) score += 60; // very strong signal
     }
 
     return score;
