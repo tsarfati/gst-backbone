@@ -554,6 +554,20 @@ export default function CreditCardTransactions() {
   };
 
   const getStatusBadge = (t: any) => {
+    const badges: JSX.Element[] = [];
+
+    // For payments: show reconciliation status only
+    if (t.transaction_type === 'payment') {
+      const isReconciled = !!t.is_reconciled;
+      badges.push(
+        isReconciled
+          ? <Badge className="bg-green-500 text-white" key="reconciled">Reconciled</Badge>
+          : <Badge variant="secondary" key="unreconciled">Unreconciled</Badge>
+      );
+      return <div className="flex items-center gap-1">{badges}</div>;
+    }
+
+    // For charges: show coding status
     const hasVendor = !!t.vendor_id;
     const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
     const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected
@@ -562,8 +576,6 @@ export default function CreditCardTransactions() {
     const hasMatches = !!t.invoice_id || !!t.receipt_id;
     const matchConfirmed = !!t.match_confirmed;
     const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
-
-    const badges: JSX.Element[] = [];
 
     // Show match confirmation status if there are potential matches
     if (hasMatches && !matchConfirmed) {
