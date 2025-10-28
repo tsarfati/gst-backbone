@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -797,10 +798,9 @@ export default function VendorDetails() {
             {viewingVoidedCheck?.voided_check_url && (
               <>
                 {viewingVoidedCheck.voided_check_url.toLowerCase().endsWith('.pdf') ? (
-                  <iframe
-                    src={viewingVoidedCheck.voided_check_url}
-                    className="w-full h-[70vh] border-0"
-                    title="Voided Check PDF"
+                  <UrlPdfInlinePreview 
+                    url={viewingVoidedCheck.voided_check_url}
+                    className="w-full"
                   />
                 ) : (
                   <img 
