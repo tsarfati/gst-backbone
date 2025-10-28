@@ -392,8 +392,10 @@ export default function BillEdit() {
 
       // Determine new status - if bill is pending_coding and now has job + cost code, move to pending_approval
       let newStatus = bill?.status;
+      let clearPendingCoding = false;
       if (bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
         newStatus = 'pending_approval';
+        clearPendingCoding = true;
       }
 
       // Upload new files if provided
@@ -446,6 +448,11 @@ export default function BillEdit() {
       // Update status if it changed
       if (newStatus && newStatus !== bill?.status) {
         updateData.status = newStatus;
+      }
+
+      // Clear pending_coding flag when bill is fully coded
+      if (clearPendingCoding) {
+        updateData.pending_coding = false;
       }
 
       const { error } = await supabase
