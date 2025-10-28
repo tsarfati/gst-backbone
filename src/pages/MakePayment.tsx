@@ -25,6 +25,7 @@ import {
   Check,
   ChevronsUpDown
 } from "lucide-react";
+import BillAttachmentsModal from "@/components/BillAttachmentsModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -134,6 +135,8 @@ export default function MakePayment() {
   const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
   const [bankFeeAccountPickerOpen, setBankFeeAccountPickerOpen] = useState(false);
   const [bankFeeCostCodePickerOpen, setBankFeeCostCodePickerOpen] = useState(false);
+  const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
+  const [attachmentsInvoiceId, setAttachmentsInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentCompany) {
@@ -486,7 +489,7 @@ export default function MakePayment() {
         amount: payment.amount,
         memo: payment.memo,
         status: 'pending',
-        check_number: payment.check_number,
+        check_number: payment.payment_method === 'check' ? (payment.check_number || null) : null,
         bank_account_id: payment.payment_method === 'credit_card' ? null : payment.bank_account_id,
         is_partial_payment: isPartialPayment,
         bank_fee: payment.bank_fee || 0,
@@ -1184,7 +1187,8 @@ export default function MakePayment() {
                           className={isSelected ? "bg-muted/50" : isFromDifferentVendor ? "opacity-50" : "cursor-pointer hover:bg-muted/30"}
                           onClick={() => {
                             if (isFromDifferentVendor) return;
-                            handleInvoiceSelection(invoice.id, !isSelected);
+                            setAttachmentsInvoiceId(invoice.id);
+                            setAttachmentsModalOpen(true);
                           }}
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
@@ -1213,6 +1217,15 @@ export default function MakePayment() {
 
         </div>
       </div>
+
+      <BillAttachmentsModal
+        invoiceId={attachmentsInvoiceId}
+        open={attachmentsModalOpen}
+        onOpenChange={(open) => {
+          setAttachmentsModalOpen(open);
+          if (!open) setAttachmentsInvoiceId(null);
+        }}
+      />
 
       {/* Summary */}
       {selectedInvoices.length > 0 && (
