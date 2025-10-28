@@ -271,14 +271,14 @@ export default function PaymentMethodEdit({
                       </div>
                     )}
                     {previewUrl && voidedCheckFile && (
-                      <div className="mt-4 border rounded-lg overflow-hidden">
+                      <div className="mt-4 border rounded-lg overflow-auto max-h-96">
                         {voidedCheckFile.type === 'application/pdf' ? (
-                          <UrlPdfInlinePreview url={previewUrl} className="max-h-96" />
+                          <UrlPdfInlinePreview url={previewUrl} />
                         ) : (
                           <img 
                             src={previewUrl} 
                             alt="Voided check preview" 
-                            className="w-full h-auto max-h-96 object-contain"
+                            className="w-full h-auto object-contain"
                           />
                         )}
                       </div>
