@@ -66,7 +66,7 @@ export function CreditCardTransactionModal({
       setSelectedJobOrAccount(null);
       setIsJobSelected(false);
       setSuggestedMatches([]);
-      setShowMatches(false);
+      setShowMatches(true);
       setJobCostCodes([]);
       fetchData();
     } else if (!open) {
@@ -400,6 +400,7 @@ export function CreditCardTransactionModal({
     if (!currentCompany || !transData) return;
 
     try {
+      setShowMatches(true);
       const matches: any[] = [];
       const transactionAmount = Math.abs(Number(transData.amount));
       const transactionDate = new Date(transData.transaction_date);
@@ -1135,20 +1136,6 @@ export function CreditCardTransactionModal({
               </div>
             )}
           </div>
-
-          {/* Show Matches Button */}
-          {(!showMatches || suggestedMatches.length === 0) && (
-            <div className="flex justify-center">
-              <Button 
-                variant="outline" 
-                onClick={() => fetchSuggestedMatches(transaction)}
-                className="flex items-center gap-2"
-              >
-                <Search className="h-4 w-4" />
-                Show Potential Matches
-              </Button>
-            </div>
-          )}
 
           {/* Suggested Matches */}
           {showMatches && suggestedMatches.length > 0 && (

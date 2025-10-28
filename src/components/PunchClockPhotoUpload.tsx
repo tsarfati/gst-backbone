@@ -122,12 +122,18 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       const publicUrl = publicUrlData.publicUrl;
 
+      // Get current authenticated user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
       // Save to database
       const { error: insertError } = await supabase
         .from('job_photos')
         .insert({
           job_id: jobId,
-          uploaded_by: userId,
+          uploaded_by: currentUser.id,
           photo_url: publicUrl,
           note: note.trim() || null,
           album_id: albumId,
