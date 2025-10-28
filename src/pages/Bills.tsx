@@ -588,7 +588,7 @@ export default function Bills() {
                     return (
                     <TableRow 
                       key={bill.id} 
-                      className="cursor-pointer hover:bg-primary/10 hover:shadow-sm hover:scale-[1.005] transition-all duration-200"
+                      className="cursor-pointer hover:bg-primary/5 hover:border-primary hover:shadow-md transition-all duration-200 group"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -650,7 +650,7 @@ export default function Bills() {
                   return (
                   <div 
                     key={bill.id} 
-                    className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200 ${
+                    className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group ${
                       billIsOverdue ? 'bg-destructive/10' : ''
                     }`}
                     style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
@@ -702,7 +702,7 @@ export default function Bills() {
                   return (
                   <div 
                     key={bill.id} 
-                    className="flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary hover:shadow-md hover:scale-[1.01] cursor-pointer transition-all duration-200"
+                    className="flex items-center justify-between p-3 border rounded hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
                     style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                     onClick={() => navigate(`/bills/${bill.id}`)}
                   >

@@ -167,12 +167,12 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
             {bills.map((bill) => (
               <div
                 key={bill.id}
-                className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
+                className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
                 onClick={() => handleBillClick(bill.id, bill.pending_coding)}
               >
                 <div className="flex items-center gap-3 text-sm">
                   <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-medium min-w-[120px] truncate">
+                  <span className="font-medium min-w-[120px] truncate group-hover:text-primary transition-colors">
                     {bill.invoice_number || 'No Invoice #'}
                   </span>
                   <span className="text-muted-foreground truncate flex-1">

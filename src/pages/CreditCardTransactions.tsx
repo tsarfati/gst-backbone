@@ -763,7 +763,7 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer hover:bg-accent"
+                    className="cursor-pointer hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all duration-200 group"
                     onClick={() => openTransactionDetail(trans.id)}
                   >
                     <TableCell>
@@ -771,7 +771,7 @@ export default function CreditCardTransactions() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{trans.description}</p>
+                        <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
                           <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
                         )}

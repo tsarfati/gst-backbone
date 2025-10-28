@@ -365,10 +365,10 @@ export default function CreditCards() {
                   return (
                     <TableRow 
                       key={card.id}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="cursor-pointer hover:bg-primary/5 hover:border-primary hover:shadow-md transition-all duration-200 group"
                       onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
                     >
-                      <TableCell className="font-medium">{card.card_name}</TableCell>
+                      <TableCell className="font-medium group-hover:text-primary transition-colors">{card.card_name}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
                           <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />

@@ -228,10 +228,10 @@ export default function BankAccounts() {
                 {filteredAccounts.map((account) => (
                   <TableRow 
                     key={account.id}
-                    className="cursor-pointer hover:bg-primary/10"
+                    className="cursor-pointer hover:bg-primary/5 hover:border-primary hover:shadow-md transition-all duration-200 group"
                     onClick={() => navigate(`/banking/accounts/${account.id}`)}
                   >
-                    <TableCell className="font-medium">{account.account_name}</TableCell>
+                    <TableCell className="font-medium group-hover:text-primary transition-colors">{account.account_name}</TableCell>
                     <TableCell>
                       {account.account_number ? `****${account.account_number.slice(-4)}` : 'N/A'}
                     </TableCell>

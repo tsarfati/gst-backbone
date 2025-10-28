@@ -925,9 +925,9 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getFilteredAndSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-primary/10">
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer hover:bg-primary/5 hover:border-primary hover:shadow-md transition-all duration-200 group">
                           {isManager && (
-                            <TableCell className="font-medium">
+                            <TableCell className="font-medium group-hover:text-primary transition-colors">
                               {getEmployeeName(timeCard)}
                             </TableCell>
                           )}
@@ -1261,13 +1261,13 @@ export default function TimeSheets() {
                     {timeCards.map((timeCard) => (
                       <div 
                         key={timeCard.id} 
-                        className="flex items-center justify-between p-2 hover:bg-primary/10 hover:border-primary rounded cursor-pointer"
+                        className="flex items-center justify-between p-2 hover:bg-primary/5 hover:border-primary hover:shadow-md rounded cursor-pointer transition-all duration-200 group"
                         onClick={() => handleViewDetails(timeCard.id)}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           {isManager && (
                             <div className="min-w-0 w-32">
-                              <div className="text-sm font-medium truncate">{getEmployeeName(timeCard)}</div>
+                              <div className="text-sm font-medium truncate group-hover:text-primary transition-colors">{getEmployeeName(timeCard)}</div>
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
