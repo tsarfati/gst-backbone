@@ -144,7 +144,7 @@ export default function PaymentMethodEdit({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="payment-method-description">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby="payment-method-description">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Payment Method' : 'Add Payment Method'}
@@ -219,7 +219,15 @@ export default function PaymentMethodEdit({
                     <NumericInput
                       id="accountNumber"
                       value={formData.account_number || ''}
-                      onChange={(value) => handleInputChange('account_number', value)}
+                      onChange={(value) => {
+                        handleInputChange('account_number', value);
+                        // Check for mismatch immediately
+                        if (!isEditing && confirmAccountNumber && value !== confirmAccountNumber) {
+                          setAccountMismatchError(true);
+                        } else {
+                          setAccountMismatchError(false);
+                        }
+                      }}
                       placeholder="Account number"
                       masked={true}
                       showMasked={showAccountNumber}
@@ -244,7 +252,12 @@ export default function PaymentMethodEdit({
                       value={confirmAccountNumber}
                       onChange={(value) => {
                         setConfirmAccountNumber(value);
-                        setAccountMismatchError(false);
+                        // Show error immediately if they don't match
+                        if (formData.account_number && value && formData.account_number !== value) {
+                          setAccountMismatchError(true);
+                        } else {
+                          setAccountMismatchError(false);
+                        }
                       }}
                       placeholder="Re-enter account number"
                       masked={true}
@@ -440,7 +453,10 @@ export default function PaymentMethodEdit({
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>
+            <Button 
+              onClick={handleSave}
+              disabled={accountMismatchError}
+            >
               {isEditing ? 'Save Changes' : 'Add Payment Method'}
             </Button>
           </div>
