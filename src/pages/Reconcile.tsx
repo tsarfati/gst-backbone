@@ -364,6 +364,7 @@ export default function Reconcile() {
               debit_amount,
               description,
               journal_entries!inner(
+                id,
                 entry_date,
                 reference,
                 status
@@ -431,7 +432,7 @@ export default function Reconcile() {
           return !reconciledPaymentIds.has(d.id) && !isPaymentJournalEntry;
         })
         .map((d: any) => ({
-          id: d.id,
+          id: d.journal_entries?.id || d.id,
           date: d.journal_entries?.entry_date || '',
           description: `JE Check - ${d.description || 'Bank withdrawal'}`,
           reference: d.journal_entries?.reference || '',
@@ -1448,10 +1449,10 @@ export default function Reconcile() {
                         onCheckedChange={() => handleToggleCleared(payment.id, 'payment')}
                       />
                     </TableCell>
-                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
-                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{payment.reference}</TableCell>
-                    <TableCell onClick={() => navigate(`/payables/payments/${payment.id}`)}>{payment.description}</TableCell>
-                    <TableCell className="text-right font-medium text-red-600" onClick={() => navigate(`/payables/payments/${payment.id}`)}>
+                    <TableCell onClick={() => { const path = payment.transactionType === 'journal_entry_line' ? `/banking/journal-entries/${payment.id}` : `/payables/payments/${payment.id}`; navigate(path); }}>{format(new Date(payment.date), 'MM/dd/yyyy')}</TableCell>
+                    <TableCell onClick={() => { const path = payment.transactionType === 'journal_entry_line' ? `/banking/journal-entries/${payment.id}` : `/payables/payments/${payment.id}`; navigate(path); }}>{payment.reference}</TableCell>
+                    <TableCell onClick={() => { const path = payment.transactionType === 'journal_entry_line' ? `/banking/journal-entries/${payment.id}` : `/payables/payments/${payment.id}`; navigate(path); }}>{payment.description}</TableCell>
+                    <TableCell className="text-right font-medium text-red-600" onClick={() => { const path = payment.transactionType === 'journal_entry_line' ? `/banking/journal-entries/${payment.id}` : `/payables/payments/${payment.id}`; navigate(path); }}>
                       {formatCurrency(payment.amount)}
                     </TableCell>
                   </TableRow>
