@@ -1721,11 +1721,15 @@ useEffect(() => {
                 // Check if cost code or account requires attachment
                 const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
                 const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
-                const anyRequiresAttachment = (transaction?.cost_code_id && costCodeRequiresAttachment) || 
-                                            (transaction?.chart_account_id && accountRequiresAttachment);
                 
-                // Don't show bypass checkbox if cost code or account requires attachment
-                if (anyRequiresAttachment) {
+                // Only show checkbox if:
+                // 1. A cost code is selected AND it doesn't require attachment, OR
+                // 2. An account is selected AND it doesn't require attachment
+                const showCheckbox = 
+                  (transaction?.cost_code_id && !costCodeRequiresAttachment) ||
+                  (transaction?.chart_account_id && !accountRequiresAttachment);
+                
+                if (!showCheckbox) {
                   return null;
                 }
                 
