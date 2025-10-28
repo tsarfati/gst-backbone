@@ -429,7 +429,7 @@ useEffect(() => {
         .select(`
           id,
           invoice_number,
-          invoice_date,
+          issue_date,
           amount,
           status,
           attachment_url,
@@ -443,8 +443,8 @@ useEffect(() => {
         .in("status", ["pending", "approved", "pending_payment", "paid"])
         .gte("amount", minAmount)
         .lte("amount", maxAmount)
-        .gte("invoice_date", startDate.toISOString().split('T')[0])
-        .lte("invoice_date", endDate.toISOString().split('T')[0])
+        .gte("issue_date", startDate.toISOString().split('T')[0])
+        .lte("issue_date", endDate.toISOString().split('T')[0])
         .limit(10);
 
       const invoices = invoicesQuery.data || [];
@@ -468,7 +468,7 @@ useEffect(() => {
           type: "bill",
           display: `Bill #${inv.invoice_number}`,
           amount: inv.amount,
-          date: inv.invoice_date,
+          date: inv.issue_date,
           vendor: inv.vendors?.name,
           vendorId: inv.vendors?.id,
           status: inv.status,
@@ -630,7 +630,7 @@ useEffect(() => {
     const transAmount = Math.abs(Number(transaction.amount));
     const itemAmount = Math.abs(Number(item.amount));
     const transDate = new Date(transaction.transaction_date);
-    const itemDate = new Date(itemType === 'bill' ? item.invoice_date : item.receipt_date);
+    const itemDate = new Date(itemType === 'bill' ? item.issue_date : (item.receipt_date || item.transaction_date));
 
     // Amount match (0-50 points)
     const amountDiff = Math.abs(transAmount - itemAmount);
