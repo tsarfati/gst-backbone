@@ -503,16 +503,16 @@ export default function CostCodes() {
                   const typeInfo = getTypeInfo(code.type);
                   const Icon = typeInfo.icon;
                   return (
-                    <TableRow key={code.id} className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg">
-                      <TableCell className="font-medium">{code.code}</TableCell>
-                      <TableCell>{code.description}</TableCell>
-                      <TableCell>
+                    <TableRow key={code.id} className="cursor-pointer group hover:bg-primary/5 transition-colors">
+                      <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">{code.code}</TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary">{code.description}</TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary">
                         <Badge className={typeInfo.color}>
                           <Icon className="h-3 w-3 mr-1" />
                           {typeInfo.label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center border-y border-transparent group-hover:border-primary">
                         <div className="flex items-center justify-center gap-2">
                           <Checkbox
                             checked={code.require_attachment ?? true}
@@ -536,7 +536,7 @@ export default function CostCodes() {
                           <Paperclip className="h-4 w-4 text-muted-foreground" />
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                         <div className="flex space-x-2">
                           <Button 
                             variant="outline" 

@@ -359,45 +359,45 @@ export default function CreditCards() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCards.map((card) => {
-                  const computedBalance = creditCardBalances.get(card.id) || 0;
-                  const availableCredit = Number(card.credit_limit || 0) - computedBalance;
-                  return (
-                    <TableRow 
-                      key={card.id}
-                      className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
-                      onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
-                    >
-                      <TableCell className="font-medium">{card.card_name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />
-                          ****{card.card_number_last_four}
-                        </div>
-                      </TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{card.issuer}</TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${Number(card.credit_limit || 0).toLocaleString()}</TableCell>
-                      <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                        <span className={computedBalance > 0 ? "text-red-600" : "text-green-600"}>
-                          ${computedBalance.toLocaleString()}
-                        </span>
-                      </TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                        <span className="text-green-600">
-                          ${availableCredit.toLocaleString()}
-                        </span>
-                      </TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                        <div className="flex items-center">
-                          <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
-                          {card.due_date ? new Date(card.due_date).toLocaleDateString() : 'N/A'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                        <Badge variant={card.is_active ? "default" : "secondary"}>
-                          {card.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
+                  {filteredCards.map((card) => {
+                    const computedBalance = creditCardBalances.get(card.id) || 0;
+                    const availableCredit = Number(card.credit_limit || 0) - computedBalance;
+                    return (
+                      <TableRow 
+                        key={card.id}
+                        className="cursor-pointer group hover:bg-primary/5 transition-colors"
+                        onClick={() => navigate(`/payables/credit-cards/${card.id}`)}
+                      >
+                        <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">{card.card_name}</TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary">
+                          <div className="flex items-center">
+                            <CreditCard className="h-3 w-3 mr-1 text-muted-foreground" />
+                            ****{card.card_number_last_four}
+                          </div>
+                        </TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary">{card.issuer}</TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary">${Number(card.credit_limit || 0).toLocaleString()}</TableCell>
+                        <TableCell className="font-semibold border-y border-transparent group-hover:border-primary">
+                          <span className={computedBalance > 0 ? "text-red-600" : "text-green-600"}>
+                            ${computedBalance.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary">
+                          <span className="text-green-600">
+                            ${availableCredit.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary">
+                          <div className="flex items-center">
+                            <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
+                            {card.due_date ? new Date(card.due_date).toLocaleDateString() : 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                          <Badge variant={card.is_active ? "default" : "secondary"}>
+                            {card.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
                     </TableRow>
                   );
                 })}

@@ -228,23 +228,23 @@ export default function BankAccounts() {
                 {filteredAccounts.map((account) => (
                   <TableRow 
                     key={account.id}
-                    className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
+                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
                     onClick={() => navigate(`/banking/accounts/${account.id}`)}
                   >
-                    <TableCell className="font-medium">{account.account_name}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">{account.account_name}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">
                       {account.account_number ? `****${account.account_number.slice(-4)}` : 'N/A'}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{account.bank_name}</TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="border-y border-transparent group-hover:border-primary">{account.bank_name}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">
                       <Badge variant="outline" className="capitalize">
                         {account.account_type.replace('-', ' ')}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary">
                       {formatCurrency((account.gl_balance ?? account.current_balance) as number)}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       <Badge variant={account.is_active ? "default" : "secondary"}>
                         {account.is_active ? "Active" : "Inactive"}
                       </Badge>

@@ -486,11 +486,11 @@ export default function PaymentHistory() {
                 filteredPayments.map((p) => (
                   <TableRow 
                     key={p.id} 
-                    className="cursor-pointer hover:bg-primary/10"
+                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
                     onClick={() => navigate(`/payables/payments/${p.id}`)}
                   >
-                    <TableCell className="font-medium">{p.payment_number}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">{p.payment_number}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">
                       <Button 
                         variant="link" 
                         className="h-auto p-0 font-medium"
@@ -502,17 +502,17 @@ export default function PaymentHistory() {
                         {p.invoiceNumber || (p.invoiceId ? p.invoiceId.slice(0, 8) : "—")}
                       </Button>
                     </TableCell>
-                    <TableCell>{p.vendor}</TableCell>
-                    <TableCell className="font-semibold">${Number(p.amount).toLocaleString()}</TableCell>
-                    <TableCell>{new Date(p.payment_date).toLocaleDateString()}</TableCell>
-                    <TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">{p.vendor}</TableCell>
+                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary">${Number(p.amount).toLocaleString()}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">{new Date(p.payment_date).toLocaleDateString()}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary">
                       <div className="flex items-center gap-2">
                         <span>{getMethodIcon(p.payment_method)}</span>
                         {p.payment_method.toUpperCase()}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{p.reference || "—"}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-mono text-sm border-y border-transparent group-hover:border-primary">{p.reference || "—"}</TableCell>
+                    <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                       <Badge variant={getStatusVariant(getDisplayStatus(p.status))}>{getDisplayStatus(p.status)}</Badge>
                     </TableCell>
                   </TableRow>
