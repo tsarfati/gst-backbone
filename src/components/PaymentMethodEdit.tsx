@@ -70,7 +70,7 @@ export default function PaymentMethodEdit({
   const [allowAccountEdit, setAllowAccountEdit] = useState(false);
   const [allowRoutingEdit, setAllowRoutingEdit] = useState(false);
   const [accountMismatchError, setAccountMismatchError] = useState(false);
- 
+  const [originalAccountNumber, setOriginalAccountNumber] = useState('');
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
 
@@ -105,6 +105,7 @@ export default function PaymentMethodEdit({
           login_information: ''
         });
       }
+      setOriginalAccountNumber(paymentMethod?.account_number || '');
       // Reset all edit states
       setConfirmAccountNumber('');
       setShowAccountNumber(false);
@@ -189,10 +190,17 @@ export default function PaymentMethodEdit({
     // Reset error state
     setAccountMismatchError(false);
     
-    // Validate account number match for ACH/Wire when adding new payment method
-    if ((formData.type === 'ach' || formData.type === 'wire') && !isEditing && formData.account_number !== confirmAccountNumber) {
-      setAccountMismatchError(true);
-      return;
+    // Validate account number match for ACH/Wire
+    if (formData.type === 'ach' || formData.type === 'wire') {
+      if (!isEditing && formData.account_number !== confirmAccountNumber) {
+        setAccountMismatchError(true);
+        return;
+      }
+      // On edit, require confirmation only if account number changed
+      if (isEditing && formData.account_number !== originalAccountNumber && formData.account_number !== confirmAccountNumber) {
+        setAccountMismatchError(true);
+        return;
+      }
     }
     onSave(formData);
     onClose();
@@ -265,7 +273,7 @@ export default function PaymentMethodEdit({
                       showMasked={showRoutingNumber}
                       canToggleMask={canViewSensitiveData}
                       onToggleMask={setShowRoutingNumber}
-                      onClick={isEditing ? handleRoutingNumberEdit : undefined}
+                      onClick={isEditing && !allowRoutingEdit ? handleRoutingNumberEdit : undefined}
                       readOnly={isEditing && !allowRoutingEdit}
                     />
                     {isEditing && !allowRoutingEdit && (
@@ -285,7 +293,8 @@ export default function PaymentMethodEdit({
                       onChange={(value) => {
                         handleInputChange('account_number', value);
                         // Check for mismatch immediately
-                        if (!isEditing && confirmAccountNumber && value !== confirmAccountNumber) {
+                        const requiresConfirm = !isEditing || (isEditing && allowAccountEdit);
+                        if (requiresConfirm && confirmAccountNumber && value !== confirmAccountNumber) {
                           setAccountMismatchError(true);
                         } else {
                           setAccountMismatchError(false);
@@ -296,7 +305,7 @@ export default function PaymentMethodEdit({
                       showMasked={showAccountNumber}
                       canToggleMask={canViewSensitiveData}
                       onToggleMask={setShowAccountNumber}
-                      onClick={isEditing ? handleAccountNumberEdit : undefined}
+                      onClick={isEditing && !allowAccountEdit ? handleAccountNumberEdit : undefined}
                       readOnly={isEditing && !allowAccountEdit}
                     />
                     {isEditing && !allowAccountEdit && (
@@ -307,7 +316,7 @@ export default function PaymentMethodEdit({
                   </div>
                 </div>
 
-                {!isEditing && (
+                {((!isEditing) || (isEditing && allowAccountEdit)) && (
                   <div>
                     <Label htmlFor="confirmAccountNumber">Confirm Account Number</Label>
                     <NumericInput
@@ -424,7 +433,7 @@ export default function PaymentMethodEdit({
                 placeholder="Card number"
                 masked={true}
                 showMasked={showAccountNumber}
-                onClick={isEditing ? handleAccountNumberEdit : undefined}
+                onClick={isEditing && !allowAccountEdit ? handleAccountNumberEdit : undefined}
                 readOnly={isEditing && !showAccountNumber}
               />
             </div>
@@ -475,6 +484,8 @@ export default function PaymentMethodEdit({
                 } else {
                   setAllowAccountEdit(true);
                   setShowAccountNumber(true);
+                  setConfirmAccountNumber('');
+                  setAccountMismatchError(false);
                 }
                 setShowEditConfirm(false);
                 setEditField(null);
