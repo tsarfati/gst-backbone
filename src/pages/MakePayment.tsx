@@ -26,6 +26,7 @@ import {
   ChevronsUpDown
 } from "lucide-react";
 import BillAttachmentsModal from "@/components/BillAttachmentsModal";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -139,6 +140,7 @@ export default function MakePayment() {
   const [bankFeeCostCodePickerOpen, setBankFeeCostCodePickerOpen] = useState(false);
   const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
   const [attachmentsInvoiceId, setAttachmentsInvoiceId] = useState<string | null>(null);
+  const [invoiceDocuments, setInvoiceDocuments] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (currentCompany) {
@@ -315,7 +317,7 @@ export default function MakePayment() {
     setPayment(prev => ({ ...prev, amount: 0 }));
   };
   
-  const handleInvoiceSelection = (invoiceId: string, checked: boolean) => {
+  const handleInvoiceSelection = async (invoiceId: string, checked: boolean) => {
     const invoice = invoices.find(inv => inv.id === invoiceId);
     if (!invoice) return;
     
@@ -335,8 +337,26 @@ export default function MakePayment() {
         }
       }
       newSelectedInvoices = [...selectedInvoices, invoiceId];
+      
+      // Fetch document for newly selected invoice
+      const { data: doc } = await supabase
+        .from('invoice_documents')
+        .select('file_url')
+        .eq('invoice_id', invoiceId)
+        .order('uploaded_at', { ascending: false })
+        .maybeSingle();
+      
+      if (doc?.file_url) {
+        setInvoiceDocuments(prev => ({ ...prev, [invoiceId]: doc.file_url }));
+      }
     } else {
       newSelectedInvoices = selectedInvoices.filter(id => id !== invoiceId);
+      // Remove document from state
+      setInvoiceDocuments(prev => {
+        const updated = { ...prev };
+        delete updated[invoiceId];
+        return updated;
+      });
     }
     
     setSelectedInvoices(newSelectedInvoices);
@@ -1282,6 +1302,42 @@ export default function MakePayment() {
               )}
             </CardContent>
           </Card>
+
+          {/* Inline Document Previews */}
+          {selectedInvoices.length > 0 && Object.keys(invoiceDocuments).length > 0 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Bill Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {selectedInvoices.map((invoiceId) => {
+                  const invoice = invoices.find(inv => inv.id === invoiceId);
+                  const documentUrl = invoiceDocuments[invoiceId];
+                  
+                  if (!documentUrl || !invoice) return null;
+                  
+                  return (
+                    <div key={invoiceId} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">Invoice #{invoice.invoice_number}</h4>
+                          <p className="text-sm text-muted-foreground">{invoice.vendor?.name}</p>
+                        </div>
+                        <Badge variant="outline">${invoice.amount.toFixed(2)}</Badge>
+                      </div>
+                      <UrlPdfInlinePreview 
+                        url={documentUrl} 
+                        className="max-h-[600px] overflow-auto"
+                      />
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
         </div>
       </div>
