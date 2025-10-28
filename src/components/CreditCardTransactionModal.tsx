@@ -215,7 +215,7 @@ useEffect(() => {
           .eq('company_id', currentCompany?.id || '')
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
-          .order('code');
+          .order('code', { ascending: true });
         setJobCostCodes(jobCodes || []);
       } else if (transData.chart_of_accounts?.id) {
         const acct = transData.chart_of_accounts;
@@ -240,7 +240,7 @@ useEffect(() => {
         .order('name');
       setJobs(jobsData || []);
 
-      // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range)
+      // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range) - ordered by account_number
       const { data: expenseAccountsData } = await supabase
         .from('chart_of_accounts')
         .select('id, account_number, account_name, account_type')
@@ -248,18 +248,18 @@ useEffect(() => {
         .eq('is_active', true)
         .in('account_type', ['expense', 'operating_expense', 'cost_of_goods_sold'])
         .or('account_number.lt.50000,account_number.gt.58000')
-        .order('account_number');
+        .order('account_number', { ascending: true });
 
        setExpenseAccounts(expenseAccountsData || []);
  
-       // Fetch cost codes
+       // Fetch cost codes - ordered by code ascending
        const { data: costCodesData } = await supabase
          .from("cost_codes")
          .select("*")
          .eq("company_id", currentCompany?.id)
          .eq("is_active", true)
          .eq("is_dynamic_group", false)
-         .order("code");
+         .order("code", { ascending: true });
  
        const uniqueAll = Array.from(new Map((costCodesData || []).map((cc: any) => [cc.id, cc])).values());
        setCostCodes(uniqueAll);
@@ -693,6 +693,82 @@ useEffect(() => {
 
   const linkToMatch = async (match: any) => {
     try {
+      // Special handling: if matching to another transaction (payment/charge), merge them
+      if (match.type === "transaction") {
+        // Determine which one to keep (prefer charge over payment)
+        const isCurrentPayment = transaction.transaction_type === 'payment';
+        const isMatchPayment = match.transaction_type === 'payment';
+        
+        let keepId, deleteId;
+        if (isCurrentPayment && !isMatchPayment) {
+          // Current is payment, match is charge - keep match, delete current
+          keepId = match.id;
+          deleteId = transactionId;
+        } else {
+          // Default: keep current, delete match
+          keepId = transactionId;
+          deleteId = match.id;
+        }
+        
+        // Merge data: copy any missing fields from the deleted transaction to the kept one
+        const { data: deleteData } = await supabase
+          .from("credit_card_transactions")
+          .select("*")
+          .eq("id", deleteId)
+          .single();
+        
+        if (deleteData) {
+          const mergeUpdate: any = { match_confirmed: true };
+          
+          // Only copy fields if they're not already set in the kept transaction
+          const { data: keepData } = await supabase
+            .from("credit_card_transactions")
+            .select("*")
+            .eq("id", keepId)
+            .single();
+          
+          if (keepData) {
+            if (!keepData.vendor_id && deleteData.vendor_id) mergeUpdate.vendor_id = deleteData.vendor_id;
+            if (!keepData.merchant_name && deleteData.merchant_name) mergeUpdate.merchant_name = deleteData.merchant_name;
+            if (!keepData.job_id && deleteData.job_id) mergeUpdate.job_id = deleteData.job_id;
+            if (!keepData.cost_code_id && deleteData.cost_code_id) mergeUpdate.cost_code_id = deleteData.cost_code_id;
+            if (!keepData.attachment_url && deleteData.attachment_url) mergeUpdate.attachment_url = deleteData.attachment_url;
+            if (!keepData.invoice_id && deleteData.invoice_id) mergeUpdate.invoice_id = deleteData.invoice_id;
+            if (deleteData.coding_status === 'coded' && keepData.coding_status !== 'coded') mergeUpdate.coding_status = 'coded';
+          }
+          
+          // Update the kept transaction
+          await supabase
+            .from("credit_card_transactions")
+            .update(mergeUpdate)
+            .eq("id", keepId);
+          
+          // Delete the redundant transaction
+          await supabase
+            .from("credit_card_transactions")
+            .delete()
+            .eq("id", deleteId);
+        }
+        
+        toast({
+          title: "Transactions Merged",
+          description: "Payment and charge transactions have been merged into one.",
+        });
+        
+        // If we deleted the current transaction, close modal and refresh parent
+        if (deleteId === transactionId) {
+          onComplete();
+          onOpenChange(false);
+          return;
+        }
+        
+        // Otherwise refresh current transaction
+        setShowMatches(false);
+        await fetchData();
+        return;
+      }
+      
+      // Standard match linking (for bills, receipts)
       const updateData: any = {
         match_confirmed: true,
         vendor_id: match.vendorId,
@@ -709,8 +785,6 @@ useEffect(() => {
       } else if (match.type === "uncoded_receipt" || match.type === "coded_receipt") {
         updateData.matched_receipt_id = match.id;
         updateData.receipt_id = match.id;
-      } else if (match.type === "transaction") {
-        updateData.matched_payment_id = match.id;
       }
       
       await supabase
@@ -834,7 +908,7 @@ useEffect(() => {
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true)
         .eq("is_dynamic_group", false)
-        .order("code");
+        .order("code", { ascending: true });
       
        setJobCostCodes(jobCostCodesData || []);
       
