@@ -404,7 +404,6 @@ export default function VendorEdit() {
           .insert({
             ...mapToDb(paymentMethodData),
             vendor_id: id,
-            company_id: currentCompany?.id || profile?.current_company_id,
             created_by: user?.id
           });
         
