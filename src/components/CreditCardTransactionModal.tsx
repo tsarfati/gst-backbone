@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import QuickAddVendor from "@/components/QuickAddVendor";
+import { CreditCardMatchDetailsModal } from "@/components/CreditCardMatchDetailsModal";
 import { cn } from "@/lib/utils";
 interface CreditCardTransactionModalProps {
   open: boolean;
@@ -58,6 +59,8 @@ export function CreditCardTransactionModal({
   const [requireCCAttachment, setRequireCCAttachment] = useState(false);
   const [suggestedMatches, setSuggestedMatches] = useState<any[]>([]);
   const [showMatches, setShowMatches] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
 
 
 useEffect(() => {
@@ -1281,6 +1284,7 @@ useEffect(() => {
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1883,5 +1887,19 @@ useEffect(() => {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Match Details Modal */}
+    <CreditCardMatchDetailsModal
+      open={matchDetailsOpen}
+      onOpenChange={setMatchDetailsOpen}
+      match={selectedMatch}
+      onSelectMatch={() => {
+        if (selectedMatch) {
+          linkToMatch(selectedMatch);
+          setMatchDetailsOpen(false);
+        }
+      }}
+    />
+    </>
   );
 }
