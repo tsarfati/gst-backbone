@@ -7,7 +7,14 @@ import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon,
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function VendorDetails() {
   const { id } = useParams();
@@ -21,6 +28,8 @@ export default function VendorDetails() {
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [unmaskedMethods, setUnmaskedMethods] = useState<Set<string>>(new Set());
+  const [viewingVoidedCheck, setViewingVoidedCheck] = useState<any>(null);
+  const { hasElevatedAccess } = useActionPermissions();
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -185,7 +194,7 @@ export default function VendorDetails() {
     fetchVendor();
   }, [id, toast]);
 
-  const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
+  const canViewSensitiveData = hasElevatedAccess();
 
   const toggleUnmask = (methodId: string) => {
     if (!canViewSensitiveData) return;
@@ -466,7 +475,7 @@ export default function VendorDetails() {
                                 )}
                               </div>
                               
-                              {/* Account Information */}
+                               {/* Account Information */}
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm font-medium text-muted-foreground">Type:</span>
@@ -479,6 +488,20 @@ export default function VendorDetails() {
                                     <span className="text-sm font-mono">
                                       {maskAccountNumber(method.account_number, method.id)}
                                     </span>
+                                    {canViewSensitiveData && isSensitiveType && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => toggleUnmask(method.id)}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        {isUnmasked ? (
+                                          <EyeOff className="h-3 w-3" />
+                                        ) : (
+                                          <Eye className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                                 
@@ -488,6 +511,20 @@ export default function VendorDetails() {
                                     <span className="text-sm font-mono">
                                       {maskRoutingNumber(method.routing_number, method.id)}
                                     </span>
+                                    {canViewSensitiveData && isSensitiveType && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => toggleUnmask(method.id)}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        {isUnmasked ? (
+                                          <EyeOff className="h-3 w-3" />
+                                        ) : (
+                                          <Eye className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                                 
@@ -517,23 +554,22 @@ export default function VendorDetails() {
                                 {method.is_primary && (
                                   <Badge variant="default" className="text-xs">Primary</Badge>
                                 )}
+                                
+                                {/* View Voided Check Button */}
+                                {canViewSensitiveData && isSensitiveType && method.voided_check_url && (
+                                  <div className="mt-3">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setViewingVoidedCheck(method)}
+                                    >
+                                      <FileText className="h-4 w-4 mr-2" />
+                                      View Voided Check
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            
-                            {canViewSensitiveData && isSensitiveType && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleUnmask(method.id)}
-                                className="ml-2"
-                              >
-                                {isUnmasked ? (
-                                  <EyeOff className="h-4 w-4" />
-                                ) : (
-                                  <Eye className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
                           </div>
                          </CardContent>
                        </Card>
@@ -732,6 +768,24 @@ export default function VendorDetails() {
           </Card>
         )}
       </div>
+
+      {/* Voided Check Modal */}
+      <Dialog open={!!viewingVoidedCheck} onOpenChange={() => setViewingVoidedCheck(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Voided Check - {viewingVoidedCheck?.bank_name}</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-auto">
+            {viewingVoidedCheck?.voided_check_url && (
+              <img 
+                src={viewingVoidedCheck.voided_check_url} 
+                alt="Voided Check" 
+                className="w-full h-auto"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

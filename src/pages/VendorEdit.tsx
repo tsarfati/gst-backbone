@@ -12,6 +12,7 @@ import { ArrowLeft, Save, Trash2, Upload, Building, Archive, CheckCircle } from 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 import PaymentMethodEdit from "@/components/PaymentMethodEdit";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import PaymentTermsSelect from "@/components/PaymentTermsSelect";
@@ -25,6 +26,7 @@ export default function VendorEdit() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
+  const { hasElevatedAccess } = useActionPermissions();
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -753,15 +755,17 @@ export default function VendorEdit() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Payment Methods</CardTitle>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setEditingPaymentMethod(null);
-                    setShowPaymentMethodDialog(true);
-                  }}
-                >
-                  Add Payment Method
-                </Button>
+                {hasElevatedAccess() && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setEditingPaymentMethod(null);
+                      setShowPaymentMethodDialog(true);
+                    }}
+                  >
+                    Add Payment Method
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 {paymentMethods.length === 0 ? (
@@ -780,16 +784,18 @@ export default function VendorEdit() {
                                 {method.type.toUpperCase()} - ****{method.account_number?.slice(-4) || '****'}
                               </p>
                             </div>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setEditingPaymentMethod(method);
-                                setShowPaymentMethodDialog(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
+                            {hasElevatedAccess() && (
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingPaymentMethod(method);
+                                  setShowPaymentMethodDialog(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
