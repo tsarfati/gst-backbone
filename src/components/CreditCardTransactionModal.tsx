@@ -533,11 +533,62 @@ export function CreditCardTransactionModal({
         });
       }
 
+      // Fetch other credit card transactions (for matching payments to charges)
+      // Only fetch if this is a payment transaction
+      if (transData.transaction_type === 'payment') {
+        const { data: otherTransactions, error: txError } = await supabase
+          .from("credit_card_transactions")
+          .select(`
+            id,
+            description,
+            transaction_date,
+            amount,
+            merchant_name,
+            job_id,
+            cost_code_id,
+            attachment_url,
+            transaction_type,
+            jobs(id, name),
+            cost_codes(id, code, description),
+            vendors(id, name)
+          `)
+          .eq("company_id", currentCompany.id)
+          .eq("credit_card_id", transData.credit_card_id)
+          .neq("id", transactionId) // Don't match with itself
+          .neq("transaction_type", "payment") // Only match with charges
+          .gte("amount", minAmount)
+          .lte("amount", maxAmount)
+          .gte("transaction_date", startDate.toISOString().split('T')[0])
+          .lte("transaction_date", endDate.toISOString().split('T')[0])
+          .limit(5);
+
+        if (otherTransactions && !txError) {
+          otherTransactions.forEach((tx: any) => {
+            const match = {
+              id: tx.id,
+              type: "transaction",
+              display: tx.description || "Credit Card Charge",
+              amount: tx.amount,
+              date: tx.transaction_date,
+              vendor: tx.vendors?.name || tx.merchant_name,
+              vendorId: tx.vendors?.id,
+              attachmentUrl: tx.attachment_url,
+              jobId: tx.job_id,
+              jobName: tx.jobs?.name,
+              costCodeId: tx.cost_code_id,
+              costCode: tx.cost_codes ? `${tx.cost_codes.code} - ${tx.cost_codes.description}` : null,
+              matchScore: calculateMatchScore(transData, tx, "transaction"),
+            };
+            matches.push(match);
+          });
+        }
+      }
+
       // Sort by match score (highest first)
       matches.sort((a, b) => b.matchScore - a.matchScore);
       
       setSuggestedMatches(matches);
-      // Only show matches if not yet confirmed
+      // Show matches if not yet confirmed (including for payment transactions)
       if (matches.length > 0 && !transData.match_confirmed) {
         setShowMatches(true);
       }
@@ -585,7 +636,8 @@ export function CreditCardTransactionModal({
         merchant_name: match.vendor,
         job_id: match.jobId,
         cost_code_id: match.costCodeId,
-        attachment_url: match.attachmentUrl
+        attachment_url: match.attachmentUrl,
+        coding_status: 'coded' // Mark as coded when linked
       };
       
       if (match.type === "bill") {
@@ -594,6 +646,8 @@ export function CreditCardTransactionModal({
       } else if (match.type === "uncoded_receipt" || match.type === "coded_receipt") {
         updateData.matched_receipt_id = match.id;
         updateData.receipt_id = match.id;
+      } else if (match.type === "transaction") {
+        updateData.matched_payment_id = match.id;
       }
       
       await supabase
@@ -1122,10 +1176,12 @@ export function CreditCardTransactionModal({
                           <Badge variant={
                             match.type === "bill" ? "default" :
                             match.type === "uncoded_receipt" ? "secondary" :
+                            match.type === "transaction" ? "default" :
                             "outline"
                           }>
                             {match.type === "bill" ? "Bill" :
                              match.type === "uncoded_receipt" ? "Uncoded Receipt" :
+                             match.type === "transaction" ? "Credit Card Charge" :
                              "Coded Receipt"}
                           </Badge>
                           <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
