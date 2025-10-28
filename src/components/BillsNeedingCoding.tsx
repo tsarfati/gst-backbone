@@ -49,7 +49,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
 
     try {
       // Build query - fetch bills needing approval or coding
-      // Show bills that need coding (pending_coding=true and not approved) OR need approval (status=pending_approval)
+      // Show bills that need coding (pending_coding=true and not approved/pending_approval) OR need approval (status=pending_approval)
       let query = supabase
         .from('invoices')
         .select(`
@@ -66,7 +66,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
           vendor:vendors(name),
           job:jobs(name)
         `)
-        .or('and(pending_coding.eq.true,status.neq.approved),status.eq.pending_approval')
+        .or('and(pending_coding.eq.true,status.neq.approved,status.neq.pending_approval),status.eq.pending_approval')
         .order('created_at', { ascending: false });
 
       // Filter by job if specified
