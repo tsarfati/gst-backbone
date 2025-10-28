@@ -493,26 +493,6 @@ export default function BankAccountDetails() {
               <span className="text-base font-semibold">Bank Statements</span>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="mb-4 space-y-3">
-                <Label htmlFor="new-statement">Upload Statement (PDF)</Label>
-                <div className="flex flex-col md:flex-row items-start md:items-end gap-3">
-                  <Input id="new-statement" type="file" accept=".pdf" onChange={handleStatementFileChange} />
-                  <div className="flex items-end gap-2">
-                    <div>
-                      <Label htmlFor="stmt-month" className="text-xs">Month</Label>
-                      <Input id="stmt-month" type="number" min={1} max={12} value={statementMonth} onChange={(e) => setStatementMonth(Math.max(1, Math.min(12, parseInt(e.target.value) || 1)))} className="w-24" />
-                    </div>
-                    <div>
-                      <Label htmlFor="stmt-year" className="text-xs">Year</Label>
-                      <Input id="stmt-year" type="number" value={statementYear} onChange={(e) => setStatementYear(parseInt(e.target.value) || new Date().getFullYear())} className="w-28" />
-                    </div>
-                    <Button onClick={handleUploadStatement} disabled={!newStatementFile || statementUploading}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      {statementUploading ? 'Uploading...' : 'Upload Statement'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
               {statements.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No bank statements uploaded</p>
               ) : (
@@ -656,7 +636,7 @@ export default function BankAccountDetails() {
 
       {/* Account Edit Dialog */}
       <Dialog open={accountEditOpen} onOpenChange={setAccountEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Account</DialogTitle>
           </DialogHeader>
@@ -679,7 +659,55 @@ export default function BankAccountDetails() {
                 placeholder="e.g., First National Bank"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            
+            {/* Bank Statement Upload Section */}
+            <div className="border-t pt-4 mt-4">
+              <h3 className="font-semibold mb-3">Upload Bank Statement</h3>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="new-statement">Statement PDF File</Label>
+                  <Input id="new-statement" type="file" accept=".pdf" onChange={handleStatementFileChange} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="stmt-month">Month *</Label>
+                    <select
+                      id="stmt-month"
+                      value={statementMonth}
+                      onChange={(e) => setStatementMonth(parseInt(e.target.value))}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                        <option key={month} value={month}>
+                          {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="stmt-year">Year *</Label>
+                    <Input
+                      id="stmt-year"
+                      type="number"
+                      value={statementYear}
+                      onChange={(e) => setStatementYear(parseInt(e.target.value) || new Date().getFullYear())}
+                      min="2000"
+                      max="2100"
+                    />
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleUploadStatement} 
+                  disabled={!newStatementFile || statementUploading}
+                  className="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {statementUploading ? 'Uploading...' : 'Upload Statement'}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 border-t pt-4">
               <Button variant="outline" onClick={() => setAccountEditOpen(false)}>Cancel</Button>
               <Button onClick={handleSaveAccount} disabled={updating || !editAccountName.trim() || !editBankName.trim()}>
                 {updating ? "Saving..." : "Save"}
