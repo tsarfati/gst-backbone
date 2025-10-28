@@ -413,15 +413,17 @@ useEffect(() => {
       const matches: any[] = [];
       const transactionAmount = Math.abs(Number(transData.amount));
       const transactionDate = new Date(transData.transaction_date);
-      const tolerance = transactionAmount * 0.05; // 5% tolerance
+      
+      // Wider tolerance to catch all potential matches (15% or $50, whichever is larger)
+      const tolerance = Math.max(transactionAmount * 0.15, 50);
       const minAmount = transactionAmount - tolerance;
       const maxAmount = transactionAmount + tolerance;
       
-      // Date range: +/- 7 days
+      // Wider date range: +/- 30 days to catch more matches
       const startDate = new Date(transactionDate);
-      startDate.setDate(startDate.getDate() - 7);
+      startDate.setDate(startDate.getDate() - 30);
       const endDate = new Date(transactionDate);
-      endDate.setDate(endDate.getDate() + 7);
+      endDate.setDate(endDate.getDate() + 30);
 
       // Fetch invoices (including paid) with full details
       const invoicesQuery = await supabase
@@ -608,8 +610,14 @@ useEffect(() => {
         }
       }
 
-      // Sort by match score (highest first)
+      // Sort by match score (highest first) and normalize to percentage
       matches.sort((a, b) => b.matchScore - a.matchScore);
+      
+      // Normalize scores to percentage (max base score is 105: 60 amount + 25 vendor + 10 job + 10 date)
+      // Bonuses can push it higher but we use 105 as the "perfect match" baseline
+      matches.forEach(match => {
+        match.matchScore = Math.min(100, Math.round((match.matchScore / 105) * 100));
+      });
       
       console.log('Suggested matches found:', matches.length, 'matches:', matches);
       setSuggestedMatches(matches);
@@ -632,31 +640,52 @@ useEffect(() => {
     const transDate = new Date(transaction.transaction_date);
     const itemDate = new Date(itemType === 'bill' ? item.issue_date : (item.receipt_date || item.transaction_date));
 
-    // Amount match (0-50 points)
+    // Amount match (0-60 points) - HIGHEST PRIORITY
     const amountDiff = Math.abs(transAmount - itemAmount);
-    const amountScore = Math.max(0, 50 - (amountDiff / transAmount) * 50);
-    score += amountScore;
+    if (amountDiff < 0.01) {
+      // Exact match
+      score += 60;
+    } else if (amountDiff < 1) {
+      // Within $1
+      score += 55;
+    } else {
+      // Scaled by difference
+      const amountScore = Math.max(0, 60 - (amountDiff / transAmount) * 60);
+      score += amountScore;
+    }
 
-    // Date proximity (0-30 points)
-    const daysDiff = Math.abs((transDate.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
-    const dateScore = Math.max(0, 30 - daysDiff * 4);
-    score += dateScore;
-
-    // Vendor match (0-20 points)
+    // Vendor match (0-25 points)
     if (transaction.vendor_id && item.vendors?.id === transaction.vendor_id) {
-      score += 20;
+      score += 25;
     } else if (transaction.merchant_name && item.vendors?.name) {
       const merchantLower = transaction.merchant_name.toLowerCase();
       const vendorLower = item.vendors.name.toLowerCase();
       if (merchantLower.includes(vendorLower) || vendorLower.includes(merchantLower)) {
-        score += 10;
+        score += 15;
       }
+    }
+
+    // Job match (0-10 points)
+    if (transaction.job_id && item.jobId === transaction.job_id) {
+      score += 10;
+    }
+
+    // Date proximity (0-10 points) - LOWER PRIORITY
+    const daysDiff = Math.abs((transDate.getTime() - itemDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff === 0) {
+      score += 10; // Same day
+    } else if (daysDiff <= 3) {
+      score += 8; // Within 3 days
+    } else if (daysDiff <= 7) {
+      score += 5; // Within 1 week
+    } else if (daysDiff <= 14) {
+      score += 2; // Within 2 weeks
     }
 
     // Bonuses for invoices paid by this credit card
     if (itemType === 'bill') {
-      if (item.status === 'paid') score += 25;
-      if (item.paidByThisCard) score += 60; // very strong signal
+      if (item.paidByThisCard) score += 50; // Very strong signal
+      else if (item.status === 'paid') score += 10;
     }
 
     return score;
@@ -1232,7 +1261,23 @@ useEffect(() => {
                                  match.type === "transaction" ? "Credit Card Charge" :
                                  "Coded Receipt"}
                               </Badge>
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                              {match.paidByThisCard && (
+                                <Badge variant="default" className="bg-green-600 dark:bg-green-700">
+                                  Paid by this card
+                                </Badge>
+                              )}
+                              <Badge 
+                                variant={
+                                  match.matchScore >= 95 ? "default" : 
+                                  match.matchScore >= 75 ? "secondary" : 
+                                  "outline"
+                                }
+                                className={
+                                  match.matchScore >= 95 ? "bg-green-600 dark:bg-green-700" :
+                                  match.matchScore >= 75 ? "bg-blue-600 dark:bg-blue-700" :
+                                  "bg-gray-500 dark:bg-gray-600"
+                                }
+                              >
                                 {Math.round(match.matchScore)}% match
                               </Badge>
                             </div>
