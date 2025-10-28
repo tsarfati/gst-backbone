@@ -68,6 +68,7 @@ export default function PaymentMethodEdit({
   const [editField, setEditField] = useState<'account' | 'routing' | null>(null);
   const [allowAccountEdit, setAllowAccountEdit] = useState(false);
   const [allowRoutingEdit, setAllowRoutingEdit] = useState(false);
+  const [accountMismatchError, setAccountMismatchError] = useState(false);
  
   const canViewSensitiveData = profile?.role === 'admin' || profile?.role === 'controller';
   const isEditing = !!paymentMethod?.id;
@@ -122,8 +123,12 @@ export default function PaymentMethodEdit({
   }, [previewUrl]);
 
   const handleSave = () => {
-    if ((formData.type === 'ACH' || formData.type === 'Wire') && !isEditing && formData.account_number !== confirmAccountNumber) {
-      alert('Account numbers do not match');
+    // Reset error state
+    setAccountMismatchError(false);
+    
+    // Validate account number match for ACH/Wire when adding new payment method
+    if ((formData.type === 'ach' || formData.type === 'wire') && !isEditing && formData.account_number !== confirmAccountNumber) {
+      setAccountMismatchError(true);
       return;
     }
     onSave(formData);
@@ -237,13 +242,23 @@ export default function PaymentMethodEdit({
                     <NumericInput
                       id="confirmAccountNumber"
                       value={confirmAccountNumber}
-                      onChange={setConfirmAccountNumber}
+                      onChange={(value) => {
+                        setConfirmAccountNumber(value);
+                        setAccountMismatchError(false);
+                      }}
                       placeholder="Re-enter account number"
                       masked={true}
                       showMasked={showConfirmAccountNumber}
                       canToggleMask={canViewSensitiveData}
                       onToggleMask={setShowConfirmAccountNumber}
                     />
+                    {accountMismatchError && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertDescription>
+                          Account numbers do not match. Please verify and re-enter.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 )}
 
