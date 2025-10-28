@@ -411,7 +411,7 @@ export function CreditCardTransactionModal({
       const endDate = new Date(transactionDate);
       endDate.setDate(endDate.getDate() + 7);
 
-      // Fetch unpaid bills
+      // Fetch unpaid bills with full details
       const billsQuery = await supabase
         .from("bills" as any)
         .select(`
@@ -420,7 +420,12 @@ export function CreditCardTransactionModal({
           invoice_date,
           amount,
           status,
-          vendors!inner(id, name)
+          attachment_url,
+          job_id,
+          cost_code_id,
+          vendors!inner(id, name),
+          jobs(id, name),
+          cost_codes(id, code, description)
         ` as any)
         .eq("company_id", currentCompany.id)
         .in("status", ["pending", "approved"])
@@ -441,7 +446,13 @@ export function CreditCardTransactionModal({
             amount: bill.amount,
             date: bill.invoice_date,
             vendor: bill.vendors?.name,
+            vendorId: bill.vendors?.id,
             status: bill.status,
+            attachmentUrl: bill.attachment_url,
+            jobId: bill.job_id,
+            jobName: bill.jobs?.name,
+            costCodeId: bill.cost_code_id,
+            costCode: bill.cost_codes ? `${bill.cost_codes.code} - ${bill.cost_codes.description}` : null,
             matchScore: calculateMatchScore(transData, bill, "bill"),
           };
           matches.push(match);
@@ -569,7 +580,12 @@ export function CreditCardTransactionModal({
   const linkToMatch = async (match: any) => {
     try {
       const updateData: any = {
-        match_confirmed: true
+        match_confirmed: true,
+        vendor_id: match.vendorId,
+        merchant_name: match.vendor,
+        job_id: match.jobId,
+        cost_code_id: match.costCodeId,
+        attachment_url: match.attachmentUrl
       };
       
       if (match.type === "bill") {
@@ -587,11 +603,11 @@ export function CreditCardTransactionModal({
       
       toast({
         title: "Confirmed",
-        description: `Transaction confirmed and linked to ${match.display}`,
+        description: `Transaction linked to ${match.display}. Job, vendor, cost code, and attachment have been populated.`,
       });
       
       setShowMatches(false);
-      // Refresh transaction data
+      // Refresh transaction data to reflect all changes
       await fetchData();
     } catch (error: any) {
       toast({
@@ -1048,47 +1064,85 @@ export function CreditCardTransactionModal({
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ⚠️ Confirmation Required
+                    ⚠️ Confirmation Required - Potential Matches Found
                   </Label>
                   <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
-                    This transaction may match existing bills/receipts. Please confirm or dismiss before proceeding.
+                    {suggestedMatches.length} potential {suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.
                   </p>
                 </div>
               </div>
-              <div className="space-y-2 mb-3">
+              <div className="space-y-3 mb-3">
                 {suggestedMatches.slice(0, 5).map((match) => (
                   <div
                     key={`${match.type}-${match.id}`}
-                    className="flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded border"
+                    className="bg-white dark:bg-gray-900 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{match.display}</span>
-                        <Badge variant={
-                          match.type === "bill" ? "default" :
-                          match.type === "uncoded_receipt" ? "secondary" :
-                          "outline"
-                        }>
-                          {match.type === "bill" ? "Bill" :
-                           match.type === "uncoded_receipt" ? "Uncoded Receipt" :
-                           "Coded Receipt"}
-                        </Badge>
+                    <div className="flex gap-4">
+                      {/* Attachment Preview */}
+                      {match.attachmentUrl && (
+                        <div className="flex-shrink-0">
+                          <div className="w-20 h-20 border rounded overflow-hidden bg-muted">
+                            {match.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <FileText className="h-8 w-8 text-muted-foreground" />
+                              </div>
+                            ) : (
+                              <img 
+                                src={match.attachmentUrl} 
+                                alt="Attachment preview"
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Match Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-medium text-sm">{match.display}</span>
+                          <Badge variant={
+                            match.type === "bill" ? "default" :
+                            match.type === "uncoded_receipt" ? "secondary" :
+                            "outline"
+                          }>
+                            {match.type === "bill" ? "Bill" :
+                             match.type === "uncoded_receipt" ? "Uncoded Receipt" :
+                             "Coded Receipt"}
+                          </Badge>
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                            {Math.round(match.matchScore)}% match
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                          <div><span className="font-medium">Amount:</span> ${Number(match.amount).toLocaleString()}</div>
+                          <div><span className="font-medium">Date:</span> {new Date(match.date).toLocaleDateString()}</div>
+                          {match.vendor && <div><span className="font-medium">Vendor:</span> {match.vendor}</div>}
+                          {match.jobName && <div><span className="font-medium">Job:</span> {match.jobName}</div>}
+                          {match.costCode && <div className="col-span-2"><span className="font-medium">Cost Code:</span> {match.costCode}</div>}
+                        </div>
+                        
+                        {match.attachmentUrl && (
+                          <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <Check className="h-3 w-3" />
+                            <span>Attachment available</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                        <span>${Number(match.amount).toLocaleString()}</span>
-                        <span>{new Date(match.date).toLocaleDateString()}</span>
-                        {match.vendor && <span>{match.vendor}</span>}
-                        <span className="text-blue-600 dark:text-blue-400">
-                          {Math.round(match.matchScore)}% match
-                        </span>
+                      
+                      {/* Action Button */}
+                      <div className="flex-shrink-0 flex items-center">
+                        <Button
+                          size="sm"
+                          onClick={() => linkToMatch(match)}
+                          className="whitespace-nowrap"
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Select Match
+                        </Button>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => linkToMatch(match)}
-                    >
-                      Confirm & Link
-                    </Button>
                   </div>
                 ))}
               </div>
@@ -1098,7 +1152,8 @@ export function CreditCardTransactionModal({
                   size="sm"
                   onClick={dismissMatches}
                 >
-                  Not a Match - Dismiss
+                  <X className="h-4 w-4 mr-1" />
+                  No Match - Dismiss All
                 </Button>
               </div>
             </div>
