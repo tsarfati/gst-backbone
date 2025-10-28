@@ -136,8 +136,16 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       if (insertError) throw insertError;
 
-      toast({ title: 'Success', description: 'Photo uploaded to job album' });
-      handleClose();
+      toast({ 
+        title: 'Success', 
+        description: 'Photo uploaded to job album! You can take another photo.',
+      });
+      
+      // Clear photo and restart camera so user can take another photo
+      setPhotoPreview(null);
+      setPhotoBlob(null);
+      setNote('');
+      setTimeout(() => startCamera(), 100);
     } catch (error: any) {
       console.error('Error uploading photo:', error);
       toast({
