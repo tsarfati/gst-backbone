@@ -591,6 +591,7 @@ useEffect(() => {
             const match = {
               id: tx.id,
               type: "transaction",
+              transaction_type: tx.transaction_type,
               display: tx.description || (tx.transaction_type === 'payment' ? 'Credit Card Payment' : 'Credit Card Charge'),
               amount: tx.amount,
               date: tx.transaction_date,
@@ -713,7 +714,7 @@ useEffect(() => {
           .from("credit_card_transactions")
           .select("*")
           .eq("id", deleteId)
-          .single();
+          .maybeSingle();
         
         if (deleteData) {
           const mergeUpdate: any = { match_confirmed: true };
@@ -723,7 +724,7 @@ useEffect(() => {
             .from("credit_card_transactions")
             .select("*")
             .eq("id", keepId)
-            .single();
+            .maybeSingle();
           
           if (keepData) {
             if (!keepData.vendor_id && deleteData.vendor_id) mergeUpdate.vendor_id = deleteData.vendor_id;
@@ -778,6 +779,16 @@ useEffect(() => {
       };
       
       if (match.type === "bill") {
+        // Fetch most recent bill document and attach it
+        const { data: doc } = await supabase
+          .from('invoice_documents')
+          .select('file_url')
+          .eq('invoice_id', match.id)
+          .order('uploaded_at', { ascending: false })
+          .maybeSingle();
+        if (doc?.file_url) {
+          updateData.attachment_url = doc.file_url;
+        }
         updateData.matched_bill_id = match.id;
         updateData.invoice_id = match.id;
       } else if (match.type === "uncoded_receipt" || match.type === "coded_receipt") {
@@ -789,6 +800,55 @@ useEffect(() => {
         .from("credit_card_transactions")
         .update(updateData)
         .eq("id", transactionId);
+
+      // If we linked to a bill, check for a duplicate CC transaction for this bill and merge
+      if (match.type === 'bill') {
+        const { data: dup } = await supabase
+          .from('credit_card_transactions')
+          .select('*')
+          .eq('credit_card_id', transaction.credit_card_id)
+          .eq('invoice_id', match.id)
+          .neq('id', transactionId)
+          .maybeSingle();
+        if (dup) {
+          const currentIsCharge = transaction.transaction_type === 'charge';
+          const dupIsCharge = dup.transaction_type === 'charge';
+          const keepId = currentIsCharge || !dupIsCharge ? transactionId : dup.id;
+          const deleteId = keepId === transactionId ? dup.id : transactionId;
+
+          const { data: keepData } = await supabase
+            .from('credit_card_transactions')
+            .select('*')
+            .eq('id', keepId)
+            .maybeSingle();
+          const { data: deleteData2 } = await supabase
+            .from('credit_card_transactions')
+            .select('*')
+            .eq('id', deleteId)
+            .maybeSingle();
+
+          if (keepData && deleteData2) {
+            const mergeUpdate: any = { match_confirmed: true, coding_status: 'coded' };
+            if (!keepData.vendor_id && deleteData2.vendor_id) mergeUpdate.vendor_id = deleteData2.vendor_id;
+            if (!keepData.merchant_name && deleteData2.merchant_name) mergeUpdate.merchant_name = deleteData2.merchant_name;
+            if (!keepData.job_id && deleteData2.job_id) mergeUpdate.job_id = deleteData2.job_id;
+            if (!keepData.cost_code_id && deleteData2.cost_code_id) mergeUpdate.cost_code_id = deleteData2.cost_code_id;
+            if (!keepData.attachment_url && deleteData2.attachment_url) mergeUpdate.attachment_url = deleteData2.attachment_url;
+            if (!keepData.invoice_id && deleteData2.invoice_id) mergeUpdate.invoice_id = deleteData2.invoice_id;
+
+            await supabase.from('credit_card_transactions').update(mergeUpdate).eq('id', keepId);
+            await supabase.from('credit_card_transactions').delete().eq('id', deleteId);
+
+            toast({ title: 'Transactions Merged', description: 'The duplicate payment/charge was merged.' });
+
+            if (deleteId === transactionId) {
+              onComplete();
+              onOpenChange(false);
+              return;
+            }
+          }
+        }
+      }
       
       toast({
         title: "Confirmed",
