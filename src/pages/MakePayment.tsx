@@ -631,6 +631,7 @@ export default function MakePayment() {
                 imported_from_csv: true,
                 created_by: user.data.user?.id,
                 notes: payment.memo || null,
+                transaction_type: 'payment',
               })
               .eq('id', candidate.id);
           } else {
@@ -651,6 +652,7 @@ export default function MakePayment() {
                 imported_from_csv: false,
                 created_by: user.data.user?.id,
                 notes: payment.memo || null,
+                transaction_type: 'payment',
               });
           }
 
