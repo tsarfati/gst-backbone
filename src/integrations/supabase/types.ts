@@ -1974,6 +1974,58 @@ export type Database = {
           },
         ]
       }
+      invoice_cost_distributions: {
+        Row: {
+          amount: number
+          cost_code_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          percentage: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          cost_code_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          percentage: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cost_code_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          percentage?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_cost_distributions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_cost_distributions_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "invoice_cost_distributions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_documents: {
         Row: {
           created_at: string

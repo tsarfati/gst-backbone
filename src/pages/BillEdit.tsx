@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
 import BillApprovalActions from "@/components/BillApprovalActions";
+import BillDistributionSection from "@/components/BillDistributionSection";
 
 interface Vendor {
   id: string;
@@ -56,6 +57,8 @@ export default function BillEdit() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [payNumber, setPayNumber] = useState<number>(0);
   const [jobData, setJobData] = useState<any>(null);
+  const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
+  const [billDistribution, setBillDistribution] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -120,6 +123,13 @@ export default function BillEdit() {
 
         if (subcontractData) {
           setSubcontractInfo(subcontractData);
+          
+          // Load cost distribution
+          const costDist = subcontractData.cost_distribution;
+          const distribution = Array.isArray(costDist) 
+            ? costDist 
+            : (typeof costDist === 'string' ? JSON.parse(costDist) : []);
+          setCommitmentDistribution(distribution);
 
           // Calculate commitment totals
           const { data: previousInvoices } = await supabase
@@ -200,6 +210,15 @@ export default function BillEdit() {
       }
 
       setBill(typedBillData);
+      
+      // Load existing bill distribution if it exists
+      const { data: existingDist } = await supabase
+        .from('invoice_cost_distributions')
+        .select('*')
+        .eq('invoice_id', id);
+      if (existingDist && existingDist.length > 0) {
+        setBillDistribution(existingDist);
+      }
 
       // Populate form data
       setFormData({
@@ -216,6 +235,40 @@ export default function BillEdit() {
         is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
         is_reimbursement: typedBillData.is_reimbursement || false
       });
+      
+      // Get commitment distribution to check for auto-population
+      let loadedDistribution: any[] = [];
+      if (typedBillData.subcontract_id) {
+        const { data: subcontractData } = await supabase
+          .from('subcontracts')
+          .select('cost_distribution')
+          .eq('id', typedBillData.subcontract_id)
+          .single();
+          
+        if (subcontractData) {
+          const costDist = subcontractData.cost_distribution;
+          loadedDistribution = Array.isArray(costDist) 
+            ? costDist 
+            : (typeof costDist === 'string' ? JSON.parse(costDist) : []);
+        }
+      }
+      
+      // Auto-populate job and cost code if commitment has single distribution
+      // Only do this on initial load if values are not already set
+      if (loadedDistribution.length === 1) {
+        const singleDist = loadedDistribution[0];
+        const needsPopulation = !typedBillData.job_id || !typedBillData.cost_code_id;
+        
+        if (needsPopulation && singleDist.cost_code_id) {
+          // Find the job for this cost code
+          const costCode = allCostCodesData.data?.find(cc => cc.id === singleDist.cost_code_id);
+          const jobForCode = costCode?.job_id || singleDist.job_id;
+          
+          // Update form data with auto-populated values - these changes will persist
+          typedBillData.job_id = typedBillData.job_id || jobForCode || '';
+          typedBillData.cost_code_id = typedBillData.cost_code_id || singleDist.cost_code_id || '';
+        }
+      }
       
       // Filter cost codes AFTER formData and vendors are set
       if (allCostCodesData.data && vendorsData.data) {
@@ -378,8 +431,31 @@ export default function BillEdit() {
 
   const handleSave = async () => {
     try {
-      // Validate required fields
-      if (formData.job_id && !formData.cost_code_id) {
+      // Validate required fields for bills with distributions
+      if (commitmentDistribution.length > 1) {
+        // Multi-distribution bill - validate distribution
+        if (billDistribution.length === 0) {
+          toast({
+            title: "Validation Error",
+            description: "Please distribute the bill amount across the cost codes",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        const totalDistributed = billDistribution.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const billAmountNum = parseFloat(formData.amount) || 0;
+        const diff = Math.abs(totalDistributed - billAmountNum);
+        
+        if (diff > 0.01) {
+          toast({
+            title: "Validation Error",
+            description: `Distribution total ($${totalDistributed.toFixed(2)}) must equal bill amount ($${billAmountNum.toFixed(2)})`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (formData.job_id && !formData.cost_code_id) {
         toast({
           title: "Validation Error",
           description: "Cost code is required when a job is selected",
@@ -461,6 +537,29 @@ export default function BillEdit() {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Save distribution if this is a multi-distribution commitment bill
+      if (commitmentDistribution.length > 1 && billDistribution.length > 0) {
+        // Delete existing distributions
+        await supabase
+          .from('invoice_cost_distributions')
+          .delete()
+          .eq('invoice_id', id);
+        
+        // Insert new distributions
+        const distributionRecords = billDistribution.map(dist => ({
+          invoice_id: id,
+          cost_code_id: dist.cost_code_id,
+          amount: parseFloat(dist.amount),
+          percentage: dist.percentage
+        }));
+        
+        const { error: distError } = await supabase
+          .from('invoice_cost_distributions')
+          .insert(distributionRecords);
+        
+        if (distError) throw distError;
+      }
 
       const successMessage = newStatus === 'pending_approval' && bill?.status === 'pending_coding'
         ? "Bill updated and sent to approval"
@@ -575,63 +674,66 @@ export default function BillEdit() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="job">Job</Label>
-                <Select 
-                  value={formData.job_id} 
-                  onValueChange={(value) => handleInputChange("job_id", value)}
-                  disabled={!!subcontractInfo}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a job" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id}>
-                        {job.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Only show job/cost code selectors if single distribution or no commitment */}
+            {commitmentDistribution.length <= 1 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="job">Job</Label>
+                  <Select 
+                    value={formData.job_id} 
+                    onValueChange={(value) => handleInputChange("job_id", value)}
+                    disabled={!!subcontractInfo || commitmentDistribution.length === 1}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cost_code">
+                    Cost Code
+                    {formData.job_id && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  <Select 
+                    value={formData.cost_code_id} 
+                    onValueChange={(value) => handleInputChange("cost_code_id", value)}
+                    disabled={!!subcontractInfo || !formData.job_id || commitmentDistribution.length === 1}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formData.job_id ? "Select cost code (required)" : "Select job first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {costCodes.map((code) => (
+                        <SelectItem key={code.id} value={code.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{code.code} - {code.description}</span>
+                            {code.type && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-muted">
+                                {code.type === 'labor' ? 'Labor' : 
+                                 code.type === 'material' ? 'Material' : 
+                                 code.type === 'equipment' ? 'Equipment' : 
+                                 code.type === 'sub' ? 'Subcontractor' : 
+                                 code.type === 'other' ? 'Other' : code.type}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.job_id && !formData.cost_code_id && commitmentDistribution.length <= 1 && (
+                    <p className="text-sm text-destructive">Cost code is required when a job is selected</p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cost_code">
-                  Cost Code
-                  {formData.job_id && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <Select 
-                  value={formData.cost_code_id} 
-                  onValueChange={(value) => handleInputChange("cost_code_id", value)}
-                  disabled={!!subcontractInfo || !formData.job_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formData.job_id ? "Select cost code (required)" : "Select job first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {costCodes.map((code) => (
-                      <SelectItem key={code.id} value={code.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{code.code} - {code.description}</span>
-                          {code.type && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-muted">
-                              {code.type === 'labor' ? 'Labor' : 
-                               code.type === 'material' ? 'Material' : 
-                               code.type === 'equipment' ? 'Equipment' : 
-                               code.type === 'sub' ? 'Subcontractor' : 
-                               code.type === 'other' ? 'Other' : code.type}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.job_id && !formData.cost_code_id && (
-                  <p className="text-sm text-destructive">Cost code is required when a job is selected</p>
-                )}
-              </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -738,6 +840,15 @@ export default function BillEdit() {
             )}
           </CardContent>
         </Card>
+
+        {/* Bill Distribution Section - Show if commitment has multiple cost distributions */}
+        {commitmentDistribution.length > 1 && (
+          <BillDistributionSection
+            subcontractDistribution={commitmentDistribution}
+            billAmount={formData.amount}
+            onChange={setBillDistribution}
+          />
+        )}
 
         {/* Bill Approval Section */}
         {bill?.status && ['pending_approval', 'pending_coding'].includes(bill.status) && (
