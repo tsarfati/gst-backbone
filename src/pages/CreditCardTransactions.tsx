@@ -763,7 +763,7 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all duration-200 group"
+                    className="cursor-pointer border hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all duration-200 group"
                     onClick={() => openTransactionDetail(trans.id)}
                   >
                     <TableCell>
