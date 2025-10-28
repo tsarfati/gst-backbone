@@ -68,7 +68,7 @@ export default function CreditCards() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !selectedCard) return;
+    if (!file || !selectedCard || !currentCompany?.id) return;
 
     setUploadingCsv(true);
     const { data: userData } = await supabase.auth.getUser();
@@ -78,20 +78,28 @@ export default function CreditCards() {
       header: true,
       complete: async (results) => {
         try {
-          const transactions = results.data.map((row: any) => ({
-            credit_card_id: selectedCard,
-            company_id: currentCompany?.id,
-            transaction_date: row.date || row.transaction_date || row['Transaction Date'],
-            post_date: row.post_date || row['Post Date'],
-            description: row.description || row.merchant || row['Description'],
-            amount: parseFloat(row.amount || row['Amount']?.replace('$', '').replace(',', '') || 0),
-            transaction_type: (row.type || row['Type'] || 'debit').toLowerCase(),
-            merchant_name: row.merchant || row.merchant_name || row['Merchant Name'],
-            category: row.category || row['Category'],
-            reference_number: row.reference || row.reference_number || row['Reference Number'],
-            imported_from_csv: true,
-            created_by: userId
-          }));
+          const transactions = results.data
+            .filter((row: any) => row.date || row.transaction_date || row['Transaction Date'])
+            .map((row: any) => {
+              const amount = Math.abs(parseFloat(row.amount || row['Amount']?.replace('$', '').replace(',', '') || 0));
+              const isPayment = parseFloat(row.amount || row['Amount']?.replace('$', '').replace(',', '') || 0) < 0;
+              
+              return {
+                credit_card_id: selectedCard,
+                company_id: currentCompany.id,
+                transaction_date: row.date || row.transaction_date || row['Transaction Date'],
+                post_date: row.post_date || row['Post Date'],
+                description: row.description || row.merchant || row['Description'],
+                amount: amount,
+                transaction_type: isPayment ? 'payment' : 'charge',
+                merchant_name: row.merchant || row.merchant_name || row['Merchant Name'],
+                category: row.category || row['Category'],
+                reference_number: row.reference || row.reference_number || row['Reference Number'],
+                imported_from_csv: true,
+                created_by: userId,
+                original_amount: parseFloat(row.amount || row['Amount']?.replace('$', '').replace(',', '') || 0)
+              };
+            });
 
           const { error } = await supabase
             .from('credit_card_transactions')
@@ -99,14 +107,12 @@ export default function CreditCards() {
 
           if (error) throw error;
 
-          // Get current import count
           const { data: cardData } = await supabase
             .from('credit_cards')
             .select('csv_import_count')
             .eq('id', selectedCard)
             .single();
 
-          // Update credit card import stats
           await supabase
             .from('credit_cards')
             .update({
@@ -118,13 +124,13 @@ export default function CreditCards() {
 
           toast({
             title: "Import successful",
-            description: `Imported ${transactions.length} transactions from CSV`
+            description: `Imported ${transactions.length} transactions`
           });
           
-          // Reset the form
           setSelectedCard("");
-          event.target.value = ""; // Clear the file input
+          event.target.value = "";
           setUploadDialogOpen(false);
+          fetchCreditCards();
         } catch (error) {
           console.error('Error importing transactions:', error);
           toast({

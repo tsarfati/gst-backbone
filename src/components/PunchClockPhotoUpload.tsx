@@ -122,9 +122,11 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       const publicUrl = publicUrlData.publicUrl;
 
-      // Get current authenticated user
+      // Get current authenticated user - if not available, use the passed userId (for PIN mode)
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) {
+      const uploadedByUserId = currentUser?.id || userId;
+      
+      if (!uploadedByUserId) {
         throw new Error('User not authenticated');
       }
 
@@ -133,7 +135,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
         .from('job_photos')
         .insert({
           job_id: jobId,
-          uploaded_by: currentUser.id,
+          uploaded_by: uploadedByUserId,
           photo_url: publicUrl,
           note: note.trim() || null,
           album_id: albumId,
