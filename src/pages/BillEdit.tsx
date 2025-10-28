@@ -220,22 +220,6 @@ export default function BillEdit() {
         setBillDistribution(existingDist);
       }
 
-      // Populate form data
-      setFormData({
-        vendor_id: typedBillData.vendor_id || '',
-        job_id: typedBillData.job_id || '',
-        cost_code_id: typedBillData.cost_code_id || '',
-        invoice_number: typedBillData.invoice_number || '',
-        amount: typedBillData.amount?.toString() || '',
-        issue_date: typedBillData.issue_date || '',
-        due_date: typedBillData.due_date || '',
-        description: typedBillData.description || '',
-        internal_notes: (typedBillData as any).internal_notes || '',
-        payment_terms: typedBillData.payment_terms || '',
-        is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
-        is_reimbursement: typedBillData.is_reimbursement || false
-      });
-      
       // Get commitment distribution to check for auto-population
       let loadedDistribution: any[] = [];
       if (typedBillData.subcontract_id) {
@@ -254,7 +238,6 @@ export default function BillEdit() {
       }
       
       // Auto-populate job and cost code if commitment has single distribution
-      // Only do this on initial load if values are not already set
       if (loadedDistribution.length === 1) {
         const singleDist = loadedDistribution[0];
         const needsPopulation = !typedBillData.job_id || !typedBillData.cost_code_id;
@@ -264,11 +247,27 @@ export default function BillEdit() {
           const costCode = allCostCodesData.data?.find(cc => cc.id === singleDist.cost_code_id);
           const jobForCode = costCode?.job_id || singleDist.job_id;
           
-          // Update form data with auto-populated values - these changes will persist
+          // Update values in memory so they persist to form state
           typedBillData.job_id = typedBillData.job_id || jobForCode || '';
           typedBillData.cost_code_id = typedBillData.cost_code_id || singleDist.cost_code_id || '';
         }
       }
+      
+      // Populate form data AFTER possible auto-population
+      setFormData({
+        vendor_id: typedBillData.vendor_id || '',
+        job_id: typedBillData.job_id || '',
+        cost_code_id: typedBillData.cost_code_id || '',
+        invoice_number: typedBillData.invoice_number || '',
+        amount: typedBillData.amount?.toString() || '',
+        issue_date: typedBillData.issue_date || '',
+        due_date: typedBillData.due_date || '',
+        description: typedBillData.description || '',
+        internal_notes: (typedBillData as any).internal_notes || '',
+        payment_terms: typedBillData.payment_terms || '',
+        is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
+        is_reimbursement: typedBillData.is_reimbursement || false
+      });
       
       // Filter cost codes AFTER formData and vendors are set
       if (allCostCodesData.data && vendorsData.data) {
