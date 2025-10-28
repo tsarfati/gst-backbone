@@ -66,6 +66,8 @@ interface Invoice {
   description: string;
   job_id: string;
   jobs?: Job;
+  cost_code_id?: string;
+  chart_account_id?: string;
 }
 
 interface Payment {
@@ -443,6 +445,32 @@ export default function MakePayment() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Validate that bills are properly coded before payment
+    for (const invoiceId of selectedInvoices) {
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (!invoice) continue;
+
+      // Check if bill has a job assigned but no cost code
+      if (invoice.job_id && !invoice.cost_code_id) {
+        toast({
+          title: "Uncoded Bill",
+          description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is assigned to a job but has no cost code. Please code the bill before paying.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if bill has no job and no chart account
+      if (!invoice.job_id && !invoice.chart_account_id) {
+        toast({
+          title: "Uncoded Bill",
+          description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is not assigned to a job or expense account. Please code the bill before paying.`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     // Validate payment amount

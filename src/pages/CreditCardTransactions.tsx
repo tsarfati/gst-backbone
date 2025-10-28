@@ -766,10 +766,12 @@ export default function CreditCardTransactions() {
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold">
-                      {trans.transaction_type === 'payment' || trans.amount < 0 
-                        ? `(${formatCurrency(Math.abs(trans.amount))})`
-                        : formatCurrency(trans.amount)
-                      }
+                      <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {trans.transaction_type === 'payment' || trans.amount < 0 
+                          ? `${formatCurrency(Math.abs(trans.amount))}`
+                          : formatCurrency(trans.amount)
+                        }
+                      </span>
                     </TableCell>
                     <TableCell className="text-right font-semibold">
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
