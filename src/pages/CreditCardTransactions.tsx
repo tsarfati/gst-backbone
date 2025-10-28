@@ -763,13 +763,13 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    className="cursor-pointer hover:bg-primary/5 hover:shadow-md transition-all duration-200 group relative isolate hover:z-10 border-b-0 after:content-[''] after:absolute after:inset-0 after:rounded-lg after:border after:border-transparent after:pointer-events-none group-hover:after:border-primary after:z-10"
+                    className="cursor-pointer transition-all duration-200 group relative isolate hover:z-20 border-0 after:content-[''] after:absolute after:inset-0 after:rounded-lg after:border after:border-transparent after:bg-transparent after:pointer-events-none group-hover:after:border-primary group-hover:after:bg-primary/5 after:z-10"
                     onClick={() => openTransactionDetail(trans.id)}
                   >
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:rounded-l-lg">
+                    <TableCell>
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary">
+                    <TableCell>
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
@@ -777,7 +777,7 @@ export default function CreditCardTransactions() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary">
+                    <TableCell className="font-semibold">
                       <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {trans.transaction_type === 'payment' || trans.amount < 0 
                           ? `${formatCurrency(Math.abs(trans.amount))}`
@@ -785,10 +785,10 @@ export default function CreditCardTransactions() {
                         }
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-semibold border-y border-transparent group-hover:border-primary">
+                    <TableCell className="text-right font-semibold">
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
-                    <TableCell className="text-center border-y border-transparent group-hover:border-primary">
+                    <TableCell className="text-center">
                       {(() => {
                         const hasVendor = !!trans.vendor_id;
                         const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
@@ -811,7 +811,7 @@ export default function CreditCardTransactions() {
                         return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary last:border-r last:rounded-r-lg">
+                    <TableCell>
                       {getStatusBadge(trans)}
                     </TableCell>
                   </TableRow>
