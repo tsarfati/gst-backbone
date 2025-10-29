@@ -1,5 +1,8 @@
 project_id = "watxvzoolmfjfijrgcvq"
 
+[functions.analyze-plan]
+verify_jwt = true
+
 [functions.backfill-timecard-costcodes]
 verify_jwt = true
 

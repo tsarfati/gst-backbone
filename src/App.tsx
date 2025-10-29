@@ -48,6 +48,7 @@ import TimeSheets from "./pages/TimeSheets";
 import TimecardReports from "./pages/TimecardReports";
 import PunchClockSettings from "./pages/PunchClockSettings";
 import AllMessages from "./pages/AllMessages";
+import PlanViewer from "./pages/PlanViewer";
 import TeamChat from "./pages/TeamChat";
 import Announcements from "./pages/Announcements";
 import AllTasks from "./pages/AllTasks";
@@ -220,6 +221,7 @@ function AuthenticatedRoutes() {
                 <Route path="jobs/:id/edit" element={<JobEdit />} />
                 <Route path="jobs/:id/cost-budget" element={<JobCostBudget />} />
                 <Route path="jobs/:id/budget" element={<JobBudget />} />
+                <Route path="plans/:planId" element={<PlanViewer />} />
                 <Route path="delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="vendors" element={<Vendors />} />

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { FileText, Upload, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import DocumentPreviewModal from "./DocumentPreviewModal";
+import { useNavigate } from "react-router-dom";
 
 interface JobPlansProps {
   jobId: string;
@@ -33,12 +33,12 @@ interface JobPlan {
 export default function JobPlans({ jobId }: JobPlansProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ plan: JobPlan; editMode: boolean } | null>(null);
   const [editingPlan, setEditingPlan] = useState<JobPlan | null>(null);
 
   const [formData, setFormData] = useState({
@@ -169,11 +169,11 @@ export default function JobPlans({ jobId }: JobPlansProps) {
       revision: plan.revision || "",
       description: plan.description || "",
     });
-    setPreviewFile({ plan, editMode: true });
+    setDialogOpen(true);
   };
 
   const handlePreview = (plan: JobPlan) => {
-    setPreviewFile({ plan, editMode: false });
+    navigate(`/plans/${plan.id}`);
   };
 
   if (loading) {
@@ -331,30 +331,6 @@ export default function JobPlans({ jobId }: JobPlansProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Modal */}
-      {previewFile && (
-        <DocumentPreviewModal
-          isOpen={!!previewFile}
-          document={{
-            fileName: previewFile.plan.file_name,
-            url: previewFile.plan.file_url,
-            type: 'pdf'
-          }}
-          onClose={() => {
-            setPreviewFile(null);
-            setEditingPlan(null);
-            setFormData({ plan_name: "", plan_number: "", revision: "", description: "" });
-            setSelectedFile(null);
-          }}
-          editMode={previewFile.editMode}
-          editData={formData}
-          onEditDataChange={setFormData}
-          onFileSelect={setSelectedFile}
-          selectedFile={selectedFile}
-          onSave={handleUpload}
-          saving={uploading}
-        />
-      )}
     </div>
   );
 }
