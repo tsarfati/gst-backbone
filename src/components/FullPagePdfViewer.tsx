@@ -7,9 +7,10 @@ interface FullPagePdfViewerProps {
   file: File | { name: string; url: string };
   onBack: () => void;
   hideBackButton?: boolean;
+  selectedPage?: number; // externally controlled page to scroll to
 }
 
-export default function FullPagePdfViewer({ file, onBack, hideBackButton = false }: FullPagePdfViewerProps) {
+export default function FullPagePdfViewer({ file, onBack, hideBackButton = false, selectedPage }: FullPagePdfViewerProps) {
   const [pages, setPages] = useState<HTMLCanvasElement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +124,13 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
       targetCanvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  useEffect(() => {
+    if (selectedPage && pages.length > 0) {
+      scrollToPage(Math.max(1, Math.min(selectedPage, totalPages || pages.length)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPage, pages.length, totalPages]);
 
   return (
     <div className={`${hideBackButton ? 'relative' : 'fixed inset-0'} bg-background z-30 flex flex-col ${hideBackButton ? 'h-full' : ''}`}>

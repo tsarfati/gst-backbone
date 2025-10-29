@@ -353,7 +353,7 @@ export default function PlanViewer() {
 
       if (error || data?.error) {
         console.warn("Edge function failed or returned error, falling back to client-side PDF parsing.", error || data?.error);
-        // Client-side fallback using pdf.js
+        // Client-side fallback using pdf.js with text extraction for sheet numbers
         const pdfjs: any = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
@@ -362,13 +362,52 @@ export default function PlanViewer() {
         const loadingTask = pdfjs.getDocument({ data: buf });
         const pdf = await loadingTask.promise;
         const numPages = pdf.numPages || 1;
-        const pages = Array.from({ length: numPages }, (_, i) => ({
-          page_number: i + 1,
-          page_title: `Sheet ${i + 1}`,
-          page_description: `${plan.plan_name} - Page ${i + 1}`,
-          sheet_number: `Page ${i + 1}`,
-          discipline: "General",
-        }));
+
+        const pages: any[] = [];
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdf.getPage(i);
+          // get text content to try to infer sheet numbers from title block
+          const textContent = await page.getTextContent();
+          const tokens: string[] = (textContent.items || [])
+            .map((it: any) => (typeof it.str === 'string' ? it.str.trim() : ''))
+            .filter((t: string) => t.length > 0);
+
+          const patterns = [
+            /\b[A-Z]{1,4}[-\s]?\d{1,4}(?:\.\d{1,3})?[A-Z]?\b/g, // e.g., A1.1, S-101, M 203
+            /\b[\w]{1,3}-\d{2,4}\b/g, // e.g., A-101
+          ];
+
+          let matches: string[] = [];
+          for (const t of tokens) {
+            for (const re of patterns) {
+              const m = t.match(re);
+              if (m) matches.push(...m);
+            }
+          }
+
+          let sheet: string | null = null;
+          if (matches.length) {
+            matches = Array.from(new Set(matches));
+            matches.sort((a, b) => (b.replace(/\D/g, '').length - a.replace(/\D/g, '').length) || b.length - a.length);
+            sheet = matches[0];
+          }
+
+          let title: string | null = null;
+          if (sheet) {
+            const idx = tokens.findIndex((t) => t.includes(sheet as string));
+            const nearby = tokens.slice(Math.max(0, idx - 3), idx).concat(tokens.slice(idx + 1, idx + 4)).join(' ');
+            title = (nearby || '').trim().slice(0, 80) || null;
+          }
+
+          pages.push({
+            page_number: i,
+            page_title: title || `Sheet ${i}`,
+            page_description: `${plan.plan_name} - Page ${i}`,
+            sheet_number: sheet || `Page ${i}`,
+            discipline: null,
+          });
+        }
+
         await pdf.cleanup?.();
         await pdf.destroy?.();
 
@@ -695,6 +734,7 @@ export default function PlanViewer() {
                 file={{ name: plan.file_name, url: plan.file_url }}
                 onBack={() => navigate(-1)}
                 hideBackButton={true}
+                selectedPage={currentPage}
               />
             </div>
           </div>
