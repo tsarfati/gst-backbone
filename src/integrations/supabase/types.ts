@@ -3861,6 +3861,135 @@ export type Database = {
           },
         ]
       }
+      plan_comments: {
+        Row: {
+          comment_text: string
+          created_at: string
+          id: string
+          page_number: number | null
+          plan_id: string
+          updated_at: string
+          user_id: string
+          x_position: number | null
+          y_position: number | null
+        }
+        Insert: {
+          comment_text: string
+          created_at?: string
+          id?: string
+          page_number?: number | null
+          plan_id: string
+          updated_at?: string
+          user_id: string
+          x_position?: number | null
+          y_position?: number | null
+        }
+        Update: {
+          comment_text?: string
+          created_at?: string
+          id?: string
+          page_number?: number | null
+          plan_id?: string
+          updated_at?: string
+          user_id?: string
+          x_position?: number | null
+          y_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_comments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_markups: {
+        Row: {
+          created_at: string
+          id: string
+          markup_data: Json
+          page_number: number
+          plan_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          markup_data: Json
+          page_number: number
+          plan_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          markup_data?: Json
+          page_number?: number
+          plan_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_markups_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_pages: {
+        Row: {
+          created_at: string
+          discipline: string | null
+          id: string
+          page_description: string | null
+          page_number: number
+          page_title: string | null
+          plan_id: string
+          sheet_number: string | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          discipline?: string | null
+          id?: string
+          page_description?: string | null
+          page_number: number
+          page_title?: string | null
+          plan_id: string
+          sheet_number?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          discipline?: string | null
+          id?: string
+          page_description?: string | null
+          page_number?: number
+          page_title?: string | null
+          plan_id?: string
+          sheet_number?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_pages_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           approved_at: string | null
