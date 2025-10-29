@@ -14,6 +14,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import BillApprovalActions from "@/components/BillApprovalActions";
 import BillDistributionSection from "@/components/BillDistributionSection";
 
@@ -925,11 +926,7 @@ export default function BillEdit() {
                         </Button>
                       </div>
                       {doc.file_url.endsWith('.pdf') ? (
-                        <iframe
-                          src={doc.file_url}
-                          className="w-full h-96"
-                          title={doc.file_name}
-                        />
+                        <UrlPdfInlinePreview url={doc.file_url} className="w-full" />
                       ) : (
                         <img 
                           src={doc.file_url} 
