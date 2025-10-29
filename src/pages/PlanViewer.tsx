@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X } from "lucide-react";
+import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose } from "lucide-react";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import { format } from "date-fns";
@@ -339,80 +340,87 @@ export default function PlanViewer() {
   const currentPageComments = comments.filter(c => c.page_number === currentPage);
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="font-semibold">{plan.plan_name}</h1>
-            {plan.plan_number && (
-              <p className="text-sm text-muted-foreground">Plan #: {plan.plan_number}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Page Navigation */}
-        <div className="flex items-center gap-2">
-          {analyzing && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing plan...
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex flex-col h-screen bg-background w-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="font-semibold">{plan.plan_name}</h1>
+              {plan.plan_number && (
+                <p className="text-sm text-muted-foreground">Plan #: {plan.plan_number}</p>
+              )}
             </div>
-          )}
-          {pages.length > 0 && (
-            <Select
-              value={currentPage.toString()}
-              onValueChange={(value) => {
-                setCurrentPage(parseInt(value));
-                setSearchParams({ page: value });
-              }}
-            >
-              <SelectTrigger className="w-[300px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pages.map((page) => (
-                  <SelectItem key={page.id} value={page.page_number.toString()}>
-                    Page {page.page_number}
-                    {page.sheet_number && ` - ${page.sheet_number}`}
-                    {page.page_title && ` - ${page.page_title}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* PDF Viewer with Markup Canvas */}
-        <div className="flex-1 relative" ref={pdfContainerRef}>
-          <div className="absolute inset-0 z-10 pointer-events-none">
-            <canvas ref={canvasRef} className="pointer-events-auto" />
           </div>
-          <FullPagePdfViewer
-            file={{ name: plan.file_name, url: plan.file_url }}
-            onBack={() => navigate(-1)}
-            hideBackButton={true}
-          />
+
+          {/* Page Navigation */}
+          <div className="flex items-center gap-2">
+            {analyzing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing plan...
+              </div>
+            )}
+            {pages.length > 0 && (
+              <Select
+                value={currentPage.toString()}
+                onValueChange={(value) => {
+                  setCurrentPage(parseInt(value));
+                  setSearchParams({ page: value });
+                }}
+              >
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pages.map((page) => (
+                    <SelectItem key={page.id} value={page.page_number.toString()}>
+                      Page {page.page_number}
+                      {page.sheet_number && ` - ${page.sheet_number}`}
+                      {page.page_title && ` - ${page.page_title}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <SidebarTrigger>
+              <Button variant="outline" size="sm">
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </SidebarTrigger>
+          </div>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="w-96 border-l bg-card">
-          <Tabs defaultValue="index" className="h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="index">Index</TabsTrigger>
-              <TabsTrigger value="markup">Markup</TabsTrigger>
-              <TabsTrigger value="comments">
-                <MessageSquare className="h-4 w-4 mr-1" />
-                Comments
-              </TabsTrigger>
-            </TabsList>
+        {/* Main Content */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* PDF Viewer with Markup Canvas */}
+          <div className="flex-1 relative" ref={pdfContainerRef}>
+            <div className="absolute inset-0 z-10 pointer-events-none">
+              <canvas ref={canvasRef} className="pointer-events-auto" />
+            </div>
+            <FullPagePdfViewer
+              file={{ name: plan.file_name, url: plan.file_url }}
+              onBack={() => navigate(-1)}
+              hideBackButton={true}
+            />
+          </div>
+
+          {/* Right Sidebar */}
+          <Sidebar side="right" className="border-l" collapsible="offcanvas">
+            <SidebarContent>
+              <Tabs defaultValue="index" className="h-full flex flex-col p-2">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="index">Index</TabsTrigger>
+                  <TabsTrigger value="markup">Markup</TabsTrigger>
+                  <TabsTrigger value="comments">
+                    <MessageSquare className="h-4 w-4 mr-1" />
+                    Comments
+                  </TabsTrigger>
+                </TabsList>
 
             {/* Page Index Tab */}
             <TabsContent value="index" className="flex-1 overflow-hidden">
@@ -652,10 +660,12 @@ export default function PlanViewer() {
                   Post Comment
                 </Button>
               </div>
-            </TabsContent>
-          </Tabs>
+              </TabsContent>
+            </Tabs>
+          </SidebarContent>
+        </Sidebar>
         </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
