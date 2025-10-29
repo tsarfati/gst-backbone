@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -75,10 +75,12 @@ export default function PlanViewer() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const planFile = useMemo(() => (plan ? { name: plan.file_name, url: plan.file_url } : null), [plan?.file_name, plan?.file_url]);
 
   useEffect(() => {
     if (planId) {
@@ -204,6 +206,33 @@ export default function PlanViewer() {
       fabricCanvasRef.current = null;
     };
   }, [plan]);
+
+  // Compute PDF content size to enable scroll when zoomed
+  const computeContentSize = () => {
+    const container = pdfContainerRef.current;
+    if (!container) return;
+    const canvases = container.querySelectorAll('canvas');
+    if (canvases.length === 0) return;
+    let maxW = 0;
+    let totalH = 0;
+    canvases.forEach((c) => {
+      const el = c as HTMLCanvasElement;
+      const w = el.width || 0;
+      const h = el.height || 0;
+      if (w > maxW) maxW = w;
+      totalH += h + 50; // approximate header/padding per page
+    });
+    setContentSize({ width: maxW, height: totalH });
+  };
+
+  useEffect(() => {
+    computeContentSize();
+    const container = pdfContainerRef.current;
+    if (!container) return;
+    const observer = new MutationObserver(() => computeContentSize());
+    observer.observe(container, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   // Handle markup tool changes (update canvas settings without recreating)
   useEffect(() => {
@@ -417,8 +446,10 @@ export default function PlanViewer() {
 
           pagesData.push({
             page_number: pageNum,
-            sheet_number: result.sheet_number || `Page ${pageNum}`,
-            page_title: result.sheet_title || `Sheet ${pageNum}`,
+            sheet_number: result.sheet_number || null,
+            page_title: result.sheet_number && result.sheet_title
+              ? `${result.sheet_number} - ${result.sheet_title}`
+              : (result.sheet_title || `Sheet ${pageNum}`),
             discipline: result.discipline || 'General',
             page_description: result.sheet_title 
               ? `${result.discipline || 'General'} - ${result.sheet_title}`
@@ -443,7 +474,10 @@ export default function PlanViewer() {
       // Insert all pages into database
       const { error: insertError } = await supabase
         .from("plan_pages" as any)
-        .insert(pagesData.map((p: any) => ({ ...p, plan_id: planId })));
+        .upsert(
+          pagesData.map((p: any) => ({ ...p, plan_id: planId })),
+          { onConflict: 'plan_id,page_number' }
+        );
       
       if (insertError) throw insertError;
 
@@ -591,7 +625,6 @@ export default function PlanViewer() {
 
   const handleResetZoom = () => {
     setZoomLevel(1);
-    setPanOffset({ x: 0, y: 0 });
   };
 
   const handleSetScale = () => {
@@ -664,9 +697,8 @@ export default function PlanViewer() {
               <SelectContent className="bg-background z-50">
                 {pages.map((page) => (
                   <SelectItem key={page.id} value={page.page_number.toString()}>
-                    Page {page.page_number}
-                    {page.sheet_number && ` - ${page.sheet_number}`}
-                    {page.page_title && ` - ${page.page_title}`}
+                    {(page.sheet_number || `Page ${page.page_number}`)}
+                    {page.page_title ? ` - ${page.page_title}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -710,12 +742,15 @@ export default function PlanViewer() {
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer with Markup Canvas */}
           <div className="flex-1 relative overflow-auto bg-muted/30" ref={pdfContainerRef}>
+            {/* Spacer to enable scroll area when zoomed */}
+            <div aria-hidden="true" style={{ width: `${Math.max(1, contentSize.width * zoomLevel)}px`, height: `${Math.max(1, contentSize.height * zoomLevel)}px` }} />
+
             {/* Canvas overlay for markups and interactions */}
             <div 
-              className="absolute inset-0 z-10"
+              className="absolute top-0 left-0 z-10"
               style={{
                 pointerEvents: activeTool === "select" && !panMode ? "none" : "auto",
-                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transform: `scale(${zoomLevel})`,
                 transformOrigin: "top left",
               }}
             >
@@ -724,18 +759,21 @@ export default function PlanViewer() {
 
             {/* PDF viewer */}
             <div
+              className="absolute top-0 left-0"
               style={{
-                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transform: `scale(${zoomLevel})`,
                 transformOrigin: "top left",
                 transition: "transform 0.2s ease-out",
               }}
             >
-              <FullPagePdfViewer
-                file={{ name: plan.file_name, url: plan.file_url }}
-                onBack={() => navigate(-1)}
-                hideBackButton={true}
-                selectedPage={currentPage}
-              />
+              {planFile && (
+                <FullPagePdfViewer
+                  file={planFile}
+                  onBack={() => navigate(-1)}
+                  hideBackButton={true}
+                  selectedPage={currentPage}
+                />
+              )}
             </div>
           </div>
 
@@ -852,8 +890,7 @@ export default function PlanViewer() {
                             <div className="flex items-start justify-between mb-2">
                               <div>
                                 <p className="font-medium text-sm">
-                                  Page {page.page_number}
-                                  {page.sheet_number && ` - ${page.sheet_number}`}
+                                  {(page.sheet_number || `Page ${page.page_number}`)}
                                 </p>
                                 <p className="text-xs text-muted-foreground">{page.discipline}</p>
                               </div>
@@ -869,11 +906,11 @@ export default function PlanViewer() {
                               </Button>
                             </div>
                             <p className="font-medium text-sm">{page.page_title}</p>
-                            {page.page_description && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {page.page_description}
-                              </p>
-                            )}
+                              {page.page_title && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {page.page_title}
+                                </p>
+                              )}
                           </>
                         )}
                       </div>

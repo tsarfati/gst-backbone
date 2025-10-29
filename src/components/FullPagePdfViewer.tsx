@@ -8,15 +8,17 @@ interface FullPagePdfViewerProps {
   onBack: () => void;
   hideBackButton?: boolean;
   selectedPage?: number; // externally controlled page to scroll to
+  zoom?: number; // visual zoom factor affecting canvas CSS size
 }
 
-export default function FullPagePdfViewer({ file, onBack, hideBackButton = false, selectedPage }: FullPagePdfViewerProps) {
+export default function FullPagePdfViewer({ file, onBack, hideBackButton = false, selectedPage, zoom = 1 }: FullPagePdfViewerProps) {
   const [pages, setPages] = useState<HTMLCanvasElement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileKey = typeof (file as any).url === 'string' ? (file as any).url : (file as File).name;
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +89,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
     return () => {
       cancelled = true;
     };
-  }, [file]);
+  }, [fileKey]);
 
   // Track scroll position to update current page indicator
   useEffect(() => {
@@ -176,7 +178,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
 
       {/* PDF Content */}
       <div className="flex-1 overflow-auto bg-muted/30" ref={containerRef}>
-        <div className="max-w-5xl mx-auto py-8 px-4">
+        <div className="py-8 px-4 inline-block">
           {loading && (
             <div className="flex flex-col items-center justify-center h-96 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -214,7 +216,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
                           }
                         }
                       }}
-                      className="max-w-full h-auto"
+                      style={{ width: `${Math.round(canvas.width * (zoom || 1))}px`, height: `${Math.round(canvas.height * (zoom || 1))}px` }}
                     />
                   </div>
                 </div>
