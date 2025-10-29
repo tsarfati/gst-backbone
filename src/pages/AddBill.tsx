@@ -1429,8 +1429,8 @@ export default function AddBill() {
                                 const filtered = expenseAccounts.filter((account) => {
                                   const match = String(account.account_number ?? '').match(/^\d+/);
                                   const num = match ? Number(match[0]) : NaN;
-                                  const inRange = !Number.isNaN(num) && num >= 5000 && num <= 5900;
-                                  return !inRange; // Always exclude 5000-5900 from Job/Control menu
+                                  const inRange = !Number.isNaN(num) && num >= 50000 && num <= 59000;
+                                  return !inRange; // Always exclude 50000-59000 from Job/Control menu
                                 });
                                 return filtered.length === 0 ? (
                                   <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts available</div>
@@ -1442,6 +1442,7 @@ export default function AddBill() {
                                   ))
                                 );
                               })()}
+
                             </SelectContent>
                           </Select>
                         </div>
