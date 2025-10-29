@@ -1425,23 +1425,23 @@ export default function AddBill() {
                                 </SelectItem>
                               ))}
                               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
-                              {expenseAccounts.filter(account => {
-                                const accountNum = parseInt(account.account_number);
-                                return !(accountNum >= 5000 && accountNum <= 5900);
-                              }).length === 0 ? (
-                                <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts found for this company</div>
-                              ) : (
-                                expenseAccounts
-                                  .filter(account => {
-                                    const accountNum = parseInt(account.account_number);
-                                    return !(accountNum >= 5000 && accountNum <= 5900);
-                                  })
-                                  .map((account) => (
+                              {(() => {
+                                const filtered = expenseAccounts.filter((account) => {
+                                  const match = String(account.account_number ?? '').match(/^\d+/);
+                                  const num = match ? Number(match[0]) : NaN;
+                                  const inRange = !Number.isNaN(num) && num >= 5000 && num <= 5900;
+                                  return !inRange; // Always exclude 5000-5900 from Job/Control menu
+                                });
+                                return filtered.length === 0 ? (
+                                  <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts available</div>
+                                ) : (
+                                  filtered.map((account) => (
                                     <SelectItem key={account.id} value={account.id}>
                                       {account.account_number} - {account.account_name}
                                     </SelectItem>
                                   ))
-                              )}
+                                );
+                              })()}
                             </SelectContent>
                           </Select>
                         </div>
