@@ -339,116 +339,98 @@ export default function PlanViewer() {
   };
 
   const analyzePlan = async () => {
+    if (!plan) return;
+
     setAnalyzing(true);
     try {
-      console.log("Starting plan analysis...");
-      const { data, error } = await supabase.functions.invoke("analyze-plan", {
-        body: {
-          planUrl: plan.file_url,
-          planName: plan.plan_name,
-        },
-      });
+      console.log('Starting plan analysis with OCR...');
+      
+      // Load PDF
+      const pdfjs: any = await import("pdfjs-dist");
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      
+      const resp = await fetch(plan.file_url);
+      const buf = await resp.arrayBuffer();
+      const loadingTask = pdfjs.getDocument({ data: buf });
+      const pdf = await loadingTask.promise;
+      const numPages = pdf.numPages;
+      console.log(`PDF has ${numPages} pages`);
 
-      console.log("Analysis response:", { data, error });
+      const pagesData = [];
 
-      if (error || data?.error) {
-        console.warn("Edge function failed or returned error, falling back to client-side PDF parsing.", error || data?.error);
-        // Client-side fallback using pdf.js with text extraction for sheet numbers
-        const pdfjs: any = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        try {
+          console.log(`Processing page ${pageNum}/${numPages} with OCR...`);
+          const page = await pdf.getPage(pageNum);
+          
+          // Render page to canvas for OCR
+          const viewport = page.getViewport({ scale: 1.5 });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
 
-        const resp = await fetch(plan.file_url);
-        const buf = await resp.arrayBuffer();
-        const loadingTask = pdfjs.getDocument({ data: buf });
-        const pdf = await loadingTask.promise;
-        const numPages = pdf.numPages || 1;
+          await page.render({
+            canvasContext: context!,
+            viewport: viewport,
+          }).promise;
 
-        const pages: any[] = [];
-        for (let i = 1; i <= numPages; i++) {
-          const page = await pdf.getPage(i);
-          // get text content to try to infer sheet numbers from title block
-          const textContent = await page.getTextContent();
-          const tokens: string[] = (textContent.items || [])
-            .map((it: any) => (typeof it.str === 'string' ? it.str.trim() : ''))
-            .filter((t: string) => t.length > 0);
+          // Convert canvas to base64
+          const imageBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 
-          const patterns = [
-            /\b[A-Z]{1,4}[-\s]?\d{1,4}(?:\.\d{1,3})?[A-Z]?\b/g, // e.g., A1.1, S-101, M 203
-            /\b[\w]{1,3}-\d{2,4}\b/g, // e.g., A-101
-          ];
-
-          let matches: string[] = [];
-          for (const t of tokens) {
-            for (const re of patterns) {
-              const m = t.match(re);
-              if (m) matches.push(...m);
+          // Call OCR edge function
+          const { data: ocrData, error: ocrError } = await supabase.functions.invoke(
+            'analyze-plan-ocr',
+            {
+              body: {
+                imageBase64,
+                pageNumber: pageNum,
+              },
             }
+          );
+
+          if (ocrError) {
+            console.error(`OCR error for page ${pageNum}:`, ocrError);
+            throw ocrError;
           }
 
-          let sheet: string | null = null;
-          if (matches.length) {
-            matches = Array.from(new Set(matches));
-            matches.sort((a, b) => (b.replace(/\D/g, '').length - a.replace(/\D/g, '').length) || b.length - a.length);
-            sheet = matches[0];
-          }
+          const result = ocrData?.data || {};
+          console.log(`Page ${pageNum} OCR result:`, result);
 
-          let title: string | null = null;
-          if (sheet) {
-            const idx = tokens.findIndex((t) => t.includes(sheet as string));
-            const nearby = tokens.slice(Math.max(0, idx - 3), idx).concat(tokens.slice(idx + 1, idx + 4)).join(' ');
-            title = (nearby || '').trim().slice(0, 80) || null;
-          }
-
-          pages.push({
-            page_number: i,
-            page_title: title || `Sheet ${i}`,
-            page_description: `${plan.plan_name} - Page ${i}`,
-            sheet_number: sheet || `Page ${i}`,
-            discipline: null,
+          pagesData.push({
+            page_number: pageNum,
+            sheet_number: result.sheet_number || `Page ${pageNum}`,
+            page_title: result.sheet_title || `Sheet ${pageNum}`,
+            discipline: result.discipline || 'General',
+            page_description: result.sheet_title 
+              ? `${result.discipline || 'General'} - ${result.sheet_title}`
+              : `Page ${pageNum}`,
+          });
+        } catch (pageError) {
+          console.error(`Error processing page ${pageNum}:`, pageError);
+          // Fallback to basic page info
+          pagesData.push({
+            page_number: pageNum,
+            sheet_number: `Page ${pageNum}`,
+            page_title: `Sheet ${pageNum}`,
+            discipline: 'General',
+            page_description: `Page ${pageNum}`,
           });
         }
-
-        await pdf.cleanup?.();
-        await pdf.destroy?.();
-
-        const { error: insertError } = await supabase
-          .from("plan_pages" as any)
-          .insert(pages.map((p: any) => ({ ...p, plan_id: planId })));
-        if (insertError) throw insertError;
-
-        await fetchPlanData();
-        toast.success(`Plan analyzed - ${numPages} pages found`);
-        return;
       }
 
-      if (!data?.pages || data.pages.length === 0) {
-        toast.error("No pages were extracted from the plan");
-        return;
-      }
+      await pdf.cleanup?.();
+      await pdf.destroy?.();
 
-      // Insert pages into database from edge function
-      const pagesToInsert = data.pages.map((page: any) => ({
-        plan_id: planId,
-        page_number: page.page_number,
-        page_title: page.page_title,
-        page_description: page.page_description,
-        sheet_number: page.sheet_number || null,
-        discipline: page.discipline || null,
-      }));
-
-      console.log("Inserting pages:", pagesToInsert);
-
+      // Insert all pages into database
       const { error: insertError } = await supabase
         .from("plan_pages" as any)
-        .insert(pagesToInsert);
-
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        throw insertError;
-      }
+        .insert(pagesData.map((p: any) => ({ ...p, plan_id: planId })));
+      
+      if (insertError) throw insertError;
 
       await fetchPlanData();
-      toast.success(`Plan analyzed successfully - ${data.pages.length} pages found`);
+      toast.success(`Plan analyzed with OCR - ${numPages} pages found`);
     } catch (error: any) {
       console.error("Error analyzing plan:", error);
       toast.error(error.message || "Failed to analyze plan");
