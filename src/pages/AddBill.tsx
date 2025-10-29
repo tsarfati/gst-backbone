@@ -890,11 +890,22 @@ export default function AddBill() {
             return;
           }
 
+          // Require a job for pending coding and use the first selected job if present
+          const pendingJobId = (distributionItems.find(item => item.job_id)?.job_id) || formData.job_id || "";
+          if (!pendingJobId) {
+            toast({
+              title: "Job required",
+              description: "Select a job (or pick one on a distribution line) before requesting PM help.",
+              variant: "destructive"
+            });
+            return;
+          }
+
           const { data: inserted, error } = await supabase
             .from('invoices')
             .insert({
               vendor_id: formData.vendor_id,
-              job_id: formData.job_id || null,
+              job_id: pendingJobId,
               cost_code_id: null,
               amount: amt,
               invoice_number: formData.invoice_number || null,
