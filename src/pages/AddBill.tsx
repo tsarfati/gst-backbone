@@ -857,8 +857,8 @@ export default function AddBill() {
       // BUT: Subcontract/PO bills with auto-applied cost codes should never be pending_coding
       const shouldPendCoding = !isCommitmentBill && (formData.request_pm_help || requiresPmApproval);
 
-      // Validate distribution items have a job (DB requires job_id)
-      if (billType === "non_commitment") {
+      // Validate distribution items only when not requesting PM help
+      if (billType === "non_commitment" && !shouldPendCoding) {
         const missingJob = distributionItems.some(di => !di.job_id);
         if (missingJob) {
           toast({
@@ -879,50 +879,111 @@ export default function AddBill() {
       let insertedInvoiceIds: string[] = [];
 
       if (billType === "non_commitment") {
-        // For non-commitment bills with distribution, create multiple invoice records
-        const invoicesToInsert = distributionItems.map(item => ({
-          vendor_id: formData.vendor_id,
-          job_id: item.job_id || null,
-          cost_code_id: shouldPendCoding ? null : (item.cost_code_id || null),
-          amount: parseFloat(item.amount),
-          invoice_number: formData.invoice_number || null,
-          issue_date: formData.issueDate,
-          due_date: dueDate,
-          payment_terms: formData.use_terms ? formData.payment_terms : null,
-          description: formData.description,
-          internal_notes: formData.internal_notes || null,
-          is_subcontract_invoice: false,
-          is_reimbursement: formData.is_reimbursement,
-          file_url: attachedReceipt?.file_url || null,
-          created_by: user.data.user.id,
-          pending_coding: shouldPendCoding,
-          assigned_to_pm: assignedToPm,
-          status: shouldPendCoding ? 'pending_coding' : 'pending_approval'
-        }));
+        if (shouldPendCoding) {
+          const amt = parseFloat(formData.amount || '0');
+          if (!isFinite(amt) || amt <= 0) {
+            toast({
+              title: "Amount required",
+              description: "Enter a valid bill amount before requesting PM help.",
+              variant: "destructive"
+            });
+            return;
+          }
 
-        const { data: inserted, error } = await supabase
-          .from('invoices')
-          .insert(invoicesToInsert)
-          .select('id');
- 
-        if (error) throw error;
-        
-        if (inserted) {
-          insertedInvoiceIds = inserted.map((row: any) => row.id);
-        }
+          const { data: inserted, error } = await supabase
+            .from('invoices')
+            .insert({
+              vendor_id: formData.vendor_id,
+              job_id: formData.job_id || null,
+              cost_code_id: null,
+              amount: amt,
+              invoice_number: formData.invoice_number || null,
+              issue_date: formData.issueDate,
+              due_date: dueDate,
+              payment_terms: formData.use_terms ? formData.payment_terms : null,
+              description: formData.description,
+              internal_notes: formData.internal_notes || null,
+              is_subcontract_invoice: false,
+              is_reimbursement: formData.is_reimbursement,
+              file_url: attachedReceipt?.file_url || null,
+              created_by: user.data.user.id,
+              pending_coding: true,
+              assigned_to_pm: assignedToPm,
+              status: 'pending_coding'
+            })
+            .select('id');
 
-        // Add audit trail for attached receipt
-        if (attachedReceipt && inserted && inserted.length) {
-          const auditRows = inserted.map((row: any) => ({
-            invoice_id: row.id,
-            change_type: 'update',
-            field_name: 'attachment',
-            old_value: null,
-            new_value: attachedReceipt.id,
-            reason: `Attached coded receipt: ${attachedReceipt.filename}`,
-            changed_by: user.data.user!.id
+          if (error) throw error;
+
+          if (inserted && inserted.length) {
+            insertedInvoiceIds = [inserted[0].id];
+            if (attachedReceipt && insertedInvoiceIds.length) {
+              const auditRows = insertedInvoiceIds.map((id) => ({
+                invoice_id: id,
+                change_type: 'update',
+                field_name: 'attachment',
+                old_value: null,
+                new_value: attachedReceipt.id,
+                reason: `Attached coded receipt: ${attachedReceipt.filename}`,
+                changed_by: user.data.user!.id
+              }));
+              await supabase.from('invoice_audit_trail').insert(auditRows);
+            }
+          }
+        } else {
+          const validItems = distributionItems.filter(item => item.job_id && item.amount && isFinite(parseFloat(item.amount)) && parseFloat(item.amount) > 0);
+          if (validItems.length === 0 || !isDistributionValid()) {
+            toast({
+              title: "Fix distribution",
+              description: "Add at least one valid distribution line and ensure totals match.",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          // For non-commitment bills with distribution, create multiple invoice records
+          const invoicesToInsert = validItems.map(item => ({
+            vendor_id: formData.vendor_id,
+            job_id: item.job_id,
+            cost_code_id: item.cost_code_id || null,
+            amount: parseFloat(item.amount),
+            invoice_number: formData.invoice_number || null,
+            issue_date: formData.issueDate,
+            due_date: dueDate,
+            payment_terms: formData.use_terms ? formData.payment_terms : null,
+            description: formData.description,
+            internal_notes: formData.internal_notes || null,
+            is_subcontract_invoice: false,
+            is_reimbursement: formData.is_reimbursement,
+            file_url: attachedReceipt?.file_url || null,
+            created_by: user.data.user.id,
+            pending_coding: false,
+            assigned_to_pm: assignedToPm,
+            status: 'pending_approval'
           }));
-          await supabase.from('invoice_audit_trail').insert(auditRows);
+
+          const { data: inserted, error } = await supabase
+            .from('invoices')
+            .insert(invoicesToInsert)
+            .select('id');
+
+          if (error) throw error;
+          
+          if (inserted) {
+            insertedInvoiceIds = inserted.map((row: any) => row.id);
+            if (attachedReceipt && insertedInvoiceIds.length) {
+              const auditRows = insertedInvoiceIds.map((id) => ({
+                invoice_id: id,
+                change_type: 'update',
+                field_name: 'attachment',
+                old_value: null,
+                new_value: attachedReceipt.id,
+                reason: `Attached coded receipt: ${attachedReceipt.filename}`,
+                changed_by: user.data.user!.id
+              }));
+              await supabase.from('invoice_audit_trail').insert(auditRows);
+            }
+          }
         }
       } else {
         // For commitment bills, determine cost code automatically
