@@ -99,9 +99,9 @@ export default function PlanViewer() {
     }
   }, [plan, pages]);
 
-  // Initialize Fabric.js canvas for markups
+  // Initialize Fabric.js canvas for markups (only once)
   useEffect(() => {
-    if (!canvasRef.current || !pdfContainerRef.current) return;
+    if (!canvasRef.current || !pdfContainerRef.current || fabricCanvasRef.current) return;
 
     const containerWidth = pdfContainerRef.current.offsetWidth;
     const containerHeight = pdfContainerRef.current.offsetHeight;
@@ -111,7 +111,7 @@ export default function PlanViewer() {
       height: containerHeight,
       backgroundColor: "transparent",
       isDrawingMode: false,
-      selection: activeTool === "select",
+      selection: false,
     });
 
     fabricCanvasRef.current = canvas;
@@ -120,7 +120,9 @@ export default function PlanViewer() {
     const handleCanvasClick = (e: any) => {
       if (!e.pointer) return;
 
-      if (activeTool === "comment") {
+      const currentTool = canvas.getActiveObject() ? "select" : canvas.get("activeTool") as string;
+
+      if (currentTool === "comment") {
         // Calculate relative position (0-1) for database storage
         const relativeX = e.pointer.x / canvas.width;
         const relativeY = e.pointer.y / canvas.height;
@@ -147,10 +149,12 @@ export default function PlanViewer() {
         canvas.renderAll();
         
         toast.success("Pin placed! Now write your comment.");
-      } else if (activeTool === "measure") {
+      } else if (currentTool === "measure") {
         const newPoint = { x: e.pointer.x, y: e.pointer.y };
+        const currentPoints = canvas.get("measurePoints") as Array<{ x: number; y: number }> || [];
         
-        if (measurePoints.length === 0) {
+        if (currentPoints.length === 0) {
+          canvas.set("measurePoints", [newPoint]);
           setMeasurePoints([newPoint]);
           
           // Show first point marker
@@ -162,15 +166,18 @@ export default function PlanViewer() {
             selectable: false,
           });
           canvas.add(marker);
-        } else if (measurePoints.length === 1) {
-          const point1 = measurePoints[0];
+        } else if (currentPoints.length === 1) {
+          const point1 = currentPoints[0];
           const pixelDistance = Math.sqrt(
             Math.pow(newPoint.x - point1.x, 2) + Math.pow(newPoint.y - point1.y, 2)
           );
           
-          if (planScale) {
-            const realDistance = (pixelDistance / planScale.pixelDistance) * planScale.realDistance;
-            toast.success(`Distance: ${realDistance.toFixed(2)} ${scaleFormData.unit}`);
+          const currentScale = canvas.get("planScale") as { realDistance: number; pixelDistance: number } | null;
+          const currentUnit = canvas.get("scaleUnit") as string || "feet";
+          
+          if (currentScale) {
+            const realDistance = (pixelDistance / currentScale.pixelDistance) * currentScale.realDistance;
+            toast.success(`Distance: ${realDistance.toFixed(2)} ${currentUnit}`);
           } else {
             toast.error("Please set the scale first");
           }
@@ -183,6 +190,7 @@ export default function PlanViewer() {
           });
           canvas.add(line);
           
+          canvas.set("measurePoints", []);
           setMeasurePoints([]);
         }
       }
@@ -193,21 +201,30 @@ export default function PlanViewer() {
     return () => {
       canvas.off("mouse:down", handleCanvasClick);
       canvas.dispose();
+      fabricCanvasRef.current = null;
     };
-  }, [plan, activeTool, measurePoints, planScale, scaleFormData.unit]);
+  }, [plan]);
 
-  // Handle markup tool changes
+  // Handle markup tool changes (update canvas settings without recreating)
   useEffect(() => {
     if (!fabricCanvasRef.current) return;
 
     const canvas = fabricCanvasRef.current;
+    
+    // Store tool state on canvas for click handler
+    canvas.set("activeTool", activeTool);
+    canvas.set("markupColor", markupColor);
+    canvas.set("planScale", planScale);
+    canvas.set("scaleUnit", scaleFormData.unit);
+    
     canvas.isDrawingMode = activeTool === "pen";
     canvas.selection = activeTool === "select";
 
-    if (activeTool === "pen" && canvas.freeDrawingBrush) {
-      canvas.freeDrawingBrush = new PencilBrush(canvas);
-      canvas.freeDrawingBrush.color = markupColor;
-      canvas.freeDrawingBrush.width = 3;
+    if (activeTool === "pen") {
+      const brush = new PencilBrush(canvas);
+      brush.color = markupColor;
+      brush.width = 3;
+      canvas.freeDrawingBrush = brush;
     }
 
     // Change cursor for different tools
@@ -228,6 +245,7 @@ export default function PlanViewer() {
     // Reset measurement points when changing tools
     if (activeTool !== "measure") {
       setMeasurePoints([]);
+      canvas.set("measurePoints", []);
     }
     
     // Clear temp pins when changing from comment tool
@@ -236,7 +254,7 @@ export default function PlanViewer() {
       tempPins.forEach(pin => canvas.remove(pin));
       canvas.renderAll();
     }
-  }, [activeTool, markupColor, panMode]);
+  }, [activeTool, markupColor, panMode, planScale, scaleFormData.unit]);
 
   // Render comment pins on canvas
   useEffect(() => {
@@ -691,7 +709,7 @@ export default function PlanViewer() {
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer with Markup Canvas */}
-          <div className="flex-1 relative overflow-hidden bg-muted/30" ref={pdfContainerRef}>
+          <div className="flex-1 relative overflow-auto bg-muted/30" ref={pdfContainerRef}>
             {/* Canvas overlay for markups and interactions */}
             <div 
               className="absolute inset-0 z-10"
@@ -748,6 +766,24 @@ export default function PlanViewer() {
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-3 border-b">
+                      <h3 className="text-sm font-semibold">Page Index</h3>
+                      <Button 
+                        onClick={analyzePlan} 
+                        disabled={analyzing}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {analyzing ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          "Re-analyze"
+                        )}
+                      </Button>
+                    </div>
                     {pages.map((page) => (
                       <div
                         key={page.id}
