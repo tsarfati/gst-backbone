@@ -60,8 +60,9 @@ export default function PlanViewer() {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
-  const [activeTool, setActiveTool] = useState<"select" | "pen" | "circle" | "line">("select");
+  const [activeTool, setActiveTool] = useState<"select" | "pen" | "circle" | "line" | "comment">("select");
   const [markupColor, setMarkupColor] = useState("#FF0000");
+  const [pendingCommentPosition, setPendingCommentPosition] = useState<{ x: number; y: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -95,14 +96,28 @@ export default function PlanViewer() {
       height: pdfContainerRef.current.offsetHeight,
       backgroundColor: "transparent",
       isDrawingMode: false,
+      selection: activeTool === "select",
     });
 
     fabricCanvasRef.current = canvas;
 
+    // Handle canvas clicks for comment placement
+    const handleCanvasClick = (e: any) => {
+      if (activeTool === "comment" && e.pointer) {
+        setPendingCommentPosition({
+          x: e.pointer.x / canvas.width,
+          y: e.pointer.y / canvas.height,
+        });
+      }
+    };
+
+    canvas.on("mouse:down", handleCanvasClick);
+
     return () => {
+      canvas.off("mouse:down", handleCanvasClick);
       canvas.dispose();
     };
-  }, [plan]);
+  }, [plan, activeTool]);
 
   // Handle markup tool changes
   useEffect(() => {
@@ -110,13 +125,58 @@ export default function PlanViewer() {
 
     const canvas = fabricCanvasRef.current;
     canvas.isDrawingMode = activeTool === "pen";
+    canvas.selection = activeTool === "select";
 
     if (activeTool === "pen" && canvas.freeDrawingBrush) {
       canvas.freeDrawingBrush = new PencilBrush(canvas);
       canvas.freeDrawingBrush.color = markupColor;
       canvas.freeDrawingBrush.width = 3;
     }
+
+    // Change cursor for comment tool
+    if (activeTool === "comment") {
+      canvas.defaultCursor = "crosshair";
+    } else {
+      canvas.defaultCursor = "default";
+    }
   }, [activeTool, markupColor]);
+
+  // Render comment pins on canvas
+  useEffect(() => {
+    if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+    const currentPageComments = comments.filter(c => c.page_number === currentPage);
+
+    // Clear existing pins
+    const existingPins = canvas.getObjects().filter((obj: any) => obj.commentPin);
+    existingPins.forEach(pin => canvas.remove(pin));
+
+    // Add pins for current page comments
+    currentPageComments.forEach((comment) => {
+      if (comment.x_position !== null && comment.y_position !== null) {
+        const x = comment.x_position * canvas.width;
+        const y = comment.y_position * canvas.height;
+
+        const pin = new Circle({
+          left: x - 10,
+          top: y - 10,
+          radius: 10,
+          fill: "#3b82f6",
+          stroke: "#ffffff",
+          strokeWidth: 2,
+          selectable: false,
+          evented: true,
+          commentPin: true,
+          commentId: comment.id,
+        } as any);
+
+        canvas.add(pin);
+      }
+    });
+
+    canvas.renderAll();
+  }, [comments, currentPage]);
 
   const fetchPlanData = async () => {
     try {
@@ -184,6 +244,8 @@ export default function PlanViewer() {
   const analyzePlan = async () => {
     setAnalyzing(true);
     try {
+      console.log("Starting plan analysis...");
+      
       const { data, error } = await supabase.functions.invoke("analyze-plan", {
         body: {
           planUrl: plan.file_url,
@@ -191,10 +253,22 @@ export default function PlanViewer() {
         },
       });
 
-      if (error) throw error;
+      console.log("Analysis response:", { data, error });
 
-      if (data.error) {
+      if (error) {
+        console.error("Edge function error:", error);
+        toast.error(`Analysis failed: ${error.message}`);
+        return;
+      }
+
+      if (data?.error) {
+        console.error("API error:", data.error);
         toast.error(data.error);
+        return;
+      }
+
+      if (!data?.pages || data.pages.length === 0) {
+        toast.error("No pages were extracted from the plan");
         return;
       }
 
@@ -208,17 +282,22 @@ export default function PlanViewer() {
         discipline: page.discipline || null,
       }));
 
+      console.log("Inserting pages:", pagesToInsert);
+
       const { error: insertError } = await supabase
         .from("plan_pages" as any)
         .insert(pagesToInsert);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        throw insertError;
+      }
 
       await fetchPlanData();
-      toast.success("Plan analyzed successfully");
+      toast.success(`Plan analyzed successfully - ${data.pages.length} pages found`);
     } catch (error: any) {
       console.error("Error analyzing plan:", error);
-      toast.error("Failed to analyze plan");
+      toast.error(error.message || "Failed to analyze plan");
     } finally {
       setAnalyzing(false);
     }
@@ -243,7 +322,15 @@ export default function PlanViewer() {
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+    if (!newComment.trim()) {
+      toast.error("Please enter a comment");
+      return;
+    }
+
+    if (!pendingCommentPosition) {
+      toast.error("Please click on the plan to place your comment pin");
+      return;
+    }
 
     try {
       const { error } = await supabase
@@ -253,13 +340,17 @@ export default function PlanViewer() {
           user_id: user?.id,
           comment_text: newComment,
           page_number: currentPage,
+          x_position: pendingCommentPosition.x,
+          y_position: pendingCommentPosition.y,
         });
 
       if (error) throw error;
 
       setNewComment("");
+      setPendingCommentPosition(null);
+      setActiveTool("select");
       fetchComments();
-      toast.success("Comment added");
+      toast.success("Comment added with pin location");
     } catch (error) {
       console.error("Error adding comment:", error);
       toast.error("Failed to add comment");
@@ -625,21 +716,29 @@ export default function PlanViewer() {
                 <ScrollArea className="h-full p-4">
                   {currentPageComments.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      No comments yet
+                      No comments yet. Click "Place Pin" below to add a comment.
                     </p>
                   ) : (
                     <div className="space-y-4">
                       {currentPageComments.map((comment) => (
                         <div key={comment.id} className="p-3 border rounded-lg">
                           <div className="flex items-start justify-between mb-2">
-                            <p className="font-medium text-sm">
-                              {comment.profiles?.full_name || "Unknown User"}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-primary" />
+                              <p className="font-medium text-sm">
+                                {comment.profiles?.full_name || "Unknown User"}
+                              </p>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(comment.created_at), "MMM d, h:mm a")}
                             </p>
                           </div>
                           <p className="text-sm">{comment.comment_text}</p>
+                          {comment.x_position !== null && comment.y_position !== null && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              📍 Pinned on plan
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -648,19 +747,47 @@ export default function PlanViewer() {
               </div>
 
               {/* Add Comment */}
-              <div className="p-4 border-t">
+              <div className="p-4 border-t space-y-2">
+                {pendingCommentPosition && (
+                  <div className="p-2 bg-primary/10 rounded text-xs text-primary">
+                    📍 Pin placed! Write your comment below.
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    variant={activeTool === "comment" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setActiveTool(activeTool === "comment" ? "select" : "comment");
+                      if (activeTool === "comment") {
+                        setPendingCommentPosition(null);
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    {activeTool === "comment" ? "Cancel Pin" : "Place Pin"}
+                  </Button>
+                </div>
                 <Textarea
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Add a comment..."
+                  placeholder={
+                    pendingCommentPosition
+                      ? "Write your comment here..."
+                      : "Click 'Place Pin' first, then click on the plan where you want to comment"
+                  }
                   rows={3}
-                  className="mb-2"
+                  disabled={!pendingCommentPosition}
                 />
-                <Button onClick={handleAddComment} className="w-full">
-                  Post Comment
+                <Button
+                  onClick={handleAddComment}
+                  className="w-full"
+                  disabled={!newComment.trim() || !pendingCommentPosition}
+                >
+                  Post Comment with Pin
                 </Button>
               </div>
-              </TabsContent>
+            </TabsContent>
             </Tabs>
           </SidebarContent>
         </Sidebar>

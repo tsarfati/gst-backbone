@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,134 +21,42 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    console.log("Analyzing plan:", planName, planUrl);
 
-    // Fetch the PDF from the URL
+    // Fetch the PDF to get metadata
     const pdfResponse = await fetch(planUrl);
     if (!pdfResponse.ok) {
       throw new Error("Failed to fetch PDF");
     }
 
     const pdfBuffer = await pdfResponse.arrayBuffer();
-    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+    console.log("PDF size:", pdfBuffer.byteLength, "bytes");
 
-    // Call Lovable AI to analyze the PDF
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a construction plan analyzer. Analyze the provided PDF construction plan and extract a detailed index of all pages. For each page, identify:
-- Page number
-- Sheet number (if visible, e.g., A-101, S-201)
-- Page title/description
-- Discipline (e.g., Architectural, Structural, Mechanical, Electrical, Plumbing, Civil)
-- Brief description of what the page shows
-
-Return ONLY a JSON array with this exact structure:
-[
-  {
-    "page_number": 1,
-    "sheet_number": "A-101",
-    "page_title": "Site Plan",
-    "discipline": "Architectural",
-    "page_description": "Overall site layout showing building placement and property boundaries"
-  }
-]`
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Analyze this construction plan: "${planName}". Extract the page index.`
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:application/pdf;base64,${base64Pdf}`
-                }
-              }
-            ]
-          }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_plan_index",
-              description: "Extract the page index from construction plans",
-              parameters: {
-                type: "object",
-                properties: {
-                  pages: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        page_number: { type: "integer" },
-                        sheet_number: { type: "string" },
-                        page_title: { type: "string" },
-                        discipline: { type: "string" },
-                        page_description: { type: "string" }
-                      },
-                      required: ["page_number", "page_title", "discipline"],
-                      additionalProperties: false
-                    }
-                  }
-                },
-                required: ["pages"],
-                additionalProperties: false
-              }
-            }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "extract_plan_index" } }
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limits exceeded, please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "AI gateway error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    // Use pdf.js to parse the PDF and count pages
+    // Import pdf.js for Deno
+    const pdfjs = await import("https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs");
     
-    if (!toolCall) {
-      return new Response(
-        JSON.stringify({ error: "No analysis data returned from AI" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Load the PDF document
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(pdfBuffer) });
+    const pdf = await loadingTask.promise;
+    const numPages = pdf.numPages;
+
+    console.log("PDF has", numPages, "pages");
+
+    // For now, create basic page entries without AI analysis
+    // Users can edit these manually
+    const pages = [];
+    for (let i = 1; i <= numPages; i++) {
+      pages.push({
+        page_number: i,
+        sheet_number: `Page ${i}`,
+        page_title: `Sheet ${i}`,
+        discipline: "General",
+        page_description: `Page ${i} of ${planName}`,
+      });
     }
 
-    const functionArgs = JSON.parse(toolCall.function.arguments);
-    const pages = functionArgs.pages || [];
+    await pdf.destroy();
 
     return new Response(
       JSON.stringify({ pages }),
