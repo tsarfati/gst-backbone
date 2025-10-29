@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler } from "lucide-react";
+import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
@@ -69,6 +69,11 @@ export default function PlanViewer() {
   const [planScale, setPlanScale] = useState<{ realDistance: number; pixelDistance: number } | null>(null);
   const [scaleDialogOpen, setScaleDialogOpen] = useState(false);
   const [scaleFormData, setScaleFormData] = useState({ knownDistance: "", unit: "feet" });
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panMode, setPanMode] = useState(false);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -97,9 +102,12 @@ export default function PlanViewer() {
   useEffect(() => {
     if (!canvasRef.current || !pdfContainerRef.current) return;
 
+    const containerWidth = pdfContainerRef.current.offsetWidth;
+    const containerHeight = pdfContainerRef.current.offsetHeight;
+
     const canvas = new FabricCanvas(canvasRef.current, {
-      width: pdfContainerRef.current.offsetWidth,
-      height: pdfContainerRef.current.offsetHeight,
+      width: containerWidth,
+      height: containerHeight,
       backgroundColor: "transparent",
       isDrawingMode: false,
       selection: activeTool === "select",
@@ -107,28 +115,59 @@ export default function PlanViewer() {
 
     fabricCanvasRef.current = canvas;
 
-    // Handle canvas clicks for comment placement
+    // Handle canvas clicks for comment and measurement placement
     const handleCanvasClick = (e: any) => {
-      if (activeTool === "comment" && e.pointer) {
+      if (!e.pointer) return;
+
+      if (activeTool === "comment") {
+        // Calculate relative position (0-1) for database storage
+        const relativeX = e.pointer.x / canvas.width;
+        const relativeY = e.pointer.y / canvas.height;
+        
         setPendingCommentPosition({
-          x: e.pointer.x / canvas.width,
-          y: e.pointer.y / canvas.height,
+          x: relativeX,
+          y: relativeY,
         });
-      } else if (activeTool === "measure" && e.pointer) {
+        
+        // Show visual feedback
+        const pin = new Circle({
+          left: e.pointer.x - 10,
+          top: e.pointer.y - 10,
+          radius: 10,
+          fill: "#3b82f6",
+          stroke: "#ffffff",
+          strokeWidth: 2,
+          selectable: false,
+          evented: false,
+          tempPin: true,
+        } as any);
+        
+        canvas.add(pin);
+        canvas.renderAll();
+        
+        toast.success("Pin placed! Now write your comment.");
+      } else if (activeTool === "measure") {
         const newPoint = { x: e.pointer.x, y: e.pointer.y };
         
         if (measurePoints.length === 0) {
-          // First point
           setMeasurePoints([newPoint]);
+          
+          // Show first point marker
+          const marker = new Circle({
+            left: newPoint.x - 5,
+            top: newPoint.y - 5,
+            radius: 5,
+            fill: "#00ff00",
+            selectable: false,
+          });
+          canvas.add(marker);
         } else if (measurePoints.length === 1) {
-          // Second point - calculate distance
           const point1 = measurePoints[0];
           const pixelDistance = Math.sqrt(
             Math.pow(newPoint.x - point1.x, 2) + Math.pow(newPoint.y - point1.y, 2)
           );
           
           if (planScale) {
-            // Calculate real-world distance
             const realDistance = (pixelDistance / planScale.pixelDistance) * planScale.realDistance;
             toast.success(`Distance: ${realDistance.toFixed(2)} ${scaleFormData.unit}`);
           } else {
@@ -173,17 +212,30 @@ export default function PlanViewer() {
     // Change cursor for different tools
     if (activeTool === "comment") {
       canvas.defaultCursor = "crosshair";
+      canvas.hoverCursor = "crosshair";
     } else if (activeTool === "measure") {
       canvas.defaultCursor = "crosshair";
+      canvas.hoverCursor = "crosshair";
+    } else if (panMode) {
+      canvas.defaultCursor = "grab";
+      canvas.hoverCursor = "grab";
     } else {
       canvas.defaultCursor = "default";
+      canvas.hoverCursor = "move";
     }
     
     // Reset measurement points when changing tools
     if (activeTool !== "measure") {
       setMeasurePoints([]);
     }
-  }, [activeTool, markupColor]);
+    
+    // Clear temp pins when changing from comment tool
+    if (activeTool !== "comment") {
+      const tempPins = canvas.getObjects().filter((obj: any) => obj.tempPin);
+      tempPins.forEach(pin => canvas.remove(pin));
+      canvas.renderAll();
+    }
+  }, [activeTool, markupColor, panMode]);
 
   // Render comment pins on canvas
   useEffect(() => {
@@ -471,6 +523,19 @@ export default function PlanViewer() {
     );
   }
 
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
   const handleSetScale = () => {
     if (!scaleFormData.knownDistance) {
       toast.error("Please enter a known distance");
@@ -561,15 +626,73 @@ export default function PlanViewer() {
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer with Markup Canvas */}
-          <div className="flex-1 relative" ref={pdfContainerRef}>
-            <div className="absolute inset-0 z-10 pointer-events-none">
-              <canvas ref={canvasRef} className="pointer-events-auto" />
+          <div className="flex-1 relative overflow-hidden bg-muted/30" ref={pdfContainerRef}>
+            {/* Navigation Tools */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2 bg-background/95 backdrop-blur p-2 rounded-lg shadow-lg border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleZoomIn}
+                title="Zoom In"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleZoomOut}
+                title="Zoom Out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetZoom}
+                title="Reset Zoom"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+              <div className="border-l mx-1" />
+              <Button
+                variant={panMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPanMode(!panMode)}
+                title="Pan Mode"
+              >
+                <Move className="h-4 w-4" />
+              </Button>
+              <div className="text-xs flex items-center px-2 text-muted-foreground">
+                {Math.round(zoomLevel * 100)}%
+              </div>
             </div>
-            <FullPagePdfViewer
-              file={{ name: plan.file_name, url: plan.file_url }}
-              onBack={() => navigate(-1)}
-              hideBackButton={true}
-            />
+
+            {/* Canvas overlay for markups and interactions */}
+            <div 
+              className="absolute inset-0 z-10"
+              style={{
+                pointerEvents: activeTool === "select" && !panMode ? "none" : "auto",
+                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transformOrigin: "top left",
+              }}
+            >
+              <canvas ref={canvasRef} />
+            </div>
+
+            {/* PDF viewer */}
+            <div
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                transformOrigin: "top left",
+                transition: "transform 0.2s ease-out",
+              }}
+            >
+              <FullPagePdfViewer
+                file={{ name: plan.file_name, url: plan.file_url }}
+                onBack={() => navigate(-1)}
+                hideBackButton={true}
+              />
+            </div>
           </div>
 
           {/* Right Sidebar */}
