@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose } from "lucide-react";
+import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import { format } from "date-fns";
@@ -60,9 +62,13 @@ export default function PlanViewer() {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
-  const [activeTool, setActiveTool] = useState<"select" | "pen" | "circle" | "line" | "comment">("select");
+  const [activeTool, setActiveTool] = useState<"select" | "pen" | "circle" | "line" | "comment" | "measure">("select");
   const [markupColor, setMarkupColor] = useState("#FF0000");
   const [pendingCommentPosition, setPendingCommentPosition] = useState<{ x: number; y: number } | null>(null);
+  const [measurePoints, setMeasurePoints] = useState<Array<{ x: number; y: number }>>([]);
+  const [planScale, setPlanScale] = useState<{ realDistance: number; pixelDistance: number } | null>(null);
+  const [scaleDialogOpen, setScaleDialogOpen] = useState(false);
+  const [scaleFormData, setScaleFormData] = useState({ knownDistance: "", unit: "feet" });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -108,6 +114,37 @@ export default function PlanViewer() {
           x: e.pointer.x / canvas.width,
           y: e.pointer.y / canvas.height,
         });
+      } else if (activeTool === "measure" && e.pointer) {
+        const newPoint = { x: e.pointer.x, y: e.pointer.y };
+        
+        if (measurePoints.length === 0) {
+          // First point
+          setMeasurePoints([newPoint]);
+        } else if (measurePoints.length === 1) {
+          // Second point - calculate distance
+          const point1 = measurePoints[0];
+          const pixelDistance = Math.sqrt(
+            Math.pow(newPoint.x - point1.x, 2) + Math.pow(newPoint.y - point1.y, 2)
+          );
+          
+          if (planScale) {
+            // Calculate real-world distance
+            const realDistance = (pixelDistance / planScale.pixelDistance) * planScale.realDistance;
+            toast.success(`Distance: ${realDistance.toFixed(2)} ${scaleFormData.unit}`);
+          } else {
+            toast.error("Please set the scale first");
+          }
+          
+          // Draw measurement line
+          const line = new Line([point1.x, point1.y, newPoint.x, newPoint.y], {
+            stroke: "#00ff00",
+            strokeWidth: 2,
+            selectable: false,
+          });
+          canvas.add(line);
+          
+          setMeasurePoints([]);
+        }
       }
     };
 
@@ -117,7 +154,7 @@ export default function PlanViewer() {
       canvas.off("mouse:down", handleCanvasClick);
       canvas.dispose();
     };
-  }, [plan, activeTool]);
+  }, [plan, activeTool, measurePoints, planScale, scaleFormData.unit]);
 
   // Handle markup tool changes
   useEffect(() => {
@@ -133,11 +170,18 @@ export default function PlanViewer() {
       canvas.freeDrawingBrush.width = 3;
     }
 
-    // Change cursor for comment tool
+    // Change cursor for different tools
     if (activeTool === "comment") {
+      canvas.defaultCursor = "crosshair";
+    } else if (activeTool === "measure") {
       canvas.defaultCursor = "crosshair";
     } else {
       canvas.defaultCursor = "default";
+    }
+    
+    // Reset measurement points when changing tools
+    if (activeTool !== "measure") {
+      setMeasurePoints([]);
     }
   }, [activeTool, markupColor]);
 
@@ -427,6 +471,33 @@ export default function PlanViewer() {
     );
   }
 
+  const handleSetScale = () => {
+    if (!scaleFormData.knownDistance) {
+      toast.error("Please enter a known distance");
+      return;
+    }
+    
+    if (measurePoints.length !== 2) {
+      toast.error("Please select two points on the plan to set the scale");
+      return;
+    }
+    
+    const point1 = measurePoints[0];
+    const point2 = measurePoints[1];
+    const pixelDistance = Math.sqrt(
+      Math.pow(point2.x - point1.x, 2) + Math.pow(point2.y - point1.y, 2)
+    );
+    
+    setPlanScale({
+      realDistance: parseFloat(scaleFormData.knownDistance),
+      pixelDistance: pixelDistance,
+    });
+    
+    setMeasurePoints([]);
+    setScaleDialogOpen(false);
+    toast.success(`Scale set: ${scaleFormData.knownDistance} ${scaleFormData.unit}`);
+  };
+
   const currentPageData = pages.find(p => p.page_number === currentPage);
   const currentPageComments = comments.filter(c => c.page_number === currentPage);
 
@@ -464,10 +535,10 @@ export default function PlanViewer() {
                   setSearchParams({ page: value });
                 }}
               >
-                <SelectTrigger className="w-[300px]">
+                <SelectTrigger className="w-[300px] bg-background">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background z-50">
                   {pages.map((page) => (
                     <SelectItem key={page.id} value={page.page_number.toString()}>
                       Page {page.page_number}
@@ -480,7 +551,8 @@ export default function PlanViewer() {
             )}
             <SidebarTrigger>
               <Button variant="outline" size="sm">
-                <PanelRightClose className="h-4 w-4" />
+                <PanelRightOpen className="h-4 w-4 mr-2" />
+                Toggle Panel
               </Button>
             </SidebarTrigger>
           </div>
@@ -665,6 +737,46 @@ export default function PlanViewer() {
                 </div>
 
                 <div>
+                  <label className="text-sm font-medium mb-2 block">Measurement Tool</label>
+                  <div className="space-y-2">
+                    <Button
+                      variant={activeTool === "measure" ? "default" : "outline"}
+                      onClick={() => setActiveTool("measure")}
+                      size="sm"
+                      className="w-full"
+                    >
+                      <Ruler className="h-4 w-4 mr-2" />
+                      Measure Distance
+                    </Button>
+                    
+                    {planScale ? (
+                      <div className="p-2 bg-primary/10 rounded text-xs">
+                        Scale: {planScale.realDistance} {scaleFormData.unit} = {planScale.pixelDistance.toFixed(0)}px
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setActiveTool("measure");
+                          setScaleDialogOpen(true);
+                        }}
+                      >
+                        Set Scale
+                      </Button>
+                    )}
+                    
+                    {activeTool === "measure" && (
+                      <div className="p-2 bg-muted rounded text-xs">
+                        {measurePoints.length === 0 && "Click first point"}
+                        {measurePoints.length === 1 && "Click second point to measure"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
                   <label className="text-sm font-medium mb-2 block">Color</label>
                   <div className="flex gap-2">
                     {["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#000000"].map(
@@ -793,6 +905,65 @@ export default function PlanViewer() {
         </Sidebar>
         </div>
       </div>
+
+      {/* Scale Setting Dialog */}
+      <Dialog open={scaleDialogOpen} onOpenChange={setScaleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Plan Scale</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Click two points on the plan that represent a known distance, then enter that distance below.
+            </p>
+            
+            {measurePoints.length === 2 && (
+              <div className="p-2 bg-primary/10 rounded text-sm text-primary">
+                ✓ Two points selected
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="knownDistance">Known Distance</Label>
+              <Input
+                id="knownDistance"
+                type="number"
+                step="0.01"
+                value={scaleFormData.knownDistance}
+                onChange={(e) => setScaleFormData({ ...scaleFormData, knownDistance: e.target.value })}
+                placeholder="Enter distance"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="unit">Unit</Label>
+              <Select
+                value={scaleFormData.unit}
+                onValueChange={(value) => setScaleFormData({ ...scaleFormData, unit: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="feet">Feet</SelectItem>
+                  <SelectItem value="meters">Meters</SelectItem>
+                  <SelectItem value="inches">Inches</SelectItem>
+                  <SelectItem value="centimeters">Centimeters</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScaleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSetScale} disabled={measurePoints.length !== 2 || !scaleFormData.knownDistance}>
+              Set Scale
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }
