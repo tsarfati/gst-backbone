@@ -137,7 +137,7 @@ export default function AddBill() {
         supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
-          .select('id, account_number, account_name, account_type, bypass_attachment_requirement')
+          .select('id, account_number, account_name, account_type, require_attachment')
           .eq('company_id', companyId)
           .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
           .eq('is_active', true)
@@ -179,7 +179,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*, bypass_attachment_requirement')
+        .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
@@ -198,7 +198,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*, bypass_attachment_requirement')
+        .select('*')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
@@ -274,6 +274,9 @@ export default function AddBill() {
 
     // Always drop codes without a valid category type
     let filtered = codes.filter(cc => cc.type && allowedTypes.has(String(cc.type).toLowerCase()));
+
+    // If vendor type not selected yet, don't apply additional filtering
+    if (!vendorType) return filtered;
 
     // If vendor is contractor or design professional, only show sub/other/labor
     if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
@@ -790,19 +793,19 @@ export default function AddBill() {
     // Check if documents are required by payables settings
     const requireDocuments = payablesSettings?.require_bill_documents ?? false;
     
-    if (requireDocuments && billFiles.length === 0 && !attachedReceipt) {
+    if (requireDocuments && billFiles.length === 0 && !attachedReceipt && !(canBypassAttachment() && noAttachmentNeeded)) {
       toast({
         title: "Document required",
-        description: "Company settings require all bills to have a document or attachment",
+        description: "Company settings require a document unless the selected cost code or account allows no attachment",
         variant: "destructive"
       });
       return;
     }
     
-    if (billFiles.length === 0 && !attachedReceipt) {
+    if (billFiles.length === 0 && !attachedReceipt && !(canBypassAttachment() && noAttachmentNeeded)) {
       toast({
         title: "Attachment required",
-        description: "Upload a bill file or attach a coded receipt before submitting",
+        description: "Upload a document or check 'No attachment needed' if allowed by the selected cost code/account",
         variant: "destructive"
       });
       return;
@@ -1096,18 +1099,18 @@ export default function AddBill() {
       // Check expense account
       if (formData.expense_account_id) {
         const account = expenseAccounts.find(a => a.id === formData.expense_account_id);
-        if (account?.bypass_attachment_requirement) return true;
+        if (account && account.require_attachment === false) return true;
       }
       // Check cost code
       if (formData.cost_code_id) {
         const costCode = costCodes.find(c => c.id === formData.cost_code_id);
-        if (costCode?.bypass_attachment_requirement) return true;
+        if (costCode && costCode.require_attachment === false) return true;
       }
       // Check bill distribution cost codes
       if (needsDistribution && billDistribution.length > 0) {
         return billDistribution.some(dist => {
           const costCode = costCodes.find(c => c.id === dist.cost_code_id);
-          return costCode?.bypass_attachment_requirement;
+          return costCode && costCode.require_attachment === false;
         });
       }
     } else {
@@ -1116,13 +1119,13 @@ export default function AddBill() {
         // Check expense account
         if (item.expense_account_id) {
           const account = expenseAccounts.find(a => a.id === item.expense_account_id);
-          if (account?.bypass_attachment_requirement) return true;
+          if (account && account.require_attachment === false) return true;
         }
         // Check cost code
         if (item.cost_code_id) {
           const codes = lineItemCostCodes[item.id] || [];
           const costCode = codes.find(c => c.id === item.cost_code_id);
-          if (costCode?.bypass_attachment_requirement) return true;
+          if (costCode && costCode.require_attachment === false) return true;
         }
         return false;
       });
