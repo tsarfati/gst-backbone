@@ -374,9 +374,9 @@ export default function AddBill() {
     
     // Check if all line items have job/control and amount
     const allItemsValid = distributionItems.every(item => {
-      const hasJobOrAccount = item.job_id || item.expense_account_id;
+      const hasJob = !!item.job_id; // job is required by DB schema
       const hasAmount = item.amount && parseFloat(item.amount) > 0;
-      return hasJobOrAccount && hasAmount;
+      return hasJob && hasAmount;
     });
     
     return allItemsValid && Math.abs(billAmount - distributionTotal) < 0.01;
@@ -857,7 +857,19 @@ export default function AddBill() {
       // BUT: Subcontract/PO bills with auto-applied cost codes should never be pending_coding
       const shouldPendCoding = !isCommitmentBill && (formData.request_pm_help || requiresPmApproval);
 
-      // Fetch file naming settings
+      // Validate distribution items have a job (DB requires job_id)
+      if (billType === "non_commitment") {
+        const missingJob = distributionItems.some(di => !di.job_id);
+        if (missingJob) {
+          toast({
+            title: "Job required",
+            description: "Each distribution line must have a job selected. Expense-only lines aren’t supported on this page.",
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
       const { data: namingSettings } = await supabase
         .from('file_upload_settings')
         .select('bill_naming_pattern')
