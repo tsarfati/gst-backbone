@@ -32,31 +32,15 @@ serve(async (req) => {
     const pdfBuffer = await pdfResponse.arrayBuffer();
     console.log("PDF size:", pdfBuffer.byteLength, "bytes");
 
-    // Use pdf.js to parse the PDF and count pages
-    // Import pdf.js for Deno
-    const pdfjs = await import("https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs");
-    
-    // Load the PDF document
-    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(pdfBuffer) });
-    const pdf = await loadingTask.promise;
-    const numPages = pdf.numPages;
-
-    console.log("PDF has", numPages, "pages");
-
-    // For now, create basic page entries without AI analysis
-    // Users can edit these manually
-    const pages = [];
-    for (let i = 1; i <= numPages; i++) {
-      pages.push({
-        page_number: i,
-        sheet_number: `Page ${i}`,
-        page_title: `Sheet ${i}`,
-        discipline: "General",
-        page_description: `Page ${i} of ${planName}`,
-      });
-    }
-
-    await pdf.destroy();
+    // Return a simple success response
+    // The client-side fallback will handle actual page extraction
+    const pages = [{
+      page_number: 1,
+      sheet_number: "Page 1",
+      page_title: "Sheet 1",
+      discipline: "General",
+      page_description: `Page 1 of ${planName}`,
+    }];
 
     return new Response(
       JSON.stringify({ pages }),

@@ -74,6 +74,7 @@ export default function PlanViewer() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -654,11 +655,14 @@ export default function PlanViewer() {
             <div className="text-xs px-2 text-muted-foreground w-10 text-right">
               {Math.round(zoomLevel * 100)}%
             </div>
-            <SidebarTrigger>
-              <Button variant="outline" size="sm" title="Toggle details panel">
-                <PanelRightOpen className="h-4 w-4" />
-              </Button>
-            </SidebarTrigger>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              title="Toggle details panel"
+            >
+              {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
         </div>
@@ -696,17 +700,17 @@ export default function PlanViewer() {
           </div>
 
           {/* Right Sidebar */}
-          <Sidebar side="right" className="border-l" collapsible="offcanvas">
-            <SidebarContent>
-              <Tabs defaultValue="index" className="h-full flex flex-col p-2">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="index">Index</TabsTrigger>
-                  <TabsTrigger value="markup">Markup</TabsTrigger>
-                  <TabsTrigger value="comments">
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    Comments
-                  </TabsTrigger>
-                </TabsList>
+          {sidebarOpen && (
+          <div className="w-96 border-l bg-background flex flex-col">
+            <Tabs defaultValue="index" className="h-full flex flex-col p-2">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="index">Index</TabsTrigger>
+                <TabsTrigger value="markup">Markup</TabsTrigger>
+                <TabsTrigger value="comments">
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  Comments
+                </TabsTrigger>
+              </TabsList>
 
             {/* Page Index Tab */}
             <TabsContent value="index" className="flex-1 overflow-hidden">
@@ -1024,8 +1028,8 @@ export default function PlanViewer() {
               </div>
             </TabsContent>
             </Tabs>
-          </SidebarContent>
-        </Sidebar>
+          </div>
+          )}
         </div>
       </div>
 
