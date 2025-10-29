@@ -290,19 +290,26 @@ export default function Dashboard() {
       // Fetch bill communications for dashboard
       const { data: billComms, error: billCommsError } = await supabase
         .from('bill_communications')
-        .select(`
-          *,
-          profiles:user_id (
-            display_name,
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .eq('company_id', currentCompany.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (billCommsError) throw billCommsError;
+      if (billCommsError) {
+        console.error('Error fetching messages:', billCommsError);
+      }
+      
+      // Fetch profiles separately for bill communications
+      const billCommsWithProfiles = await Promise.all(
+        (billComms || []).map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, first_name, last_name')
+            .eq('user_id', msg.user_id)
+            .single();
+          return { ...msg, profiles: profile };
+        })
+      );
 
       // Fetch sender profiles for direct messages
       const messagesWithProfiles = await Promise.all(
@@ -321,7 +328,7 @@ export default function Dashboard() {
       );
 
       // Format bill communications
-      const formattedBillComms = (billComms || []).map((comm: any) => ({
+      const formattedBillComms = (billCommsWithProfiles || []).map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.user_id,
         subject: `Bill Discussion`,

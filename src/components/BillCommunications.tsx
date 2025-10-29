@@ -51,21 +51,26 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
       // Load intercompany messages from bill_communications table
       const { data: commData, error: commError } = await supabase
         .from('bill_communications')
-        .select(`
-          *,
-          profiles:user_id (
-            display_name,
-            first_name,
-            last_name
-          )
-        `)
+        .select('*')
         .eq('bill_id', billId)
         .order('created_at', { ascending: true });
+      
+      // Fetch profiles separately for each message
+      const commDataWithProfiles = await Promise.all(
+        (commData || []).map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, first_name, last_name')
+            .eq('user_id', msg.user_id)
+            .single();
+          return { ...msg, profiles: profile };
+        })
+      );
 
       if (commError) {
         console.error('Error loading bill communications:', commError);
       } else {
-        const formatted = (commData || []).map((msg: any) => ({
+        const formatted = (commDataWithProfiles || []).map((msg: any) => ({
           id: msg.id,
           content: msg.message,
           sender: msg.profiles?.display_name || `${msg.profiles?.first_name || ''} ${msg.profiles?.last_name || ''}`.trim() || 'Unknown User',
