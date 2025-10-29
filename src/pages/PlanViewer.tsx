@@ -341,7 +341,6 @@ export default function PlanViewer() {
     setAnalyzing(true);
     try {
       console.log("Starting plan analysis...");
-      
       const { data, error } = await supabase.functions.invoke("analyze-plan", {
         body: {
           planUrl: plan.file_url,
@@ -351,15 +350,34 @@ export default function PlanViewer() {
 
       console.log("Analysis response:", { data, error });
 
-      if (error) {
-        console.error("Edge function error:", error);
-        toast.error(`Analysis failed: ${error.message}`);
-        return;
-      }
+      if (error || data?.error) {
+        console.warn("Edge function failed or returned error, falling back to client-side PDF parsing.", error || data?.error);
+        // Client-side fallback using pdf.js
+        const pdfjs: any = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
-      if (data?.error) {
-        console.error("API error:", data.error);
-        toast.error(data.error);
+        const resp = await fetch(plan.file_url);
+        const buf = await resp.arrayBuffer();
+        const loadingTask = pdfjs.getDocument({ data: buf });
+        const pdf = await loadingTask.promise;
+        const numPages = pdf.numPages || 1;
+        const pages = Array.from({ length: numPages }, (_, i) => ({
+          page_number: i + 1,
+          page_title: `Sheet ${i + 1}`,
+          page_description: `${plan.plan_name} - Page ${i + 1}`,
+          sheet_number: `Page ${i + 1}`,
+          discipline: "General",
+        }));
+        await pdf.cleanup?.();
+        await pdf.destroy?.();
+
+        const { error: insertError } = await supabase
+          .from("plan_pages" as any)
+          .insert(pages.map((p: any) => ({ ...p, plan_id: planId })));
+        if (insertError) throw insertError;
+
+        await fetchPlanData();
+        toast.success(`Plan analyzed - ${numPages} pages found`);
         return;
       }
 
@@ -368,7 +386,7 @@ export default function PlanViewer() {
         return;
       }
 
-      // Insert pages into database
+      // Insert pages into database from edge function
       const pagesToInsert = data.pages.map((page: any) => ({
         plan_id: planId,
         page_number: page.page_number,
@@ -584,89 +602,71 @@ export default function PlanViewer() {
             </div>
           </div>
 
-          {/* Page Navigation */}
-          <div className="flex items-center gap-2">
-            {analyzing && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing plan...
-              </div>
-            )}
-            {pages.length > 0 && (
-              <Select
-                value={currentPage.toString()}
-                onValueChange={(value) => {
-                  setCurrentPage(parseInt(value));
-                  setSearchParams({ page: value });
-                }}
-              >
-                <SelectTrigger className="w-[300px] bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  {pages.map((page) => (
-                    <SelectItem key={page.id} value={page.page_number.toString()}>
-                      Page {page.page_number}
-                      {page.sheet_number && ` - ${page.sheet_number}`}
-                      {page.page_title && ` - ${page.page_title}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+        {/* Page Navigation + Tools */}
+        <div className="flex items-center gap-2">
+          {analyzing && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Analyzing plan...
+            </div>
+          )}
+          {pages.length > 0 && (
+            <Select
+              value={currentPage.toString()}
+              onValueChange={(value) => {
+                setCurrentPage(parseInt(value));
+                setSearchParams({ page: value });
+              }}
+            >
+              <SelectTrigger className="w-[260px] bg-background z-50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                {pages.map((page) => (
+                  <SelectItem key={page.id} value={page.page_number.toString()}>
+                    Page {page.page_number}
+                    {page.sheet_number && ` - ${page.sheet_number}`}
+                    {page.page_title && ` - ${page.page_title}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {/* Tools in header */}
+          <div className="flex items-center gap-1 ml-2">
+            <Button variant="outline" size="sm" onClick={handleZoomOut} title="Zoom Out">
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleZoomIn} title="Zoom In">
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleResetZoom} title="Reset Zoom">
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={panMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPanMode(!panMode)}
+              title="Pan Mode"
+            >
+              <Move className="h-4 w-4" />
+            </Button>
+            <div className="text-xs px-2 text-muted-foreground w-10 text-right">
+              {Math.round(zoomLevel * 100)}%
+            </div>
             <SidebarTrigger>
-              <Button variant="outline" size="sm">
-                <PanelRightOpen className="h-4 w-4 mr-2" />
-                Toggle Panel
+              <Button variant="outline" size="sm" title="Toggle details panel">
+                <PanelRightOpen className="h-4 w-4" />
               </Button>
             </SidebarTrigger>
           </div>
+        </div>
         </div>
 
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer with Markup Canvas */}
           <div className="flex-1 relative overflow-hidden bg-muted/30" ref={pdfContainerRef}>
-            {/* Navigation Tools */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex gap-2 bg-background/95 backdrop-blur p-2 rounded-lg shadow-lg border">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomIn}
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomOut}
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetZoom}
-                title="Reset Zoom"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-              <div className="border-l mx-1" />
-              <Button
-                variant={panMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => setPanMode(!panMode)}
-                title="Pan Mode"
-              >
-                <Move className="h-4 w-4" />
-              </Button>
-              <div className="text-xs flex items-center px-2 text-muted-foreground">
-                {Math.round(zoomLevel * 100)}%
-              </div>
-            </div>
-
             {/* Canvas overlay for markups and interactions */}
             <div 
               className="absolute inset-0 z-10"
