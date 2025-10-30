@@ -313,17 +313,14 @@ export default function BillEdit() {
     vendorId?: string,
     vendorsList?: any[]
   ) => {
-    // Filter by job first
-    let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
+    // Filter to only job-assigned cost codes, excluding dynamic cost codes
+    let filtered = codes.filter(cc => cc.job_id === jobId && !cc.is_dynamic_group);
     
-    // Remove duplicates - prefer job-specific codes over company-level codes
-    // Group by code AND type to allow multiple types of the same code
+    // Remove duplicates by code AND type
     const codeMap = new Map<string, CostCode>();
     filtered.forEach(cc => {
       const key = `${cc.code}-${cc.type || 'null'}`;
-      const existing = codeMap.get(key);
-      // If no existing or current has job_id and existing doesn't, use current
-      if (!existing || (cc.job_id && !existing.job_id)) {
+      if (!codeMap.has(key)) {
         codeMap.set(key, cc);
       }
     });
