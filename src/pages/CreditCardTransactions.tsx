@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil, Trash2, Send, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
@@ -46,6 +46,8 @@ export default function CreditCardTransactions() {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [postingToGL, setPostingToGL] = useState(false);
   const { postTransactionsToGL } = usePostCreditCardTransactions();
+  const [sortColumn, setSortColumn] = useState<'date' | 'amount' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -574,6 +576,42 @@ export default function CreditCardTransactions() {
     return balanceMap;
   }, [transactions]);
 
+  const sortedTransactions = useMemo(() => {
+    if (!sortColumn) return transactions;
+    
+    return [...transactions].sort((a, b) => {
+      let comparison = 0;
+      
+      if (sortColumn === 'date') {
+        comparison = new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime();
+      } else if (sortColumn === 'amount') {
+        comparison = a.amount - b.amount;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [transactions, sortColumn, sortDirection]);
+
+  const handleSort = (column: 'date' | 'amount') => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column with descending as default
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (column: 'date' | 'amount') => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 inline-block opacity-30" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1 inline-block" />
+      : <ArrowDown className="h-4 w-4 ml-1 inline-block" />;
+  };
+
   const openTransactionDetail = (transactionId: string) => {
     setSelectedTransactionId(transactionId);
     setShowDetailModal(true);
@@ -942,23 +980,39 @@ export default function CreditCardTransactions() {
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort('date')}
+                >
+                  <div className="flex items-center">
+                    Date
+                    {getSortIcon('date')}
+                  </div>
+                </TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Amount</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort('amount')}
+                >
+                  <div className="flex items-center">
+                    Amount
+                    {getSortIcon('amount')}
+                  </div>
+                </TableHead>
                 <TableHead className="text-right">Running Balance</TableHead>
                 <TableHead>Attachment</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.length === 0 ? (
+              {sortedTransactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No transactions found. Import a CSV or add transactions manually.
                   </TableCell>
                 </TableRow>
               ) : (
-                transactions.map((trans) => (
+                sortedTransactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
                     className="group hover:bg-primary/5 transition-colors"
