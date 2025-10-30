@@ -78,10 +78,11 @@ export default function AddBill() {
   const [noAttachmentNeeded, setNoAttachmentNeeded] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
-  const [costCodes, setCostCodes] = useState<any[]>([]);
-  const [subcontracts, setSubcontracts] = useState<any[]>([]);
-  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
+const [costCodes, setCostCodes] = useState<any[]>([]);
+const [companyCostCodes, setCompanyCostCodes] = useState<any[]>([]);
+const [subcontracts, setSubcontracts] = useState<any[]>([]);
+const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
@@ -133,7 +134,7 @@ export default function AddBill() {
     
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
-      const [vendorsRes, jobsRes, expenseAccountsRes] = await Promise.all([
+      const [vendorsRes, jobsRes, expenseAccountsRes, companyMasterCodesRes] = await Promise.all([
         supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
         supabase.from('jobs').select('*').eq('company_id', companyId),
         supabase.from('chart_of_accounts')
@@ -141,12 +142,19 @@ export default function AddBill() {
           .eq('company_id', companyId)
           .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
           .eq('is_active', true)
-          .order('account_number')
+          .order('account_number'),
+        supabase.from('cost_codes')
+          .select('id, code, type, require_attachment')
+          .eq('company_id', companyId)
+          .is('job_id', null)
+          .eq('is_active', true)
+          .eq('is_dynamic_group', false)
       ]);
 
       if (vendorsRes.data) setVendors(vendorsRes.data);
       if (jobsRes.data) setJobs(jobsRes.data);
       if (expenseAccountsRes.data) setExpenseAccounts(expenseAccountsRes.data);
+      if (companyMasterCodesRes.data) setCompanyCostCodes(companyMasterCodesRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -1302,6 +1310,13 @@ export default function AddBill() {
 
   // Check if any selected account or cost code allows bypassing attachment requirement
   const canBypassAttachment = () => {
+    const codeAllows = (cc?: any) => {
+      if (!cc) return false;
+      if (cc.require_attachment === false) return true;
+      const master = companyCostCodes.find((m: any) => m.code === cc.code && ((m.type ?? null) === (cc.type ?? null)));
+      return master?.require_attachment === false;
+    };
+
     if (billType === "commitment") {
       // Check expense account
       if (formData.expense_account_id) {
@@ -1311,13 +1326,13 @@ export default function AddBill() {
       // Check cost code
       if (formData.cost_code_id) {
         const costCode = costCodes.find(c => c.id === formData.cost_code_id);
-        if (costCode?.require_attachment === false) return true;
+        if (codeAllows(costCode)) return true;
       }
       // Check bill distribution cost codes - if ANY allow bypass, then bypass is allowed
       if (needsDistribution && billDistribution.length > 0) {
         const hasNonRequiredCode = billDistribution.some(dist => {
           const costCode = costCodes.find(c => c.id === dist.cost_code_id);
-          return costCode?.require_attachment === false;
+          return codeAllows(costCode);
         });
         if (hasNonRequiredCode) return true;
       }
@@ -1332,8 +1347,8 @@ export default function AddBill() {
         // Check cost code
         if (item.cost_code_id) {
           const codes = lineItemCostCodes[item.id] || [];
-          const costCode = codes.find(c => c.id === item.cost_code_id);
-          if (costCode?.require_attachment === false) return true;
+          const costCode = codes.find((c: any) => c.id === item.cost_code_id);
+          if (codeAllows(costCode)) return true;
         }
         return false;
       });

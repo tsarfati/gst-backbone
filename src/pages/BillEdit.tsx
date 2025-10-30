@@ -448,19 +448,27 @@ export default function BillEdit() {
 
   // Check if attachments can be bypassed based on selected account/code
   const canBypassAttachment = () => {
-    // Check if selected cost code allows bypass
+    const codeAllowsById = (id?: string) => {
+      if (!id) return false;
+      // If this id is an expense account, honor its flag directly
+      const account = expenseAccounts.find(a => a.id === id);
+      if (account?.require_attachment === false) return true;
+      // Otherwise treat as cost code and check company master override
+      const cc = allCostCodes.find(c => c.id === id);
+      if (!cc) return false;
+      if (cc.require_attachment === false) return true;
+      const master = allCostCodes.find(c => c.code === cc.code && ((c.type ?? null) === (cc.type ?? null)) && !c.job_id);
+      return master?.require_attachment === false;
+    };
+
+    // Selected item (Job/Control field)
     if (formData.cost_code_id) {
-      const selectedItem = costCodes.find(c => c.id === formData.cost_code_id) || 
-                           expenseAccounts.find(a => a.id === formData.cost_code_id);
-      if (selectedItem && selectedItem.require_attachment === false) return true;
+      if (codeAllowsById(formData.cost_code_id)) return true;
     }
     
     // Check bill distribution cost codes if commitment has multiple distributions
     if (commitmentDistribution.length > 1 && billDistribution.length > 0) {
-      return billDistribution.some(dist => {
-        const costCode = allCostCodes.find(c => c.id === dist.cost_code_id);
-        return costCode && costCode.require_attachment === false;
-      });
+      return billDistribution.some(dist => codeAllowsById(dist.cost_code_id));
     }
     
     return false;

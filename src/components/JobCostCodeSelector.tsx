@@ -496,7 +496,9 @@ export default function JobCostCodeSelector({
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">Selected Cost Codes ({selectedCostCodes.length}):</h4>
             <div className="grid grid-cols-1 gap-2">
-              {selectedCostCodes.map((costCode) => {
+              {[...selectedCostCodes]
+                .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }))
+                .map((costCode) => {
                 const budget = budgetMap[costCode.id];
                 const getBadgeVariant = (type?: string) => {
                   switch (type?.toLowerCase()) {
