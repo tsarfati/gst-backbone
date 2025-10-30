@@ -321,12 +321,28 @@ export default function CreditCardTransactions() {
                 transactionsToInsert.push(parsedTransaction);
               }
             } else {
-              // Parse generic CSV format
-              if (!transaction.Date || !transaction.Description || !transaction.Amount) continue;
+              // Parse generic CSV format (supports multiple column name variations)
+              // Flexible column mapping to handle different CSV formats
+              const dateCol = transaction.Date || transaction.date;
+              const descCol = transaction.Description || transaction.description;
+              const amountCol = transaction.Amount || transaction[' Amount '] || transaction.amount;
               
-              const transactionDate = new Date(transaction.Date).toISOString().split('T')[0];
-              const amount = Math.abs(parseFloat(transaction.Amount.replace(/[^0-9.-]/g, "")));
-              const description = transaction.Description || "";
+              if (!dateCol || !descCol || !amountCol) continue;
+              
+              const transactionDate = new Date(dateCol).toISOString().split('T')[0];
+              
+              // Handle amount parsing: support $1,234.56 and ($123.45) formats
+              let amountStr = String(amountCol);
+              const isNegative = amountStr.includes('(') && amountStr.includes(')');
+              amountStr = amountStr.replace(/[$,()]/g, '').trim();
+              let amount = Math.abs(parseFloat(amountStr));
+              if (isNaN(amount)) continue;
+              
+              // Use Vendor column if available (with space tolerance), otherwise use Description
+              const merchantCol = transaction.Vendor || transaction['Vendor '] || transaction.vendor || 
+                                  transaction.Merchant || transaction.merchant;
+              const merchant = merchantCol || descCol;
+              const description = descCol || "";
               
               // Check for duplicate
               const key = `${transactionDate}-${amount}-${description}`;
@@ -350,15 +366,19 @@ export default function CreditCardTransactions() {
                 }
               }
               
+              // Determine transaction type based on whether amount was negative
+              const transactionType = isNegative ? 'credit' : 'purchase';
+              
               parsedTransaction = {
                 credit_card_id: id,
                 company_id: currentCompany.id,
                 transaction_date: transactionDate,
                 description: description,
-                merchant_name: transaction.Merchant || description,
+                merchant_name: merchant,
                 amount: amount,
-                category: transaction.Category || null,
-                reference_number: transaction.Reference || null,
+                category: transaction.Category || transaction.category || null,
+                reference_number: transaction.Reference || transaction.reference || transaction.refference || null,
+                transaction_type: transactionType,
                 created_by: user?.id,
                 imported_from_csv: true,
                 coding_status: matchedTransaction ? 'coded' : 'uncoded',
