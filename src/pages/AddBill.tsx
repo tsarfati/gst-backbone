@@ -1306,36 +1306,38 @@ export default function AddBill() {
       // Check expense account
       if (formData.expense_account_id) {
         const account = expenseAccounts.find(a => a.id === formData.expense_account_id);
-        if (account && account.require_attachment === false) return true;
+        if (account?.require_attachment === false) return true;
       }
       // Check cost code
       if (formData.cost_code_id) {
         const costCode = costCodes.find(c => c.id === formData.cost_code_id);
-        if (costCode && costCode.require_attachment === false) return true;
+        if (costCode?.require_attachment === false) return true;
       }
-      // Check bill distribution cost codes
+      // Check bill distribution cost codes - if ANY allow bypass, then bypass is allowed
       if (needsDistribution && billDistribution.length > 0) {
-        return billDistribution.some(dist => {
+        const hasNonRequiredCode = billDistribution.some(dist => {
           const costCode = costCodes.find(c => c.id === dist.cost_code_id);
-          return costCode && costCode.require_attachment === false;
+          return costCode?.require_attachment === false;
         });
+        if (hasNonRequiredCode) return true;
       }
     } else {
-      // Non-commitment: check distribution items
-      return distributionItems.some(item => {
+      // Non-commitment: check distribution items - if ANY allow bypass, then bypass is allowed
+      const hasNonRequiredItem = distributionItems.some(item => {
         // Check expense account
         if (item.expense_account_id) {
           const account = expenseAccounts.find(a => a.id === item.expense_account_id);
-          if (account && account.require_attachment === false) return true;
+          if (account?.require_attachment === false) return true;
         }
         // Check cost code
         if (item.cost_code_id) {
           const codes = lineItemCostCodes[item.id] || [];
           const costCode = codes.find(c => c.id === item.cost_code_id);
-          if (costCode && costCode.require_attachment === false) return true;
+          if (costCode?.require_attachment === false) return true;
         }
         return false;
       });
+      if (hasNonRequiredItem) return true;
     }
     return false;
   };
@@ -2161,24 +2163,6 @@ export default function AddBill() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* No Attachment Needed Checkbox */}
-            {canBypassAttachment() && (
-              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                <Checkbox
-                  id="no_attachment_needed"
-                  checked={noAttachmentNeeded}
-                  onCheckedChange={(checked) => setNoAttachmentNeeded(!!checked)}
-                />
-                <div className="space-y-1">
-                  <Label htmlFor="no_attachment_needed" className="cursor-pointer font-medium">
-                    No attachment needed for this bill
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    The selected cost code or account allows bills without attachments
-                  </p>
-                </div>
-              </div>
-            )}
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'

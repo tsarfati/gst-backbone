@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Save, Loader2, Upload, FileText, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,7 @@ interface CostCode {
   job_id?: string;
   type?: string;
   is_dynamic_group?: boolean;
+  require_attachment?: boolean;
 }
 
 export default function BillEdit() {
@@ -49,6 +51,7 @@ export default function BillEdit() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [allCostCodes, setAllCostCodes] = useState<CostCode[]>([]);
+  const [expenseAccounts, setExpenseAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [subcontractInfo, setSubcontractInfo] = useState<any>(null);
@@ -172,8 +175,8 @@ export default function BillEdit() {
         }
       }
 
-      // Load vendors, jobs, and cost codes for current company only
-      const [vendorsData, jobsData, allCostCodesData] = await Promise.all([
+      // Load vendors, jobs, expense accounts, and cost codes for current company only
+      const [vendorsData, jobsData, expenseAccountsData, allCostCodesData] = await Promise.all([
         supabase
           .from('vendors')
           .select('id, name, vendor_type')
@@ -185,8 +188,15 @@ export default function BillEdit() {
           .eq('company_id', companyId)
           .order('name'),
         supabase
+          .from('chart_of_accounts')
+          .select('id, account_number, account_name, account_type, require_attachment')
+          .eq('company_id', companyId)
+          .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
+          .eq('is_active', true)
+          .order('account_number'),
+        supabase
           .from('cost_codes')
-          .select('id, code, description, job_id, type, is_dynamic_group')
+          .select('id, code, description, job_id, type, is_dynamic_group, require_attachment')
           .eq('company_id', companyId)
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
@@ -195,6 +205,7 @@ export default function BillEdit() {
 
       if (vendorsData.data) setVendors(vendorsData.data);
       if (jobsData.data) setJobs(jobsData.data);
+      if (expenseAccountsData.data) setExpenseAccounts(expenseAccountsData.data);
       
       // Load job data for PM approval settings
       if (typedBillData.job_id) {
@@ -429,8 +440,40 @@ export default function BillEdit() {
     if (files.length > 0) handleFileUpload(files);
   };
 
+  // Check if attachments can be bypassed based on selected account/code
+  const canBypassAttachment = () => {
+    // Check if selected cost code allows bypass
+    if (formData.cost_code_id) {
+      const selectedItem = costCodes.find(c => c.id === formData.cost_code_id) || 
+                           expenseAccounts.find(a => a.id === formData.cost_code_id);
+      if (selectedItem && selectedItem.require_attachment === false) return true;
+    }
+    
+    // Check bill distribution cost codes if commitment has multiple distributions
+    if (commitmentDistribution.length > 1 && billDistribution.length > 0) {
+      return billDistribution.some(dist => {
+        const costCode = allCostCodes.find(c => c.id === dist.cost_code_id);
+        return costCode && costCode.require_attachment === false;
+      });
+    }
+    
+    return false;
+  };
+
+  const attachmentRequired = !canBypassAttachment();
+
   const handleSave = async () => {
     try {
+      // Validate attachments if required
+      if (attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0) {
+        toast({
+          title: "Validation Error",
+          description: "At least one document is required for this bill",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Validate required fields for bills with distributions
       if (commitmentDistribution.length > 1) {
         // Multi-distribution bill - validate distribution
@@ -698,7 +741,7 @@ export default function BillEdit() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cost_code">
-                    Cost Code
+                    Job/Control
                     {formData.job_id && <span className="text-destructive ml-1">*</span>}
                   </Label>
                   <Select 
@@ -707,29 +750,55 @@ export default function BillEdit() {
                     disabled={!!subcontractInfo || !formData.job_id || commitmentDistribution.length === 1}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={formData.job_id ? "Select cost code (required)" : "Select job first"} />
+                      <SelectValue placeholder={formData.job_id ? "Select job/control (required)" : "Select job first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {costCodes.map((code) => (
-                        <SelectItem key={code.id} value={code.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{code.code} - {code.description}</span>
-                            {code.type && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-muted">
-                                {code.type === 'labor' ? 'Labor' : 
-                                 code.type === 'material' ? 'Material' : 
-                                 code.type === 'equipment' ? 'Equipment' : 
-                                 code.type === 'sub' ? 'Subcontractor' : 
-                                 code.type === 'other' ? 'Other' : code.type}
-                              </span>
-                            )}
+                      {/* Expense Accounts */}
+                      {expenseAccounts.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            Expense Accounts
                           </div>
-                        </SelectItem>
-                      ))}
+                          {expenseAccounts.map((account) => (
+                            <SelectItem key={`account-${account.id}`} value={account.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{account.account_number} - {account.account_name}</span>
+                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                  Account
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      {/* Cost Codes */}
+                      {costCodes.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            Cost Codes
+                          </div>
+                          {costCodes.map((code) => (
+                            <SelectItem key={`code-${code.id}`} value={code.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{code.code} - {code.description}</span>
+                                {code.type && (
+                                  <span className="text-xs px-2 py-0.5 rounded bg-muted">
+                                    {code.type === 'labor' ? 'Labor' : 
+                                     code.type === 'material' ? 'Material' : 
+                                     code.type === 'equipment' ? 'Equipment' : 
+                                     code.type === 'sub' ? 'Subcontractor' : 
+                                     code.type === 'other' ? 'Other' : code.type}
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                   {formData.job_id && !formData.cost_code_id && commitmentDistribution.length <= 1 && (
-                    <p className="text-sm text-destructive">Cost code is required when a job is selected</p>
+                    <p className="text-sm text-destructive">Job/control is required when a job is selected</p>
                   )}
                 </div>
               </div>
@@ -901,7 +970,10 @@ export default function BillEdit() {
         {/* Document Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Bill Documents</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Bill Documents
+              {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Existing documents */}
