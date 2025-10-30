@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Paperclip, FileText, X, ChevronsUpDown, Check, Search } from "lucide-react";
+import { Paperclip, FileText, X, ChevronsUpDown, Check, Search, ChevronDown, Upload } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
@@ -18,6 +18,7 @@ import QuickAddVendor from "@/components/QuickAddVendor";
 import { CreditCardMatchDetailsModal } from "@/components/CreditCardMatchDetailsModal";
 import { cn } from "@/lib/utils";
 import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +65,8 @@ export function CreditCardTransactionModal({
   const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
   const [postingToGL, setPostingToGL] = useState(false);
   const { postTransactionsToGL } = usePostCreditCardTransactions();
+  const [matchesCollapsed, setMatchesCollapsed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
 
 useEffect(() => {
@@ -1056,8 +1059,30 @@ useEffect(() => {
   };
 
   const handleAttachmentUpload = async (file: File) => {
+    // Validate file type
+    const acceptedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!acceptedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload an image (JPEG, PNG, GIF, WEBP) or PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (20MB limit)
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "File Too Large",
+        description: "File size must be less than 20MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       const fileName = `${currentCompany?.id}/${transactionId}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
@@ -1091,6 +1116,29 @@ useEffect(() => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleAttachmentUpload(files[0]);
     }
   };
   const handleSendMessage = async () => {
@@ -1391,138 +1439,151 @@ useEffect(() => {
           </div>
 
           {/* Suggested Matches */}
-          {showMatches && (
-            <div className="bg-amber-50 dark:bg-amber-950 border-2 border-amber-400 dark:border-amber-700 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ⚠️ Potential Matches
-                  </Label>
-                  <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
-                    {suggestedMatches.length > 0
-                      ? `${suggestedMatches.length} potential ${suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.`
-                      : 'No potential matches found for this transaction. You can refresh to try again.'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => fetchSuggestedMatches(transaction)}>
-                    Refresh
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={dismissMatches}>
-                    <X className="h-4 w-4 mr-1" />
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-
-              {suggestedMatches.length > 0 && (
-                <>
-                  <div className="space-y-3 mb-3">
-                    {suggestedMatches.slice(0, 5).map((match) => (
-                      <div
-                        key={`${match.type}-${match.id}`}
-                        className="bg-white dark:bg-gray-900 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors"
-                      >
-                        <div className="flex gap-4">
-                          {/* Attachment Preview */}
-                          {match.attachmentUrl && (
-                            <div className="flex-shrink-0">
-                              <div className="w-20 h-20 border rounded overflow-hidden bg-muted">
-                                {match.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
-                                  <div className="w-full h-full flex items-center justify-center">
-                                    <FileText className="h-8 w-8 text-muted-foreground" />
-                                  </div>
-                                ) : (
-                                  <img 
-                                    src={match.attachmentUrl} 
-                                    alt="Attachment preview"
-                                    className="w-full h-full object-cover"
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Match Details */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-medium text-sm">{match.display}</span>
-                              <Badge variant={
-                                match.type === "bill" ? "default" :
-                                match.type === "uncoded_receipt" ? "secondary" :
-                                match.type === "transaction" ? "default" :
-                                "outline"
-                              }>
-                                {match.type === "bill" ? "Bill" :
-                                 match.type === "uncoded_receipt" ? "Uncoded Receipt" :
-                                 match.type === "transaction" ? "Credit Card Charge" :
-                                 "Coded Receipt"}
-                              </Badge>
-                              {match.paidByThisCard && (
-                                <Badge variant="default" className="bg-green-600 dark:bg-green-700">
-                                  Paid by this card
-                                </Badge>
-                              )}
-                              <Badge 
-                                variant={
-                                  match.matchScore >= 95 ? "default" : 
-                                  match.matchScore >= 75 ? "secondary" : 
-                                  "outline"
-                                }
-                                className={
-                                  match.matchScore >= 95 ? "bg-green-600 dark:bg-green-700" :
-                                  match.matchScore >= 75 ? "bg-blue-600 dark:bg-blue-700" :
-                                  "bg-gray-500 dark:bg-gray-600"
-                                }
-                              >
-                                {Math.round(match.matchScore)}% match
-                              </Badge>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
-                              <div><span className="font-medium">Amount:</span> ${Number(match.amount).toLocaleString()}</div>
-                              <div><span className="font-medium">Date:</span> {new Date(match.date).toLocaleDateString()}</div>
-                              {match.vendor && <div><span className="font-medium">Vendor:</span> {match.vendor}</div>}
-                              {match.jobName && <div><span className="font-medium">Job:</span> {match.jobName}</div>}
-                              {match.costCode && <div className="col-span-2"><span className="font-medium">Cost Code:</span> {match.costCode}</div>}
-                            </div>
-                            
-                            {match.attachmentUrl && (
-                              <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                                <Check className="h-3 w-3" />
-                                <span>Attachment available</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Action Button */}
-                          <div className="flex-shrink-0 flex items-center">
-                            <Button
-                              size="sm"
-                              onClick={() => linkToMatch(match)}
-                              className="whitespace-nowrap"
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Select Match
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+          {showMatches && suggestedMatches.length === 0 ? null : showMatches && (
+            <Collapsible
+              open={!matchesCollapsed}
+              onOpenChange={(open) => setMatchesCollapsed(!open)}
+            >
+              <div className="bg-amber-50 dark:bg-amber-950 border-2 border-amber-400 dark:border-amber-700 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex-1">
+                    <CollapsibleTrigger className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                      <Label className="text-sm font-semibold text-amber-900 dark:text-amber-100 cursor-pointer">
+                        ⚠️ Potential Matches {suggestedMatches.length > 0 && `(${suggestedMatches.length})`}
+                      </Label>
+                      <ChevronDown className={cn(
+                        "h-4 w-4 text-amber-900 dark:text-amber-100 transition-transform",
+                        matchesCollapsed && "-rotate-90"
+                      )} />
+                    </CollapsibleTrigger>
+                    <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                      {suggestedMatches.length > 0
+                        ? `${suggestedMatches.length} potential ${suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.`
+                        : 'No potential matches found for this transaction. You can refresh to try again.'}
+                    </p>
                   </div>
-                  <div className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={dismissMatches}
-                    >
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => fetchSuggestedMatches(transaction)}>
+                      Refresh
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={dismissMatches}>
                       <X className="h-4 w-4 mr-1" />
-                      No Match - Dismiss All
+                      Dismiss
                     </Button>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
+
+                <CollapsibleContent>
+                  {suggestedMatches.length > 0 && (
+                    <>
+                      <div className="space-y-3 mb-3">
+                        {suggestedMatches.slice(0, 5).map((match) => (
+                          <div
+                            key={`${match.type}-${match.id}`}
+                            className="bg-white dark:bg-gray-900 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-primary transition-colors"
+                          >
+                            <div className="flex gap-4">
+                              {/* Attachment Preview */}
+                              {match.attachmentUrl && (
+                                <div className="flex-shrink-0">
+                                  <div className="w-20 h-20 border rounded overflow-hidden bg-muted">
+                                    {match.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <FileText className="h-8 w-8 text-muted-foreground" />
+                                      </div>
+                                    ) : (
+                                      <img 
+                                        src={match.attachmentUrl} 
+                                        alt="Attachment preview"
+                                        className="w-full h-full object-cover"
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Match Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-medium text-sm">{match.display}</span>
+                                  <Badge variant={
+                                    match.type === "bill" ? "default" :
+                                    match.type === "uncoded_receipt" ? "secondary" :
+                                    match.type === "transaction" ? "default" :
+                                    "outline"
+                                  }>
+                                    {match.type === "bill" ? "Bill" :
+                                     match.type === "uncoded_receipt" ? "Uncoded Receipt" :
+                                     match.type === "transaction" ? "Credit Card Charge" :
+                                     "Coded Receipt"}
+                                  </Badge>
+                                  {match.paidByThisCard && (
+                                    <Badge variant="default" className="bg-green-600 dark:bg-green-700">
+                                      Paid by this card
+                                    </Badge>
+                                  )}
+                                  <Badge 
+                                    variant={
+                                      match.matchScore >= 95 ? "default" : 
+                                      match.matchScore >= 75 ? "secondary" : 
+                                      "outline"
+                                    }
+                                    className={
+                                      match.matchScore >= 95 ? "bg-green-600 dark:bg-green-700" :
+                                      match.matchScore >= 75 ? "bg-blue-600 dark:bg-blue-700" :
+                                      "bg-gray-500 dark:bg-gray-600"
+                                    }
+                                  >
+                                    {Math.round(match.matchScore)}% match
+                                  </Badge>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                                  <div><span className="font-medium">Amount:</span> ${Number(match.amount).toLocaleString()}</div>
+                                  <div><span className="font-medium">Date:</span> {new Date(match.date).toLocaleDateString()}</div>
+                                  {match.vendor && <div><span className="font-medium">Vendor:</span> {match.vendor}</div>}
+                                  {match.jobName && <div><span className="font-medium">Job:</span> {match.jobName}</div>}
+                                  {match.costCode && <div className="col-span-2"><span className="font-medium">Cost Code:</span> {match.costCode}</div>}
+                                </div>
+                                
+                                {match.attachmentUrl && (
+                                  <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                                    <Check className="h-3 w-3" />
+                                    <span>Attachment available</span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Action Button */}
+                              <div className="flex-shrink-0 flex items-center">
+                                <Button
+                                  size="sm"
+                                  onClick={() => linkToMatch(match)}
+                                  className="whitespace-nowrap"
+                                >
+                                  <Check className="h-4 w-4 mr-1" />
+                                  Select Match
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={dismissMatches}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          No Match - Dismiss All
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
           )}
           {/* Vendor Selection - Not required for payments */}
           {transaction.transaction_type !== 'payment' && (
@@ -1866,23 +1927,56 @@ useEffect(() => {
                 )}
               </div>
             ) : (
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*,.pdf"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleAttachmentUpload(file);
-                  }}
-                />
-                <Button size="sm" variant="outline" asChild className="mt-2">
-                  <span>
-                    <Paperclip className="h-4 w-4 mr-2" />
-                    Upload Attachment
-                  </span>
-                </Button>
-              </label>
+              <div className="space-y-3 mt-2">
+                {/* Upload Button */}
+                <label className="cursor-pointer inline-block">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAttachmentUpload(file);
+                    }}
+                  />
+                  <Button size="sm" variant="outline" asChild>
+                    <span>
+                      <Paperclip className="h-4 w-4 mr-2" />
+                      Upload Attachment
+                    </span>
+                  </Button>
+                </label>
+
+                {/* Compact Drag & Drop Area */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  className={cn(
+                    "relative border-2 border-dashed rounded-lg p-4 transition-colors",
+                    isDragging 
+                      ? "border-primary bg-primary/5" 
+                      : "border-muted-foreground/25 hover:border-primary/50"
+                  )}
+                >
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className={cn(
+                      "p-2 rounded-full transition-colors",
+                      isDragging ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}>
+                      <Upload className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-muted-foreground">
+                        {isDragging ? "Drop file here" : "Drag & drop file here"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        PDF or images up to 20MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
