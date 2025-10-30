@@ -921,6 +921,56 @@ export type Database = {
           },
         ]
       }
+      credit_card_csv_formats: {
+        Row: {
+          amount_format: string
+          columns: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          date_format: string
+          delimiter: string
+          format_name: string
+          has_header: boolean
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_format?: string
+          columns: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          date_format?: string
+          delimiter?: string
+          format_name: string
+          has_header?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_format?: string
+          columns?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          date_format?: string
+          delimiter?: string
+          format_name?: string
+          has_header?: boolean
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_card_csv_formats_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_card_statements: {
         Row: {
           company_id: string
@@ -1228,6 +1278,7 @@ export type Database = {
           created_at: string
           created_by: string
           credit_limit: number | null
+          csv_format_id: string | null
           csv_import_count: number | null
           current_balance: number | null
           description: string | null
@@ -1250,6 +1301,7 @@ export type Database = {
           created_at?: string
           created_by: string
           credit_limit?: number | null
+          csv_format_id?: string | null
           csv_import_count?: number | null
           current_balance?: number | null
           description?: string | null
@@ -1272,6 +1324,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           credit_limit?: number | null
+          csv_format_id?: string | null
           csv_import_count?: number | null
           current_balance?: number | null
           description?: string | null

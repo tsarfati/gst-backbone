@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import CreditCardCsvFormatManager from '@/components/CreditCardCsvFormatManager';
 
 export default function CreditCardEdit() {
   const { id } = useParams();
@@ -334,6 +335,13 @@ export default function CreditCardEdit() {
             </div>
           </CardContent>
         </Card>
+
+        {/* CSV Format Manager */}
+        {id && (
+          <CreditCardCsvFormatManager 
+            creditCardId={id}
+          />
+        )}
 
         {/* Security Notice */}
         <Card className="bg-muted/30 border-primary/20">
