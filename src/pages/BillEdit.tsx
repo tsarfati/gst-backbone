@@ -727,99 +727,92 @@ export default function BillEdit() {
             {commitmentDistribution.length <= 1 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="job">Job</Label>
+                  <Label htmlFor="job_control">
+                    Job / Control
+                    <span className="text-destructive ml-1">*</span>
+                  </Label>
                   <Select 
-                    value={formData.job_id} 
-                    onValueChange={(value) => handleInputChange("job_id", value)}
+                    value={formData.job_id || formData.cost_code_id} 
+                    onValueChange={(value) => {
+                      const isJob = jobs.find(j => j.id === value);
+                      if (isJob) {
+                        handleInputChange("job_id", value);
+                        setFormData(prev => ({ ...prev, cost_code_id: '' }));
+                      } else {
+                        // It's an expense account - clear job and set as cost_code_id
+                        setFormData(prev => ({ ...prev, job_id: '', cost_code_id: value }));
+                      }
+                    }}
                     disabled={!!subcontractInfo || commitmentDistribution.length === 1}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a job" />
+                      <SelectValue placeholder="Select job or expense" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background z-50">
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
                       {jobs.map((job) => (
                         <SelectItem key={job.id} value={job.id}>
                           {job.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cost_code">
-                    Job/Control
-                    {formData.job_id && <span className="text-destructive ml-1">*</span>}
-                  </Label>
-                  <Select 
-                    value={formData.cost_code_id} 
-                    onValueChange={(value) => handleInputChange("cost_code_id", value)}
-                    disabled={!!subcontractInfo || commitmentDistribution.length === 1}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select job/control" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Show expense accounts when no job selected OR when job is selected */}
-                      {expenseAccounts.length > 0 && !formData.job_id && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                            Expense Accounts (No Job)
-                          </div>
-                          {expenseAccounts.map((account) => (
-                            <SelectItem key={`account-${account.id}`} value={account.id}>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
+                      {(() => {
+                        const filtered = expenseAccounts.filter((account) => {
+                          const match = String(account.account_number ?? '').match(/^\d+/);
+                          const num = match ? Number(match[0]) : NaN;
+                          const inRange = !Number.isNaN(num) && num >= 50000 && num <= 59000;
+                          return !inRange; // Exclude 50000-59000 from Job/Control menu
+                        });
+                        return filtered.length === 0 ? (
+                          <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts available</div>
+                        ) : (
+                          filtered.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
                               {account.account_number} - {account.account_name}
                             </SelectItem>
-                          ))}
-                        </>
-                      )}
-                      
-                      {/* Show expense accounts AND cost codes when job is selected */}
-                      {formData.job_id && (
-                        <>
-                          {expenseAccounts.length > 0 && (
-                            <>
-                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                Expense Accounts
-                              </div>
-                              {expenseAccounts.map((account) => (
-                                <SelectItem key={`account-${account.id}`} value={account.id}>
-                                  {account.account_number} - {account.account_name}
-                                </SelectItem>
-                              ))}
-                            </>
-                          )}
-                          
-                          {costCodes.length > 0 && (
-                            <>
-                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                Job Cost Codes
-                              </div>
-                              {costCodes.map((code) => (
-                                <SelectItem key={`code-${code.id}`} value={code.id}>
-                                  <div className="flex items-center gap-2">
-                                    <span>{code.code} - {code.description}</span>
-                                    {code.type && (
-                                      <span className="text-xs px-2 py-0.5 rounded bg-muted">
-                                        {code.type === 'labor' ? 'Labor' : 
-                                         code.type === 'material' ? 'Material' : 
-                                         code.type === 'equipment' ? 'Equipment' : 
-                                         code.type === 'sub' ? 'Subcontractor' : 
-                                         code.type === 'other' ? 'Other' : code.type}
-                                      </span>
-                                    )}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </>
-                          )}
-                        </>
-                      )}
+                          ))
+                        );
+                      })()}
                     </SelectContent>
                   </Select>
-                  {formData.job_id && !formData.cost_code_id && commitmentDistribution.length <= 1 && (
-                    <p className="text-sm text-destructive">Job/control is required when a job is selected</p>
-                  )}
                 </div>
+
+                {formData.job_id && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cost_code">Cost Code</Label>
+                    <Select 
+                      value={formData.cost_code_id} 
+                      onValueChange={(value) => handleInputChange("cost_code_id", value)}
+                      disabled={!!subcontractInfo || commitmentDistribution.length === 1}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select cost code" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        {costCodes.length > 0 ? (
+                          costCodes.map((code) => (
+                            <SelectItem key={code.id} value={code.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{code.code} - {code.description}</span>
+                                {code.type && (
+                                  <Badge variant="outline">
+                                    {code.type === 'labor' ? 'Labor' : 
+                                     code.type === 'material' ? 'Material' : 
+                                     code.type === 'equipment' ? 'Equipment' : 
+                                     code.type === 'sub' ? 'Subcontractor' : 
+                                     code.type === 'other' ? 'Other' : code.type}
+                                  </Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="px-2 py-2 text-sm text-muted-foreground">No cost codes available for this job</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
 
