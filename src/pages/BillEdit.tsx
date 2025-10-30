@@ -356,9 +356,10 @@ export default function BillEdit() {
     
     // Update cost codes when job, invoice type, or vendor changes
     if (field === 'job_id' || field === 'is_subcontract_invoice' || field === 'vendor_id') {
+      const jobId = field === 'job_id' ? value as string : formData.job_id;
       const filteredCodes = filterCostCodesByType(
         allCostCodes,
-        field === 'job_id' ? value as string : formData.job_id,
+        jobId,
         field === 'is_subcontract_invoice' ? value as boolean : formData.is_subcontract_invoice,
         bill?.purchase_order_id,
         field === 'vendor_id' ? value as string : formData.vendor_id
@@ -366,6 +367,11 @@ export default function BillEdit() {
       setCostCodes(filteredCodes);
       // Clear cost code selection if it's no longer valid
       if (formData.cost_code_id && !filteredCodes.find(cc => cc.id === formData.cost_code_id)) {
+        setFormData(prev => ({ ...prev, cost_code_id: '' }));
+      }
+      
+      // When job changes, also clear the cost_code_id to force reselection
+      if (field === 'job_id') {
         setFormData(prev => ({ ...prev, cost_code_id: '' }));
       }
     }
@@ -747,52 +753,65 @@ export default function BillEdit() {
                   <Select 
                     value={formData.cost_code_id} 
                     onValueChange={(value) => handleInputChange("cost_code_id", value)}
-                    disabled={!!subcontractInfo || !formData.job_id || commitmentDistribution.length === 1}
+                    disabled={!!subcontractInfo || commitmentDistribution.length === 1}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={formData.job_id ? "Select job/control (required)" : "Select job first"} />
+                      <SelectValue placeholder="Select job/control" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Expense Accounts */}
-                      {expenseAccounts.length > 0 && (
+                      {/* Show expense accounts when no job selected OR when job is selected */}
+                      {expenseAccounts.length > 0 && !formData.job_id && (
                         <>
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                            Expense Accounts
+                            Expense Accounts (No Job)
                           </div>
                           {expenseAccounts.map((account) => (
                             <SelectItem key={`account-${account.id}`} value={account.id}>
-                              <div className="flex items-center gap-2">
-                                <span>{account.account_number} - {account.account_name}</span>
-                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-                                  Account
-                                </span>
-                              </div>
+                              {account.account_number} - {account.account_name}
                             </SelectItem>
                           ))}
                         </>
                       )}
-                      {/* Cost Codes */}
-                      {costCodes.length > 0 && (
+                      
+                      {/* Show expense accounts AND cost codes when job is selected */}
+                      {formData.job_id && (
                         <>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                            Cost Codes
-                          </div>
-                          {costCodes.map((code) => (
-                            <SelectItem key={`code-${code.id}`} value={code.id}>
-                              <div className="flex items-center gap-2">
-                                <span>{code.code} - {code.description}</span>
-                                {code.type && (
-                                  <span className="text-xs px-2 py-0.5 rounded bg-muted">
-                                    {code.type === 'labor' ? 'Labor' : 
-                                     code.type === 'material' ? 'Material' : 
-                                     code.type === 'equipment' ? 'Equipment' : 
-                                     code.type === 'sub' ? 'Subcontractor' : 
-                                     code.type === 'other' ? 'Other' : code.type}
-                                  </span>
-                                )}
+                          {expenseAccounts.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                Expense Accounts
                               </div>
-                            </SelectItem>
-                          ))}
+                              {expenseAccounts.map((account) => (
+                                <SelectItem key={`account-${account.id}`} value={account.id}>
+                                  {account.account_number} - {account.account_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                          
+                          {costCodes.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                Job Cost Codes
+                              </div>
+                              {costCodes.map((code) => (
+                                <SelectItem key={`code-${code.id}`} value={code.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{code.code} - {code.description}</span>
+                                    {code.type && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-muted">
+                                        {code.type === 'labor' ? 'Labor' : 
+                                         code.type === 'material' ? 'Material' : 
+                                         code.type === 'equipment' ? 'Equipment' : 
+                                         code.type === 'sub' ? 'Subcontractor' : 
+                                         code.type === 'other' ? 'Other' : code.type}
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
                         </>
                       )}
                     </SelectContent>
