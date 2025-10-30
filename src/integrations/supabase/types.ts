@@ -2098,7 +2098,7 @@ export type Database = {
           invoice_number: string | null
           is_reimbursement: boolean
           is_subcontract_invoice: boolean
-          issue_date: string
+          issue_date: string | null
           job_id: string | null
           payment_terms: string | null
           pending_coding: boolean | null
@@ -2125,7 +2125,7 @@ export type Database = {
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
-          issue_date: string
+          issue_date?: string | null
           job_id?: string | null
           payment_terms?: string | null
           pending_coding?: boolean | null
@@ -2152,7 +2152,7 @@ export type Database = {
           invoice_number?: string | null
           is_reimbursement?: boolean
           is_subcontract_invoice?: boolean
-          issue_date?: string
+          issue_date?: string | null
           job_id?: string | null
           payment_terms?: string | null
           pending_coding?: boolean | null
