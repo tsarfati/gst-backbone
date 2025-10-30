@@ -367,7 +367,7 @@ export default function CreditCardTransactions() {
               }
               
               // Determine transaction type based on whether amount was negative
-              const transactionType = isNegative ? 'credit' : 'purchase';
+              const transactionType = isNegative ? 'refund' : 'purchase';
               
               parsedTransaction = {
                 credit_card_id: id,
