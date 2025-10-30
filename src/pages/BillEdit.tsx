@@ -317,12 +317,14 @@ export default function BillEdit() {
     let filtered = codes.filter(cc => !cc.job_id || cc.job_id === jobId);
     
     // Remove duplicates - prefer job-specific codes over company-level codes
+    // Group by code AND type to allow multiple types of the same code
     const codeMap = new Map<string, CostCode>();
     filtered.forEach(cc => {
-      const existing = codeMap.get(cc.code);
+      const key = `${cc.code}-${cc.type || 'null'}`;
+      const existing = codeMap.get(key);
       // If no existing or current has job_id and existing doesn't, use current
       if (!existing || (cc.job_id && !existing.job_id)) {
-        codeMap.set(cc.code, cc);
+        codeMap.set(key, cc);
       }
     });
     filtered = Array.from(codeMap.values());
