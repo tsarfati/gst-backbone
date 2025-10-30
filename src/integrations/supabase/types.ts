@@ -1054,6 +1054,7 @@ export type Database = {
           invoice_id: string | null
           is_reconciled: boolean | null
           job_id: string | null
+          journal_entry_id: string | null
           match_confirmed: boolean | null
           matched_bill_id: string | null
           matched_payment_id: string | null
@@ -1087,6 +1088,7 @@ export type Database = {
           invoice_id?: string | null
           is_reconciled?: boolean | null
           job_id?: string | null
+          journal_entry_id?: string | null
           match_confirmed?: boolean | null
           matched_bill_id?: string | null
           matched_payment_id?: string | null
@@ -1120,6 +1122,7 @@ export type Database = {
           invoice_id?: string | null
           is_reconciled?: boolean | null
           job_id?: string | null
+          journal_entry_id?: string | null
           match_confirmed?: boolean | null
           matched_bill_id?: string | null
           matched_payment_id?: string | null
@@ -1190,6 +1193,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_card_transactions_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
           {

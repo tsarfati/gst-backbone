@@ -17,6 +17,7 @@ import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import QuickAddVendor from "@/components/QuickAddVendor";
 import { CreditCardMatchDetailsModal } from "@/components/CreditCardMatchDetailsModal";
 import { cn } from "@/lib/utils";
+import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +62,8 @@ export function CreditCardTransactionModal({
   const [showMatches, setShowMatches] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [matchDetailsOpen, setMatchDetailsOpen] = useState(false);
+  const [postingToGL, setPostingToGL] = useState(false);
+  const { postTransactionsToGL } = usePostCreditCardTransactions();
 
 
 useEffect(() => {
@@ -1161,6 +1164,62 @@ useEffect(() => {
     }
   };
 
+  const handlePostToGL = async () => {
+    if (!user?.id || !transaction) return;
+
+    // Validate transaction is coded
+    if (transaction.coding_status !== 'coded') {
+      toast({
+        title: "Cannot Post",
+        description: "Transaction must be fully coded before posting to GL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if already posted
+    if (transaction.journal_entry_id) {
+      toast({
+        title: "Already Posted",
+        description: "This transaction has already been posted to GL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPostingToGL(true);
+    try {
+      const { posted, errors } = await postTransactionsToGL([transactionId], user.id);
+
+      if (posted.length > 0) {
+        toast({
+          title: "Success",
+          description: "Transaction posted to General Ledger",
+        });
+        
+        // Refresh transaction data
+        await fetchData();
+        onComplete();
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "Error",
+          description: errors[0],
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setPostingToGL(false);
+    }
+  };
+
   const handleRequestCoding = async () => {
     if (selectedCoders.length === 0) {
       toast({
@@ -1895,13 +1954,26 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            <Button onClick={handleMarkComplete}>
-              Save
-            </Button>
+          <div className="flex justify-between gap-2 pt-4 border-t">
+            <div>
+              {transaction?.coding_status === 'coded' && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment' && (
+                <Button
+                  variant="default"
+                  onClick={handlePostToGL}
+                  disabled={postingToGL}
+                >
+                  {postingToGL ? "Posting..." : "Post to GL"}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              <Button onClick={handleMarkComplete}>
+                Save
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

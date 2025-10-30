@@ -12,9 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil, Trash2, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -43,6 +44,8 @@ export default function CreditCardTransactions() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [postingToGL, setPostingToGL] = useState(false);
+  const { postTransactionsToGL } = usePostCreditCardTransactions();
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -602,8 +605,65 @@ export default function CreditCardTransactions() {
     }
   };
 
+  const handlePostToGL = async (transactionIds: string[]) => {
+    if (!user?.id || transactionIds.length === 0) return;
+
+    setPostingToGL(true);
+    try {
+      const { posted, errors } = await postTransactionsToGL(transactionIds, user.id);
+
+      if (posted.length > 0) {
+        toast({
+          title: "Success",
+          description: `Posted ${posted.length} transaction${posted.length > 1 ? 's' : ''} to GL`,
+        });
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: "Some Transactions Failed",
+          description: errors.slice(0, 3).join(", ") + (errors.length > 3 ? "..." : ""),
+          variant: "destructive",
+        });
+      }
+
+      setSelectedTransactions(new Set());
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setPostingToGL(false);
+    }
+  };
+
+  const handlePostAllCoded = async () => {
+    const codedNotPosted = transactions
+      .filter(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment')
+      .map(t => t.id);
+
+    if (codedNotPosted.length === 0) {
+      toast({
+        title: "No Transactions",
+        description: "No coded transactions to post",
+      });
+      return;
+    }
+
+    await handlePostToGL(codedNotPosted);
+  };
+
   const getStatusBadge = (t: any) => {
     const badges: JSX.Element[] = [];
+
+    // Check if posted to GL
+    if (t.journal_entry_id) {
+      badges.push(<Badge className="bg-blue-500 text-white" key="posted">Posted</Badge>);
+      return <div className="flex items-center gap-1">{badges}</div>;
+    }
 
     // For payments: show reconciliation status only
     if (t.transaction_type === 'payment') {
@@ -801,6 +861,15 @@ export default function CreditCardTransactions() {
                   Clear Selection
                 </Button>
                 <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => handlePostToGL(Array.from(selectedTransactions))}
+                  disabled={postingToGL}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  {postingToGL ? "Posting..." : "Post to GL"}
+                </Button>
+                <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => setShowBulkDeleteDialog(true)}
@@ -809,6 +878,31 @@ export default function CreditCardTransactions() {
                   Delete Selected
                 </Button>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Post All Coded Button */}
+      {transactions.some(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment') && (
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Ready to Post</p>
+                <p className="text-xs text-muted-foreground">
+                  {transactions.filter(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment').length} coded transaction(s) can be posted to GL
+                </p>
+              </div>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handlePostAllCoded}
+                disabled={postingToGL}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {postingToGL ? "Posting..." : "Post All Coded"}
+              </Button>
             </div>
           </CardContent>
         </Card>
