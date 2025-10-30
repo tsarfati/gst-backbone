@@ -179,7 +179,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*')
+        .select('id, code, description, job_id, type, is_dynamic_group, require_attachment, parent_cost_code_id')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
@@ -198,7 +198,7 @@ export default function AddBill() {
     try {
       const { data } = await supabase
         .from('cost_codes')
-        .select('*')
+        .select('id, code, description, job_id, type, is_dynamic_group, require_attachment, parent_cost_code_id')
         .eq('job_id', jobId)
         .eq('is_active', true)
         .eq('is_dynamic_group', false);
