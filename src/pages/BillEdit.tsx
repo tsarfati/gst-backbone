@@ -477,7 +477,7 @@ export default function BillEdit() {
 
   const attachmentRequired = !canBypassAttachment();
 
-  const handleSave = async () => {
+  const handleSave = async (overrideStatus?: string) => {
     try {
       // Validate attachments if required
       if (attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0) {
@@ -524,10 +524,12 @@ export default function BillEdit() {
 
       setSaving(true);
 
-      // Determine new status - if bill is pending_coding and now has job + cost code, move to pending_approval
-      let newStatus = bill?.status;
+      // Determine new status - if override is provided, use it
+      let newStatus = overrideStatus || bill?.status;
       let clearPendingCoding = false;
-      if (bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
+      
+      // If bill is pending_coding and now has job + cost code, move to pending_approval
+      if (!overrideStatus && bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
         newStatus = 'pending_approval';
         clearPendingCoding = true;
       }
@@ -680,14 +682,26 @@ export default function BillEdit() {
             </p>
           </div>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => handleSave()} disabled={saving}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save Changes
+          </Button>
+          {bill?.status === 'draft' && (
+            <Button onClick={() => handleSave('pending_approval')} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Send for Approval
+            </Button>
           )}
-          Save Changes
-        </Button>
+        </div>
       </div>
 
       {/* Form */}
