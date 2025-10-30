@@ -777,6 +777,129 @@ export default function AddBill() {
     }
   };
 
+  const handleSaveAsDraft = async () => {
+    if (!formData.vendor_id) {
+      toast({
+        title: "Vendor required",
+        description: "Please select a vendor to save as draft",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to save a draft",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const companyId = currentCompany?.id || profile?.current_company_id;
+      const { data: namingSettings } = await supabase
+        .from('file_upload_settings')
+        .select('bill_naming_pattern')
+        .eq('company_id', companyId)
+        .single();
+
+      // Create the draft invoice
+      const { data: inserted, error } = await supabase
+        .from('invoices')
+        .insert({
+          vendor_id: formData.vendor_id,
+          job_id: formData.job_id || null,
+          cost_code_id: formData.cost_code_id || null,
+          subcontract_id: formData.subcontract_id || null,
+          purchase_order_id: formData.purchase_order_id || null,
+          amount: parseFloat(formData.amount || '0') || 0,
+          invoice_number: formData.invoice_number || null,
+          issue_date: formData.issueDate || null,
+          due_date: formData.dueDate || null,
+          payment_terms: formData.payment_terms || null,
+          description: formData.description || null,
+          internal_notes: formData.internal_notes || null,
+          is_subcontract_invoice: formData.is_subcontract_invoice,
+          is_reimbursement: formData.is_reimbursement,
+          file_url: attachedReceipt?.file_url || null,
+          created_by: user.data.user.id,
+          pending_coding: false,
+          status: 'draft'
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      const invoiceId = inserted.id;
+
+      // Upload bill files
+      if (billFiles.length > 0) {
+        for (const file of billFiles) {
+          const fileExt = file.name.split('.').pop();
+          let displayName = file.name;
+          
+          if (namingSettings?.bill_naming_pattern) {
+            const vendor = vendors.find(v => v.id === formData.vendor_id);
+            const job = jobs.find(j => j.id === formData.job_id);
+            const dateStr = formData.issueDate || new Date().toISOString().split('T')[0];
+            
+            displayName = namingSettings.bill_naming_pattern
+              .replace('{vendor}', vendor?.name || 'Unknown')
+              .replace('{invoice_number}', formData.invoice_number || 'NoInvoiceNum')
+              .replace('{date}', dateStr)
+              .replace('{amount}', parseFloat(formData.amount || '0').toFixed(2))
+              .replace('{job}', job?.name || 'NoJob')
+              .replace('{original_filename}', file.name.replace(/\.[^/.]+$/, ''))
+              + '.' + fileExt;
+          }
+          
+          const storageFileName = `${companyId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('receipts')
+            .upload(storageFileName, file);
+
+          if (uploadError) {
+            console.error('Error uploading bill file:', uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('receipts')
+            .getPublicUrl(storageFileName);
+
+          await supabase.from('invoice_documents').insert({
+            invoice_id: invoiceId,
+            file_url: publicUrl,
+            file_name: displayName,
+            file_type: file.type,
+            file_size: file.size,
+            uploaded_by: user.data.user.id
+          });
+        }
+      }
+
+      // Save distribution items if any (skip for MVP - can be added later if needed)
+      
+      toast({
+        title: "Draft saved",
+        description: "Bill saved as draft. You can continue editing it later.",
+      });
+      
+      navigate("/invoices");
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save draft",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -2272,6 +2395,9 @@ export default function AddBill() {
           <Button type="submit" disabled={!isFormValid}>
             <FileText className="h-4 w-4 mr-2" />
             {formData.request_pm_help ? "Add Bill & Request Help" : "Add Bill"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleSaveAsDraft}>
+            Save as Draft
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
             Cancel

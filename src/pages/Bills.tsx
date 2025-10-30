@@ -61,6 +61,8 @@ const getStatusVariant = (status: string) => {
       return "warning"; // Orange for awaiting payment
     case "overdue":
       return "destructive";
+    case "draft":
+      return "outline";
     default:
       return "default";
   }
@@ -82,6 +84,8 @@ const getStatusDisplayName = (status: string) => {
       return "Paid";
     case "overdue":
       return "Overdue";
+    case "draft":
+      return "Draft";
     default:
       return status;
   }
