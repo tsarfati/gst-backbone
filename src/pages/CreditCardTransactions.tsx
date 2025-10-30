@@ -12,8 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil } from "lucide-react";
+import { ArrowLeft, Upload, Plus, Smile, Frown, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Papa from "papaparse";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -40,6 +41,8 @@ export default function CreditCardTransactions() {
   const [matchedReceipts, setMatchedReceipts] = useState<Map<string, any[]>>(new Map());
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -553,6 +556,52 @@ export default function CreditCardTransactions() {
     setShowDetailModal(true);
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTransactions(new Set(transactions.map(t => t.id)));
+    } else {
+      setSelectedTransactions(new Set());
+    }
+  };
+
+  const handleSelectTransaction = (transactionId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTransactions);
+    if (checked) {
+      newSelected.add(transactionId);
+    } else {
+      newSelected.delete(transactionId);
+    }
+    setSelectedTransactions(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTransactions.size === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from("credit_card_transactions")
+        .delete()
+        .in("id", Array.from(selectedTransactions));
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Deleted ${selectedTransactions.size} transaction${selectedTransactions.size > 1 ? 's' : ''}`,
+      });
+
+      setSelectedTransactions(new Set());
+      setShowBulkDeleteDialog(false);
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusBadge = (t: any) => {
     const badges: JSX.Element[] = [];
 
@@ -736,6 +785,35 @@ export default function CreditCardTransactions() {
         </div>
       </div>
 
+      {selectedTransactions.size > 0 && (
+        <Card className="bg-primary/5 border-primary">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">
+                {selectedTransactions.size} transaction{selectedTransactions.size > 1 ? 's' : ''} selected
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedTransactions(new Set())}
+                >
+                  Clear Selection
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
@@ -744,6 +822,12 @@ export default function CreditCardTransactions() {
           <Table className="border-separate border-spacing-0">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={transactions.length > 0 && selectedTransactions.size === transactions.length}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Amount</TableHead>
@@ -755,7 +839,7 @@ export default function CreditCardTransactions() {
             <TableBody>
               {transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No transactions found. Import a CSV or add transactions manually.
                   </TableCell>
                 </TableRow>
@@ -763,13 +847,27 @@ export default function CreditCardTransactions() {
                 transactions.map((trans) => (
                   <TableRow 
                     key={trans.id} 
-                    onClick={() => openTransactionDetail(trans.id)}
-                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
+                    className="group hover:bg-primary/5 transition-colors"
                   >
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">
+                    <TableCell 
+                      className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedTransactions.has(trans.id)}
+                        onCheckedChange={(checked) => handleSelectTransaction(trans.id, checked as boolean)}
+                      />
+                    </TableCell>
+                    <TableCell 
+                      className="border-y border-transparent group-hover:border-primary cursor-pointer"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell 
+                      className="border-y border-transparent group-hover:border-primary cursor-pointer"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
@@ -777,7 +875,10 @@ export default function CreditCardTransactions() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell 
+                      className="font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {trans.transaction_type === 'payment' || trans.amount < 0 
                           ? `${formatCurrency(Math.abs(trans.amount))}`
@@ -785,10 +886,16 @@ export default function CreditCardTransactions() {
                         }
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell 
+                      className="text-right font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
-                    <TableCell className="text-center border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell 
+                      className="text-center border-y border-transparent group-hover:border-primary cursor-pointer"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       {(() => {
                         const hasVendor = !!trans.vendor_id;
                         const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
@@ -811,7 +918,10 @@ export default function CreditCardTransactions() {
                         return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
-                    <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                    <TableCell 
+                      className="border-y border-transparent group-hover:border-primary cursor-pointer last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg"
+                      onClick={() => openTransactionDetail(trans.id)}
+                    >
                       {getStatusBadge(trans)}
                     </TableCell>
                   </TableRow>
@@ -832,6 +942,24 @@ export default function CreditCardTransactions() {
           initialMatches={matchedReceipts.get(selectedTransactionId) || []}
         />
       )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transactions</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedTransactions.size} transaction{selectedTransactions.size > 1 ? 's' : ''}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
