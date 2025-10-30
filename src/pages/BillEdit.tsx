@@ -335,16 +335,18 @@ export default function BillEdit() {
     // Filter by vendor type
     if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
       // For subcontractors/design professionals, only show sub, other, or labor cost codes
-      filtered = filtered.filter(cc => cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
+      // Also allow NULL types (treat as 'other')
+      filtered = filtered.filter(cc => !cc.type || cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');
     } else {
       // Filter by type based on invoice type for other vendors
       if (isSubcontract) {
-        filtered = filtered.filter(cc => cc.type === 'sub');
+        filtered = filtered.filter(cc => !cc.type || cc.type === 'sub');
       } else if (purchaseOrderId) {
-        filtered = filtered.filter(cc => cc.type === 'material');
+        filtered = filtered.filter(cc => !cc.type || cc.type === 'material');
       } else {
         // For non-commitment bills from non-subcontractor vendors, exclude sub type
-        filtered = filtered.filter(cc => cc.type !== 'sub');
+        // Allow NULL types (treat as valid)
+        filtered = filtered.filter(cc => !cc.type || cc.type !== 'sub');
       }
     }
     
