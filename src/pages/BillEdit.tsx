@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Loader2, Upload, FileText, X } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -972,10 +972,20 @@ export default function BillEdit() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Bill Documents
-              {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
+              {attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0 && (
+                <Badge variant="destructive" className="text-xs">Required</Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Show info message when attachments are not required */}
+            {!attachmentRequired && (existingDocuments.length > 0 || billFiles.length > 0 || true) && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <FileText className="h-4 w-4" />
+                <span>Attachments are optional for the selected cost code/account</span>
+              </div>
+            )}
+            
             {/* Existing documents */}
             {existingDocuments.length > 0 && (
               <div className="space-y-3">
@@ -1050,7 +1060,19 @@ export default function BillEdit() {
 
             {/* Upload area */}
             <div>
-              <Label>Upload Additional Documents</Label>
+              {attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0 && (
+                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <span>At least one document is required</span>
+                </div>
+              )}
+              <Label>
+                {existingDocuments.length > 0 || billFiles.length > 0 
+                  ? 'Upload Additional Documents' 
+                  : attachmentRequired 
+                    ? 'Upload Documents *' 
+                    : 'Upload Documents (Optional)'}
+              </Label>
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
