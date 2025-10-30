@@ -1064,25 +1064,25 @@ export default function CreditCardTransactions() {
                       className="text-center border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
-                      {(() => {
+                    {(() => {
+                        const hasAttachment = !!trans.attachment_url;
+                        const bypass = !!trans.bypass_attachment_requirement;
                         const hasVendor = !!trans.vendor_id;
                         const hasJobOrAccount = !!trans.job_id || !!trans.chart_account_id;
                         const hasCostCode = trans.job_id ? !!trans.cost_code_id : true;
-                        const hasAttachment = !!trans.attachment_url;
-                        const bypass = !!trans.bypass_attachment_requirement;
-                        const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
+                        const coded = hasVendor && hasJobOrAccount && hasCostCode;
                         
-                        // Show smiley if coded with attachment
-                        if (coded && hasAttachment) {
+                        // Show smiley if attachment exists (regardless of coding status)
+                        if (hasAttachment) {
                           return <Smile className="h-5 w-5 text-green-500 inline-block" />;
                         }
                         
-                        // Show sad face ONLY if coded without attachment (bypass was used)
+                        // Show sad face if coded without attachment (bypass was used)
                         if (coded && !hasAttachment && bypass) {
                           return <Frown className="h-5 w-5 text-amber-500 inline-block" />;
                         }
                         
-                        // Show nothing for uncoded transactions
+                        // Show nothing for uncoded transactions without attachment
                         return <span className="text-muted-foreground">-</span>;
                       })()}
                     </TableCell>
