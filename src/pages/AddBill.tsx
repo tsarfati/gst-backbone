@@ -1340,7 +1340,7 @@ export default function AddBill() {
     return false;
   };
 
-  const attachmentRequired = !noAttachmentNeeded || !canBypassAttachment();
+  const attachmentRequired = !(noAttachmentNeeded && canBypassAttachment());
 
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
