@@ -262,13 +262,14 @@ useEffect(() => {
 
        setExpenseAccounts(expenseAccountsData || []);
  
-       // Fetch cost codes - ordered by code ascending
+       // Fetch cost codes - ordered by code ascending (only company-wide, not job-specific)
        const { data: costCodesData } = await supabase
          .from("cost_codes")
          .select("*")
          .eq("company_id", currentCompany?.id)
          .eq("is_active", true)
          .eq("is_dynamic_group", false)
+         .is("job_id", null)
          .order("code", { ascending: true });
  
        const uniqueAll = Array.from(new Map((costCodesData || []).map((cc: any) => [cc.id, cc])).values());

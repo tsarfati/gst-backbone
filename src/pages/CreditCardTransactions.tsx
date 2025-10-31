@@ -113,12 +113,13 @@ export default function CreditCardTransactions() {
 
       setJobs(jobsData || []);
 
-      // Fetch cost codes
+      // Fetch cost codes (company-wide only, job-specific codes are handled separately)
       const { data: costCodesData } = await supabase
         .from("cost_codes")
         .select("*")
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true)
+        .is("job_id", null)
         .order("code");
 
       setCostCodes(costCodesData || []);
