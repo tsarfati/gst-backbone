@@ -683,6 +683,7 @@ export type Database = {
           payment_terms_options: string[]
           require_bill_approval: boolean
           updated_at: string
+          use_accrual_accounting: boolean
         }
         Insert: {
           company_id: string
@@ -691,6 +692,7 @@ export type Database = {
           payment_terms_options?: string[]
           require_bill_approval?: boolean
           updated_at?: string
+          use_accrual_accounting?: boolean
         }
         Update: {
           company_id?: string
@@ -699,6 +701,7 @@ export type Database = {
           payment_terms_options?: string[]
           require_bill_approval?: boolean
           updated_at?: string
+          use_accrual_accounting?: boolean
         }
         Relationships: []
       }

@@ -15,6 +15,7 @@ import JobCostSetup from '@/pages/JobCostSetup';
 import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
 import ThemeSettings from '@/pages/ThemeSettings';
 import PunchClockSettings from '@/pages/PunchClockSettings';
+import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
 
 export default function CompanySettingsPage() {
   const { settings, updateSettings } = useSettings();
@@ -155,6 +156,8 @@ export default function CompanySettingsPage() {
 
           <TabsContent value="banking">
             <div className="space-y-6">
+              <AccrualAccountingSettings />
+
               <Card>
                 <CardHeader>
                   <CardTitle>Chart of Accounts</CardTitle>
