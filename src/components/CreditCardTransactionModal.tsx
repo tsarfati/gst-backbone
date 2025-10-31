@@ -1338,27 +1338,28 @@ useEffect(() => {
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
     
-    // Deduplicate cost codes by code+description, prioritizing job-specific and non-"other" types
-    const seen = new Map();
+    // Deduplicate by code + description + type so Labor/Material/etc all show separately
+    const seen = new Map<string, any>();
     
     jobCostCodes
       .filter(Boolean)
       .forEach((cc: any) => {
-        const key = `${cc.code}-${cc.description}`;
+        const key = `${cc.code}-${cc.description}-${cc.type || 'other'}`;
         const existing = seen.get(key);
         
         if (!existing) {
           seen.set(key, cc);
         } else {
-          // Prefer job-specific cost codes over company-wide
+          // Prefer entries with explicit type over missing type and job-specific over generic
+          const hasType = !!cc.type && cc.type !== 'other';
+          const existingHasType = !!existing.type && existing.type !== 'other';
           const hasJobId = cc.job_id != null;
           const existingHasJobId = existing.job_id != null;
           
           if (hasJobId && !existingHasJobId) {
             seen.set(key, cc);
           } else if (hasJobId === existingHasJobId) {
-            // If both or neither have job_id, prefer non-"other" type
-            if (cc.type !== 'other' && existing.type === 'other') {
+            if (hasType && !existingHasType) {
               seen.set(key, cc);
             }
           }
