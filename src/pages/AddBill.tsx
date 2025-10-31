@@ -1362,10 +1362,10 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && (attachmentRequired ? billFiles.length > 0 : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
-      (formData.request_pm_help || formData.cost_code_id || (needsDistribution && billDistribution.length > 0)) // Either requesting help, has cost code, or has valid distribution
+      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0) || formData.request_pm_help) // Has cost code, valid distribution, or requesting help
     : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
-      (formData.request_pm_help || isDistributionValid()); // Either requesting help or valid distribution
+      (isDistributionValid() || formData.request_pm_help); // Valid distribution or requesting help
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
