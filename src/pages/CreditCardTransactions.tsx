@@ -923,7 +923,12 @@ export default function CreditCardTransactions() {
                   variant="default"
                   size="sm"
                   onClick={() => handlePostToGL(Array.from(selectedTransactions))}
-                  disabled={postingToGL}
+                  disabled={
+                    postingToGL || 
+                    !Array.from(selectedTransactions).every(id => 
+                      transactions.find(t => t.id === id)?.coding_status === 'coded'
+                    )
+                  }
                 >
                   <Send className="h-4 w-4 mr-2" />
                   {postingToGL ? "Posting..." : "Post to GL"}
