@@ -26,6 +26,16 @@ export interface ReportData {
     overtimeHours: number;
     totalHours: number;
   };
+  filters?: {
+    employeeNames?: string[];
+    groupNames?: string[];
+    jobNames?: string[];
+    locations?: string[];
+    statuses?: string[];
+    hasNotes?: boolean;
+    hasOvertime?: boolean;
+    showDeleted?: boolean;
+  };
 }
 
 interface PdfTemplate {
@@ -192,8 +202,55 @@ export class PDFExporter {
       yPos = 120;
     }
 
-    // Employee info if provided - modern rounded container
-    if (reportData.employee) {
+    // Active Filters Section
+    if (reportData.filters) {
+      const filters = reportData.filters;
+      const filterLines: string[] = [];
+      
+      if (filters.employeeNames && filters.employeeNames.length > 0) {
+        filterLines.push(`Employees: ${filters.employeeNames.join(', ')}`);
+      }
+      if (filters.groupNames && filters.groupNames.length > 0) {
+        filterLines.push(`Groups: ${filters.groupNames.join(', ')}`);
+      }
+      if (filters.jobNames && filters.jobNames.length > 0) {
+        filterLines.push(`Jobs: ${filters.jobNames.join(', ')}`);
+      }
+      if (filters.locations && filters.locations.length > 0) {
+        filterLines.push(`Locations: ${filters.locations.join(', ')}`);
+      }
+      if (filters.statuses && filters.statuses.length > 0) {
+        filterLines.push(`Status: ${filters.statuses.join(', ')}`);
+      }
+      if (filters.hasNotes) filterLines.push('Only records with notes');
+      if (filters.hasOvertime) filterLines.push('Only records with overtime');
+      if (filters.showDeleted) filterLines.push('Including deleted records');
+
+      if (filterLines.length > 0) {
+        // Calculate required height based on number of filter lines
+        const lineHeight = 14;
+        const boxHeight = 28 + (filterLines.length - 1) * lineHeight;
+        
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(20, yPos, pageWidth - 40, boxHeight, 6, 6, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Active Filters:', 32, yPos + 18);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+        filterLines.forEach((line, index) => {
+          doc.text(line, 32, yPos + 32 + (index * lineHeight));
+        });
+        
+        yPos += boxHeight + 12;
+      }
+    }
+
+    // Employee info if provided - modern rounded container (legacy single employee display)
+    if (reportData.employee && !reportData.filters?.employeeNames) {
       doc.setFillColor(241, 245, 249);
       doc.roundedRect(20, yPos, pageWidth - 40, 28, 6, 6, 'F');
       doc.setTextColor(15, 23, 42);
@@ -423,6 +480,49 @@ export class PDFExporter {
         const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
         doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
         yPos = 120;
+      }
+
+      // Active Filters Section (show on first employee only)
+      if (isFirstEmployee && reportData.filters) {
+        const filters = reportData.filters;
+        const filterLines: string[] = [];
+        
+        if (filters.groupNames && filters.groupNames.length > 0) {
+          filterLines.push(`Groups: ${filters.groupNames.join(', ')}`);
+        }
+        if (filters.jobNames && filters.jobNames.length > 0) {
+          filterLines.push(`Jobs: ${filters.jobNames.join(', ')}`);
+        }
+        if (filters.locations && filters.locations.length > 0) {
+          filterLines.push(`Locations: ${filters.locations.join(', ')}`);
+        }
+        if (filters.statuses && filters.statuses.length > 0) {
+          filterLines.push(`Status: ${filters.statuses.join(', ')}`);
+        }
+        if (filters.hasNotes) filterLines.push('Only records with notes');
+        if (filters.hasOvertime) filterLines.push('Only records with overtime');
+        if (filters.showDeleted) filterLines.push('Including deleted records');
+
+        if (filterLines.length > 0) {
+          const lineHeight = 14;
+          const boxHeight = 28 + (filterLines.length - 1) * lineHeight;
+          
+          doc.setFillColor(241, 245, 249);
+          doc.roundedRect(20, yPos, pageWidth - 40, boxHeight, 6, 6, 'F');
+          doc.setTextColor(15, 23, 42);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Active Filters:', 32, yPos + 18);
+          
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(71, 85, 105);
+          filterLines.forEach((line, index) => {
+            doc.text(line, 32, yPos + 32 + (index * lineHeight));
+          });
+          
+          yPos += boxHeight + 12;
+        }
       }
 
       // Employee badge/container

@@ -832,6 +832,32 @@ export default function TimecardReports() {
     }
 
     try {
+      // Build filter details for PDF
+      const filterDetails = {
+        employeeNames: filters.employees.length > 0 
+          ? filters.employees.map(empId => 
+              employees.find(e => e.user_id === empId)?.display_name || 'Unknown'
+            )
+          : undefined,
+        groupNames: filters.groups.length > 0
+          ? filters.groups.map(groupId =>
+              groups.find(g => g.id === groupId)?.name || 'Unknown'
+            )
+          : undefined,
+        jobNames: filters.jobs.length > 0
+          ? filters.jobs.map(jobId =>
+              jobs.find(j => j.id === jobId)?.name || 'Unknown'
+            )
+          : undefined,
+        locations: filters.locations.length > 0 ? filters.locations : undefined,
+        statuses: filters.status.length > 0 
+          ? filters.status.map(s => s.charAt(0).toUpperCase() + s.slice(1))
+          : undefined,
+        hasNotes: filters.hasNotes || undefined,
+        hasOvertime: filters.hasOvertime || undefined,
+        showDeleted: filters.showDeleted || undefined,
+      };
+
       const reportData: ReportData = {
         title: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Timecard Report`,
         dateRange: filters.startDate && filters.endDate 
@@ -846,7 +872,8 @@ export default function TimecardReports() {
           totalHours: summary.totalHours,
           overtimeHours: summary.totalOvertimeHours,
           regularHours: summary.totalRegularHours
-        }
+        },
+        filters: filterDetails
       };
 
       await exportTimecardToPDF(reportData, company, currentCompany?.id);
