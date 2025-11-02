@@ -319,10 +319,16 @@ export class PDFExporter {
     });
 
     const employeeNames = Object.keys(byEmployee);
+    let isFirstEmployee = true;
+    
     for (let idx = 0; idx < employeeNames.length; idx++) {
       const employeeName = employeeNames[idx];
       const rows = byEmployee[employeeName];
-      if (idx > 0) doc.addPage();
+      
+      // Add a page before each employee (except the first)
+      if (!isFirstEmployee) {
+        doc.addPage();
+      }
 
       let yPos = 32;
 
@@ -464,14 +470,31 @@ export class PDFExporter {
         },
         alternateRowStyles: { fillColor: stripeColor },
         styles: { overflow: 'ellipsize', font: fontFamily },
-        didDrawPage: () => {
+        margin: { top: 60, bottom: 30 },
+        showHead: 'everyPage',
+        didDrawPage: (data: any) => {
+          // Re-render header on each new page
+          const currentPage = doc.getCurrentPageInfo().pageNumber;
+          
+          // Only render header if we're on a continuation page for this employee
+          if (data.pageNumber > 1 && data.pageCount > 1) {
+            // Render minimal header on continuation pages
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(20, 20, pageWidth - 40, 35, 8, 8, 'F');
+            doc.setTextColor(15, 23, 42);
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${employeeName} (continued)`, 32, 40);
+          }
+          
+          // Render footer
           if (this.template?.footer_html) {
             this.renderHtmlFooter(doc, this.template.footer_html, { ...reportData, employee: employeeName }, pageHeight - 30, pageWidth);
           } else {
             doc.setFontSize(8);
             doc.setTextColor(148, 163, 184);
             doc.text(
-              `Page ${doc.getCurrentPageInfo().pageNumber}`,
+              `Page ${currentPage}`,
               pageWidth / 2,
               pageHeight - 10,
               { align: 'center' }
@@ -505,22 +528,46 @@ export class PDFExporter {
         return acc;
       }, { totalRecords: 0, totalHours: 0, overtimeHours: 0, regularHours: 0 });
 
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(20, finalY, pageWidth - 40, 56, 8, 8, 'F');
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Summary Totals', 36, finalY + 20);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(71, 85, 105);
-      doc.text(`Total Records: ${totals.totalRecords}`, 36, finalY + 38);
-      doc.text(`Regular Hours: ${totals.regularHours.toFixed(2)}`, 240, finalY + 38);
-      doc.text(`Overtime Hours: ${totals.overtimeHours.toFixed(2)}`, 440, finalY + 38);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      const totalText = `Total Hours: ${totals.totalHours.toFixed(2)}`;
-      doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), finalY + 38);
+      // Check if summary will fit on current page, if not add a new page
+      if (finalY + 70 > pageHeight) {
+        doc.addPage();
+        const summaryY = 60;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(20, summaryY, pageWidth - 40, 56, 8, 8, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Summary Totals - ${employeeName}`, 36, summaryY + 20);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Total Records: ${totals.totalRecords}`, 36, summaryY + 38);
+        doc.text(`Regular Hours: ${totals.regularHours.toFixed(2)}`, 240, summaryY + 38);
+        doc.text(`Overtime Hours: ${totals.overtimeHours.toFixed(2)}`, 440, summaryY + 38);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        const totalText = `Total Hours: ${totals.totalHours.toFixed(2)}`;
+        doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), summaryY + 38);
+      } else {
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(20, finalY, pageWidth - 40, 56, 8, 8, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Summary Totals - ${employeeName}`, 36, finalY + 20);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Total Records: ${totals.totalRecords}`, 36, finalY + 38);
+        doc.text(`Regular Hours: ${totals.regularHours.toFixed(2)}`, 240, finalY + 38);
+        doc.text(`Overtime Hours: ${totals.overtimeHours.toFixed(2)}`, 440, finalY + 38);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        const totalText = `Total Hours: ${totals.totalHours.toFixed(2)}`;
+        doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), finalY + 38);
+      }
+      
+      isFirstEmployee = false;
     }
 
     doc.save(`timecard-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
