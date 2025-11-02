@@ -592,9 +592,11 @@ export class PDFExporter {
           lineWidth: 0.5
         },
         alternateRowStyles: { fillColor: stripeColor },
-        styles: { overflow: 'ellipsize', font: fontFamily },
+        styles: { overflow: 'linebreak', font: fontFamily },
         margin: { top: 60, bottom: 30 },
         showHead: 'everyPage',
+        pageBreak: 'auto',
+        rowPageBreak: 'auto',
         didDrawPage: (data: any) => {
           // Re-render header on each new page
           const currentPage = doc.getCurrentPageInfo().pageNumber;
@@ -636,7 +638,8 @@ export class PDFExporter {
           3: { cellWidth: 110 },
           4: { cellWidth: 110 },
           5: { cellWidth: 70, halign: 'right' },
-          6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' }
+          6: { cellWidth: 60, halign: 'right', fontStyle: 'bold' },
+          ...(reportData.filters?.showNotes ? { 7: { cellWidth: 220, halign: 'left' } } : {})
         };
       }
 
