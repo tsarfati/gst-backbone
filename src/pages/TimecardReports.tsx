@@ -56,6 +56,11 @@ interface EmployeeGroup {
   color?: string;
 }
 
+interface GroupMembership {
+  group_id: string;
+  user_id: string;
+}
+
 interface FilterState {
   employees: string[];
   groups: string[];
@@ -78,6 +83,7 @@ export default function TimecardReports() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [groups, setGroups] = useState<EmployeeGroup[]>([]);
+  const [groupMemberships, setGroupMemberships] = useState<GroupMembership[]>([]);
   const [company, setCompany] = useState<CompanyBranding | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'timecards' | 'punches'>('timecards');
@@ -310,6 +316,19 @@ export default function TimecardReports() {
       }
 
       setGroups(result || []);
+
+      // Load group memberships
+      if (result && result.length > 0) {
+        const groupIds = result.map(g => g.id);
+        const { data: memberships } = await supabase
+          .from('employee_group_members')
+          .select('group_id, user_id')
+          .in('group_id', groupIds);
+        
+        setGroupMemberships(memberships || []);
+      } else {
+        setGroupMemberships([]);
+      }
     } catch (error) {
       console.error('Error loading employee groups:', error);
     }
@@ -356,20 +375,8 @@ export default function TimecardReports() {
         .order('punch_in_time', { ascending: false });
 
       // Apply filters
-      // Expand groups into employee IDs
       let employeeFilter = [...filters.employees];
-      if (filters.groups.length > 0) {
-        const { data: groupMembers } = await supabase
-          .from('employee_group_members')
-          .select('user_id')
-          .in('group_id', filters.groups);
-        
-        if (groupMembers) {
-          const groupEmployeeIds = groupMembers.map(m => m.user_id);
-          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
-        }
-      }
-
+      
       if (employeeFilter.length > 0) {
         query = query.in('user_id', employeeFilter);
       } else if (!isManager) {
@@ -628,20 +635,8 @@ export default function TimecardReports() {
       }
 
       // Apply employee filters if they exist
-      // Expand groups into employee IDs
       let employeeFilter = [...filters.employees];
-      if (filters.groups.length > 0) {
-        const { data: groupMembers } = await supabase
-          .from('employee_group_members')
-          .select('user_id')
-          .in('group_id', filters.groups);
-        
-        if (groupMembers) {
-          const groupEmployeeIds = groupMembers.map(m => m.user_id);
-          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
-        }
-      }
-
+      
       if (employeeFilter.length > 0) {
         query = query.in('user_id', employeeFilter);
       } else if (!isManager) {
@@ -673,19 +668,7 @@ export default function TimecardReports() {
         .order('punch_time', { ascending: false });
 
       // Apply filters - need to handle both user_id and pin_employee_id
-      // Expand groups into employee IDs
       let employeeFilter = [...filters.employees];
-      if (filters.groups.length > 0) {
-        const { data: groupMembers } = await supabase
-          .from('employee_group_members')
-          .select('user_id')
-          .in('group_id', filters.groups);
-        
-        if (groupMembers) {
-          const groupEmployeeIds = groupMembers.map(m => m.user_id);
-          employeeFilter = [...new Set([...employeeFilter, ...groupEmployeeIds])];
-        }
-      }
 
       if (employeeFilter.length > 0) {
         const quotedIds = employeeFilter.map((id) => `"${id}"`).join(',');
@@ -1001,6 +984,7 @@ export default function TimecardReports() {
           employees={employees}
           jobs={jobs}
           groups={groups}
+          groupMemberships={groupMemberships}
           onApplyFilters={handleApplyFilters}
           onClearFilters={handleClearFilters}
           loading={loading}

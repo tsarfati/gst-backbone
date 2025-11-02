@@ -33,6 +33,11 @@ interface EmployeeGroup {
   color?: string;
 }
 
+interface GroupMembership {
+  group_id: string;
+  user_id: string;
+}
+
 interface FilterState {
   employees: string[];
   groups: string[];
@@ -53,6 +58,7 @@ interface TimecardReportFiltersProps {
   employees: Employee[];
   jobs: Job[];
   groups: EmployeeGroup[];
+  groupMemberships: GroupMembership[];
   onApplyFilters: () => void;
   onClearFilters: () => void;
   loading?: boolean;
@@ -64,6 +70,7 @@ export default function TimecardReportFilters({
   employees,
   jobs,
   groups,
+  groupMemberships,
   onApplyFilters,
   onClearFilters,
   loading = false
@@ -109,10 +116,38 @@ export default function TimecardReportFilters({
   };
 
   const toggleGroup = (groupId: string) => {
-    const updated = filters.groups.includes(groupId)
-      ? filters.groups.filter(id => id !== groupId)
-      : [...filters.groups, groupId];
-    updateFilters({ groups: updated });
+    const isAdding = !filters.groups.includes(groupId);
+    
+    // Get all employees in this group
+    const groupEmployees = groupMemberships
+      .filter(m => m.group_id === groupId)
+      .map(m => m.user_id);
+    
+    let updatedGroups: string[];
+    let updatedEmployees: string[];
+    
+    if (isAdding) {
+      // Add group and all its employees
+      updatedGroups = [...filters.groups, groupId];
+      updatedEmployees = [...new Set([...filters.employees, ...groupEmployees])];
+    } else {
+      // Remove group and its employees (only if they aren't in other selected groups)
+      updatedGroups = filters.groups.filter(id => id !== groupId);
+      
+      // Get employees from remaining selected groups
+      const remainingGroupEmployees = new Set(
+        groupMemberships
+          .filter(m => updatedGroups.includes(m.group_id))
+          .map(m => m.user_id)
+      );
+      
+      // Keep employees that are either in other groups or were individually selected
+      updatedEmployees = filters.employees.filter(empId => 
+        remainingGroupEmployees.has(empId) || !groupEmployees.includes(empId)
+      );
+    }
+    
+    updateFilters({ groups: updatedGroups, employees: updatedEmployees });
   };
 
   const getActiveFiltersCount = () => {
