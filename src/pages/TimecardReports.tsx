@@ -856,6 +856,7 @@ export default function TimecardReports() {
         hasNotes: filters.hasNotes || undefined,
         hasOvertime: filters.hasOvertime || undefined,
         showDeleted: filters.showDeleted || undefined,
+        showNotes: filters.showNotes || undefined,
       };
 
       const reportData: ReportData = {

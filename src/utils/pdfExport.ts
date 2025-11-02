@@ -35,6 +35,7 @@ export interface ReportData {
     hasNotes?: boolean;
     hasOvertime?: boolean;
     showDeleted?: boolean;
+    showNotes?: boolean;
   };
 }
 
@@ -261,15 +262,22 @@ export class PDFExporter {
     }
 
     // Prepare table data - exclude ID columns and format properly
-    const tableData = reportData.data.map(record => [
-      record.employee_name || '-',
-      record.job_name || '-',
-      record.cost_code || '-',
-      record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
-      record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
-      (record.break_minutes ?? 0).toString(),
-      record.total_hours?.toFixed(2) || '0.00'
-    ]);
+    const includeNotes = !!reportData.filters?.showNotes;
+    const tableData = reportData.data.map(record => {
+      const base = [
+        record.employee_name || '-',
+        record.job_name || '-',
+        record.cost_code || '-',
+        record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
+        record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
+        (record.break_minutes ?? 0).toString(),
+        record.total_hours?.toFixed(2) || '0.00'
+      ];
+      if (includeNotes) {
+        base.push(record.notes || '-');
+      }
+      return base;
+    });
 
     // Get colors from template or use defaults
     const headerBgColor = this.hexToRgb(this.template?.table_header_bg || '#f1f5f9');
@@ -277,9 +285,12 @@ export class PDFExporter {
     const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
     // Table configuration with template styling
+    const headRow = reportData.filters?.showNotes
+      ? ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours', 'Notes']
+      : ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
     const tableConfig: any = {
       startY: yPos,
-      head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours']],
+      head: [headRow],
       body: tableData,
       theme: 'plain',
       headStyles: {
@@ -329,7 +340,8 @@ export class PDFExporter {
       3: { cellWidth: 'auto' },
       4: { cellWidth: 'auto' },
       5: { cellWidth: 'auto', halign: 'right' },
-      6: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' }
+      6: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
+      ...(reportData.filters?.showNotes ? { 7: { cellWidth: 220, halign: 'left' } } : {})
     };
 
     autoTable(doc, tableConfig);
@@ -534,23 +546,34 @@ export class PDFExporter {
       doc.text(`Employee: ${employeeName}`, 32, yPos + 18);
       yPos += 40;
 
-      const tableData = rows.map((record: any) => [
-        record.employee_name || '-',
-        record.job_name || '-',
-        record.cost_code || '-',
-        record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
-        record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
-        (record.break_minutes ?? 0).toString(),
-        record.total_hours?.toFixed(2) || '0.00'
-      ]);
+      const includeNotes = !!reportData.filters?.showNotes;
+      const tableData = rows.map((record: any) => {
+        const base = [
+          record.employee_name || '-',
+          record.job_name || '-',
+          record.cost_code || '-',
+          record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
+          record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
+          (record.break_minutes ?? 0).toString(),
+          record.total_hours?.toFixed(2) || '0.00'
+        ];
+        if (includeNotes) {
+          base.push(record.notes || '-');
+        }
+        return base;
+      });
 
       const headerBgColor = this.hexToRgb(this.template?.table_header_bg || '#f1f5f9');
       const borderColor = this.hexToRgb(this.template?.table_border_color || '#e2e8f0');
       const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
+      const headRowGrouped = reportData.filters?.showNotes
+        ? ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours', 'Notes']
+        : ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
+
       const tableConfig: any = {
         startY: yPos,
-        head: [['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours']],
+        head: [headRowGrouped],
         body: tableData,
         theme: 'plain',
         headStyles: {

@@ -205,53 +205,59 @@ export default function TimecardReportFilters({
         </div>
 
         {/* Employee Groups Selection */}
-        {groups.length > 0 && (
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Employee Groups ({filters.groups.length} selected)
-            </Label>
-            <div className="flex gap-2 mb-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => updateFilters({ groups: groups.map(g => g.id) })}
-              >
-                Select All
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => updateFilters({ groups: [] })}
-              >
-                Clear All
-              </Button>
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Employee Groups ({filters.groups.length} selected)
+          </Label>
+          {groups.length === 0 ? (
+            <div className="border rounded-lg p-3 text-sm text-muted-foreground">
+              No employee groups found. You can create groups in Employee Groups settings.
             </div>
-            <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-              <div className="space-y-2">
-                {groups.map((group) => (
-                  <div key={group.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`group-${group.id}`}
-                      checked={filters.groups.includes(group.id)}
-                      onCheckedChange={() => toggleGroup(group.id)}
-                    />
-                    <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2">
-                      <span 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: group.color || '#3b82f6' }}
-                      />
-                      {group.name}
-                      {group.description && (
-                        <span className="text-muted-foreground">- {group.description}</span>
-                      )}
-                    </Label>
-                  </div>
-                ))}
+          ) : (
+            <>
+              <div className="flex gap-2 mb-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => updateFilters({ groups: groups.map(g => g.id) })}
+                >
+                  Select All
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => updateFilters({ groups: [] })}
+                >
+                  Clear All
+                </Button>
               </div>
-            </div>
-          </div>
-        )}
+              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
+                <div className="space-y-2">
+                  {groups.map((group) => (
+                    <div key={group.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`group-${group.id}`}
+                        checked={filters.groups.includes(group.id)}
+                        onCheckedChange={() => toggleGroup(group.id)}
+                      />
+                      <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2">
+                        <span 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: group.color || '#3b82f6' }}
+                        />
+                        {group.name}
+                        {group.description && (
+                          <span className="text-muted-foreground">- {group.description}</span>
+                        )}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Employee Selection */}
         <div className="space-y-2">
