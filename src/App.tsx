@@ -60,6 +60,7 @@ import PaymentHistory from "./pages/PaymentHistory";
 import PaymentDetails from "./pages/PaymentDetails";
 import PaymentEdit from "./pages/PaymentEdit";
 import PaymentReports from "./pages/PaymentReports";
+import CreditCardTransactionReport from "./pages/CreditCardTransactionReport";
 import GeneralLedger from "./pages/GeneralLedger";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
@@ -298,6 +299,8 @@ function AuthenticatedRoutes() {
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
                 <Route path="payables/make-payment" element={<MakePayment />} />
                 <Route path="payables/payment-reports" element={<PaymentReports />} />
+                <Route path="bills/payment-reports" element={<PaymentReports />} />
+                <Route path="bills/credit-card-transaction-report" element={<CreditCardTransactionReport />} />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
                 <Route path="payables/payments/:id" element={<PaymentDetails />} />
                 <Route path="payables/payments/:id/edit" element={

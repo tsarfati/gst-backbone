@@ -10,15 +10,18 @@ import {
   TrendingUp, 
   TrendingDown,
   FileText,
-  PieChart
+  PieChart,
+  CreditCard
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const monthlyData: any[] = [];
 const vendorPayments: any[] = [];
 const paymentMethods: any[] = [];
 
 export default function PaymentReports() {
+  const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState("6months");
   const [reportType, setReportType] = useState("summary");
 
@@ -226,7 +229,7 @@ export default function PaymentReports() {
           <CardTitle>Generate Custom Reports</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Button variant="outline" className="h-auto flex-col p-4">
               <FileText className="h-6 w-6 mb-2" />
               <span className="font-medium">Vendor Summary</span>
@@ -241,6 +244,15 @@ export default function PaymentReports() {
               <Calendar className="h-6 w-6 mb-2" />
               <span className="font-medium">Custom Period</span>
               <span className="text-xs text-muted-foreground">Select date range</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-auto flex-col p-4"
+              onClick={() => navigate("/bills/credit-card-transaction-report")}
+            >
+              <CreditCard className="h-6 w-6 mb-2" />
+              <span className="font-medium">Credit Card Transactions</span>
+              <span className="text-xs text-muted-foreground">Transaction report by card</span>
             </Button>
           </div>
         </CardContent>

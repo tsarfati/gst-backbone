@@ -183,7 +183,7 @@ export default function PdfTemplateSettings() {
   const [loading, setLoading] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
-  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation' | 'general_ledger'>('timecard');
+  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation' | 'general_ledger' | 'credit_card_transaction'>('timecard');
   const [reconciliationTemplate, setReconciliationTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
     template_type: 'reconciliation',
@@ -274,6 +274,21 @@ export default function PdfTemplateSettings() {
     header_images: [],
     header_texts: []
   });
+  const [creditCardTemplate, setCreditCardTemplate] = useState<TemplateSettings>({
+    company_id: currentCompany?.id || '',
+    template_type: 'credit_card_transaction',
+    font_family: 'helvetica',
+    header_html: TEMPLATE_PRESETS.professional.header_html,
+    footer_html: TEMPLATE_PRESETS.professional.footer_html,
+    primary_color: '#1e40af',
+    secondary_color: '#3b82f6',
+    table_header_bg: '#f1f5f9',
+    table_border_color: '#e2e8f0',
+    table_stripe_color: '#f8fafc',
+    auto_size_columns: true,
+    header_images: [],
+    header_texts: []
+  });
   const [uploadingImage, setUploadingImage] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
@@ -329,6 +344,7 @@ export default function PdfTemplateSettings() {
     if (currentCompany?.id) {
       loadTemplate('timecard');
       loadTemplate('reconciliation');
+      loadTemplate('credit_card_transaction');
     }
   }, [currentCompany?.id]);
 
@@ -610,6 +626,8 @@ export default function PdfTemplateSettings() {
           setReceiptTemplate(templateData);
         } else if (templateType === 'general_ledger') {
           setGeneralLedgerTemplate(templateData);
+        } else if (templateType === 'credit_card_transaction') {
+          setCreditCardTemplate(templateData);
         }
       } else {
         // If no saved template, try to add company logo as default
@@ -922,7 +940,7 @@ export default function PdfTemplateSettings() {
           </Alert>
 
           <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="timecard">Timecard Reports</TabsTrigger>
               <TabsTrigger value="commitment">Commitment Status</TabsTrigger>
               <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
@@ -930,6 +948,7 @@ export default function PdfTemplateSettings() {
               <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
               <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
               <TabsTrigger value="general_ledger">General Ledger</TabsTrigger>
+              <TabsTrigger value="credit_card_transaction">Credit Card</TabsTrigger>
             </TabsList>
 
             <TabsContent value="subcontract" className="space-y-6">
@@ -1424,6 +1443,159 @@ export default function PdfTemplateSettings() {
                       <div 
                         className="mt-4" 
                         dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.footer_html) }}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="credit_card_transaction" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Credit Card Transaction Report Template
+                  </CardTitle>
+                  <CardDescription>Customize the template for credit card transaction reports</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Alert className="mb-4">
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      Configure the PDF template for credit card transaction reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{card_name}'}</code>, <code className="text-xs">{'{date_range}'}</code>
+                    </AlertDescription>
+                  </Alert>
+
+                  {/* Template Presets */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Choose a Template Preset</Label>
+                      <Select 
+                        value={selectedPreset} 
+                        onValueChange={(presetKey) => {
+                          const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
+                          if (preset) {
+                            setCreditCardTemplate(prev => ({
+                              ...prev,
+                              header_html: preset.header_html,
+                              footer_html: preset.footer_html,
+                              primary_color: preset.primary_color,
+                              table_header_bg: preset.table_header_bg,
+                            }));
+                            setSelectedPreset(presetKey);
+                            toast({
+                              title: "Template applied",
+                              description: `${preset.name} template has been applied.`,
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a preset template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
+                            <SelectItem key={key} value={key}>
+                              {preset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Font Family</Label>
+                      <Select
+                        value={creditCardTemplate.font_family}
+                        onValueChange={(value) => setCreditCardTemplate({ ...creditCardTemplate, font_family: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="helvetica">Helvetica</SelectItem>
+                          <SelectItem value="times">Times New Roman</SelectItem>
+                          <SelectItem value="courier">Courier</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Primary Color</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={creditCardTemplate.primary_color}
+                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, primary_color: e.target.value })}
+                          className="h-10 w-16 rounded border cursor-pointer"
+                        />
+                        <Input
+                          type="text"
+                          value={creditCardTemplate.primary_color}
+                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, primary_color: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Table Header Background</Label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={creditCardTemplate.table_header_bg}
+                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, table_header_bg: e.target.value })}
+                          className="h-10 w-16 rounded border cursor-pointer"
+                        />
+                        <Input
+                          type="text"
+                          value={creditCardTemplate.table_header_bg}
+                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, table_header_bg: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={() => saveTemplate(creditCardTemplate)} 
+                    disabled={loading}
+                    className="mt-4"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {loading ? 'Saving...' : 'Save Credit Card Template'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Template Preview
+                  </CardTitle>
+                  <CardDescription>Preview how your credit card transaction report will look</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg p-6 bg-white" style={{ fontFamily: creditCardTemplate.font_family }}>
+                    {creditCardTemplate.header_html && (
+                      <div 
+                        className="mb-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.header_html) }}
+                      />
+                    )}
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold" style={{ color: creditCardTemplate.primary_color }}>
+                        Credit Card Transaction Report Sample
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Period: January 1, 2025 - January 31, 2025
+                      </p>
+                    </div>
+                    {creditCardTemplate.footer_html && (
+                      <div 
+                        className="mt-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.footer_html) }}
                       />
                     )}
                   </div>

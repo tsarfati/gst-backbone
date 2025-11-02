@@ -878,3 +878,197 @@ export const exportTimecardToPDF = async (reportData: ReportData, company: Compa
     await exporter.exportTimecardReport(reportData);
   }
 };
+
+interface CreditCardTransactionReportData {
+  transactions: Array<{
+    id: string;
+    transaction_date: string;
+    amount: number;
+    merchant_name: string;
+    description: string;
+    vendor_name: string | null;
+    job_name: string | null;
+    cost_code: string | null;
+    chart_account_name: string | null;
+  }>;
+  creditCard: {
+    card_name: string;
+    cardholder_name: string;
+    card_number_last_four: string;
+  };
+  dateFrom: Date;
+  dateTo: Date;
+  companyName: string;
+  companyId: string;
+}
+
+export const exportCreditCardTransactionReport = async (data: CreditCardTransactionReportData) => {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // Load template
+  let template: PdfTemplate | undefined;
+  try {
+    const { data: templateData } = await supabase
+      .from('pdf_templates')
+      .select('*')
+      .eq('company_id', data.companyId)
+      .eq('template_type', 'credit_card_transaction')
+      .maybeSingle();
+    
+    if (templateData) {
+      template = {
+        ...templateData,
+        header_images: (templateData.header_images as any) || []
+      } as PdfTemplate;
+    }
+  } catch (error) {
+    console.error('Error loading PDF template:', error);
+  }
+
+  const fontFamily = template?.font_family || 'helvetica';
+  doc.setFont(fontFamily, 'normal');
+
+  let yPos = 32;
+
+  // Header images
+  if (template?.header_images && template.header_images.length > 0) {
+    for (const img of template.header_images) {
+      try {
+        const imgLoader = new Image();
+        imgLoader.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          imgLoader.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              canvas.width = imgLoader.width;
+              canvas.height = imgLoader.height;
+              ctx.drawImage(imgLoader, 0, 0);
+              doc.addImage(canvas.toDataURL('image/png'), 'PNG', img.x, img.y, img.width, img.height);
+            }
+            resolve(null);
+          };
+          imgLoader.onerror = reject;
+          imgLoader.src = img.url;
+        });
+      } catch (e) {
+        console.error('Failed to load header image:', e);
+      }
+    }
+  }
+
+  // Header
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(20);
+  doc.setFont(fontFamily, 'bold');
+  const companyNameWidth = doc.getTextWidth(data.companyName);
+  doc.text(data.companyName, (pageWidth - companyNameWidth) / 2, 48);
+
+  doc.setFont(fontFamily, 'bold');
+  doc.setFontSize(16);
+  const titleText = 'Credit Card Transaction Report';
+  const titleWidth = doc.getTextWidth(titleText);
+  doc.text(titleText, pageWidth - 36 - titleWidth, 48);
+
+  doc.setFont(fontFamily, 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  const dateRange = `${format(data.dateFrom, 'MM/dd/yyyy')} - ${format(data.dateTo, 'MM/dd/yyyy')}`;
+  doc.text(dateRange, pageWidth - 36 - doc.getTextWidth(dateRange), 68);
+
+  const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+  doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), 84);
+
+  yPos = 120;
+
+  // Card info
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(20, yPos, pageWidth - 40, 28, 6, 6, 'F');
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont(fontFamily, 'bold');
+  const cardInfo = `Card: ${data.creditCard.card_name} (*${data.creditCard.card_number_last_four}) - ${data.creditCard.cardholder_name}`;
+  doc.text(cardInfo, 32, yPos + 18);
+  yPos += 40;
+
+  // Table
+  const tableData = data.transactions.map((txn) => [
+    format(new Date(txn.transaction_date), 'MM/dd/yyyy'),
+    `$${Number(txn.amount).toFixed(2)}`,
+    txn.vendor_name || txn.merchant_name || '-',
+    txn.description || '-',
+    txn.chart_account_name || txn.job_name || '-',
+    txn.cost_code || '-'
+  ]);
+
+  const headerBgColor = template?.table_header_bg 
+    ? template.table_header_bg.replace('#', '').match(/.{2}/g)?.map(h => parseInt(h, 16)) || [241, 245, 249]
+    : [241, 245, 249];
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Date', 'Amount', 'Vendor', 'Description', 'Account/Job', 'Cost Code']],
+    body: tableData,
+    theme: 'plain',
+    headStyles: {
+      fillColor: headerBgColor as [number, number, number],
+      textColor: [15, 23, 42],
+      fontSize: 10,
+      fontStyle: 'bold',
+      halign: 'left',
+      cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [15, 23, 42],
+      cellPadding: { top: 6, bottom: 6, left: 6, right: 6 }
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252]
+    },
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 'auto', halign: 'right' },
+      2: { cellWidth: 'auto' },
+      3: { cellWidth: 'auto' },
+      4: { cellWidth: 'auto' },
+      5: { cellWidth: 'auto' }
+    },
+    margin: { left: 20, right: 20 },
+    styles: {
+      overflow: 'linebreak',
+      cellWidth: 'wrap'
+    },
+    pageBreak: 'auto',
+    rowPageBreak: 'auto'
+  });
+
+  // Total
+  const finalY = (doc as any).lastAutoTable.finalY || yPos + 100;
+  const totalAmount = data.transactions.reduce((sum, txn) => sum + Number(txn.amount), 0);
+  
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(pageWidth - 220, finalY + 20, 200, 30, 6, 6, 'F');
+  doc.setFont(fontFamily, 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Total:', pageWidth - 200, finalY + 40);
+  doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - 40 - doc.getTextWidth(`$${totalAmount.toFixed(2)}`), finalY + 40);
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont(fontFamily, 'normal');
+    const footerText = `Page ${i} of ${pageCount}`;
+    doc.text(footerText, pageWidth / 2 - doc.getTextWidth(footerText) / 2, doc.internal.pageSize.getHeight() - 20);
+  }
+
+  doc.save(`Credit_Card_Transaction_Report_${format(new Date(), 'yyyyMMdd')}.pdf`);
+};
