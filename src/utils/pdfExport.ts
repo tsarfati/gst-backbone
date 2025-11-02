@@ -184,14 +184,15 @@ export class PDFExporter {
     const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
     if (contactLine) doc.text(contactLine, textStartX, logoY + 44);
 
-    // Report info on right
+    // Report title centered
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(15, 23, 42);
     const titleText = reportData.title;
     const titleWidth = doc.getTextWidth(titleText);
-    doc.text(titleText, pageWidth - 36 - titleWidth, logoY + 12);
+    doc.text(titleText, (pageWidth - titleWidth) / 2, logoY + 12);
     
+    // Report info on right
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
@@ -483,7 +484,7 @@ export class PDFExporter {
         doc.setTextColor(15, 23, 42);
         const titleText = reportData.title;
         const titleWidth = doc.getTextWidth(titleText);
-        doc.text(titleText, pageWidth - 36 - titleWidth, logoY + 12);
+        doc.text(titleText, (pageWidth - titleWidth) / 2, logoY + 12);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(71, 85, 105);
