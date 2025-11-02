@@ -99,8 +99,10 @@ export default function TimecardReports() {
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
   useEffect(() => {
-    loadInitialData();
-  }, []);
+    if (currentCompany?.id) {
+      loadInitialData();
+    }
+  }, [currentCompany?.id]);
 
   const loadInitialData = async () => {
     await Promise.all([
