@@ -277,6 +277,7 @@ export default function TimecardReports() {
     if (!currentCompany?.id) return;
     
     try {
+      // Primary: fetch by company_id
       const { data, error } = await supabase
         .from('employee_groups')
         .select('id, name, description, color')
@@ -284,7 +285,31 @@ export default function TimecardReports() {
         .order('name');
 
       if (error) throw error;
-      setGroups(data || []);
+
+      let result = data || [];
+
+      // Fallback: include groups created by users who belong to this company
+      // (covers older records that may have been saved with an incorrect company_id)
+      if (result.length === 0) {
+        const { data: companyUsers } = await supabase
+          .from('user_company_access')
+          .select('user_id')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true);
+
+        const userIds: string[] = (companyUsers || []).map((u: any) => u.user_id);
+        if (userIds.length > 0) {
+          const { data: createdByGroups } = await supabase
+            .from('employee_groups')
+            .select('id, name, description, color')
+            .in('created_by', userIds)
+            .order('name');
+
+          result = createdByGroups || [];
+        }
+      }
+
+      setGroups(result || []);
     } catch (error) {
       console.error('Error loading employee groups:', error);
     }
