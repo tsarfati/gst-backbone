@@ -163,14 +163,14 @@ export class PDFExporter {
       }
     }
 
-    // Position text to the right of logo with proper spacing (12px gap)
-    const textStartX = actualLogoWidth > 0 ? logoX + actualLogoWidth + 12 : logoX;
-    
+    // Position company name centered
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text(this.company.name, textStartX, logoY + 12);
+    const companyNameWidth = doc.getTextWidth(this.company.name);
+    doc.text(this.company.name, (pageWidth - companyNameWidth) / 2, logoY + 12);
 
+    // Position company details below centered name
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
@@ -179,10 +179,16 @@ export class PDFExporter {
       this.company.address,
       [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
     ].filter(Boolean).join(', ');
-    if (addressLine) doc.text(addressLine, textStartX, logoY + 30);
+    if (addressLine) {
+      const addressWidth = doc.getTextWidth(addressLine);
+      doc.text(addressLine, (pageWidth - addressWidth) / 2, logoY + 30);
+    }
     
     const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
-    if (contactLine) doc.text(contactLine, textStartX, logoY + 44);
+    if (contactLine) {
+      const contactWidth = doc.getTextWidth(contactLine);
+      doc.text(contactLine, (pageWidth - contactWidth) / 2, logoY + 44);
+    }
 
     // Report title and info on right
     doc.setFont('helvetica', 'bold');
@@ -465,7 +471,8 @@ export class PDFExporter {
         doc.setTextColor(15, 23, 42);
         doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
-        doc.text(this.company.name, textStartX, logoY + 12);
+        const companyNameWidth = doc.getTextWidth(this.company.name);
+        doc.text(this.company.name, (pageWidth - companyNameWidth) / 2, logoY + 12);
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
@@ -474,9 +481,15 @@ export class PDFExporter {
           this.company.address,
           [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
         ].filter(Boolean).join(', ');
-        if (addressLine) doc.text(addressLine, textStartX, logoY + 30);
+        if (addressLine) {
+          const addressWidth = doc.getTextWidth(addressLine);
+          doc.text(addressLine, (pageWidth - addressWidth) / 2, logoY + 30);
+        }
         const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
-        if (contactLine) doc.text(contactLine, textStartX, logoY + 44);
+        if (contactLine) {
+          const contactWidth = doc.getTextWidth(contactLine);
+          doc.text(contactLine, (pageWidth - contactWidth) / 2, logoY + 44);
+        }
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(16);
