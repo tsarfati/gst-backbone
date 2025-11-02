@@ -857,6 +857,12 @@ export const exportTimecardToPDF = async (reportData: ReportData, company: Compa
   
   const exporter = new PDFExporter(company, template);
 
-  // Always export a single detailed table so records flow across pages
-  await exporter.exportTimecardReport(reportData);
+  // If multiple employees are present in detailed rows, group by employee
+  const hasDetailedRows = (reportData.data || []).some((r: any) => r.punch_in_time || r.punch_out_time);
+  const uniqueEmployees = new Set((reportData.data || []).map((r: any) => r.employee_name || r.employee).filter(Boolean));
+  if (hasDetailedRows && uniqueEmployees.size > 1) {
+    await exporter.exportTimecardReportGrouped({ ...reportData, employee: undefined });
+  } else {
+    await exporter.exportTimecardReport(reportData);
+  }
 };
