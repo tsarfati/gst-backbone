@@ -465,8 +465,14 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       
       // Check if distribution is needed
       if (distribution.length === 1) {
-        // Single cost code - auto-apply
-        handleInputChange("cost_code_id", distribution[0].cost_code_id);
+        // Single cost code - auto-apply (fallback to lookup by code if id missing)
+        const first = distribution[0] as any;
+        let ccId = first.cost_code_id as string | undefined;
+        if (!ccId && (first.cost_code || first.code)) {
+          const match = costCodes.find((c: any) => c.code === first.cost_code || c.code === first.code);
+          ccId = match?.id;
+        }
+        handleInputChange("cost_code_id", ccId || "");
         setNeedsDistribution(false);
       } else if (distribution.length > 1) {
         // Multiple cost codes - need distribution
@@ -498,8 +504,14 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       
       // Check if distribution is needed
       if (distribution.length === 1) {
-        // Single cost code - auto-apply
-        handleInputChange("cost_code_id", distribution[0].cost_code_id);
+        // Single cost code - auto-apply (fallback to lookup by code if id missing)
+        const first = distribution[0] as any;
+        let ccId = first.cost_code_id as string | undefined;
+        if (!ccId && (first.cost_code || first.code)) {
+          const match = costCodes.find((c: any) => c.code === first.cost_code || c.code === first.code);
+          ccId = match?.id;
+        }
+        handleInputChange("cost_code_id", ccId || "");
         setNeedsDistribution(false);
       } else if (distribution.length > 1) {
         // Multiple cost codes - need distribution
