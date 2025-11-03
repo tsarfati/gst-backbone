@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt, Search, Check } from "lucide-react";
+import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt, Search, Check, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -1362,10 +1362,10 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && (attachmentRequired ? billFiles.length > 0 : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
-      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0) || formData.request_pm_help) // Has cost code, valid distribution, or requesting help
+      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0)) // Has cost code or valid distribution
     : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
-      (isDistributionValid() || formData.request_pm_help); // Valid distribution or requesting help
+      isDistributionValid(); // Valid distribution required
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
@@ -2243,26 +2243,42 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                           From Receipt System
                         </Badge>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setAttachedReceipt(null);
-                          toast({
-                            title: "Receipt detached",
-                            description: "Receipt has been removed from this bill"
-                          });
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = attachedReceipt.file_url;
+                            link.download = attachedReceipt.filename || 'receipt';
+                            link.target = '_blank';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setAttachedReceipt(null);
+                            toast({
+                              title: "Receipt detached",
+                              description: "Receipt has been removed from this bill"
+                            });
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="max-h-[600px] overflow-auto">
+                    <div className="max-h-[800px] overflow-y-auto bg-gray-50">
                       {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
-                        <div className="w-full h-[600px]">
-                          <UrlPdfInlinePreview url={attachedReceipt.file_url} className="h-full" />
-                        </div>
+                        <UrlPdfInlinePreview url={attachedReceipt.file_url} className="w-full" />
                       ) : attachedReceipt.file_url ? (
                         <img
                           src={attachedReceipt.file_url}
@@ -2287,17 +2303,36 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                         <FileText className="h-4 w-4" />
                         <span className="font-medium text-sm">{file.name}</span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFile(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const url = URL.createObjectURL(file);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = file.name;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     {file.type === 'application/pdf' ? (
-                      <div className="w-full">
+                      <div className="max-h-[800px] overflow-y-auto bg-gray-50">
                         <PdfInlinePreview file={file} className="w-full" />
                       </div>
                     ) : (
