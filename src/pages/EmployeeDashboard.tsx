@@ -1275,11 +1275,11 @@ export default function EmployeeDashboard() {
       </div>
 
       <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-base sm:text-lg">Request Time Card Change</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 px-1">
             {selectedTimeCard && (
               <div className="p-3 bg-muted rounded-lg space-y-2">
                 <h4 className="font-medium text-sm">Current Time Card</h4>
@@ -1387,7 +1387,7 @@ export default function EmployeeDashboard() {
               />
             </div>
           </div>
-          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0 flex-shrink-0 pt-4">
             <Button variant="outline" onClick={() => setShowChangeDialog(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
