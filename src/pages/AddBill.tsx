@@ -458,20 +458,37 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       handleInputChange("vendor_id", selectedSubcontract.vendor_id);
       handleInputChange("job_id", selectedSubcontract.job_id);
       
+      // Fetch cost codes for the job FIRST before processing distribution
+      await fetchCostCodesForJob(selectedSubcontract.job_id);
+      
       // Ensure cost_distribution is always an array
       const costDist = selectedSubcontract.cost_distribution;
       const distribution = Array.isArray(costDist) ? costDist : [];
       setCommitmentDistribution(distribution);
+      
+      console.log('Subcontract distribution loaded:', distribution);
       
       // Check if distribution is needed
       if (distribution.length === 1) {
         // Single cost code - auto-apply (fallback to lookup by code if id missing)
         const first = distribution[0] as any;
         let ccId = first.cost_code_id as string | undefined;
+        
+        // If no direct ID, look up by code from freshly fetched costCodes
         if (!ccId && (first.cost_code || first.code)) {
-          const match = costCodes.find((c: any) => c.code === first.cost_code || c.code === first.code);
+          // Wait a tick for state to update
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const { data: freshCostCodes } = await supabase
+            .from('cost_codes')
+            .select('id, code')
+            .eq('job_id', selectedSubcontract.job_id)
+            .eq('is_active', true);
+          
+          const match = freshCostCodes?.find((c: any) => c.code === (first.cost_code || first.code));
           ccId = match?.id;
         }
+        
+        console.log('Auto-applying cost code ID:', ccId);
         handleInputChange("cost_code_id", ccId || "");
         setNeedsDistribution(false);
       } else if (distribution.length > 1) {
@@ -497,20 +514,37 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       handleInputChange("vendor_id", selectedPO.vendor_id);
       handleInputChange("job_id", selectedPO.job_id);
       
+      // Fetch cost codes for the job FIRST before processing distribution
+      await fetchCostCodesForJob(selectedPO.job_id);
+      
       // Ensure cost_distribution is always an array
       const costDist = selectedPO.cost_distribution;
       const distribution = Array.isArray(costDist) ? costDist : [];
       setCommitmentDistribution(distribution);
+      
+      console.log('PO distribution loaded:', distribution);
       
       // Check if distribution is needed
       if (distribution.length === 1) {
         // Single cost code - auto-apply (fallback to lookup by code if id missing)
         const first = distribution[0] as any;
         let ccId = first.cost_code_id as string | undefined;
+        
+        // If no direct ID, look up by code from freshly fetched costCodes
         if (!ccId && (first.cost_code || first.code)) {
-          const match = costCodes.find((c: any) => c.code === first.cost_code || c.code === first.code);
+          // Wait a tick for state to update
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const { data: freshCostCodes } = await supabase
+            .from('cost_codes')
+            .select('id, code')
+            .eq('job_id', selectedPO.job_id)
+            .eq('is_active', true);
+          
+          const match = freshCostCodes?.find((c: any) => c.code === (first.cost_code || first.code));
           ccId = match?.id;
         }
+        
+        console.log('Auto-applying cost code ID:', ccId);
         handleInputChange("cost_code_id", ccId || "");
         setNeedsDistribution(false);
       } else if (distribution.length > 1) {
