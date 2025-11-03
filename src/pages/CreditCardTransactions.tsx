@@ -214,13 +214,20 @@ export default function CreditCardTransactions() {
           // Fetch existing transactions to check for duplicates and merge with coded transactions
           const { data: existingTransactions } = await supabase
             .from("credit_card_transactions")
-            .select("id, transaction_date, amount, description, merchant_name, invoice_id, coding_status")
+            .select("id, transaction_date, amount, description, merchant_name, invoice_id, coding_status, transaction_type")
             .eq("credit_card_id", id);
 
           const existingSet = new Set(
             (existingTransactions || []).map(t => 
               `${t.transaction_date}-${t.amount}-${t.description || t.merchant_name}`
             )
+          );
+
+          const existingMap = new Map(
+            (existingTransactions || []).map(t => [
+              `${t.transaction_date}-${Math.abs(Number(t.amount))}-${t.description || t.merchant_name}`,
+              t
+            ])
           );
 
           // Create a map of invoice_id to existing transaction for merging
@@ -232,6 +239,7 @@ export default function CreditCardTransactions() {
 
           let duplicateCount = 0;
           let mergedCount = 0;
+          let updatedDuplicates = 0;
           const transactionsToInsert: any[] = [];
           const transactionsToUpdate: any[] = [];
           
@@ -265,10 +273,26 @@ export default function CreditCardTransactions() {
               amount = Math.abs(amount);
               const formattedDate = new Date(transactionDate).toISOString().split('T')[0];
               
-              // Check for duplicate
+              // Determine intended transaction type before duplicate check
+              let desiredType = type;
+              if (wasNegative) {
+                desiredType = 'credit';
+              } else if (type === 'Sale') {
+                desiredType = 'purchase';
+              } else if (type === 'Fee') {
+                desiredType = 'fee';
+              }
+
+              // Check for duplicate and update sign/type if needed
               const key = `${formattedDate}-${amount}-${description}`;
-              if (existingSet.has(key)) {
-                duplicateCount++;
+              const existing = existingMap.get(key);
+              if (existing) {
+                if (existing.transaction_type !== desiredType) {
+                  transactionsToUpdate.push({ id: existing.id, transaction_type: desiredType });
+                  updatedDuplicates++;
+                } else {
+                  duplicateCount++;
+                }
                 continue;
               }
               
@@ -287,16 +311,7 @@ export default function CreditCardTransactions() {
                 }
               }
               
-              // Determine transaction type based on Type column and amount sign
-              let transactionType = type;
-              if (wasNegative) {
-                // Negative amounts or amounts in parentheses are credits/refunds
-                transactionType = 'credit';
-              } else if (type === 'Sale') {
-                transactionType = 'purchase';
-              } else if (type === 'Fee') {
-                transactionType = 'fee';
-              }
+              // transactionType determined earlier as desiredType
               
               parsedTransaction = {
                 credit_card_id: id,
@@ -307,7 +322,7 @@ export default function CreditCardTransactions() {
                 merchant_name: description,
                 amount: amount,
                 category: category,
-                transaction_type: transactionType,
+                transaction_type: desiredType,
                 notes: memo,
                 reference_number: transaction.Card || null,
                 created_by: user?.id,
@@ -356,10 +371,19 @@ export default function CreditCardTransactions() {
               const merchant = merchantCol || descCol;
               const description = descCol || "";
               
-              // Check for duplicate
+              // Determine intended transaction type before duplicate check
+              const transactionType = wasNegative ? 'credit' : 'purchase';
+              
+              // Check for duplicate and update sign/type if needed
               const key = `${transactionDate}-${amount}-${description}`;
-              if (existingSet.has(key)) {
-                duplicateCount++;
+              const existing = existingMap.get(key);
+              if (existing) {
+                if (existing.transaction_type !== transactionType) {
+                  transactionsToUpdate.push({ id: existing.id, transaction_type: transactionType });
+                  updatedDuplicates++;
+                } else {
+                  duplicateCount++;
+                }
                 continue;
               }
               
@@ -378,8 +402,7 @@ export default function CreditCardTransactions() {
                 }
               }
               
-              // Determine transaction type based on whether amount was negative
-              const transactionType = wasNegative ? 'credit' : 'purchase';
+              // transactionType determined earlier
               
               parsedTransaction = {
                 credit_card_id: id,
@@ -468,23 +491,14 @@ export default function CreditCardTransactions() {
             })
             .eq("id", id);
 
-          let message = '';
-          if (mergedCount > 0 && transactionsToInsert.length > 0) {
-            message = `Imported ${transactionsToInsert.length} new transactions, merged ${mergedCount} with existing bills`;
-            if (duplicateCount > 0) {
-              message += ` (${duplicateCount} duplicates skipped)`;
-            }
-          } else if (mergedCount > 0) {
-            message = `Merged ${mergedCount} transactions with existing bills`;
-            if (duplicateCount > 0) {
-              message += ` (${duplicateCount} duplicates skipped)`;
-            }
-          } else {
-            message = `Imported ${transactionsToInsert.length} transactions`;
-            if (duplicateCount > 0) {
-              message += ` (${duplicateCount} duplicates skipped)`;
-            }
-          }
+          // Build informative message including updates to duplicates
+          const messageParts: string[] = [];
+          if (transactionsToInsert.length > 0) messageParts.push(`Imported ${transactionsToInsert.length} new transactions`);
+          if (mergedCount > 0) messageParts.push(`merged ${mergedCount} with existing bills`);
+          if (updatedDuplicates > 0) messageParts.push(`updated ${updatedDuplicates} duplicates`);
+          if (duplicateCount > 0) messageParts.push(`${duplicateCount} duplicates skipped`);
+          const message = messageParts.join(', ');
+
 
           toast({
             title: "Success",
