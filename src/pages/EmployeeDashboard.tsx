@@ -1275,7 +1275,7 @@ export default function EmployeeDashboard() {
       </div>
 
       <Dialog open={showChangeDialog} onOpenChange={setShowChangeDialog}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[80vh] flex flex-col my-8">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-base sm:text-lg">Request Time Card Change</DialogTitle>
           </DialogHeader>
