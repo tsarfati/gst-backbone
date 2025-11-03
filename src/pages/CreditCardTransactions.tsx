@@ -288,7 +288,7 @@ export default function CreditCardTransactions() {
               const existing = existingMap.get(key);
               if (existing) {
                 if (existing.transaction_type !== desiredType) {
-                  transactionsToUpdate.push({ id: existing.id, transaction_type: desiredType });
+                  transactionsToUpdate.push({ id: existing.id, transaction_type: desiredType, amount: Math.abs(amount) });
                   updatedDuplicates++;
                 } else {
                   duplicateCount++;
@@ -379,7 +379,7 @@ export default function CreditCardTransactions() {
               const existing = existingMap.get(key);
               if (existing) {
                 if (existing.transaction_type !== transactionType) {
-                  transactionsToUpdate.push({ id: existing.id, transaction_type: transactionType });
+                  transactionsToUpdate.push({ id: existing.id, transaction_type: transactionType, amount: Math.abs(amount) });
                   updatedDuplicates++;
                 } else {
                   duplicateCount++;
