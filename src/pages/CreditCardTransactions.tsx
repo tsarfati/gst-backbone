@@ -276,9 +276,9 @@ export default function CreditCardTransactions() {
               // Determine intended transaction type before duplicate check
               let desiredType = type;
               if (wasNegative) {
-                desiredType = 'credit';
+                desiredType = 'payment';
               } else if (type === 'Sale') {
-                desiredType = 'purchase';
+                desiredType = 'charge';
               } else if (type === 'Fee') {
                 desiredType = 'fee';
               }
@@ -372,7 +372,7 @@ export default function CreditCardTransactions() {
               const description = descCol || "";
               
               // Determine intended transaction type before duplicate check
-              const transactionType = wasNegative ? 'credit' : 'purchase';
+              const transactionType = wasNegative ? 'payment' : 'charge';
               
               // Check for duplicate and update sign/type if needed
               const key = `${transactionDate}-${amount}-${description}`;
@@ -589,13 +589,11 @@ export default function CreditCardTransactions() {
     let balance = 0;
     sortedTransactions.forEach((trans) => {
       const amt = Math.abs(Number(trans.amount));
-      const isCredit = trans.transaction_type === 'credit' || trans.transaction_type === 'payment' || Number(trans.amount) < 0;
-      if (isCredit) {
-        // Credits/payments reduce the card balance
-        balance -= amt;
+      const reduces = trans.transaction_type === 'payment' || Number(trans.amount) < 0;
+      if (reduces) {
+        balance -= amt; // Credits/payments reduce
       } else {
-        // Charges increase the balance
-        balance += amt;
+        balance += amt; // Charges/fees increase
       }
       balanceMap.set(trans.id, balance);
     });
@@ -1079,8 +1077,8 @@ export default function CreditCardTransactions() {
                       className="font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
-                      <span className={(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        {(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0)
+                      <span className={(trans.transaction_type === 'payment' || Number(trans.amount) < 0) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {(trans.transaction_type === 'payment' || Number(trans.amount) < 0)
                           ? `${formatCurrency(Math.abs(Number(trans.amount)))}`
                           : formatCurrency(Number(trans.amount))
                         }
