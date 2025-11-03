@@ -46,7 +46,7 @@ export default function CreditCardTransactions() {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [postingToGL, setPostingToGL] = useState(false);
   const { postTransactionsToGL } = usePostCreditCardTransactions();
-  const [sortColumn, setSortColumn] = useState<'date' | 'amount' | null>(null);
+  const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
   // New transaction form
@@ -611,13 +611,22 @@ export default function CreditCardTransactions() {
         comparison = new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime();
       } else if (sortColumn === 'amount') {
         comparison = a.amount - b.amount;
+      } else if (sortColumn === 'attachment') {
+        const aHasAttachment = a.attachment_url ? 1 : 0;
+        const bHasAttachment = b.attachment_url ? 1 : 0;
+        comparison = aHasAttachment - bHasAttachment;
+      } else if (sortColumn === 'status') {
+        const statusOrder = { 'uncoded': 0, 'request_coding': 1, 'coded': 2, 'posted': 3 };
+        const aStatus = a.journal_entry_id ? 3 : (statusOrder[a.coding_status as keyof typeof statusOrder] ?? 0);
+        const bStatus = b.journal_entry_id ? 3 : (statusOrder[b.coding_status as keyof typeof statusOrder] ?? 0);
+        comparison = aStatus - bStatus;
       }
       
       return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [transactions, sortColumn, sortDirection]);
 
-  const handleSort = (column: 'date' | 'amount') => {
+  const handleSort = (column: 'date' | 'amount' | 'attachment' | 'status') => {
     if (sortColumn === column) {
       // Toggle direction if same column
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -628,7 +637,7 @@ export default function CreditCardTransactions() {
     }
   };
 
-  const getSortIcon = (column: 'date' | 'amount') => {
+  const getSortIcon = (column: 'date' | 'amount' | 'attachment' | 'status') => {
     if (sortColumn !== column) {
       return <ArrowUpDown className="h-4 w-4 ml-1 inline-block opacity-30" />;
     }
@@ -1030,8 +1039,24 @@ export default function CreditCardTransactions() {
                   </div>
                 </TableHead>
                 <TableHead className="text-right">Running Balance</TableHead>
-                <TableHead>Attachment</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort('attachment')}
+                >
+                  <div className="flex items-center justify-center">
+                    Attachment
+                    {getSortIcon('attachment')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status
+                    {getSortIcon('status')}
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
