@@ -253,7 +253,11 @@ export default function CreditCardTransactions() {
               if (!transactionDate || !description || !transaction.Amount || !type) continue;
               
               // Parse amount - Chase uses negative for charges/fees, positive for payments
-              let amount = parseFloat(transaction.Amount.replace(/[^0-9.-]/g, ""));
+              let amountStr = String(transaction.Amount);
+              const isNegative = amountStr.includes('(') && amountStr.includes(')');
+              amountStr = amountStr.replace(/[$,()]/g, '').trim();
+              let amount = parseFloat(amountStr);
+              const wasNegative = amount < 0 || isNegative;
               
               // For payments (positive amounts), we skip them or handle differently
               if (amount > 0 && type === 'Payment') continue;
@@ -283,9 +287,12 @@ export default function CreditCardTransactions() {
                 }
               }
               
-              // Determine transaction type based on Type column
+              // Determine transaction type based on Type column and amount sign
               let transactionType = type;
-              if (type === 'Sale') {
+              if (wasNegative) {
+                // Negative amounts or amounts in parentheses are credits/refunds
+                transactionType = 'credit';
+              } else if (type === 'Sale') {
                 transactionType = 'purchase';
               } else if (type === 'Fee') {
                 transactionType = 'fee';
@@ -338,7 +345,9 @@ export default function CreditCardTransactions() {
               let amountStr = String(amountCol);
               const isNegative = amountStr.includes('(') && amountStr.includes(')');
               amountStr = amountStr.replace(/[$,()]/g, '').trim();
-              let amount = Math.abs(parseFloat(amountStr));
+              let amount = parseFloat(amountStr);
+              const wasNegative = amount < 0 || isNegative;
+              amount = Math.abs(amount);
               if (isNaN(amount)) continue;
               
               // Use Vendor column if available (with space tolerance), otherwise use Description
@@ -370,7 +379,7 @@ export default function CreditCardTransactions() {
               }
               
               // Determine transaction type based on whether amount was negative
-              const transactionType = isNegative ? 'refund' : 'purchase';
+              const transactionType = wasNegative ? 'credit' : 'purchase';
               
               parsedTransaction = {
                 credit_card_id: id,
