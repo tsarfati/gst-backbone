@@ -1371,6 +1371,26 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
   const attachmentRequired = !canBypassAttachment();
 
+  // Debug form validation
+  console.log('Form validation debug:', {
+    billType,
+    vendor_id: formData.vendor_id,
+    job_id: formData.job_id,
+    expense_account_id: formData.expense_account_id,
+    amount: formData.amount,
+    issueDate: formData.issueDate,
+    attachmentRequired,
+    billFiles_length: billFiles.length,
+    attachedReceipt: !!attachedReceipt,
+    use_terms: formData.use_terms,
+    payment_terms: formData.payment_terms,
+    dueDate: formData.dueDate,
+    cost_code_id: formData.cost_code_id,
+    needsDistribution,
+    billDistribution_length: billDistribution.length,
+    commitmentDistribution_length: commitmentDistribution.length
+  });
+
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
@@ -1378,6 +1398,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
       isDistributionValid(); // Valid distribution required
+
+  console.log('isFormValid:', isFormValid);
 
   if (loading) {
     return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
