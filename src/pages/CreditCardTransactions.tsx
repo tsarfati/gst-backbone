@@ -588,11 +588,14 @@ export default function CreditCardTransactions() {
     
     let balance = 0;
     sortedTransactions.forEach((trans) => {
-      // Payment transactions reduce the balance (they're already negative or marked as payment type)
-      if (trans.transaction_type === 'payment' || trans.amount < 0) {
-        balance += trans.amount; // Amount is negative for payments
+      const amt = Math.abs(Number(trans.amount));
+      const isCredit = trans.transaction_type === 'credit' || trans.transaction_type === 'payment' || Number(trans.amount) < 0;
+      if (isCredit) {
+        // Credits/payments reduce the card balance
+        balance -= amt;
       } else {
-        balance += Number(trans.amount); // Add charges
+        // Charges increase the balance
+        balance += amt;
       }
       balanceMap.set(trans.id, balance);
     });
@@ -1076,10 +1079,10 @@ export default function CreditCardTransactions() {
                       className="font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
-                      <span className={trans.transaction_type === 'payment' || trans.amount < 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        {trans.transaction_type === 'payment' || trans.amount < 0 
-                          ? `${formatCurrency(Math.abs(trans.amount))}`
-                          : formatCurrency(trans.amount)
+                      <span className={(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0)
+                          ? `${formatCurrency(Math.abs(Number(trans.amount)))}`
+                          : formatCurrency(Number(trans.amount))
                         }
                       </span>
                     </TableCell>
