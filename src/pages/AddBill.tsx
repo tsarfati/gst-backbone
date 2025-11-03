@@ -461,9 +461,14 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       // Fetch cost codes for the job FIRST before processing distribution
       await fetchCostCodesForJob(selectedSubcontract.job_id);
       
-      // Ensure cost_distribution is always an array
-      const costDist = selectedSubcontract.cost_distribution;
-      const distribution = Array.isArray(costDist) ? costDist : [];
+      // Ensure cost_distribution is always an array (handle JSON string or null)
+      const raw = selectedSubcontract.cost_distribution as any;
+      let distribution: any[] = [];
+      try {
+        distribution = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
+      } catch {
+        distribution = [];
+      }
       setCommitmentDistribution(distribution);
       
       console.log('Subcontract distribution loaded:', distribution);
@@ -517,9 +522,14 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       // Fetch cost codes for the job FIRST before processing distribution
       await fetchCostCodesForJob(selectedPO.job_id);
       
-      // Ensure cost_distribution is always an array
-      const costDist = selectedPO.cost_distribution;
-      const distribution = Array.isArray(costDist) ? costDist : [];
+      // Ensure cost_distribution is always an array (handle JSON string or null)
+      const raw = selectedPO.cost_distribution as any;
+      let distribution: any[] = [];
+      try {
+        distribution = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
+      } catch {
+        distribution = [];
+      }
       setCommitmentDistribution(distribution);
       
       console.log('PO distribution loaded:', distribution);
