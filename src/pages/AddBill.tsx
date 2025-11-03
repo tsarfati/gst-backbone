@@ -1374,7 +1374,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   const isFormValid = billType === "commitment" 
     ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
       formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
-      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0)) // Has cost code or valid distribution
+      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0) || (commitmentDistribution.length === 1)) // Accept auto-applied single distribution
     : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
       (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
       isDistributionValid(); // Valid distribution required
