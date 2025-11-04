@@ -274,11 +274,12 @@ export default function CreditCardTransactions() {
               const formattedDate = new Date(transactionDate).toISOString().split('T')[0];
               
               // Determine intended transaction type before duplicate check
+              // Only actual Payment type should be marked as 'payment', not just negative amounts
               let desiredType = type;
-              if (wasNegative) {
+              if (type === 'Payment') {
                 desiredType = 'payment';
-              } else if (type === 'Sale') {
-                desiredType = 'charge';
+              } else if (type === 'Sale' || (type === 'Return' || wasNegative)) {
+                desiredType = 'charge'; // Refunds/credits still need coding
               } else if (type === 'Fee') {
                 desiredType = 'fee';
               }
@@ -372,7 +373,9 @@ export default function CreditCardTransactions() {
               const description = descCol || "";
               
               // Determine intended transaction type before duplicate check
-              const transactionType = wasNegative ? 'payment' : 'charge';
+              // Don't automatically mark negative amounts as payments - they could be refunds/credits
+              const typeCol = transaction.Type || transaction.type;
+              const transactionType = typeCol === 'Payment' ? 'payment' : 'charge';
               
               // Check for duplicate and update sign/type if needed
               const key = `${transactionDate}-${amount}-${description}`;
