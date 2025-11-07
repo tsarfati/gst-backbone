@@ -889,6 +889,7 @@ interface CreditCardTransactionReportData {
     vendor_name: string | null;
     job_name: string | null;
     cost_code: string | null;
+    cost_code_type: string | null;
     chart_account_name: string | null;
   }>;
   creditCard: {
@@ -962,6 +963,39 @@ export const exportCreditCardTransactionReport = async (data: CreditCardTransact
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
 
+  // Add company logo in top left
+  try {
+    const { data: companyData } = await supabase
+      .from('companies')
+      .select('logo_url')
+      .eq('id', data.companyId)
+      .maybeSingle();
+    
+    if (companyData?.logo_url) {
+      const imgLoader = new Image();
+      imgLoader.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        imgLoader.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            canvas.width = imgLoader.width;
+            canvas.height = imgLoader.height;
+            ctx.drawImage(imgLoader, 0, 0);
+            const logoHeight = 50;
+            const logoWidth = (imgLoader.width / imgLoader.height) * logoHeight;
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', 36, 30, logoWidth, logoHeight);
+          }
+          resolve(null);
+        };
+        imgLoader.onerror = () => resolve(null);
+        imgLoader.src = companyData.logo_url;
+      });
+    }
+  } catch (e) {
+    console.error('Failed to load company logo:', e);
+  }
+
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(20);
   doc.setFont(fontFamily, 'bold');
@@ -996,14 +1030,21 @@ export const exportCreditCardTransactionReport = async (data: CreditCardTransact
   yPos += 40;
 
   // Table
-  const tableData = data.transactions.map((txn) => [
-    format(new Date(txn.transaction_date), 'MM/dd/yyyy'),
-    `$${Number(txn.amount).toFixed(2)}`,
-    txn.vendor_name || txn.merchant_name || '-',
-    txn.description || '-',
-    txn.chart_account_name || txn.job_name || '-',
-    txn.cost_code || '-'
-  ]);
+  const tableData = data.transactions.map((txn) => {
+    let costCodeDisplay = txn.cost_code || '-';
+    if (txn.cost_code && txn.cost_code_type) {
+      costCodeDisplay = `${txn.cost_code}\n(${txn.cost_code_type})`;
+    }
+    
+    return [
+      format(new Date(txn.transaction_date), 'MM/dd/yyyy'),
+      `$${Number(txn.amount).toFixed(2)}`,
+      txn.vendor_name || txn.merchant_name || '-',
+      txn.description || '-',
+      txn.chart_account_name || txn.job_name || '-',
+      costCodeDisplay
+    ];
+  });
 
   const headerBgColor = template?.table_header_bg 
     ? template.table_header_bg.replace('#', '').match(/.{2}/g)?.map(h => parseInt(h, 16)) || [241, 245, 249]
@@ -1031,20 +1072,22 @@ export const exportCreditCardTransactionReport = async (data: CreditCardTransact
       fillColor: [248, 250, 252]
     },
     columnStyles: {
-      0: { cellWidth: 'auto' },
-      1: { cellWidth: 'auto', halign: 'right' },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 'auto' },
-      5: { cellWidth: 'auto' }
+      0: { cellWidth: 60 },
+      1: { cellWidth: 70, halign: 'right' },
+      2: { cellWidth: 'auto', minCellWidth: 80 },
+      3: { cellWidth: 'auto', minCellWidth: 120 },
+      4: { cellWidth: 'auto', minCellWidth: 100 },
+      5: { cellWidth: 'auto', minCellWidth: 110 }
     },
     margin: { left: 20, right: 20 },
     styles: {
       overflow: 'linebreak',
-      cellWidth: 'wrap'
+      cellWidth: 'wrap',
+      valign: 'top'
     },
     pageBreak: 'auto',
-    rowPageBreak: 'auto'
+    rowPageBreak: 'auto',
+    tableWidth: 'auto'
   });
 
   // Total

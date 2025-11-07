@@ -31,6 +31,7 @@ interface TransactionData {
   vendor_name: string | null;
   job_name: string | null;
   cost_code: string | null;
+  cost_code_type: string | null;
   chart_account_name: string | null;
 }
 
@@ -98,7 +99,7 @@ export default function CreditCardTransactionReport() {
           description,
           vendors (name),
           jobs (name),
-          cost_codes (code, description),
+          cost_codes (code, description, type),
           chart_of_accounts (account_name)
         `)
         .eq("credit_card_id", selectedCard)
@@ -108,17 +109,24 @@ export default function CreditCardTransactionReport() {
 
       if (error) throw error;
 
-      const formattedData: TransactionData[] = (data || []).map((txn: any) => ({
-        id: txn.id,
-        transaction_date: txn.transaction_date,
-        amount: txn.amount,
-        merchant_name: txn.merchant_name,
-        description: txn.description,
-        vendor_name: txn.vendors?.name || null,
-        job_name: txn.jobs?.name || null,
-        cost_code: txn.cost_codes ? `${txn.cost_codes.code} - ${txn.cost_codes.description}` : null,
-        chart_account_name: txn.chart_of_accounts?.account_name || null,
-      }));
+      const formattedData: TransactionData[] = (data || []).map((txn: any) => {
+        const costCodeType = txn.cost_codes?.type 
+          ? txn.cost_codes.type.charAt(0).toUpperCase() + txn.cost_codes.type.slice(1)
+          : null;
+        
+        return {
+          id: txn.id,
+          transaction_date: txn.transaction_date,
+          amount: txn.amount,
+          merchant_name: txn.merchant_name,
+          description: txn.description,
+          vendor_name: txn.vendors?.name || null,
+          job_name: txn.jobs?.name || null,
+          cost_code: txn.cost_codes ? `${txn.cost_codes.code} - ${txn.cost_codes.description}` : null,
+          cost_code_type: costCodeType,
+          chart_account_name: txn.chart_of_accounts?.account_name || null,
+        };
+      });
 
       setTransactions(formattedData);
 
@@ -317,7 +325,16 @@ export default function CreditCardTransactionReport() {
                       <TableCell>{txn.vendor_name || txn.merchant_name || "-"}</TableCell>
                       <TableCell className="max-w-xs truncate">{txn.description || "-"}</TableCell>
                       <TableCell>{txn.chart_account_name || txn.job_name || "-"}</TableCell>
-                      <TableCell>{txn.cost_code || "-"}</TableCell>
+                      <TableCell>
+                        {txn.cost_code ? (
+                          <div>
+                            <div>{txn.cost_code}</div>
+                            {txn.cost_code_type && (
+                              <div className="text-xs text-muted-foreground">({txn.cost_code_type})</div>
+                            )}
+                          </div>
+                        ) : "-"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
