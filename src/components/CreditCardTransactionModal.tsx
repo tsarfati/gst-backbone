@@ -218,15 +218,22 @@ useEffect(() => {
         setSelectedJobOrAccount(`job_${transData.job_id}`);
         setIsJobSelected(true);
         // Preload cost codes for the job
-        const { data: jobCodes } = await supabase
-          .from('cost_codes')
-          .select('*')
+        // Preload cost codes for the job based on job budgets (only codes actually assigned to this job)
+        const { data: jobBudgetCodes } = await supabase
+          .from('job_budgets')
+          .select('cost_codes(*)')
           .eq('job_id', transData.job_id)
-          .eq('company_id', currentCompany?.id || '')
-          .eq('is_active', true)
-          .eq('is_dynamic_group', false)
-          .order('code', { ascending: true });
-        setJobCostCodes(jobCodes || []);
+          .eq('is_dynamic', false)
+          .eq('cost_codes.company_id', currentCompany?.id || '')
+          .eq('cost_codes.is_active', true)
+          .eq('cost_codes.is_dynamic_group', false)
+          .order('code', { ascending: true, foreignTable: 'cost_codes' });
+
+        const mappedJobCodes = (jobBudgetCodes || [])
+          .map((jb: any) => jb.cost_codes)
+          .filter(Boolean);
+        setJobCostCodes(mappedJobCodes);
+
       } else if (transData.chart_of_accounts?.id) {
         const acct = transData.chart_of_accounts;
         const isJobAcct = acct.account_number >= '50000' && acct.account_number <= '58000';
@@ -969,17 +976,22 @@ useEffect(() => {
     if (type === "job") {
       setIsJobSelected(true);
       
-      // Fetch cost codes directly by job_id
-      const { data: jobCostCodesData } = await supabase
-        .from("cost_codes")
-        .select("*")
-        .eq("job_id", id)
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .eq("is_dynamic_group", false)
-        .order("code", { ascending: true });
-      
-       setJobCostCodes(jobCostCodesData || []);
+      // Fetch cost codes via job budgets so only codes assigned to this job appear (exclude dynamic budget parents)
+      const { data: jobBudgetCodes } = await supabase
+        .from('job_budgets')
+        .select('cost_codes(*)')
+        .eq('job_id', id)
+        .eq('is_dynamic', false)
+        .eq('cost_codes.company_id', currentCompany?.id || '')
+        .eq('cost_codes.is_active', true)
+        .eq('cost_codes.is_dynamic_group', false)
+        .order('code', { ascending: true, foreignTable: 'cost_codes' });
+
+      const mappedJobCodes = (jobBudgetCodes || [])
+        .map((jb: any) => jb.cost_codes)
+        .filter(Boolean);
+      setJobCostCodes(mappedJobCodes);
+
       
       await supabase
         .from("credit_card_transactions")
@@ -1713,8 +1725,7 @@ useEffect(() => {
                   >
                     {transaction.cost_code_id 
                       ? (() => {
-                          const ccSel = jobCostCodes.find((c:any) => c.id === transaction.cost_code_id) 
-                            || costCodes.find((c:any) => c.id === transaction.cost_code_id);
+                          const ccSel = jobCostCodes.find((c:any) => c.id === transaction.cost_code_id);
                           return ccSel ? `${ccSel.code} - ${ccSel.description}` : 'Select cost code';
                         })()
                       : 'Select cost code'}
