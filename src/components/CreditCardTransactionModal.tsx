@@ -1337,35 +1337,9 @@ useEffect(() => {
   const filteredCostCodes = () => {
     if (!isJobSelected) return [];
     
-    // Deduplicate by code + description + type so Labor/Material/etc all show separately
-    const seen = new Map<string, any>();
-    
-    jobCostCodes
+    // Return only cost codes for the selected job, sorted by code
+    return jobCostCodes
       .filter(Boolean)
-      .forEach((cc: any) => {
-        const key = `${cc.code}-${cc.description}-${cc.type || 'other'}`;
-        const existing = seen.get(key);
-        
-        if (!existing) {
-          seen.set(key, cc);
-        } else {
-          // Prefer entries with explicit type over missing type and job-specific over generic
-          const hasType = !!cc.type && cc.type !== 'other';
-          const existingHasType = !!existing.type && existing.type !== 'other';
-          const hasJobId = cc.job_id != null;
-          const existingHasJobId = existing.job_id != null;
-          
-          if (hasJobId && !existingHasJobId) {
-            seen.set(key, cc);
-          } else if (hasJobId === existingHasJobId) {
-            if (hasType && !existingHasType) {
-              seen.set(key, cc);
-            }
-          }
-        }
-      });
-    
-    return Array.from(seen.values())
       .sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
   };
   const getCostCodeCategoryBadge = (type: string) => {
