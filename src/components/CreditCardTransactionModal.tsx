@@ -217,7 +217,7 @@ useEffect(() => {
       if (transData.job_id) {
         setSelectedJobOrAccount(`job_${transData.job_id}`);
         setIsJobSelected(true);
-        // Preload cost codes for the job (exclude ones without a type)
+        // Preload cost codes for the job
         const { data: jobCodes } = await supabase
           .from('cost_codes')
           .select('*')
@@ -225,7 +225,6 @@ useEffect(() => {
           .eq('company_id', currentCompany?.id || '')
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
-          .not('type', 'is', null)
           .order('code', { ascending: true });
         setJobCostCodes(jobCodes || []);
       } else if (transData.chart_of_accounts?.id) {
@@ -970,7 +969,7 @@ useEffect(() => {
     if (type === "job") {
       setIsJobSelected(true);
       
-      // Fetch cost codes directly by job_id (exclude ones without a type)
+      // Fetch cost codes directly by job_id
       const { data: jobCostCodesData } = await supabase
         .from("cost_codes")
         .select("*")
@@ -978,7 +977,6 @@ useEffect(() => {
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true)
         .eq("is_dynamic_group", false)
-        .not("type", "is", null)
         .order("code", { ascending: true });
       
        setJobCostCodes(jobCostCodesData || []);
