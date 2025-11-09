@@ -760,7 +760,7 @@ export default function CreditCardTransactions() {
       return <div className="flex items-center gap-1">{badges}</div>;
     }
 
-    // For payments: show reconciliation status only
+    // ONLY payments show reconciliation status - all other types (charges, credits, refunds) show coding status
     if (t.transaction_type === 'payment') {
       const isReconciled = !!t.is_reconciled;
       badges.push(
@@ -771,7 +771,7 @@ export default function CreditCardTransactions() {
       return <div className="flex items-center gap-1">{badges}</div>;
     }
 
-    // For charges: show coding status
+    // For all other transaction types (charges, credits, refunds): show coding status
     const hasVendor = !!t.vendor_id;
     const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
     const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected

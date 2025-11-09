@@ -911,7 +911,7 @@ useEffect(() => {
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
-    // Payment transactions don't need to be coded
+    // ONLY payment transactions don't need to be coded - all other types (charges, credits, refunds) require coding
     if (transaction.transaction_type === 'payment') {
       const newStatus = 'coded'; // Payments are automatically considered coded
       await supabase
@@ -925,14 +925,30 @@ useEffect(() => {
       return;
     }
 
-    // For charge transactions, check all requirements
+    // For all other transaction types (charges, credits, refunds), check all requirements
     const hasVendor = !!selectedVendorId;
     const hasJobOrAccount = !!selectedJobOrAccount;
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
-    // Attachment required unless explicitly bypassed for this transaction
-    const attachmentRequired = !bypassAttachmentRequirement;
+    // Check if the selected cost code or account requires an attachment
+    const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
+    const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
+    
+    // Determine if attachment is required based on:
+    // 1. If job selected, check cost code's require_attachment setting
+    // 2. If account selected, check account's require_attachment setting
+    // 3. User can bypass only if the selected code/account allows it
+    let attachmentRequired = true;
+    if (isJobSelected && transaction.cost_code_id) {
+      attachmentRequired = costCodeRequiresAttachment && !bypassAttachmentRequirement;
+    } else if (transaction.chart_account_id) {
+      attachmentRequired = accountRequiresAttachment && !bypassAttachmentRequirement;
+    } else {
+      // If neither selected yet, default to required
+      attachmentRequired = !bypassAttachmentRequirement;
+    }
+    
     const attachmentSatisfied = attachmentRequired ? hasAttachment : true;
 
     // All fields including vendor are required for coded status
