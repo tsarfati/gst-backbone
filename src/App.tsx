@@ -14,6 +14,7 @@ import Layout from "@/components/AppLayout";
 import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { AppRouter } from "./AppRouter";
 
 
 import Dashboard from "./pages/Dashboard";
@@ -133,6 +134,8 @@ import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 
 const queryClient = new QueryClient();
+
+const appType = import.meta.env.VITE_APP_TYPE || 'main';
 
 // Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -400,6 +403,12 @@ function AppRoutes() {
 }
 
 function App() {
+  // If building for mobile, use simplified router
+  if (appType !== 'main') {
+    return <AppRouter queryClient={queryClient} />;
+  }
+  
+  // Otherwise render the full web app
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
