@@ -1377,10 +1377,13 @@ useEffect(() => {
       labor: "Labor",
       material: "Material",
       equipment: "Equipment",
+      sub: "Sub",
+      subcontract: "Sub",
       subcontractor: "Sub",
       other: "Other",
     };
-    return labels[type] || labels.other;
+    const key = String(type || '').toLowerCase();
+    return labels[key] || labels.other;
   };
 
   if (loading) {
@@ -1868,7 +1871,7 @@ useEffect(() => {
                     const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
                     requiresByCode = acct?.require_attachment ?? true;
                   }
-                  const showStar = requiresByCode || (!requiresByCode && !bypassAttachmentRequirement);
+                  const showStar = requiresByCode;
                   return showStar ? '*' : null;
                 })()}
               </Label>
