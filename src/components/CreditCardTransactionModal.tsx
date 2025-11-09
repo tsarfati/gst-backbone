@@ -260,7 +260,7 @@ useEffect(() => {
       // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range) - ordered by account_number
       const { data: expenseAccountsData } = await supabase
         .from('chart_of_accounts')
-        .select('id, account_number, account_name, account_type')
+        .select('id, account_number, account_name, account_type, require_attachment')
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true)
         .in('account_type', ['expense', 'operating_expense', 'cost_of_goods_sold'])
@@ -931,9 +931,19 @@ useEffect(() => {
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
-    // Determine attachment requirement based on selected code/account
-    const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
-    const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
+    // Determine attachment requirement based on selected code/account using local lists
+    let costCodeRequiresAttachment = true;
+    if (isJobSelected && transaction?.cost_code_id) {
+      const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) 
+        || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+      costCodeRequiresAttachment = cc?.require_attachment ?? true;
+    }
+
+    let accountRequiresAttachment = true;
+    if (!isJobSelected && transaction?.chart_account_id) {
+      const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+      accountRequiresAttachment = acct?.require_attachment ?? true;
+    }
 
     const requiresByCode = (isJobSelected && transaction.cost_code_id)
       ? costCodeRequiresAttachment
@@ -1848,20 +1858,34 @@ useEffect(() => {
             <div className="flex items-center justify-between mb-2">
               <Label>
                 Attachment {(() => {
-                  const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
-                  const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
-                  const requiresByCode = (transaction?.cost_code_id ? costCodeRequiresAttachment : (transaction?.chart_account_id ? accountRequiresAttachment : true));
+                  // Resolve attachment requirement from selected cost code/account using local caches
+                  let requiresByCode = true;
+                  if (transaction?.cost_code_id && isJobSelected) {
+                    const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                    requiresByCode = cc?.require_attachment ?? true;
+                  } else if (transaction?.chart_account_id && !isJobSelected) {
+                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+                    requiresByCode = acct?.require_attachment ?? true;
+                  }
                   const showStar = requiresByCode || (!requiresByCode && !bypassAttachmentRequirement);
                   return showStar ? '*' : null;
                 })()}
               </Label>
               {(() => {
                 // Show checkbox only when selected cost code/account does NOT require attachment
-                const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
-                const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
-                const showCheckbox = 
-                  (transaction?.cost_code_id && !costCodeRequiresAttachment) ||
-                  (transaction?.chart_account_id && !accountRequiresAttachment);
+                const showCheckbox = (() => {
+                  if (transaction?.cost_code_id && isJobSelected) {
+                    const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                    return cc ? cc.require_attachment === false : false;
+                  }
+                  if (transaction?.chart_account_id && !isJobSelected) {
+                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+                    return acct ? acct.require_attachment === false : false;
+                  }
+                  return false;
+                })();
                 
                 if (!showCheckbox) {
                   return null;

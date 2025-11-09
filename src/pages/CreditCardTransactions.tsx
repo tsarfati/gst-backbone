@@ -761,7 +761,12 @@ export default function CreditCardTransactions() {
     }
 
     // Payments show reconciliation status only when not being coded (no job/account)
-    if (t.transaction_type === 'payment' && !t.job_id && !t.chart_account_id) {
+    // Extra guard: only treat as true payment if description/merchant indicates a payment, not a credit/refund
+    const paymentText = `${t.description || ''} ${t.merchant_name || ''}`;
+    const looksLikePayment = t.transaction_type === 'payment'
+      && /payment|pmt/i.test(paymentText)
+      && !/credit|refund/i.test(paymentText);
+    if (looksLikePayment && !t.job_id && !t.chart_account_id) {
       const isReconciled = !!t.is_reconciled;
       badges.push(
         isReconciled
