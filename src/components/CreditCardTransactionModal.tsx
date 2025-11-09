@@ -911,8 +911,8 @@ useEffect(() => {
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
-    // ONLY payment transactions don't need to be coded - all other types (charges, credits, refunds) require coding
-    if (transaction.transaction_type === 'payment') {
+    // Payments skip coding ONLY when not being coded (no job/account selected)
+    if (transaction.transaction_type === 'payment' && !selectedJobOrAccount && !transaction.job_id && !transaction.chart_account_id) {
       const newStatus = 'coded'; // Payments are automatically considered coded
       await supabase
         .from("credit_card_transactions")
@@ -931,25 +931,17 @@ useEffect(() => {
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
-    // Check if the selected cost code or account requires an attachment
+    // Determine attachment requirement based on selected code/account
     const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
     const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
-    
-    // Determine if attachment is required based on:
-    // 1. If job selected, check cost code's require_attachment setting
-    // 2. If account selected, check account's require_attachment setting
-    // 3. User can bypass only if the selected code/account allows it
-    let attachmentRequired = true;
-    if (isJobSelected && transaction.cost_code_id) {
-      attachmentRequired = costCodeRequiresAttachment && !bypassAttachmentRequirement;
-    } else if (transaction.chart_account_id) {
-      attachmentRequired = accountRequiresAttachment && !bypassAttachmentRequirement;
-    } else {
-      // If neither selected yet, default to required
-      attachmentRequired = !bypassAttachmentRequirement;
-    }
-    
-    const attachmentSatisfied = attachmentRequired ? hasAttachment : true;
+
+    const requiresByCode = (isJobSelected && transaction.cost_code_id)
+      ? costCodeRequiresAttachment
+      : (transaction.chart_account_id ? accountRequiresAttachment : true);
+
+    // If required by code/account: must have attachment
+    // If not required: allow either attachment or explicit bypass
+    const attachmentSatisfied = requiresByCode ? hasAttachment : (hasAttachment || bypassAttachmentRequirement);
 
     // All fields including vendor are required for coded status
     const isCoded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
@@ -1854,15 +1846,19 @@ useEffect(() => {
           {/* Attachment */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>Attachment {!bypassAttachmentRequirement && '*'}</Label>
+              <Label>
+                Attachment {(() => {
+                  const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
+                  const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
+                  const requiresByCode = (transaction?.cost_code_id ? costCodeRequiresAttachment : (transaction?.chart_account_id ? accountRequiresAttachment : true));
+                  const showStar = requiresByCode || (!requiresByCode && !bypassAttachmentRequirement);
+                  return showStar ? '*' : null;
+                })()}
+              </Label>
               {(() => {
-                // Check if cost code or account requires attachment
+                // Show checkbox only when selected cost code/account does NOT require attachment
                 const costCodeRequiresAttachment = transaction?.cost_codes?.require_attachment ?? true;
                 const accountRequiresAttachment = transaction?.chart_of_accounts?.require_attachment ?? true;
-                
-                // Only show checkbox if:
-                // 1. A cost code is selected AND it doesn't require attachment, OR
-                // 2. An account is selected AND it doesn't require attachment
                 const showCheckbox = 
                   (transaction?.cost_code_id && !costCodeRequiresAttachment) ||
                   (transaction?.chart_account_id && !accountRequiresAttachment);

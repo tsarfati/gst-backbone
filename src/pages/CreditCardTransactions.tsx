@@ -92,10 +92,10 @@ export default function CreditCardTransactions() {
         .select(`
           *,
           jobs:job_id(id, name),
-          cost_codes:cost_code_id(id, code, description),
+          cost_codes:cost_code_id(id, code, description, require_attachment),
           requested_coder:requested_coder_id(user_id, first_name, last_name),
           vendors:vendor_id(id, name),
-          chart_of_accounts:chart_account_id(id, account_number, account_name)
+          chart_of_accounts:chart_account_id(id, account_number, account_name, require_attachment)
         `)
         .eq("credit_card_id", id)
         .order("transaction_date", { ascending: false });
@@ -760,8 +760,8 @@ export default function CreditCardTransactions() {
       return <div className="flex items-center gap-1">{badges}</div>;
     }
 
-    // ONLY payments show reconciliation status - all other types (charges, credits, refunds) show coding status
-    if (t.transaction_type === 'payment') {
+    // Payments show reconciliation status only when not being coded (no job/account)
+    if (t.transaction_type === 'payment' && !t.job_id && !t.chart_account_id) {
       const isReconciled = !!t.is_reconciled;
       badges.push(
         isReconciled
@@ -771,15 +771,26 @@ export default function CreditCardTransactions() {
       return <div className="flex items-center gap-1">{badges}</div>;
     }
 
-    // For all other transaction types (charges, credits, refunds): show coding status
+    // For all other cases (charges, credits, refunds, or misclassified payments being coded): show coding status
     const hasVendor = !!t.vendor_id;
     const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
     const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected
     const hasAttachment = !!t.attachment_url;
     const bypass = !!t.bypass_attachment_requirement;
+
+    const costCodeRequiresAttachment = t?.cost_codes?.require_attachment ?? true;
+    const accountRequiresAttachment = t?.chart_of_accounts?.require_attachment ?? true;
+    const requiresByCode = t.job_id && t.cost_code_id
+      ? costCodeRequiresAttachment
+      : t.chart_account_id
+        ? accountRequiresAttachment
+        : true;
+
+    const attachmentSatisfied = requiresByCode ? hasAttachment : (hasAttachment || bypass);
+
     const hasMatches = !!t.invoice_id || !!t.receipt_id;
     const matchConfirmed = !!t.match_confirmed;
-    const coded = hasVendor && hasJobOrAccount && hasCostCode && (bypass ? true : hasAttachment);
+    const coded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
 
     // Show match confirmation status if there are potential matches
     if (hasMatches && !matchConfirmed) {
