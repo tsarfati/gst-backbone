@@ -878,6 +878,21 @@ serve(async (req) => {
 
           console.log(`Creating time card with cost_code_id: ${costCodeToUse}`);
 
+          // Load punch clock settings to check if time card should be flagged
+          const { data: flagSettings } = await supabaseAdmin
+            .from("job_punch_clock_settings")
+            .select("flag_timecards_over_12hrs, flag_timecards_over_24hrs")
+            .eq("company_id", companyId)
+            .is("job_id", null)
+            .maybeSingle();
+
+          const flagOver12 = flagSettings?.flag_timecards_over_12hrs ?? true;
+          const flagOver24 = flagSettings?.flag_timecards_over_24hrs ?? true;
+
+          // Determine status - flag if over threshold
+          const shouldFlag = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
+          const timecardStatus = shouldFlag ? 'pending' : 'approved';
+
           const { error: tcErr } = await supabaseAdmin
             .from('time_cards')
             .insert({
@@ -897,16 +912,16 @@ serve(async (req) => {
               punch_in_photo_url: currentPunch.punch_in_photo_url ?? null,
               punch_out_photo_url: photo_url ?? null,
               notes: body?.notes ?? null,
-              status: 'approved',
+              status: timecardStatus,
               created_via_punch_clock: true,
-              requires_approval: false,
+              requires_approval: shouldFlag,
               distance_warning: false
             });
 
           if (tcErr) {
             console.error('Error creating time card:', tcErr);
           } else {
-            console.log('Time card created successfully with cost_code_id:', costCodeToUse);
+            console.log(`Time card created with status: ${timecardStatus}, cost_code_id: ${costCodeToUse}`);
           }
         } catch (tcCatchErr) {
           console.error('Exception while creating time card:', tcCatchErr);

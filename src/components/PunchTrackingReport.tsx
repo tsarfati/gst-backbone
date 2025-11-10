@@ -187,6 +187,21 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
         .eq('id', punchIn.job_id || punchOut.job_id)
         .single();
 
+      // Load punch clock settings to check if time card should be flagged
+      const { data: flagSettings } = await supabase
+        .from('job_punch_clock_settings')
+        .select('flag_timecards_over_12hrs, flag_timecards_over_24hrs')
+        .eq('company_id', jobData?.company_id)
+        .is('job_id', null)
+        .maybeSingle();
+
+      const flagOver12 = flagSettings?.flag_timecards_over_12hrs ?? true;
+      const flagOver24 = flagSettings?.flag_timecards_over_24hrs ?? true;
+
+      // Determine status - flag if over threshold
+      const shouldFlag = (flagOver24 && adjustedHours > 24) || (flagOver12 && adjustedHours > 12);
+      const timecardStatus = shouldFlag ? 'pending' : 'approved';
+
       const { error } = await supabase
         .from('time_cards')
         .insert({
@@ -206,15 +221,18 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
           punch_in_photo_url: punchIn.photo_url,
           punch_out_photo_url: punchOut.photo_url,
           notes: punchOut.notes,
-          status: 'approved',
-          created_via_punch_clock: true
+          status: timecardStatus,
+          created_via_punch_clock: true,
+          requires_approval: shouldFlag
         });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Time card created successfully"
+        description: shouldFlag 
+          ? "Time card created and flagged for approval (over 12 hours)" 
+          : "Time card created successfully"
       });
 
       setSelectedPunches([]);

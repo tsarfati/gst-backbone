@@ -27,6 +27,7 @@ interface TimeCardData {
   notes?: string;
   status: string;
   correction_reason?: string;
+  company_id: string;
   profiles?: { display_name: string };
   jobs?: { name: string };
   cost_codes?: { code: string; description: string; type?: string };
@@ -192,8 +193,22 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
 
       const { totalHours, overtimeHours } = calculateHours(punchInTime, punchOutTime, breakMins);
 
-      // Admin/controller edits are auto-approved, others go to submitted
-      const newStatus = isAdminOrController ? 'approved' : 'submitted';
+      // Load punch clock settings to check if time card should be flagged
+      const { data: flagSettings } = await supabase
+        .from('job_punch_clock_settings')
+        .select('flag_timecards_over_12hrs, flag_timecards_over_24hrs')
+        .eq('company_id', timeCard.company_id)
+        .is('job_id', null)
+        .maybeSingle();
+
+      const flagOver12 = flagSettings?.flag_timecards_over_12hrs ?? true;
+      const flagOver24 = flagSettings?.flag_timecards_over_24hrs ?? true;
+
+      // Check if time card should be flagged for approval
+      const shouldFlag = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
+      
+      // If flagged, force pending status regardless of user role
+      const newStatus = shouldFlag ? 'pending' : (isAdminOrController ? 'approved' : 'submitted');
       
       const { error } = await supabase
         .from('time_cards')
@@ -207,9 +222,10 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           correction_reason: correctionReason.trim() || null,
           cost_code_id: selectedCostCodeId || null,
           status: newStatus,
-          approved_by: isAdminOrController ? user?.id : null,
-          approved_at: isAdminOrController ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
+          approved_by: isAdminOrController && !shouldFlag ? user?.id : null,
+          approved_at: isAdminOrController && !shouldFlag ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+          requires_approval: shouldFlag
         })
         .eq('id', timeCardId);
 
@@ -217,7 +233,9 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
 
       toast({
         title: 'Success',
-        description: 'Time card updated successfully.',
+        description: shouldFlag 
+          ? 'Time card updated and flagged for approval (over 12 hours)'
+          : 'Time card updated successfully.',
       });
 
       onSave();
