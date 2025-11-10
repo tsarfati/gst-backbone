@@ -185,7 +185,30 @@ export default function Bills() {
         payment_terms: bill.payment_terms
       })) || [];
 
-      setBills(formattedBills);
+      // Sync invoices that were paid via posted credit card transactions
+      let finalBills = formattedBills;
+      try {
+        const idsToCheck = (data || []).filter((b: any) => b.status !== 'paid').map((b: any) => b.id);
+        if (idsToCheck.length > 0) {
+          const { data: postedTx, error: txErr } = await supabase
+            .from('credit_card_transactions')
+            .select('invoice_id')
+            .in('invoice_id', idsToCheck)
+            .not('journal_entry_id', 'is', null);
+
+          if (!txErr && postedTx && postedTx.length > 0) {
+            const idsPaid = Array.from(new Set((postedTx as any[]).map(t => t.invoice_id).filter(Boolean)));
+            if (idsPaid.length > 0) {
+              await supabase.from('invoices').update({ status: 'paid' }).in('id', idsPaid);
+              finalBills = formattedBills.map(b => idsPaid.includes(b.id) ? { ...b, status: 'paid' } : b);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Invoice status sync skipped', e);
+      }
+
+      setBills(finalBills);
     } catch (error) {
       console.error('Error loading bills:', error);
       toast({
