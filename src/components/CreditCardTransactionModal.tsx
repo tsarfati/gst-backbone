@@ -954,8 +954,8 @@ useEffect(() => {
       : (transaction.chart_account_id ? accountRequiresAttachment : true);
 
     // If required by code/account: must have attachment
-    // If not required: allow either attachment or explicit bypass
-    const attachmentSatisfied = requiresByCode ? hasAttachment : (hasAttachment || bypassAttachmentRequirement);
+    // If not required: attachment is not needed at all
+    const attachmentSatisfied = requiresByCode ? hasAttachment : true;
 
     // All fields including vendor are required for coded status
     const isCoded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
@@ -1881,50 +1881,7 @@ useEffect(() => {
                   return showStar ? '*' : null;
                 })()}
               </Label>
-              {(() => {
-                // Show checkbox only when selected cost code/account does NOT require attachment
-                const showCheckbox = (() => {
-                  if (transaction?.cost_code_id && isJobSelected) {
-                    const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (transaction as any)?.cost_codes;
-                    const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
-                    const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
-                    return resolvedCC ? resolvedCC.require_attachment === false : false;
-                  }
-                  if (transaction?.chart_account_id && !isJobSelected) {
-                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
-                      || (transaction as any)?.chart_of_accounts;
-                    return acct ? acct.require_attachment === false : false;
-                  }
-                  return false;
-                })();
-                
-                if (!showCheckbox) {
-                  return null;
-                }
-                
-                return (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="bypass-attachment"
-                      checked={bypassAttachmentRequirement}
-                      onCheckedChange={(checked) => {
-                        setBypassAttachmentRequirement(!!checked);
-                        supabase
-                          .from("credit_card_transactions")
-                          .update({ bypass_attachment_requirement: !!checked })
-                          .eq("id", transactionId)
-                          .then(() => {
-                            updateCodingStatus();
-                          });
-                      }}
-                    />
-                    <label htmlFor="bypass-attachment" className="text-sm cursor-pointer">
-                      No receipts necessary
-                    </label>
-                  </div>
-                );
-              })()}
+              {null}
             </div>
             {(transaction?.attachment_url || attachmentPreview) ? (
               <div className="space-y-3 mt-2">
