@@ -77,24 +77,43 @@ serve(async (req) => {
       }
     }
 
-    // PIN employees for this company
-    const { data: pins, error: pinErr } = await supabase
-      .from('pin_employees')
-      .select('id, first_name, last_name, display_name, is_active')
-      .eq('company_id', company_id);
-    if (pinErr) throw pinErr;
+    // PIN employees for this company via settings and activity (do not rely on pin_employees.company_id)
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - 60);
+    const sinceISO = since.toISOString();
 
-    const pinEmployees = (pins || [])
-      .filter((p: any) => p.is_active !== false) // default to include if null
-      .map((p: any) => ({
-        id: p.id,
-        user_id: p.id,
-        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
-        first_name: p.first_name || null,
-        last_name: p.last_name || null,
-        role: 'employee',
-        is_pin: true,
-      }));
+    const [pinSettingsRes, tcUsersRes, punchPinsRes] = await Promise.all([
+      supabase.from('pin_employee_timecard_settings').select('pin_employee_id').eq('company_id', company_id),
+      supabase.from('time_cards').select('user_id').eq('company_id', company_id).gte('punch_in_time', sinceISO),
+      supabase.from('punch_records').select('pin_employee_id').eq('company_id', company_id).gte('punch_time', sinceISO),
+    ]);
+
+    const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+    const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id).filter(Boolean);
+    const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+    const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
+
+    let pinEmployees: any[] = [];
+    if (candidatePinIds.length > 0) {
+      const { data: pins, error: pinErr } = await supabase
+        .from('pin_employees')
+        .select('id, first_name, last_name, display_name, is_active')
+        .in('id', candidatePinIds);
+      if (pinErr) throw pinErr;
+
+      pinEmployees = (pins || [])
+        .filter((p: any) => p.is_active !== false)
+        .map((p: any) => ({
+          id: p.id,
+          user_id: p.id,
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
+          first_name: p.first_name || null,
+          last_name: p.last_name || null,
+          role: 'employee',
+          is_pin: true,
+        }));
+    }
+
 
     const mergedRegulars = Object.values(byId);
 

@@ -199,22 +199,38 @@ export default function ManualTimeEntry() {
         display_name: emp.display_name
       }));
 
-      // Fallback: directly query pin_employees if none returned by edge function
-      const returnedPinCount = (data?.employees || []).filter((e: any) => e.is_pin).length;
-      if (returnedPinCount === 0) {
+      // Fallback: derive PIN employees tied to this company via settings and recent activity
+      const since = new Date();
+      since.setUTCDate(since.getUTCDate() - 60); // last 60 days to keep it relevant
+      const sinceISO = since.toISOString();
+
+      const [pinSettingsRes, tcUsersRes, punchPinsRes] = await Promise.all([
+        supabase.from('pin_employee_timecard_settings').select('pin_employee_id').eq('company_id', currentCompany.id),
+        supabase.from('time_cards').select('user_id').eq('company_id', currentCompany.id).gte('punch_in_time', sinceISO),
+        supabase.from('punch_records').select('pin_employee_id').eq('company_id', currentCompany.id).gte('punch_time', sinceISO),
+      ]);
+
+      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id).filter(Boolean);
+      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
+      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
+
+      if (candidatePinIds.length > 0) {
         const { data: pins } = await supabase
           .from('pin_employees')
           .select('id, display_name, first_name, last_name, is_active')
-          .eq('company_id', currentCompany.id)
-          .neq('is_active', false);
+          .eq('is_active', true)
+          .in('id', candidatePinIds);
+
         const pinList: Employee[] = (pins || []).map((p: any) => ({
           user_id: p.id,
-          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee'
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
         }));
-        // Merge unique
+
         const existingIds = new Set(employeeList.map(e => e.user_id));
         employeeList = employeeList.concat(pinList.filter(p => !existingIds.has(p.user_id)));
       }
+
       
       setEmployees(employeeList.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '')));
     } catch (error) {
