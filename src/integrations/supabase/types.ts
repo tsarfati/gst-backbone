@@ -3537,6 +3537,7 @@ export type Database = {
           bank_account_id: string | null
           bank_fee: number | null
           check_number: string | null
+          company_id: string | null
           created_at: string
           created_by: string
           id: string
@@ -3556,6 +3557,7 @@ export type Database = {
           bank_account_id?: string | null
           bank_fee?: number | null
           check_number?: string | null
+          company_id?: string | null
           created_at?: string
           created_by: string
           id?: string
@@ -3575,6 +3577,7 @@ export type Database = {
           bank_account_id?: string | null
           bank_fee?: number | null
           check_number?: string | null
+          company_id?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -3595,6 +3598,13 @@ export type Database = {
             columns: ["bank_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {

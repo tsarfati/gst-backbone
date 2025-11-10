@@ -48,8 +48,10 @@ const getMethodIcon = (method: string) => {
       return "💱";
     case "check":
       return "📄";
-    case "card":
+    case "credit_card":
       return "💳";
+    case "cash":
+      return "💵";
     default:
       return "💰";
   }
@@ -429,7 +431,8 @@ export default function PaymentHistory() {
                 <SelectItem value="ach">ACH</SelectItem>
                 <SelectItem value="wire">Wire</SelectItem>
                 <SelectItem value="check">Check</SelectItem>
-                <SelectItem value="card">Card</SelectItem>
+                <SelectItem value="credit_card">Credit Card</SelectItem>
+                <SelectItem value="cash">Cash</SelectItem>
               </SelectContent>
             </Select>
             <Button
