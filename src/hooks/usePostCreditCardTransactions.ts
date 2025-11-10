@@ -118,19 +118,16 @@ export function usePostCreditCardTransactions() {
 
           if (updateError) throw updateError;
 
-          // If matched to a bill, mark the bill as paid
-          if (trans.matched_bill_id) {
-            const { error: billError } = await (supabase as any)
-              .from("bills")
-              .update({ 
-                status: "paid",
-                payment_date: trans.transaction_date,
-                payment_method: "Credit Card"
-              })
-              .eq("id", trans.matched_bill_id);
+          // If linked to an invoice (matched_bill_id or invoice_id), mark it as paid
+          const linkedInvoiceId = trans.matched_bill_id || trans.invoice_id;
+          if (linkedInvoiceId) {
+            const { error: invoiceError } = await supabase
+              .from("invoices")
+              .update({ status: "paid" })
+              .eq("id", linkedInvoiceId);
 
-            if (billError) {
-              console.error("Failed to update bill status:", billError);
+            if (invoiceError) {
+              console.error("Failed to update invoice status:", invoiceError);
               // Don't throw - transaction was posted successfully
             }
           }
