@@ -609,6 +609,11 @@ useEffect(() => {
 
         if (otherTransactions && !txError) {
           otherTransactions.forEach((tx: any) => {
+            const transAmt = Math.abs(Number(transData.amount));
+            const txAmt = Math.abs(Number(tx.amount));
+            if (Math.abs(transAmt - txAmt) >= 0.01) {
+              return; // discard mismatched amounts for transaction-to-transaction matches
+            }
             const match = {
               id: tx.id,
               type: "transaction",
@@ -662,6 +667,10 @@ useEffect(() => {
 
     // Amount match (0-60 points) - HIGHEST PRIORITY
     const amountDiff = Math.abs(transAmount - itemAmount);
+    // For matching to another credit card transaction, require exact amount match
+    if (itemType === 'transaction' && amountDiff >= 0.01) {
+      return 0; // immediately discard as non-match
+    }
     if (amountDiff < 0.01) {
       // Exact match
       score += 60;
@@ -1019,7 +1028,6 @@ useEffect(() => {
         .filter(Boolean);
       setJobCostCodes(mappedJobCodes);
 
-      
       await supabase
         .from("credit_card_transactions")
         .update({
@@ -1461,24 +1469,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Internal Description */}
-          <div className="space-y-2">
-            <Label className="text-sm">Internal Description</Label>
-            <Textarea
-              value={transaction.notes || ""}
-              onChange={(e) => setTransaction((prev: any) => ({ ...prev, notes: e.target.value }))}
-              onBlur={async (e) => {
-                const val = e.target.value;
-                await supabase
-                  .from("credit_card_transactions")
-                  .update({ notes: val })
-                  .eq("id", transactionId);
-              }}
-              placeholder="Add internal notes for this transaction (not visible externally)"
-              rows={3}
-            />
-          </div>
-
           {/* Suggested Matches */}
           {showMatches && suggestedMatches.length === 0 ? null : showMatches && (
             <Collapsible
@@ -1502,24 +1492,6 @@ useEffect(() => {
                         ? `${suggestedMatches.length} potential ${suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.`
                         : 'No potential matches found for this transaction. You can refresh to try again.'}
                     </p>
-          </div>
-
-          {/* Internal Description */}
-          <div className="space-y-2">
-            <Label className="text-sm">Internal Description</Label>
-            <Textarea
-              value={transaction.notes || ""}
-              onChange={(e) => setTransaction((prev: any) => ({ ...prev, notes: e.target.value }))}
-              onBlur={async (e) => {
-                const val = e.target.value;
-                await supabase
-                  .from("credit_card_transactions")
-                  .update({ notes: val })
-                  .eq("id", transactionId);
-              }}
-              placeholder="Add internal notes for this transaction (not visible externally)"
-              rows={3}
-            />
           </div>
 
                   <div className="flex items-center gap-2">
@@ -1892,6 +1864,24 @@ useEffect(() => {
                 </div>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Internal Description */}
+          <div className="space-y-2 mb-4">
+            <Label className="text-sm">Internal Description</Label>
+            <Textarea
+              value={transaction.notes || ""}
+              onChange={(e) => setTransaction((prev: any) => ({ ...prev, notes: e.target.value }))}
+              onBlur={async (e) => {
+                const val = e.target.value;
+                await supabase
+                  .from("credit_card_transactions")
+                  .update({ notes: val })
+                  .eq("id", transactionId);
+              }}
+              placeholder="Add internal notes for this transaction (not visible externally)"
+              rows={3}
+            />
           </div>
 
           {/* Attachment */}
