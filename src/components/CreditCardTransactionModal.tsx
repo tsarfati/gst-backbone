@@ -937,7 +937,9 @@ useEffect(() => {
       const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
         || (transaction as any)?.cost_codes;
       // Prefer company-level override by matching code/type when job-level differs
-      const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+      const ccCompany = ccJob && (costCodes || []).find((c: any) =>
+        c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
+      );
       const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
       costCodeRequiresAttachment = resolvedCC?.require_attachment ?? true;
     }
@@ -1758,7 +1760,7 @@ useEffect(() => {
                  <PopoverContent className="w-[400px] p-0 z-50 bg-background">
                   <Command>
                     <CommandInput placeholder="Search cost codes..." />
-                    <CommandList>
+                    <CommandList className="max-h-72 overflow-y-auto">
                       <CommandEmpty>No cost codes found.</CommandEmpty>
                       <CommandGroup>
                         <CommandItem
@@ -1868,7 +1870,9 @@ useEffect(() => {
                   if (transaction?.cost_code_id && isJobSelected) {
                     const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
                       || (transaction as any)?.cost_codes;
-                    const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+                    const ccCompany = ccJob && (costCodes || []).find((c: any) =>
+                      c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
+                    );
                     const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
                     requiresByCode = resolvedCC?.require_attachment ?? true;
                   } else if (transaction?.chart_account_id && !isJobSelected) {

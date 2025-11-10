@@ -752,21 +752,23 @@ export default function CreditCardTransactions() {
   };
 
   // Helper to resolve whether attachment is required based on cost code/account
-  const requiresAttachmentFor = (t: any): boolean => {
-    if (t.job_id && t.cost_code_id) {
-      const ccJob = t.cost_codes;
-      if (ccJob) {
-        const ccCompany = (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
-        const resolved = ccCompany || ccJob;
-        return resolved?.require_attachment ?? true;
+    const requiresAttachmentFor = (t: any): boolean => {
+      if (t.job_id && t.cost_code_id) {
+        const ccJob = t.cost_codes;
+        if (ccJob) {
+          const ccCompany = (costCodes || []).find((c: any) =>
+            c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
+          );
+          const resolved = ccCompany || ccJob;
+          return resolved?.require_attachment ?? true;
+        }
+        return true;
+      }
+      if (t.chart_account_id && t.chart_of_accounts) {
+        return t.chart_of_accounts.require_attachment ?? true;
       }
       return true;
-    }
-    if (t.chart_account_id && t.chart_of_accounts) {
-      return t.chart_of_accounts.require_attachment ?? true;
-    }
-    return true;
-  };
+    };
 
   const isTransactionCoded = (t: any): boolean => {
     const hasVendor = !!t.vendor_id;
