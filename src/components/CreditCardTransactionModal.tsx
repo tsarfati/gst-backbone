@@ -1705,7 +1705,10 @@ const resolveAttachmentRequirement = (): boolean => {
             const isRefundLike = /credit|refund|return|reversal|rebate|cashback|chargeback/.test(desc);
             const amt = Number(transaction.amount || 0);
             const isNegative = Number.isFinite(amt) && amt < 0;
-            const show = (!isPaymentType && !isPaymentDesc) || isRefundLike || isNegative;
+            const hasVendor = Boolean(transaction.vendor_id);
+            // Show if: looks like refund OR negative amount OR description does not look like a true card payment
+            // and either it's not typed as 'payment' or it has a merchant vendor (common for refunds mislabeled as payments)
+            const show = isRefundLike || isNegative || (!isPaymentDesc && (!isPaymentType || hasVendor));
             return show;
           })() && (
             <div className="mt-4">
