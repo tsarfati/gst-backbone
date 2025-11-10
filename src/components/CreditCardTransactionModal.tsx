@@ -1677,7 +1677,7 @@ const resolveAttachmentRequirement = (): boolean => {
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select vendor" />
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
+                <SelectContent className="bg-background z-50 max-h-[300px] overflow-y-auto">
                   <SelectItem value="clear-vendor" className="text-muted-foreground italic">
                     Clear selection
                   </SelectItem>

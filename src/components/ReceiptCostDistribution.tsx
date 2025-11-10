@@ -311,10 +311,10 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0 z-[1000] bg-background shadow-lg border">
+                  <PopoverContent className="w-[400px] p-0 z-[1000] bg-background shadow-lg border" onWheel={(e) => e.stopPropagation()}>
                     <Command>
                       <CommandInput placeholder="Search jobs or accounts..." />
-                      <CommandList className="max-h-72 overflow-y-auto">
+                      <CommandList className="max-h-72 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                         <CommandEmpty>No results found.</CommandEmpty>
                         {jobs.length > 0 && (
                           <CommandGroup heading="Jobs">
@@ -383,7 +383,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0 bg-popover border border-border shadow-md z-50" align="start">
+                  <PopoverContent className="w-[400px] p-0 bg-popover border border-border shadow-md z-50" align="start" onWheel={(e) => e.stopPropagation()}>
                     {/* Category Filter */}
                     <div className="p-2 border-b bg-card flex items-center gap-2">
                       <Label className="text-xs">Category</Label>
@@ -394,7 +394,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                         <SelectTrigger className="h-8 w-40">
                           <SelectValue placeholder="All" />
                         </SelectTrigger>
-                        <SelectContent className="z-50 bg-popover border border-border">
+                        <SelectContent className="z-50 bg-popover border border-border max-h-[200px] overflow-y-auto">
                           <SelectItem value="all" className="hover:bg-primary/10 hover:text-primary">All</SelectItem>
                           <SelectItem value="labor" className="hover:bg-primary/10 hover:text-primary">Labor</SelectItem>
                           <SelectItem value="material" className="hover:bg-primary/10 hover:text-primary">Material</SelectItem>
@@ -407,7 +407,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                     <Command>
                       <CommandInput placeholder="Search cost codes..." className="h-8" />
                       <CommandEmpty>No cost code found.</CommandEmpty>
-                      <CommandGroup className="max-h-[300px] overflow-auto">
+                      <CommandGroup className="max-h-[300px] overflow-auto" onWheel={(e) => e.stopPropagation()}>
                         {costCodesForJob.map((cc) => (
                         <CommandItem
                           key={cc.id}
