@@ -69,6 +69,13 @@ export function CreditCardTransactionModal({
   const [matchesCollapsed, setMatchesCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+// Also recompute when code lists resolve
+useEffect(() => {
+  if (open) {
+    updateCodingStatus();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [jobCostCodes, costCodes, expenseAccounts]);
 
 useEffect(() => {
   if (open && transactionId && currentCompany) {
