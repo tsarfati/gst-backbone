@@ -139,6 +139,46 @@ useEffect(() => {
   return () => clearTimeout(timer);
 }, [ccDistribution, open, transactionId, currentCompany, loadedDistributionIds, user]);
 
+// Flush distribution immediately when modal closes to avoid debounce loss
+useEffect(() => {
+  const flushOnClose = async () => {
+    if (open || !transactionId || !currentCompany) return;
+    try {
+      // same logic as save, but without debounce
+      const currentIds = ccDistribution.map(d => d.id).filter(Boolean);
+      const idsToDelete = loadedDistributionIds.filter(id => !currentIds.includes(id));
+      if (idsToDelete.length > 0) {
+        await supabase
+          .from('credit_card_transaction_distributions')
+          .delete()
+          .in('id', idsToDelete);
+      }
+      for (const line of ccDistribution) {
+        if (!line.job_id || !line.cost_code_id || !line.amount) continue;
+        const lineData = {
+          transaction_id: transactionId,
+          company_id: currentCompany.id,
+          job_id: line.job_id,
+          cost_code_id: line.cost_code_id,
+          amount: Number(line.amount) || 0,
+          percentage: Number(line.percentage) || 0,
+          created_by: user?.id
+        };
+        if (line.id && loadedDistributionIds.includes(line.id)) {
+          await supabase.from('credit_card_transaction_distributions').update(lineData).eq('id', line.id);
+        } else {
+          await supabase.from('credit_card_transaction_distributions').insert(lineData);
+        }
+      }
+    } catch (e) {
+      console.error('Error flushing distribution on close:', e);
+    }
+  };
+  flushOnClose();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [open]);
+
+
 // Also recompute when code lists resolve
 useEffect(() => {
   if (open) {
