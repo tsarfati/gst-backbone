@@ -1116,20 +1116,25 @@ const resolveAttachmentRequirement = (): boolean => {
       
       const hasAttachment = !!trans.attachment_url;
       const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+      const newStatus = complete ? 'coded' : 'uncoded';
 
       console.log('Final status calculation:', {
         requiresByCode,
         hasAttachment,
         complete,
-        newStatus: complete ? 'coded' : 'uncoded'
+        newStatus
       });
 
-      await supabase
-        .from('credit_card_transactions')
-        .update({ coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null })
-        .eq('id', transactionId);
+      // Only update if status changed
+      const currentStatus = trans.coding_status ?? transaction?.coding_status;
+      if (currentStatus !== newStatus) {
+        await supabase
+          .from('credit_card_transactions')
+          .update({ coding_status: newStatus, cost_code_id: null })
+          .eq('id', transactionId);
+      }
 
-      setTransaction((prev: any) => ({ ...prev, coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null }));
+      setTransaction((prev: any) => ({ ...prev, coding_status: newStatus, cost_code_id: null }));
       return;
     }
 
@@ -1181,15 +1186,19 @@ const resolveAttachmentRequirement = (): boolean => {
     const isCoded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
-    await supabase
-      .from("credit_card_transactions")
-      .update({ 
-        coding_status: newStatus,
-        bypass_attachment_requirement: bypassAttachmentRequirement
-      })
-      .eq("id", transactionId);
+    const currentStatus = transaction.coding_status;
+    if (currentStatus !== newStatus) {
+      await supabase
+        .from("credit_card_transactions")
+        .update({ 
+          coding_status: newStatus,
+          bypass_attachment_requirement: bypassAttachmentRequirement
+        })
+        .eq("id", transactionId);
+    }
 
     setTransaction((prev: any) => ({ ...prev, coding_status: newStatus }));
+    return;
   };
 
   const handleJobOrAccountChange = async (value: string | null) => {
