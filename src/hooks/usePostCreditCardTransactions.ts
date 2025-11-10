@@ -147,13 +147,14 @@ export function usePostCreditCardTransactions() {
                 .insert({
                   amount: Math.abs(Number(trans.amount)),
                   payment_date: trans.transaction_date,
-                  payment_method: "Credit Card",
+                  payment_method: "card",
                   payment_number: `CC-${trans.credit_cards.card_name}-${trans.transaction_date}`,
                   vendor_id: invoice.vendor_id,
                   journal_entry_id: journalEntry.id,
                   created_by: userId,
                   memo: `Credit Card Payment via ${trans.credit_cards.card_name} - ${trans.description}`,
                   status: "completed",
+                  company_id: companyId,
                 })
                 .select()
                 .single();

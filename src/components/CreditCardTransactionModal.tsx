@@ -1632,7 +1632,7 @@ const resolveAttachmentRequirement = (): boolean => {
             </Collapsible>
           )}
           {/* Vendor Selection - Not required for payments, but required for credits/refunds */}
-          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && (
+          {true && (
           <div>
             <Label>Vendor *</Label>
             <div className="flex gap-2">
@@ -1664,7 +1664,7 @@ const resolveAttachmentRequirement = (): boolean => {
           )}
 
           {/* Job/Control Selection - Not required for payments, but required for credits/refunds */}
-          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && (
+          {true && (
           <div>
             <Label>Job/Control *</Label>
             <Popover key={`jobacct-${transactionId}`}
