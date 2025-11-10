@@ -752,23 +752,22 @@ export default function CreditCardTransactions() {
   };
 
   // Helper to resolve whether attachment is required based on cost code/account
-    const requiresAttachmentFor = (t: any): boolean => {
-      if (t.job_id && t.cost_code_id) {
-        const ccJob = t.cost_codes;
-        if (ccJob) {
-          const ccCompany = (costCodes || []).find((c: any) =>
-            c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
-          );
-          const resolved = ccCompany || ccJob;
-          return resolved?.require_attachment ?? true;
-        }
-        return true;
-      }
-      if (t.chart_account_id && t.chart_of_accounts) {
-        return t.chart_of_accounts.require_attachment ?? true;
+  const requiresAttachmentFor = (t: any): boolean => {
+    const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
+    if (t.job_id && t.cost_code_id) {
+      const ccJob = t.cost_codes;
+      if (ccJob) {
+        const ccCompany = (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
+        const resolved = ccCompany || ccJob;
+        return resolved?.require_attachment ?? true;
       }
       return true;
-    };
+    }
+    if (t.chart_account_id && t.chart_of_accounts) {
+      return t.chart_of_accounts.require_attachment ?? true;
+    }
+    return true;
+  };
 
   const isTransactionCoded = (t: any): boolean => {
     const hasVendor = !!t.vendor_id;
@@ -777,7 +776,9 @@ export default function CreditCardTransactions() {
     const hasAttachment = !!t.attachment_url;
     const requiresByCode = requiresAttachmentFor(t);
     const attachmentSatisfied = requiresByCode ? hasAttachment : true;
-    return hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
+    const coded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
+    console.log('CC coded calc', { id: t.id, hasVendor, hasJobOrAccount, hasCostCode, hasAttachment, requiresByCode, coded, ccJob: t.cost_codes, acct: t.chart_of_accounts });
+    return coded;
   };
 
   const getStatusBadge = (t: any) => {

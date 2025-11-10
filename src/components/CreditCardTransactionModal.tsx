@@ -963,8 +963,8 @@ useEffect(() => {
     if (isJobSelected && transaction?.cost_code_id) {
       const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
         || (transaction as any)?.cost_codes;
-      // Prefer company-level override by matching code/type when job-level differs
-      const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code);
+      const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
+      const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
       const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
       costCodeRequiresAttachment = resolvedCC?.require_attachment ?? true;
     }
@@ -1907,7 +1907,8 @@ useEffect(() => {
                   if (transaction?.cost_code_id && isJobSelected) {
                     const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
                       || (transaction as any)?.cost_codes;
-                    const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code);
+                    const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
+                    const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
                     const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
                     requiresByCode = resolvedCC?.require_attachment ?? true;
                   } else if (transaction?.chart_account_id && !isJobSelected) {
