@@ -753,11 +753,12 @@ export default function CreditCardTransactions() {
 
   // Helper to resolve whether attachment is required based on cost code/account
   const requiresAttachmentFor = (t: any): boolean => {
-    const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
+    const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
     if (t.job_id && t.cost_code_id) {
       const ccJob = t.cost_codes;
       if (ccJob) {
-        const ccCompany = (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
+        const ccCompany = (costCodes || []).find((c: any) => core(c.code) === core(ccJob.code));
+        if (ccCompany?.require_attachment === false || ccJob?.require_attachment === false) return false;
         const resolved = ccCompany || ccJob;
         return resolved?.require_attachment ?? true;
       }

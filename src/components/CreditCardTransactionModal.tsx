@@ -935,26 +935,26 @@ useEffect(() => {
     }
   };
 
-  // Compute whether the currently selected code/account requires an attachment
-  const resolveAttachmentRequirement = (): boolean => {
-    try {
-      if (isJobSelected && transaction?.cost_code_id) {
-        const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
-        const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
-        const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
-        if (ccCompany && ccCompany.require_attachment === false) return false;
-        if (ccJob && ccJob.require_attachment === false) return false;
-        return ccCompany?.require_attachment ?? ccJob?.require_attachment ?? true;
-      }
-      if (!isJobSelected && transaction?.chart_account_id) {
-        const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
-        return acct?.require_attachment ?? true;
-      }
-      return true;
-    } catch {
-      return true;
+// Compute whether the currently selected code/account requires an attachment
+const resolveAttachmentRequirement = (): boolean => {
+  try {
+    const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
+    if (isJobSelected && transaction?.cost_code_id) {
+      const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
+      const companyMatch = ccJob && (costCodes || []).find((c: any) => core(c.code) === core(ccJob.code));
+      // Prefer any explicit false at company or job level
+      if (companyMatch?.require_attachment === false || ccJob?.require_attachment === false) return false;
+      return (companyMatch?.require_attachment ?? ccJob?.require_attachment ?? true);
     }
-  };
+    if (!isJobSelected && transaction?.chart_account_id) {
+      const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
+      return acct?.require_attachment ?? true;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+};
 
   const updateCodingStatus = async () => {
     if (!transaction) return;
