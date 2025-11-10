@@ -71,6 +71,8 @@ export function CreditCardTransactionModal({
   const [isDragging, setIsDragging] = useState(false);
   const [ccDistribution, setCcDistribution] = useState<any[]>([]);
   const [loadedDistributionIds, setLoadedDistributionIds] = useState<string[]>([]);
+  const [isLinkedToBill, setIsLinkedToBill] = useState(false);
+  const [billDistribution, setBillDistribution] = useState<any[]>([]);
 
   // Immediate persist for distribution changes triggered from UI
   const persistDistribution = async (dist: any[]) => {
@@ -148,6 +150,8 @@ useEffect(() => {
     setJobCostCodes([]);
     setCcDistribution([]);
     setLoadedDistributionIds([]);
+    setIsLinkedToBill(false);
+    setBillDistribution([]);
     fetchData();
   } else if (!open) {
     // Clear state when modal closes
@@ -158,6 +162,8 @@ useEffect(() => {
     setJobCostCodes([]);
     setCcDistribution([]);
     setLoadedDistributionIds([]);
+    setIsLinkedToBill(false);
+    setBillDistribution([]);
   }
 }, [open, transactionId, currentCompany, initialMatches]);
 
@@ -359,23 +365,59 @@ useEffect(() => {
 
       setVendors(vendorsData || []);
 
-      // Load existing distribution for this transaction
-      const { data: distRows } = await supabase
-        .from('credit_card_transaction_distributions')
-        .select('id, job_id, cost_code_id, amount, percentage')
-        .eq('transaction_id', transactionId)
-        .order('created_at', { ascending: true });
-      const loadedDist = (distRows || []).map((d: any) => ({
-        id: d.id,
-        job_id: d.job_id,
-        cost_code_id: d.cost_code_id,
-        amount: Number(d.amount) || 0,
-        percentage: Number(d.percentage) || 0,
-      }));
-      
-      // Set distribution state and store for immediate use
-      setCcDistribution(loadedDist);
-      setLoadedDistributionIds(loadedDist.map(d => d.id).filter(Boolean));
+      // Check if transaction is linked to a bill
+      if (transData.matched_bill_id) {
+        setIsLinkedToBill(true);
+        
+        // Fetch all invoices for this bill (bills can have multiple distribution lines)
+        const { data: billInvoices } = await supabase
+          .from('invoices')
+          .select(`
+            id,
+            job_id,
+            cost_code_id,
+            amount,
+            jobs:job_id(id, name),
+            cost_codes:cost_code_id(id, code, description)
+          `)
+          .eq('id', transData.matched_bill_id);
+        
+        // Transform bill invoices into distribution format
+        const billDist = (billInvoices || []).map((inv: any) => ({
+          id: inv.id,
+          job_id: inv.job_id,
+          cost_code_id: inv.cost_code_id,
+          amount: Number(inv.amount) || 0,
+          percentage: transData.amount ? (Number(inv.amount) / Math.abs(Number(transData.amount))) * 100 : 0,
+          job_name: inv.jobs?.name,
+          cost_code_display: inv.cost_codes ? `${inv.cost_codes.code} - ${inv.cost_codes.description}` : undefined
+        }));
+        
+        setBillDistribution(billDist);
+        setCcDistribution(billDist);
+        setLoadedDistributionIds([]);
+      } else {
+        setIsLinkedToBill(false);
+        setBillDistribution([]);
+        
+        // Load existing distribution for this transaction
+        const { data: distRows } = await supabase
+          .from('credit_card_transaction_distributions')
+          .select('id, job_id, cost_code_id, amount, percentage')
+          .eq('transaction_id', transactionId)
+          .order('created_at', { ascending: true });
+        const loadedDist = (distRows || []).map((d: any) => ({
+          id: d.id,
+          job_id: d.job_id,
+          cost_code_id: d.cost_code_id,
+          amount: Number(d.amount) || 0,
+          percentage: Number(d.percentage) || 0,
+        }));
+        
+        // Set distribution state and store for immediate use
+        setCcDistribution(loadedDist);
+        setLoadedDistributionIds(loadedDist.map(d => d.id).filter(Boolean));
+      }
 
       // Fetch users for coding requests
       const { data: usersData } = await supabase
@@ -424,9 +466,6 @@ useEffect(() => {
       }
 
       setCommunications(comms as any[]);
-
-      // Store distribution for immediate status calculation
-      const currentDistribution = loadedDist;
 
       // Fetch suggested matches (bills and receipts)
       await fetchSuggestedMatches(transData);
@@ -501,8 +540,7 @@ useEffect(() => {
         }
       }
 
-      // Re-evaluate coding status after data load using actual distribution data
-      await evaluateCodingStatusWithDistribution(transData, currentDistribution);
+      // Coding status will be recalculated by useEffect
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1879,12 +1917,20 @@ const resolveAttachmentRequirement = (): boolean => {
             return show;
           })() && (
             <div className="mt-4">
+              {isLinkedToBill && (
+                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+                    📋 This transaction is linked to a bill. The distribution below reflects the bill's cost allocation and cannot be edited.
+                  </p>
+                </div>
+              )}
               <ReceiptCostDistribution
                 totalAmount={Math.abs(Number(transaction.amount || 0))}
                 companyId={currentCompany?.id || ''}
                 initialDistribution={ccDistribution}
                 onChange={setCcDistribution}
                 expenseAccounts={expenseAccounts}
+                disabled={isLinkedToBill}
               />
             </div>
           )}
