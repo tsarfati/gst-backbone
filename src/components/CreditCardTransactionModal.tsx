@@ -372,6 +372,8 @@ useEffect(() => {
         amount: Number(d.amount) || 0,
         percentage: Number(d.percentage) || 0,
       }));
+      
+      // Set distribution state and store for immediate use
       setCcDistribution(loadedDist);
       setLoadedDistributionIds(loadedDist.map(d => d.id).filter(Boolean));
 
@@ -422,6 +424,9 @@ useEffect(() => {
       }
 
       setCommunications(comms as any[]);
+
+      // Store distribution for immediate status calculation
+      const currentDistribution = loadedDist;
 
       // Fetch suggested matches (bills and receipts)
       await fetchSuggestedMatches(transData);
@@ -496,8 +501,8 @@ useEffect(() => {
         }
       }
 
-      // Re-evaluate coding status after data load
-      await updateCodingStatus();
+      // Re-evaluate coding status after data load using actual distribution data
+      await evaluateCodingStatusWithDistribution(transData, currentDistribution);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1055,6 +1060,50 @@ const resolveAttachmentRequirement = (): boolean => {
     return true;
   }
 };
+
+  // Helper function to evaluate coding status with explicit distribution parameter
+  const evaluateCodingStatusWithDistribution = async (trans: any, distribution: any[]) => {
+    if (!trans) return;
+
+    // If using distribution across multiple cost codes, determine coded status from distribution completeness
+    const totalAmt = Math.abs(Number(trans.amount || 0));
+    if (distribution && distribution.length > 0 && totalAmt > 0) {
+      const distSum = distribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+      const validLines = distribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
+      const hasVendor = !!trans.vendor_id;
+      
+      // Check attachment requirement based on distribution
+      let requiresByCode = false;
+      try {
+        const perLineRequires = await Promise.all(distribution.map(async (line: any) => {
+          if (!line.cost_code_id) return true;
+          const { data: ccData } = await supabase
+            .from('cost_codes')
+            .select('require_attachment')
+            .eq('id', line.cost_code_id)
+            .maybeSingle();
+          return ccData?.require_attachment ?? true;
+        }));
+        requiresByCode = perLineRequires.some(Boolean);
+      } catch {
+        requiresByCode = true;
+      }
+      
+      const hasAttachment = !!trans.attachment_url;
+      const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+
+      await supabase
+        .from('credit_card_transactions')
+        .update({ coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null })
+        .eq('id', transactionId);
+
+      setTransaction((prev: any) => ({ ...prev, coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null }));
+      return;
+    }
+
+    // Fall through to single-code logic if no distribution
+    await updateCodingStatus();
+  };
 
   const updateCodingStatus = async () => {
     if (!transaction) return;
