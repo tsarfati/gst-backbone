@@ -951,19 +951,49 @@ useEffect(() => {
 const resolveAttachmentRequirement = (): boolean => {
   try {
     const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
+
+    // If using distribution across multiple cost codes, derive requirement from the lines
+    if (isJobSelected && ccDistribution && ccDistribution.length > 0) {
+      const perLineRequires = ccDistribution.map((line: any) => {
+        const lineCcJob = (jobCostCodes || []).find((c: any) => c.id === line.cost_code_id);
+        if (lineCcJob) {
+          const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(lineCcJob.code));
+          // If any related definition explicitly disables attachment, do not require for this line
+          if (lineCcJob.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) {
+            return false;
+          }
+          const typeMatch = lineCcJob?.type
+            ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(lineCcJob.type || '').toLowerCase())
+            : null;
+          const resolved = (typeMatch?.require_attachment 
+            ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) 
+            ?? lineCcJob?.require_attachment 
+            ?? true);
+          return Boolean(resolved);
+        }
+        // Fallback to safe default if we cannot resolve the cost code line
+        return true;
+      });
+      // Require an attachment if ANY distribution line requires it
+      return perLineRequires.some(Boolean);
+    }
+
+    // Single-code path (job+cost code)
     if (isJobSelected && transaction?.cost_code_id) {
       const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
       const companyMatches = ccJob ? (costCodes || []).filter((c: any) => core(c.code) === core(ccJob.code)) : [];
-      // If any company-level variant or the job-level explicitly disables it, do not require
-      if (companyMatches.some((c: any) => c.require_attachment === false) || ccJob?.require_attachment === false) return false;
-      // Prefer company match with same type (when available), otherwise fall back
+      // If any related definition explicitly disables attachment, do not require
+      if (ccJob?.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
       const typeMatch = ccJob?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
       return (typeMatch?.require_attachment ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) ?? ccJob?.require_attachment ?? true);
     }
+
+    // Account path (no job)
     if (!isJobSelected && transaction?.chart_account_id) {
       const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
       return acct?.require_attachment ?? true;
     }
+
     return true;
   } catch {
     return true;
