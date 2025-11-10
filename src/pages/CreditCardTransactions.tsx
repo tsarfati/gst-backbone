@@ -757,9 +757,10 @@ export default function CreditCardTransactions() {
     if (t.job_id && t.cost_code_id) {
       const ccJob = t.cost_codes;
       if (ccJob) {
-        const ccCompany = (costCodes || []).find((c: any) => core(c.code) === core(ccJob.code));
-        if (ccCompany?.require_attachment === false || ccJob?.require_attachment === false) return false;
-        const resolved = ccCompany || ccJob;
+        const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(ccJob.code));
+        if (companyMatches.some((c: any) => c.require_attachment === false) || ccJob?.require_attachment === false) return false;
+        const typeMatch = ccJob?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
+        const resolved = typeMatch || companyMatches[0] || ccJob;
         return resolved?.require_attachment ?? true;
       }
       return true;

@@ -941,10 +941,12 @@ const resolveAttachmentRequirement = (): boolean => {
     const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
     if (isJobSelected && transaction?.cost_code_id) {
       const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
-      const companyMatch = ccJob && (costCodes || []).find((c: any) => core(c.code) === core(ccJob.code));
-      // Prefer any explicit false at company or job level
-      if (companyMatch?.require_attachment === false || ccJob?.require_attachment === false) return false;
-      return (companyMatch?.require_attachment ?? ccJob?.require_attachment ?? true);
+      const companyMatches = ccJob ? (costCodes || []).filter((c: any) => core(c.code) === core(ccJob.code)) : [];
+      // If any company-level variant or the job-level explicitly disables it, do not require
+      if (companyMatches.some((c: any) => c.require_attachment === false) || ccJob?.require_attachment === false) return false;
+      // Prefer company match with same type (when available), otherwise fall back
+      const typeMatch = ccJob?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
+      return (typeMatch?.require_attachment ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) ?? ccJob?.require_attachment ?? true);
     }
     if (!isJobSelected && transaction?.chart_account_id) {
       const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
@@ -2086,18 +2088,7 @@ const resolveAttachmentRequirement = (): boolean => {
                 const hasJobOrAccount = !!selectedJobOrAccount;
                 const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true;
                 const hasAttachment = !!transaction.attachment_url;
-                let requiresByCode = true;
-                if (isJobSelected && transaction?.cost_code_id) {
-                  const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
-                  const ccCompany = ccJob && (costCodes || []).find((c: any) =>
-                    c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
-                  );
-                  const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
-                  requiresByCode = resolvedCC?.require_attachment ?? true;
-                } else if (!isJobSelected && transaction?.chart_account_id) {
-                  const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
-                  requiresByCode = acct?.require_attachment ?? true;
-                }
+                const requiresByCode = resolveAttachmentRequirement();
                 const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
                 return coded && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment';
               })() && (
