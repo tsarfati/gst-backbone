@@ -95,6 +95,7 @@ useEffect(() => {
         if (!line.job_id || !line.cost_code_id || !line.amount) continue;
         
         const lineData = {
+          id: line.id || crypto.randomUUID(),
           transaction_id: transactionId,
           company_id: currentCompany.id,
           job_id: line.job_id,
@@ -104,33 +105,22 @@ useEffect(() => {
           created_by: user?.id
         };
         
-        if (line.id && loadedDistributionIds.includes(line.id)) {
-          // Update existing
-          await supabase
-            .from('credit_card_transaction_distributions')
-            .update(lineData)
-            .eq('id', line.id);
-        } else {
-          // Insert new
-          const { data: newLine } = await supabase
-            .from('credit_card_transaction_distributions')
-            .insert(lineData)
-            .select('id')
-            .single();
-          
-          if (newLine) {
-            // Update local state with new ID
-            setCcDistribution(prev => prev.map(d => 
-              d === line ? { ...d, id: newLine.id } : d
-            ));
-          }
-        }
+        // Upsert by primary key id for stability
+        const { error: upsertErr } = await supabase
+          .from('credit_card_transaction_distributions')
+          .upsert(lineData, { onConflict: 'id' });
+        if (upsertErr) throw upsertErr;
       }
       
       // Refresh loaded IDs
       setLoadedDistributionIds(ccDistribution.map(d => d.id).filter(Boolean));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving distribution:', error);
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Unable to save distribution. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
   
@@ -156,6 +146,7 @@ useEffect(() => {
       for (const line of ccDistribution) {
         if (!line.job_id || !line.cost_code_id || !line.amount) continue;
         const lineData = {
+          id: line.id || crypto.randomUUID(),
           transaction_id: transactionId,
           company_id: currentCompany.id,
           job_id: line.job_id,
@@ -164,11 +155,10 @@ useEffect(() => {
           percentage: Number(line.percentage) || 0,
           created_by: user?.id
         };
-        if (line.id && loadedDistributionIds.includes(line.id)) {
-          await supabase.from('credit_card_transaction_distributions').update(lineData).eq('id', line.id);
-        } else {
-          await supabase.from('credit_card_transaction_distributions').insert(lineData);
-        }
+        const { error: upsertErr } = await supabase
+          .from('credit_card_transaction_distributions')
+          .upsert(lineData, { onConflict: 'id' });
+        if (upsertErr) throw upsertErr;
       }
     } catch (e) {
       console.error('Error flushing distribution on close:', e);
