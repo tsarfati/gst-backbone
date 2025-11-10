@@ -97,7 +97,7 @@ export default function ManualTimeEntry() {
         .single();
       
       const assignedJobs = settings?.assigned_jobs || [];
-      const hasGlobal = employeeProfile?.has_global_job_access;
+      const hasGlobal = employeeProfile?.has_global_job_access ?? true;
 
       let jobsQuery = supabase
         .from('jobs')
@@ -149,7 +149,7 @@ export default function ManualTimeEntry() {
         .single();
       
       const assignedCostCodes = settings?.assigned_cost_codes || [];
-      const hasGlobal = employeeProfile?.has_global_job_access;
+      const hasGlobal = employeeProfile?.has_global_job_access ?? true;
 
       let costCodesQuery = supabase
         .from('cost_codes')
@@ -194,12 +194,29 @@ export default function ManualTimeEntry() {
       if (error) throw error;
       
       // Transform to match Employee interface
-      const employeeList = (data?.employees || []).map((emp: any) => ({
+      let employeeList: Employee[] = (data?.employees || []).map((emp: any) => ({
         user_id: emp.user_id,
         display_name: emp.display_name
       }));
+
+      // Fallback: directly query pin_employees if none returned by edge function
+      const returnedPinCount = (data?.employees || []).filter((e: any) => e.is_pin).length;
+      if (returnedPinCount === 0) {
+        const { data: pins } = await supabase
+          .from('pin_employees')
+          .select('id, display_name, first_name, last_name, is_active')
+          .eq('company_id', currentCompany.id)
+          .neq('is_active', false);
+        const pinList: Employee[] = (pins || []).map((p: any) => ({
+          user_id: p.id,
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee'
+        }));
+        // Merge unique
+        const existingIds = new Set(employeeList.map(e => e.user_id));
+        employeeList = employeeList.concat(pinList.filter(p => !existingIds.has(p.user_id)));
+      }
       
-      setEmployees(employeeList);
+      setEmployees(employeeList.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '')));
     } catch (error) {
       console.error('Error loading employees:', error);
       toast({

@@ -20,6 +20,7 @@ import { CreditCardMatchDetailsModal } from "@/components/CreditCardMatchDetails
 import { cn } from "@/lib/utils";
 import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import ReceiptCostDistribution from "@/components/ReceiptCostDistribution";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -68,6 +69,7 @@ export function CreditCardTransactionModal({
   const { postTransactionsToGL } = usePostCreditCardTransactions();
   const [matchesCollapsed, setMatchesCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [ccDistribution, setCcDistribution] = useState<any[]>([]);
 
 // Also recompute when code lists resolve
 useEffect(() => {
@@ -111,7 +113,7 @@ useEffect(() => {
     updateCodingStatus();
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [selectedVendorId, selectedJobOrAccount, transaction?.cost_code_id, transaction?.attachment_url]);
+}, [selectedVendorId, selectedJobOrAccount, transaction?.cost_code_id, transaction?.attachment_url, ccDistribution]);
 
   const fetchData = async () => {
     try {
@@ -306,6 +308,20 @@ useEffect(() => {
         .order("name");
 
       setVendors(vendorsData || []);
+
+      // Load existing distribution for this transaction
+      const { data: distRows } = await supabase
+        .from('credit_card_transaction_distributions')
+        .select('id, job_id, cost_code_id, amount, percentage')
+        .eq('transaction_id', transactionId)
+        .order('created_at', { ascending: true });
+      setCcDistribution((distRows || []).map((d: any) => ({
+        id: d.id,
+        job_id: d.job_id,
+        cost_code_id: d.cost_code_id,
+        amount: Number(d.amount) || 0,
+        percentage: Number(d.percentage) || 0,
+      })));
 
       // Fetch users for coding requests
       const { data: usersData } = await supabase
@@ -960,6 +976,27 @@ const resolveAttachmentRequirement = (): boolean => {
 
   const updateCodingStatus = async () => {
     if (!transaction) return;
+
+    // If using distribution across multiple cost codes, determine coded status from distribution completeness
+    const totalAmt = Math.abs(Number(transaction.amount || 0));
+    if (isJobSelected && ccDistribution && ccDistribution.length > 0 && totalAmt > 0) {
+      const distSum = ccDistribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+      const validLines = ccDistribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
+      const hasVendor = !!selectedVendorId;
+      const requiresByCode = resolveAttachmentRequirement();
+      const hasAttachment = !!transaction.attachment_url;
+      const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+
+      await supabase
+        .from('credit_card_transactions')
+        .update({ coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null })
+        .eq('id', transactionId);
+
+      setTransaction((prev: any) => ({ ...prev, coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null }));
+      if (complete) return; // Already coded via distribution; skip the rest
+      // If not complete, continue to the existing logic to evaluate single-code path
+    }
+
 
     // Payments skip coding ONLY when not being coded (no job/account selected)
     if (transaction.transaction_type === 'payment' && !selectedJobOrAccount && !transaction.job_id && !transaction.chart_account_id) {
@@ -1815,6 +1852,18 @@ const resolveAttachmentRequirement = (): boolean => {
                   </Command>
                 </PopoverContent>
               </Popover>
+            </div>
+          )}
+
+          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && isJobSelected && (
+            <div className="mt-4">
+              <ReceiptCostDistribution
+                totalAmount={Math.abs(Number(transaction.amount || 0))}
+                companyId={currentCompany?.id || ''}
+                initialDistribution={ccDistribution}
+                onChange={setCcDistribution}
+              />
+              <p className="text-xs text-muted-foreground mt-1">When a distribution is provided, it overrides the single cost code.</p>
             </div>
           )}
 
