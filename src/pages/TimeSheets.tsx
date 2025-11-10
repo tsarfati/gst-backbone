@@ -252,10 +252,11 @@ export default function TimeSheets() {
           punch_in_location_lat,
           punch_in_location_lng,
           punch_out_location_lat,
-          punch_out_location_lng
+          punch_out_location_lng,
+          deleted_at
         `)
         .eq('company_id', currentCompany.id)
-        .neq('status', 'deleted')
+        .is('deleted_at', null)
         .order('punch_in_time', { ascending: false });
 
       // Filter records based on user role and selection
@@ -1039,7 +1040,7 @@ export default function TimeSheets() {
                   </Table>
                 )}
                 
-                {currentView === 'list' && timeCards.map((timeCard) => (
+                {currentView === 'list' && getFilteredAndSortedTimeCards().map((timeCard) => (
                   <div key={timeCard.id} className={`border rounded-xl p-6 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`} onClick={() => handleViewDetails(timeCard.id)}>
                      <div className="flex items-start justify-between mb-4">
                        <div className="space-y-1">
@@ -1213,7 +1214,7 @@ export default function TimeSheets() {
                  ))}
 
                 {/* Compact View */}
-                {currentView === 'compact' && timeCards.map((timeCard) => (
+                {currentView === 'compact' && getFilteredAndSortedTimeCards().map((timeCard) => (
                   <div 
                     key={timeCard.id} 
                     className={`border rounded-lg p-4 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}
@@ -1262,7 +1263,7 @@ export default function TimeSheets() {
                 {/* Super Compact View */}
                 {currentView === 'super-compact' && (
                   <div className="space-y-1">
-                    {timeCards.map((timeCard) => (
+                    {getFilteredAndSortedTimeCards().map((timeCard) => (
                       <div 
                         key={timeCard.id} 
                         className={`flex items-center justify-between p-2 hover:bg-primary/5 hover:border-primary hover:shadow-md rounded cursor-pointer transition-all duration-200 group ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}
