@@ -75,7 +75,6 @@ export function usePostCreditCardTransactions() {
               company_id: companyId,
               entry_date: trans.transaction_date,
               description: `Credit Card: ${trans.credit_cards.card_name} - ${trans.description}`,
-              entry_type: "credit_card_transaction",
               status: "posted",
               created_by: userId,
               reference_number: trans.reference_number,
