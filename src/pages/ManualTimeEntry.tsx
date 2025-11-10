@@ -186,28 +186,20 @@ export default function ManualTimeEntry() {
     if (!currentCompany?.id || !isManager) return;
     
     try {
-      // Get all users with access to the current company
-      const { data: companyUsers } = await supabase
-        .from('user_company_access')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      const userIds = (companyUsers || []).map(u => u.user_id);
-      
-      if (userIds.length === 0) {
-        setEmployees([]);
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, display_name')
-        .in('user_id', userIds)
-        .order('display_name');
+      // Use edge function to get all company employees (regular + PIN employees)
+      const { data, error } = await supabase.functions.invoke('get-company-employees', {
+        body: { company_id: currentCompany.id }
+      });
       
       if (error) throw error;
-      setEmployees(data || []);
+      
+      // Transform to match Employee interface
+      const employeeList = (data?.employees || []).map((emp: any) => ({
+        user_id: emp.user_id,
+        display_name: emp.display_name
+      }));
+      
+      setEmployees(employeeList);
     } catch (error) {
       console.error('Error loading employees:', error);
       toast({
