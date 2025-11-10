@@ -25,9 +25,9 @@ serve(async (req) => {
     // Regular users via user_company_access
     const { data: accessRows, error: accessErr } = await supabase
       .from('user_company_access')
-      .select('user_id, role')
+      .select('user_id, role, is_active')
       .eq('company_id', company_id)
-      .eq('is_active', true);
+      .or('is_active.eq.true,is_active.is.null');
 
     if (accessErr) throw accessErr;
 
