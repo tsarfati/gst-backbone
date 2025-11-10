@@ -33,11 +33,12 @@ serve(async (req) => {
 
     const userIds = (accessRows || []).map((r: any) => r.user_id);
 
+    // Load profiles for users with explicit access
     let regularEmployees: any[] = [];
     if (userIds.length) {
       const { data: profs, error: profErr } = await supabase
         .from('profiles')
-        .select('user_id, first_name, last_name, display_name')
+        .select('user_id, first_name, last_name, display_name, role, current_company_id')
         .in('user_id', userIds);
       if (profErr) throw profErr;
 
@@ -48,9 +49,32 @@ serve(async (req) => {
         display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
         first_name: p.first_name || null,
         last_name: p.last_name || null,
-        role: roleMap.get(p.user_id) || 'employee',
+        role: roleMap.get(p.user_id) || p.role || 'employee',
         is_pin: false,
       }));
+    }
+
+    // ALSO include profiles whose current_company_id matches but who may not have explicit access rows yet
+    const { data: companyProfiles, error: companyProfilesErr } = await supabase
+      .from('profiles')
+      .select('user_id, first_name, last_name, display_name, role, current_company_id')
+      .eq('current_company_id', company_id);
+    if (companyProfilesErr) throw companyProfilesErr;
+
+    const byId: Record<string, any> = {};
+    for (const emp of regularEmployees) byId[emp.user_id] = emp;
+    for (const p of companyProfiles || []) {
+      if (!byId[p.user_id]) {
+        byId[p.user_id] = {
+          id: p.user_id,
+          user_id: p.user_id,
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
+          first_name: p.first_name || null,
+          last_name: p.last_name || null,
+          role: p.role || 'employee',
+          is_pin: false,
+        };
+      }
     }
 
     // PIN employees for this company
@@ -72,7 +96,9 @@ serve(async (req) => {
         is_pin: true,
       }));
 
-    const employees = [...regularEmployees, ...pinEmployees]
+    const mergedRegulars = Object.values(byId);
+
+    const employees = [...mergedRegulars, ...pinEmployees]
       .sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
 
     return new Response(JSON.stringify({ employees }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
