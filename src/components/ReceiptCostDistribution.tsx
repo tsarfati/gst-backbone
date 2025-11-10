@@ -75,7 +75,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
     loadJobs();
   }, [companyId]);
 
-  // Sync when parent provides existing distribution (e.g., reopening modal)
+  // Sync only once when modal opens with initial data
   useEffect(() => {
     if (!initialDistribution) return;
     if (initialDistribution.length > 0) {
@@ -84,7 +84,8 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
     } else {
       setDistribution([{ id: crypto.randomUUID(), job_id: "", cost_code_id: "", amount: totalAmount || 0, percentage: 100 }]);
     }
-  }, [initialDistribution, totalAmount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     onChange(distribution);

@@ -118,6 +118,17 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [jobCostCodes, costCodes, expenseAccounts]);
 
+// Auto-save distribution with debounce to allow dropdowns to work
+useEffect(() => {
+  if (!open || !transactionId || !currentCompany || ccDistribution.length === 0) return;
+  
+  const timer = setTimeout(() => {
+    persistDistribution(ccDistribution);
+  }, 1000);
+  
+  return () => clearTimeout(timer);
+}, [ccDistribution, open, transactionId, currentCompany]);
+
 useEffect(() => {
   if (open && transactionId && currentCompany) {
     // Preload matches passed in from parent
@@ -1790,7 +1801,7 @@ const resolveAttachmentRequirement = (): boolean => {
                 totalAmount={Math.abs(Number(transaction.amount || 0))}
                 companyId={currentCompany?.id || ''}
                 initialDistribution={ccDistribution}
-                onChange={(dist) => { setCcDistribution(dist); persistDistribution(dist); }}
+                onChange={setCcDistribution}
                 expenseAccounts={expenseAccounts}
               />
             </div>
