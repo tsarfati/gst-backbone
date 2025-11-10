@@ -235,21 +235,17 @@ useEffect(() => {
         setSelectedJobOrAccount(`job_${transData.job_id}`);
         setIsJobSelected(true);
         // Preload cost codes for the job
-        // Preload cost codes for the job based on job budgets (only codes actually assigned to this job)
-        const { data: jobBudgetCodes } = await supabase
-          .from('job_budgets')
-          .select('cost_codes(*)')
+        // Load all cost codes assigned to this job (not just budgeted ones)
+        const { data: jobCodesData } = await supabase
+          .from('cost_codes')
+          .select('*')
           .eq('job_id', transData.job_id)
-          .eq('is_dynamic', false)
-          .eq('cost_codes.company_id', currentCompany?.id || '')
-          .eq('cost_codes.is_active', true)
-          .eq('cost_codes.is_dynamic_group', false)
-          .order('code', { ascending: true, foreignTable: 'cost_codes' });
+          .eq('company_id', currentCompany?.id || '')
+          .eq('is_active', true)
+          .eq('is_dynamic_group', false)
+          .order('code', { ascending: true });
 
-        const mappedJobCodes = (jobBudgetCodes || [])
-          .map((jb: any) => jb.cost_codes)
-          .filter(Boolean);
-        setJobCostCodes(mappedJobCodes);
+        setJobCostCodes(jobCodesData || []);
 
       } else if (transData.chart_of_accounts?.id) {
         const acct = transData.chart_of_accounts;

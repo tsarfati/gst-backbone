@@ -8,11 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle, Search, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import PdfInlinePreview from "@/components/PdfInlinePreview";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
@@ -803,21 +806,25 @@ export default function BillEdit() {
                 {formData.job_id && (
                   <div className="space-y-2">
                     <Label htmlFor="cost_code">Cost Code</Label>
-                    <Select 
-                      value={formData.cost_code_id} 
-                      onValueChange={(value) => handleInputChange("cost_code_id", value)}
-                      disabled={!!subcontractInfo || commitmentDistribution.length === 1}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select cost code" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
-                        {costCodes.length > 0 ? (
-                          costCodes.map((code) => (
-                            <SelectItem key={code.id} value={code.id}>
-                              <div className="flex items-center gap-2">
-                                <span>{code.code} - {code.description}</span>
-                                {code.type && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                          disabled={!!subcontractInfo || commitmentDistribution.length === 1}
+                        >
+                          {formData.cost_code_id ? (
+                            <div className="flex items-center gap-2">
+                              <span>
+                                {(() => {
+                                  const code = costCodes.find(c => c.id === formData.cost_code_id);
+                                  return code ? `${code.code} - ${code.description}` : "Select cost code";
+                                })()}
+                              </span>
+                              {(() => {
+                                const code = costCodes.find(c => c.id === formData.cost_code_id);
+                                return code?.type ? (
                                   <Badge variant="outline">
                                     {code.type === 'labor' ? 'Labor' : 
                                      code.type === 'material' ? 'Material' : 
@@ -825,15 +832,49 @@ export default function BillEdit() {
                                      code.type === 'sub' ? 'Subcontractor' : 
                                      code.type === 'other' ? 'Other' : code.type}
                                   </Badge>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="px-2 py-2 text-sm text-muted-foreground">No cost codes available for this job</div>
-                        )}
-                      </SelectContent>
-                    </Select>
+                                ) : null;
+                              })()}
+                            </div>
+                          ) : (
+                            "Select cost code"
+                          )}
+                          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[500px] p-0 bg-background z-[60]" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search cost codes..." />
+                          <CommandEmpty>No cost code found.</CommandEmpty>
+                          <CommandList>
+                            {costCodes.map((code) => (
+                              <CommandItem
+                                key={code.id}
+                                value={`${code.code} ${code.description} ${code.type} ${code.id}`}
+                                onSelect={() => handleInputChange("cost_code_id", code.id)}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${
+                                    formData.cost_code_id === code.id ? "opacity-100" : "opacity-0"
+                                  }`}
+                                />
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span>{code.code} - {code.description}</span>
+                                  {code.type && (
+                                    <Badge variant="outline">
+                                      {code.type === 'labor' ? 'Labor' : 
+                                       code.type === 'material' ? 'Material' : 
+                                       code.type === 'equipment' ? 'Equipment' : 
+                                       code.type === 'sub' ? 'Subcontractor' : 
+                                       code.type === 'other' ? 'Other' : code.type}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
               </div>
