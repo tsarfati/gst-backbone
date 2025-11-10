@@ -1696,8 +1696,8 @@ const resolveAttachmentRequirement = (): boolean => {
           </div>
           )}
 
-          {/* Cost Distribution */}
-          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && (
+          {/* Cost Distribution - Show for charges and credits, but not for payments */}
+          {transaction.transaction_type !== 'payment' && (
             <div className="mt-4">
               <ReceiptCostDistribution
                 totalAmount={Math.abs(Number(transaction.amount || 0))}
