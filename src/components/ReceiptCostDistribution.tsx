@@ -75,6 +75,17 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
     loadJobs();
   }, [companyId]);
 
+  // Sync when parent provides existing distribution (e.g., reopening modal)
+  useEffect(() => {
+    if (!initialDistribution) return;
+    if (initialDistribution.length > 0) {
+      setDistribution(initialDistribution.map(d => ({ ...d })));
+      initialDistribution.forEach(d => { if (d.job_id) loadCostCodesForJob(d.job_id); });
+    } else {
+      setDistribution([{ id: crypto.randomUUID(), job_id: "", cost_code_id: "", amount: totalAmount || 0, percentage: 100 }]);
+    }
+  }, [initialDistribution, totalAmount]);
+
   useEffect(() => {
     onChange(distribution);
   }, [distribution]);
