@@ -183,7 +183,7 @@ export default function ManualTimeEntry() {
   };
 
   const loadEmployees = async () => {
-    if (!currentCompany?.id || !isManager) return;
+    if (!currentCompany?.id) return;
     
     try {
       // Use edge function to get all company employees (regular + PIN employees)
