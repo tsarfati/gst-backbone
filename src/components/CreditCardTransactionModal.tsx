@@ -1065,12 +1065,27 @@ const resolveAttachmentRequirement = (): boolean => {
   const evaluateCodingStatusWithDistribution = async (trans: any, distribution: any[]) => {
     if (!trans) return;
 
+    console.log('evaluateCodingStatusWithDistribution called with:', {
+      transId: trans.id,
+      vendorId: trans.vendor_id,
+      distributionCount: distribution.length,
+      distribution
+    });
+
     // If using distribution across multiple cost codes, determine coded status from distribution completeness
     const totalAmt = Math.abs(Number(trans.amount || 0));
     if (distribution && distribution.length > 0 && totalAmt > 0) {
       const distSum = distribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
       const validLines = distribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
       const hasVendor = !!trans.vendor_id;
+      
+      console.log('Distribution check:', {
+        distSum,
+        totalAmt,
+        validLines,
+        hasVendor,
+        sumMatch: Math.abs(distSum - totalAmt) < 0.01
+      });
       
       // Check attachment requirement based on distribution
       let requiresByCode = false;
@@ -1079,9 +1094,10 @@ const resolveAttachmentRequirement = (): boolean => {
           if (!line.cost_code_id) return true;
           const { data: ccData } = await supabase
             .from('cost_codes')
-            .select('require_attachment')
+            .select('require_attachment, code, description')
             .eq('id', line.cost_code_id)
             .maybeSingle();
+          console.log('Cost code attachment check:', ccData?.code, ccData?.require_attachment);
           return ccData?.require_attachment ?? true;
         }));
         requiresByCode = perLineRequires.some(Boolean);
@@ -1091,6 +1107,13 @@ const resolveAttachmentRequirement = (): boolean => {
       
       const hasAttachment = !!trans.attachment_url;
       const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+
+      console.log('Final status calculation:', {
+        requiresByCode,
+        hasAttachment,
+        complete,
+        newStatus: complete ? 'coded' : 'uncoded'
+      });
 
       await supabase
         .from('credit_card_transactions')
