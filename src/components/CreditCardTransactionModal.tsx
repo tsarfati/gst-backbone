@@ -70,6 +70,74 @@ export function CreditCardTransactionModal({
   const [matchesCollapsed, setMatchesCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [ccDistribution, setCcDistribution] = useState<any[]>([]);
+  const [loadedDistributionIds, setLoadedDistributionIds] = useState<string[]>([]);
+
+// Save distribution changes to database
+useEffect(() => {
+  if (!open || !transactionId || !currentCompany) return;
+  
+  const saveDistribution = async () => {
+    try {
+      // Get current IDs in the distribution
+      const currentIds = ccDistribution.map(d => d.id).filter(Boolean);
+      
+      // Delete removed distribution lines
+      const idsToDelete = loadedDistributionIds.filter(id => !currentIds.includes(id));
+      if (idsToDelete.length > 0) {
+        await supabase
+          .from('credit_card_transaction_distributions')
+          .delete()
+          .in('id', idsToDelete);
+      }
+      
+      // Upsert current distribution lines
+      for (const line of ccDistribution) {
+        if (!line.job_id || !line.cost_code_id || !line.amount) continue;
+        
+        const lineData = {
+          transaction_id: transactionId,
+          company_id: currentCompany.id,
+          job_id: line.job_id,
+          cost_code_id: line.cost_code_id,
+          amount: Number(line.amount) || 0,
+          percentage: Number(line.percentage) || 0,
+          created_by: user?.id
+        };
+        
+        if (line.id && loadedDistributionIds.includes(line.id)) {
+          // Update existing
+          await supabase
+            .from('credit_card_transaction_distributions')
+            .update(lineData)
+            .eq('id', line.id);
+        } else {
+          // Insert new
+          const { data: newLine } = await supabase
+            .from('credit_card_transaction_distributions')
+            .insert(lineData)
+            .select('id')
+            .single();
+          
+          if (newLine) {
+            // Update local state with new ID
+            setCcDistribution(prev => prev.map(d => 
+              d === line ? { ...d, id: newLine.id } : d
+            ));
+          }
+        }
+      }
+      
+      // Refresh loaded IDs
+      setLoadedDistributionIds(ccDistribution.map(d => d.id).filter(Boolean));
+    } catch (error) {
+      console.error('Error saving distribution:', error);
+    }
+  };
+  
+  // Debounce saves to avoid excessive database writes
+  const timer = setTimeout(saveDistribution, 500);
+  return () => clearTimeout(timer);
+}, [ccDistribution, open, transactionId, currentCompany, loadedDistributionIds, user]);
 
 // Also recompute when code lists resolve
 useEffect(() => {
@@ -96,6 +164,8 @@ useEffect(() => {
     setSelectedJobOrAccount(null);
     setIsJobSelected(false);
     setJobCostCodes([]);
+    setCcDistribution([]);
+    setLoadedDistributionIds([]);
     fetchData();
   } else if (!open) {
     // Clear state when modal closes
@@ -104,6 +174,8 @@ useEffect(() => {
     setSelectedJobOrAccount(null);
     setIsJobSelected(false);
     setJobCostCodes([]);
+    setCcDistribution([]);
+    setLoadedDistributionIds([]);
   }
 }, [open, transactionId, currentCompany, initialMatches]);
 
@@ -311,13 +383,15 @@ useEffect(() => {
         .select('id, job_id, cost_code_id, amount, percentage')
         .eq('transaction_id', transactionId)
         .order('created_at', { ascending: true });
-      setCcDistribution((distRows || []).map((d: any) => ({
+      const loadedDist = (distRows || []).map((d: any) => ({
         id: d.id,
         job_id: d.job_id,
         cost_code_id: d.cost_code_id,
         amount: Number(d.amount) || 0,
         percentage: Number(d.percentage) || 0,
-      })));
+      }));
+      setCcDistribution(loadedDist);
+      setLoadedDistributionIds(loadedDist.map(d => d.id).filter(Boolean));
 
       // Fetch users for coding requests
       const { data: usersData } = await supabase
