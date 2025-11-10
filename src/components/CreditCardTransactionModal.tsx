@@ -1077,7 +1077,7 @@ const resolveAttachmentRequirement = (): boolean => {
     if (distribution && distribution.length > 0 && totalAmt > 0) {
       const distSum = distribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
       const validLines = distribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
-      const hasVendor = !!trans.vendor_id;
+      const hasVendor = !!(trans.vendor_id || selectedVendorId);
       
       console.log('Distribution check:', {
         distSum,
@@ -1087,19 +1087,28 @@ const resolveAttachmentRequirement = (): boolean => {
         sumMatch: Math.abs(distSum - totalAmt) < 0.01
       });
       
-      // Check attachment requirement based on distribution
+      // Check attachment requirement based on distribution with company overrides
       let requiresByCode = false;
       try {
-        const perLineRequires = await Promise.all(distribution.map(async (line: any) => {
-          if (!line.cost_code_id) return true;
-          const { data: ccData } = await supabase
+        const ids = Array.from(new Set(distribution.map((d: any) => d.cost_code_id).filter(Boolean)));
+        let jobLevelCodes: any[] = [];
+        if (ids.length > 0) {
+          const { data: ccBatch } = await supabase
             .from('cost_codes')
-            .select('require_attachment, code, description')
-            .eq('id', line.cost_code_id)
-            .maybeSingle();
-          console.log('Cost code attachment check:', ccData?.code, ccData?.require_attachment);
-          return ccData?.require_attachment ?? true;
-        }));
+            .select('id, code, type, require_attachment, job_id')
+            .in('id', ids);
+          jobLevelCodes = ccBatch || [];
+        }
+        const core = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, '').replace(/[^0-9.]/g, '');
+        const perLineRequires = distribution.map((line: any) => {
+          const jobCC = jobLevelCodes.find((c: any) => c.id === line.cost_code_id);
+          if (!jobCC) return true; // default require if unknown
+          const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(jobCC.code));
+          if (jobCC.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
+          const typeMatch = jobCC?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(jobCC.type || '').toLowerCase()) : null;
+          const resolved = typeMatch || companyMatches[0] || jobCC;
+          return resolved?.require_attachment ?? true;
+        });
         requiresByCode = perLineRequires.some(Boolean);
       } catch {
         requiresByCode = true;
@@ -1134,22 +1143,14 @@ const resolveAttachmentRequirement = (): boolean => {
     // If using distribution across multiple cost codes, determine coded status from distribution completeness
     const totalAmt = Math.abs(Number(transaction.amount || 0));
     if (ccDistribution && ccDistribution.length > 0 && totalAmt > 0) {
-      const distSum = ccDistribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
-      const validLines = ccDistribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
-      const hasVendor = !!selectedVendorId;
-      const requiresByCode = resolveAttachmentRequirement();
-      const hasAttachment = !!transaction.attachment_url;
-      const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
-
-      await supabase
-        .from('credit_card_transactions')
-        .update({ coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null })
-        .eq('id', transactionId);
-
-      setTransaction((prev: any) => ({ ...prev, coding_status: complete ? 'coded' : 'uncoded', cost_code_id: null }));
-      if (complete) return; // Already coded via distribution; skip the rest
-      // If not complete, continue to the existing logic to evaluate single-code path
+      // Wait until company-level cost codes are loaded to honor overrides (e.g., 17.03 not requiring attachments)
+      if (!costCodes || costCodes.length === 0) return;
+      await evaluateCodingStatusWithDistribution(transaction, ccDistribution);
+      return;
     }
+
+
+    // Payments skip coding ONLY when not being coded (no job/account selected)
 
 
     // Payments skip coding ONLY when not being coded (no job/account selected)
