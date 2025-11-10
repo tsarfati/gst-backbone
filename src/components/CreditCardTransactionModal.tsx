@@ -934,10 +934,12 @@ useEffect(() => {
     // Determine attachment requirement based on selected code/account using local lists
     let costCodeRequiresAttachment = true;
     if (isJobSelected && transaction?.cost_code_id) {
-      const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) 
-        || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+      const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
         || (transaction as any)?.cost_codes;
-      costCodeRequiresAttachment = cc?.require_attachment ?? true;
+      // Prefer company-level override by matching code/type when job-level differs
+      const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+      const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+      costCodeRequiresAttachment = resolvedCC?.require_attachment ?? true;
     }
 
     let accountRequiresAttachment = true;
@@ -1412,6 +1414,22 @@ useEffect(() => {
             Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
           </DialogDescription>
         </DialogHeader>
+        {/* Prominent Description field at top */}
+        <div className="space-y-2">
+          <Label className="text-sm text-muted-foreground">Description</Label>
+          <Input
+            value={transaction.description || ""}
+            onChange={async (e) => {
+              const newDescription = e.target.value;
+              setTransaction((prev: any) => ({ ...prev, description: newDescription }));
+              await supabase
+                .from("credit_card_transactions")
+                .update({ description: newDescription })
+                .eq("id", transactionId);
+            }}
+            placeholder="Enter transaction description"
+          />
+        </div>
         <div className="space-y-6">
           {/* Transaction Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
@@ -1430,24 +1448,7 @@ useEffect(() => {
                 ${Number(transaction.amount).toLocaleString()}
               </p>
             </div>
-            <div className="col-span-2">
-              <Label className="text-sm text-muted-foreground">Description</Label>
-              <Input
-                value={transaction.description || ""}
-                onChange={async (e) => {
-                  const newDescription = e.target.value;
-                  setTransaction((prev: any) => ({ ...prev, description: newDescription }));
-                  
-                  // Update in database
-                  await supabase
-                    .from("credit_card_transactions")
-                    .update({ description: newDescription })
-                    .eq("id", transactionId);
-                }}
-                placeholder="Enter transaction description"
-                className="mt-1"
-              />
-            </div>
+            {/* Description moved to top section */}
             {requestedUsers.length > 0 && (
               <div className="col-span-2">
                 <Label className="text-sm text-muted-foreground">Requested Coders</Label>
@@ -1866,10 +1867,11 @@ useEffect(() => {
                   // Resolve attachment requirement from selected cost code/account using local caches
                   let requiresByCode = true;
                   if (transaction?.cost_code_id && isJobSelected) {
-                    const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                    const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
                       || (transaction as any)?.cost_codes;
-                    requiresByCode = cc?.require_attachment ?? true;
+                    const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+                    const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                    requiresByCode = resolvedCC?.require_attachment ?? true;
                   } else if (transaction?.chart_account_id && !isJobSelected) {
                     const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
                       || (transaction as any)?.chart_of_accounts;
@@ -1883,10 +1885,11 @@ useEffect(() => {
                 // Show checkbox only when selected cost code/account does NOT require attachment
                 const showCheckbox = (() => {
                   if (transaction?.cost_code_id && isJobSelected) {
-                    const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                    const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
                       || (transaction as any)?.cost_codes;
-                    return cc ? cc.require_attachment === false : false;
+                    const ccCompany = ccJob && (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+                    const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                    return resolvedCC ? resolvedCC.require_attachment === false : false;
                   }
                   if (transaction?.chart_account_id && !isJobSelected) {
                     const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
