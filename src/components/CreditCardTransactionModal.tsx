@@ -72,109 +72,42 @@ export function CreditCardTransactionModal({
   const [ccDistribution, setCcDistribution] = useState<any[]>([]);
   const [loadedDistributionIds, setLoadedDistributionIds] = useState<string[]>([]);
 
-// Save distribution changes to database
-useEffect(() => {
-  if (!open || !transactionId || !currentCompany) return;
-  
-  const saveDistribution = async () => {
+  // Immediate persist for distribution changes triggered from UI
+  const persistDistribution = async (dist: any[]) => {
+    if (!transactionId || !currentCompany) return;
     try {
-      // Get current IDs in the distribution
-      const currentIds = ccDistribution.map(d => d.id).filter(Boolean);
-      
-      // Delete removed distribution lines
-      const idsToDelete = loadedDistributionIds.filter(id => !currentIds.includes(id));
+      const currentIds = dist.map((d: any) => d.id).filter(Boolean);
+      const idsToDelete = loadedDistributionIds.filter((id) => !currentIds.includes(id));
       if (idsToDelete.length > 0) {
-        await supabase
-          .from('credit_card_transaction_distributions')
-          .delete()
-          .in('id', idsToDelete);
+        await supabase.from('credit_card_transaction_distributions').delete().in('id', idsToDelete);
       }
-      
-      // Upsert current distribution lines
-      for (const line of ccDistribution) {
+      for (const line of dist) {
         if (!line.job_id || !line.cost_code_id || !line.amount) continue;
-        
-        const newId = line.id || crypto.randomUUID();
+        const id = line.id || crypto.randomUUID();
         const lineData = {
-          id: newId,
+          id,
           transaction_id: transactionId,
           company_id: currentCompany.id,
           job_id: line.job_id,
           cost_code_id: line.cost_code_id,
           amount: Number(line.amount) || 0,
           percentage: Number(line.percentage) || 0,
-          created_by: user?.id
+          created_by: user?.id,
         };
-        
-        // Upsert by primary key id for stability
-        const { error: upsertErr } = await supabase
+        const { error } = await supabase
           .from('credit_card_transaction_distributions')
           .upsert(lineData, { onConflict: 'id' });
-        if (upsertErr) throw upsertErr;
-
-        // Ensure local state carries the persisted id
-        if (!line.id) {
-          setCcDistribution(prev => prev.map(d => 
-            d === line ? { ...d, id: newId } : d
-          ));
-        }
+        if (error) throw error;
+        line.id = id;
       }
-      
-      // Refresh loaded IDs
-      setLoadedDistributionIds(ccDistribution.map(d => d.id).filter(Boolean));
-    } catch (error: any) {
-      console.error('Error saving distribution:', error);
-      toast({
-        title: 'Save failed',
-        description: error?.message || 'Unable to save distribution. Please try again.',
-        variant: 'destructive',
-      });
+      setLoadedDistributionIds(dist.map((d: any) => d.id).filter(Boolean));
+      // After persisting, recompute coded status
+      await updateCodingStatus();
+    } catch (e: any) {
+      console.error('Error persisting distribution:', e);
+      toast({ title: 'Save failed', description: e?.message || 'Unable to save distribution.', variant: 'destructive' });
     }
   };
-  
-  // Debounce saves to avoid excessive database writes
-  const timer = setTimeout(saveDistribution, 500);
-  return () => clearTimeout(timer);
-}, [ccDistribution, open, transactionId, currentCompany, loadedDistributionIds, user]);
-
-// Flush distribution immediately when modal closes to avoid debounce loss
-useEffect(() => {
-  const flushOnClose = async () => {
-    if (open || !transactionId || !currentCompany) return;
-    try {
-      // same logic as save, but without debounce
-      const currentIds = ccDistribution.map(d => d.id).filter(Boolean);
-      const idsToDelete = loadedDistributionIds.filter(id => !currentIds.includes(id));
-      if (idsToDelete.length > 0) {
-        await supabase
-          .from('credit_card_transaction_distributions')
-          .delete()
-          .in('id', idsToDelete);
-      }
-      for (const line of ccDistribution) {
-        if (!line.job_id || !line.cost_code_id || !line.amount) continue;
-        const lineData = {
-          id: line.id || crypto.randomUUID(),
-          transaction_id: transactionId,
-          company_id: currentCompany.id,
-          job_id: line.job_id,
-          cost_code_id: line.cost_code_id,
-          amount: Number(line.amount) || 0,
-          percentage: Number(line.percentage) || 0,
-          created_by: user?.id
-        };
-        const { error: upsertErr } = await supabase
-          .from('credit_card_transaction_distributions')
-          .upsert(lineData, { onConflict: 'id' });
-        if (upsertErr) throw upsertErr;
-      }
-    } catch (e) {
-      console.error('Error flushing distribution on close:', e);
-    }
-  };
-  flushOnClose();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [open]);
 
 
 // Also recompute when code lists resolve
@@ -1858,7 +1791,7 @@ const resolveAttachmentRequirement = (): boolean => {
                 totalAmount={Math.abs(Number(transaction.amount || 0))}
                 companyId={currentCompany?.id || ''}
                 initialDistribution={ccDistribution}
-                onChange={setCcDistribution}
+                onChange={(dist) => { setCcDistribution(dist); persistDistribution(dist); }}
                 expenseAccounts={expenseAccounts}
               />
             </div>
