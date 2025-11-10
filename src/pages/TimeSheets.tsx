@@ -925,7 +925,7 @@ export default function TimeSheets() {
                     </TableHeader>
                     <TableBody>
                       {getFilteredAndSortedTimeCards().map((timeCard) => (
-                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className="cursor-pointer group hover:bg-primary/5 transition-colors">
+                        <TableRow key={timeCard.id} onClick={() => handleViewDetails(timeCard.id)} className={`cursor-pointer group hover:bg-primary/5 transition-colors ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}>
                           {isManager && (
                             <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">
                               {getEmployeeName(timeCard)}
@@ -1040,7 +1040,7 @@ export default function TimeSheets() {
                 )}
                 
                 {currentView === 'list' && timeCards.map((timeCard) => (
-                  <div key={timeCard.id} className="border rounded-xl p-6 hover-card cursor-pointer" onClick={() => handleViewDetails(timeCard.id)}>
+                  <div key={timeCard.id} className={`border rounded-xl p-6 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`} onClick={() => handleViewDetails(timeCard.id)}>
                      <div className="flex items-start justify-between mb-4">
                        <div className="space-y-1">
                          {isManager && (
@@ -1216,7 +1216,7 @@ export default function TimeSheets() {
                 {currentView === 'compact' && timeCards.map((timeCard) => (
                   <div 
                     key={timeCard.id} 
-                    className="border rounded-lg p-4 hover-card cursor-pointer"
+                    className={`border rounded-lg p-4 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}
                     onClick={() => handleViewDetails(timeCard.id)}
                   >
                     <div className="flex items-center justify-between">
@@ -1245,7 +1245,11 @@ export default function TimeSheets() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <div className="font-semibold">{timeCard.total_hours.toFixed(1)} hrs</div>
+                          <div className="font-semibold flex items-center gap-2">
+                            {timeCard.total_hours.toFixed(1)} hrs
+                            {timeCard.over_24h && (<Badge variant="destructive" className="text-xs">24h+</Badge>)}
+                            {!timeCard.over_24h && timeCard.over_12h && (<Badge variant="secondary" className="text-xs">12h+</Badge>)}
+                          </div>
                           {timeCard.overtime_hours > 0 && (
                             <div className="text-xs text-warning">+{timeCard.overtime_hours.toFixed(1)} OT</div>
                           )}
@@ -1261,7 +1265,7 @@ export default function TimeSheets() {
                     {timeCards.map((timeCard) => (
                       <div 
                         key={timeCard.id} 
-                        className="flex items-center justify-between p-2 hover:bg-primary/5 hover:border-primary hover:shadow-md rounded cursor-pointer transition-all duration-200 group"
+                        className={`flex items-center justify-between p-2 hover:bg-primary/5 hover:border-primary hover:shadow-md rounded cursor-pointer transition-all duration-200 group ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}
                         onClick={() => handleViewDetails(timeCard.id)}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1276,8 +1280,10 @@ export default function TimeSheets() {
                           <div className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </div>
-                           <div className="font-medium whitespace-nowrap">
+                           <div className="font-medium whitespace-nowrap flex items-center gap-1">
                              {timeCard.total_hours.toFixed(1)}h
+                             {timeCard.over_24h && (<Badge variant="destructive" className="text-xs">24h+</Badge>)}
+                             {!timeCard.over_24h && timeCard.over_12h && (<Badge variant="secondary" className="text-xs">12h+</Badge>)}
                            </div>
                            <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="text-xs whitespace-nowrap">
                              {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
