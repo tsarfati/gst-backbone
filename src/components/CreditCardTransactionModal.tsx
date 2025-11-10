@@ -94,8 +94,9 @@ useEffect(() => {
       for (const line of ccDistribution) {
         if (!line.job_id || !line.cost_code_id || !line.amount) continue;
         
+        const newId = line.id || crypto.randomUUID();
         const lineData = {
-          id: line.id || crypto.randomUUID(),
+          id: newId,
           transaction_id: transactionId,
           company_id: currentCompany.id,
           job_id: line.job_id,
@@ -110,6 +111,13 @@ useEffect(() => {
           .from('credit_card_transaction_distributions')
           .upsert(lineData, { onConflict: 'id' });
         if (upsertErr) throw upsertErr;
+
+        // Ensure local state carries the persisted id
+        if (!line.id) {
+          setCcDistribution(prev => prev.map(d => 
+            d === line ? { ...d, id: newId } : d
+          ));
+        }
       }
       
       // Refresh loaded IDs
@@ -1057,7 +1065,7 @@ const resolveAttachmentRequirement = (): boolean => {
     const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
 
     // If using distribution across multiple cost codes, derive requirement from the lines
-    if (isJobSelected && ccDistribution && ccDistribution.length > 0) {
+    if (ccDistribution && ccDistribution.length > 0) {
       const perLineRequires = ccDistribution.map((line: any) => {
         const lineCcJob = (jobCostCodes || []).find((c: any) => c.id === line.cost_code_id);
         if (lineCcJob) {
@@ -1109,7 +1117,7 @@ const resolveAttachmentRequirement = (): boolean => {
 
     // If using distribution across multiple cost codes, determine coded status from distribution completeness
     const totalAmt = Math.abs(Number(transaction.amount || 0));
-    if (isJobSelected && ccDistribution && ccDistribution.length > 0 && totalAmt > 0) {
+    if (ccDistribution && ccDistribution.length > 0 && totalAmt > 0) {
       const distSum = ccDistribution.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
       const validLines = ccDistribution.every((d: any) => d.job_id && d.cost_code_id && Number(d.amount) > 0);
       const hasVendor = !!selectedVendorId;
