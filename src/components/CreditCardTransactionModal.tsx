@@ -965,8 +965,14 @@ useEffect(() => {
         || (transaction as any)?.cost_codes;
       const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
       const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
-      const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
-      costCodeRequiresAttachment = resolvedCC?.require_attachment ?? true;
+      // Prefer company-level false; otherwise fall back to job-level
+      if (ccCompany && ccCompany.require_attachment === false) {
+        costCodeRequiresAttachment = false;
+      } else if (ccJob && ccJob.require_attachment === false) {
+        costCodeRequiresAttachment = false;
+      } else {
+        costCodeRequiresAttachment = (ccCompany?.require_attachment ?? ccJob?.require_attachment ?? true);
+      }
     }
 
     let accountRequiresAttachment = true;
@@ -1909,8 +1915,14 @@ useEffect(() => {
                       || (transaction as any)?.cost_codes;
                     const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
                     const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
-                    const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
-                    requiresByCode = resolvedCC?.require_attachment ?? true;
+                    if (ccCompany && ccCompany.require_attachment === false) {
+                      requiresByCode = false;
+                    } else if (ccJob && ccJob.require_attachment === false) {
+                      requiresByCode = false;
+                    } else {
+                      const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                      requiresByCode = resolvedCC?.require_attachment ?? true;
+                    }
                   } else if (transaction?.chart_account_id && !isJobSelected) {
                     const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
                       || (transaction as any)?.chart_of_accounts;
