@@ -935,13 +935,15 @@ useEffect(() => {
     let costCodeRequiresAttachment = true;
     if (isJobSelected && transaction?.cost_code_id) {
       const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) 
-        || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+        || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+        || (transaction as any)?.cost_codes;
       costCodeRequiresAttachment = cc?.require_attachment ?? true;
     }
 
     let accountRequiresAttachment = true;
     if (!isJobSelected && transaction?.chart_account_id) {
-      const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+      const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
+        || (transaction as any)?.chart_of_accounts;
       accountRequiresAttachment = acct?.require_attachment ?? true;
     }
 
@@ -1865,10 +1867,12 @@ useEffect(() => {
                   let requiresByCode = true;
                   if (transaction?.cost_code_id && isJobSelected) {
                     const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                      || (transaction as any)?.cost_codes;
                     requiresByCode = cc?.require_attachment ?? true;
                   } else if (transaction?.chart_account_id && !isJobSelected) {
-                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
+                      || (transaction as any)?.chart_of_accounts;
                     requiresByCode = acct?.require_attachment ?? true;
                   }
                   const showStar = requiresByCode;
@@ -1880,11 +1884,13 @@ useEffect(() => {
                 const showCheckbox = (() => {
                   if (transaction?.cost_code_id && isJobSelected) {
                     const cc = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                      || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+                      || (transaction as any)?.cost_codes;
                     return cc ? cc.require_attachment === false : false;
                   }
                   if (transaction?.chart_account_id && !isJobSelected) {
-                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id);
+                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
+                      || (transaction as any)?.chart_of_accounts;
                     return acct ? acct.require_attachment === false : false;
                   }
                   return false;
