@@ -412,6 +412,9 @@ useEffect(() => {
           });
         }
       }
+
+      // Re-evaluate coding status after data load
+      await updateCodingStatus();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1439,15 +1442,8 @@ useEffect(() => {
               <Label className="text-sm">Description</Label>
               <Input
                 value={transaction.description || ""}
-                onChange={async (e) => {
-                  const newDescription = e.target.value;
-                  setTransaction((prev: any) => ({ ...prev, description: newDescription }));
-                  await supabase
-                    .from("credit_card_transactions")
-                    .update({ description: newDescription })
-                    .eq("id", transactionId);
-                }}
-                placeholder="Enter transaction description"
+                readOnly
+                disabled
               />
             </div>
             {requestedUsers.length > 0 && (
@@ -1460,8 +1456,27 @@ useEffect(() => {
                     </Badge>
                   ))}
                 </div>
-              </div>
+          </div>
+
             )}
+          </div>
+
+          {/* Internal Description */}
+          <div className="space-y-2">
+            <Label className="text-sm">Internal Description</Label>
+            <Textarea
+              value={transaction.notes || ""}
+              onChange={(e) => setTransaction((prev: any) => ({ ...prev, notes: e.target.value }))}
+              onBlur={async (e) => {
+                const val = e.target.value;
+                await supabase
+                  .from("credit_card_transactions")
+                  .update({ notes: val })
+                  .eq("id", transactionId);
+              }}
+              placeholder="Add internal notes for this transaction (not visible externally)"
+              rows={3}
+            />
           </div>
 
           {/* Suggested Matches */}
@@ -1487,7 +1502,26 @@ useEffect(() => {
                         ? `${suggestedMatches.length} potential ${suggestedMatches.length === 1 ? 'match' : 'matches'} found. Select a match to auto-populate job, vendor, cost code, and attachment.`
                         : 'No potential matches found for this transaction. You can refresh to try again.'}
                     </p>
-                  </div>
+          </div>
+
+          {/* Internal Description */}
+          <div className="space-y-2">
+            <Label className="text-sm">Internal Description</Label>
+            <Textarea
+              value={transaction.notes || ""}
+              onChange={(e) => setTransaction((prev: any) => ({ ...prev, notes: e.target.value }))}
+              onBlur={async (e) => {
+                const val = e.target.value;
+                await supabase
+                  .from("credit_card_transactions")
+                  .update({ notes: val })
+                  .eq("id", transactionId);
+              }}
+              placeholder="Add internal notes for this transaction (not visible externally)"
+              rows={3}
+            />
+          </div>
+
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => fetchSuggestedMatches(transaction)}>
                       Refresh
@@ -1672,10 +1706,10 @@ useEffect(() => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0 z-50 bg-background">
+              <PopoverContent className="w-[400px] p-0 z-[1000] bg-background shadow-lg border">
                 <Command>
                   <CommandInput placeholder="Search jobs or accounts..." />
-                  <CommandList>
+                  <CommandList className="max-h-72 overflow-y-auto">
                     <CommandEmpty>No results found.</CommandEmpty>
                     <CommandGroup>
                       <CommandItem
@@ -1757,7 +1791,7 @@ useEffect(() => {
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                 <PopoverContent className="w-[400px] p-0 z-50 bg-background">
+                 <PopoverContent className="w-[400px] p-0 z-[1000] bg-background shadow-lg border">
                   <Command>
                     <CommandInput placeholder="Search cost codes..." />
                     <CommandList className="max-h-72 overflow-y-auto">
@@ -2060,7 +2094,26 @@ useEffect(() => {
 
           <div className="flex justify-between gap-2 pt-4 border-t">
             <div>
-              {transaction?.coding_status === 'coded' && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment' && (
+              {(() => {
+                const hasVendor = !!selectedVendorId;
+                const hasJobOrAccount = !!selectedJobOrAccount;
+                const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true;
+                const hasAttachment = !!transaction.attachment_url;
+                let requiresByCode = true;
+                if (isJobSelected && transaction?.cost_code_id) {
+                  const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
+                  const ccCompany = ccJob && (costCodes || []).find((c: any) =>
+                    c.code === ccJob.code && (!ccJob.type || String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase())
+                  );
+                  const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
+                  requiresByCode = resolvedCC?.require_attachment ?? true;
+                } else if (!isJobSelected && transaction?.chart_account_id) {
+                  const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
+                  requiresByCode = acct?.require_attachment ?? true;
+                }
+                const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
+                return coded && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment';
+              })() && (
                 <Button
                   variant="default"
                   onClick={handlePostToGL}
