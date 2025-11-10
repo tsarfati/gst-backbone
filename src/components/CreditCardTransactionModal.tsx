@@ -1362,24 +1362,23 @@ const resolveAttachmentRequirement = (): boolean => {
 
   const handleMarkComplete = async () => {
     try {
+      // Persist current distribution lines first
+      await persistDistribution(ccDistribution);
+
+      // Recompute and persist coded status
+      await updateCodingStatus();
+
+      // Optionally finish any open coding requests
       await supabase
         .from("credit_card_coding_requests")
         .update({ status: "completed", completed_at: new Date().toISOString() })
         .eq("transaction_id", transactionId);
 
-      toast({
-        title: "Success",
-        description: "Coding request completed",
-      });
-
+      toast({ title: "Saved", description: "Transaction coding saved successfully" });
       onComplete();
       onOpenChange(false);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Cannot save", description: error?.message || "Please try again.", variant: "destructive" });
     }
   };
 
