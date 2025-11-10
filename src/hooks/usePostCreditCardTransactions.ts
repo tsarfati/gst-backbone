@@ -118,17 +118,62 @@ export function usePostCreditCardTransactions() {
 
           if (updateError) throw updateError;
 
-          // If linked to an invoice (matched_bill_id or invoice_id), mark it as paid
+          // If linked to an invoice (matched_bill_id or invoice_id), mark it as paid and create payment record
           const linkedInvoiceId = trans.matched_bill_id || trans.invoice_id;
           if (linkedInvoiceId) {
-            const { error: invoiceError } = await supabase
+            // Fetch invoice details to get vendor_id
+            const { data: invoice, error: invError } = await supabase
               .from("invoices")
-              .update({ status: "paid" })
-              .eq("id", linkedInvoiceId);
+              .select("vendor_id, amount, invoice_number")
+              .eq("id", linkedInvoiceId)
+              .single();
 
-            if (invoiceError) {
-              console.error("Failed to update invoice status:", invoiceError);
-              // Don't throw - transaction was posted successfully
+            if (invError || !invoice) {
+              console.error("Failed to fetch invoice:", invError);
+            } else {
+              // Update invoice status to paid
+              const { error: invoiceError } = await supabase
+                .from("invoices")
+                .update({ status: "paid" })
+                .eq("id", linkedInvoiceId);
+
+              if (invoiceError) {
+                console.error("Failed to update invoice status:", invoiceError);
+              }
+
+              // Create payment record
+              const { data: payment, error: paymentError } = await supabase
+                .from("payments")
+                .insert({
+                  amount: Math.abs(Number(trans.amount)),
+                  payment_date: trans.transaction_date,
+                  payment_method: "Credit Card",
+                  payment_number: `CC-${trans.credit_cards.card_name}-${trans.transaction_date}`,
+                  vendor_id: invoice.vendor_id,
+                  journal_entry_id: journalEntry.id,
+                  created_by: userId,
+                  memo: `Credit Card Payment via ${trans.credit_cards.card_name} - ${trans.description}`,
+                  status: "completed",
+                })
+                .select()
+                .single();
+
+              if (paymentError) {
+                console.error("Failed to create payment record:", paymentError);
+              } else if (payment) {
+                // Create payment_invoice_line
+                const { error: lineError } = await supabase
+                  .from("payment_invoice_lines")
+                  .insert({
+                    payment_id: payment.id,
+                    invoice_id: linkedInvoiceId,
+                    amount_paid: Math.abs(Number(trans.amount)),
+                  });
+
+                if (lineError) {
+                  console.error("Failed to create payment line:", lineError);
+                }
+              }
             }
           }
 

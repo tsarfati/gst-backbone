@@ -1631,8 +1631,8 @@ const resolveAttachmentRequirement = (): boolean => {
               </div>
             </Collapsible>
           )}
-          {/* Vendor Selection - Not required for payments */}
-          {transaction.transaction_type !== 'payment' && (
+          {/* Vendor Selection - Not required for payments, but required for credits/refunds */}
+          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && (
           <div>
             <Label>Vendor *</Label>
             <div className="flex gap-2">
@@ -1663,8 +1663,8 @@ const resolveAttachmentRequirement = (): boolean => {
           </div>
           )}
 
-          {/* Job/Control Selection - Not required for payments */}
-          {transaction.transaction_type !== 'payment' && (
+          {/* Job/Control Selection - Not required for payments, but required for credits/refunds */}
+          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && (
           <div>
             <Label>Job/Control *</Label>
             <Popover key={`jobacct-${transactionId}`}
@@ -1755,7 +1755,7 @@ const resolveAttachmentRequirement = (): boolean => {
           )}
 
           {/* Cost Code Selection */}
-          {transaction.transaction_type !== 'payment' && isJobSelected && (
+          {(transaction.transaction_type !== 'payment' || Number(transaction.amount) < 0) && isJobSelected && (
             <div>
               <Label>Cost Code *</Label>
               <Popover 
