@@ -120,6 +120,23 @@ export function usePostCreditCardTransactions() {
 
           if (updateError) throw updateError;
 
+          // If matched to a bill, mark the bill as paid
+          if (trans.matched_bill_id) {
+            const { error: billError } = await (supabase as any)
+              .from("bills")
+              .update({ 
+                status: "paid",
+                payment_date: trans.transaction_date,
+                payment_method: "Credit Card"
+              })
+              .eq("id", trans.matched_bill_id);
+
+            if (billError) {
+              console.error("Failed to update bill status:", billError);
+              // Don't throw - transaction was posted successfully
+            }
+          }
+
           posted.push(trans.description || trans.merchant_name || "Transaction");
         } catch (err: any) {
           errors.push(`${trans.description}: ${err.message}`);
