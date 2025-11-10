@@ -39,7 +39,7 @@ export default function ManualTimeEntry() {
   const [employees, setEmployees] = useState<Employee[]>([]);
 
   const [formData, setFormData] = useState({
-    user_id: user?.id || '',
+    user_id: '',
     job_id: '',
     cost_code_id: '',
     date: new Date().toISOString().split('T')[0],
@@ -53,10 +53,21 @@ export default function ManualTimeEntry() {
 
   useEffect(() => {
     if (currentCompany?.id) {
-      loadJobs();
       loadEmployees();
+      // Set current user as default if not a manager
+      if (!isManager && user?.id) {
+        setFormData(prev => ({ ...prev, user_id: user.id }));
+      }
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, isManager, user?.id]);
+
+  useEffect(() => {
+    if (formData.user_id && currentCompany?.id) {
+      loadJobs();
+    } else {
+      setJobs([]);
+    }
+  }, [formData.user_id, currentCompany?.id]);
 
   useEffect(() => {
     if (formData.job_id && currentCompany?.id) {
@@ -67,19 +78,26 @@ export default function ManualTimeEntry() {
   }, [formData.job_id, currentCompany?.id]);
 
   const loadJobs = async () => {
-    if (!currentCompany?.id || !user?.id) return;
+    if (!currentCompany?.id || !formData.user_id) return;
     
     try {
-      // Check if user has assigned jobs
+      // Check if the selected employee has assigned jobs
       const { data: settings } = await supabase
         .from('employee_timecard_settings')
         .select('assigned_jobs')
-        .eq('user_id', user.id)
+        .eq('user_id', formData.user_id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       
+      // Get the selected employee's profile to check global access
+      const { data: employeeProfile } = await supabase
+        .from('profiles')
+        .select('has_global_job_access')
+        .eq('user_id', formData.user_id)
+        .single();
+      
       const assignedJobs = settings?.assigned_jobs || [];
-      const hasGlobal = profile?.has_global_job_access;
+      const hasGlobal = employeeProfile?.has_global_job_access;
 
       let jobsQuery = supabase
         .from('jobs')
@@ -112,19 +130,26 @@ export default function ManualTimeEntry() {
   };
 
   const loadCostCodes = async (jobId: string) => {
-    if (!currentCompany?.id || !user?.id) return;
+    if (!currentCompany?.id || !formData.user_id) return;
     
     try {
-      // Check if user has assigned cost codes
+      // Check if the selected employee has assigned cost codes
       const { data: settings } = await supabase
         .from('employee_timecard_settings')
         .select('assigned_cost_codes')
-        .eq('user_id', user.id)
+        .eq('user_id', formData.user_id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       
+      // Get the selected employee's profile to check global access
+      const { data: employeeProfile } = await supabase
+        .from('profiles')
+        .select('has_global_job_access')
+        .eq('user_id', formData.user_id)
+        .single();
+      
       const assignedCostCodes = settings?.assigned_cost_codes || [];
-      const hasGlobal = profile?.has_global_job_access;
+      const hasGlobal = employeeProfile?.has_global_job_access;
 
       let costCodesQuery = supabase
         .from('cost_codes')
@@ -251,6 +276,12 @@ export default function ManualTimeEntry() {
       const punchOutDateTime = new Date(`${formData.date}T${formData.punch_out_time}`);
       const overtimeHours = calculateOvertime(totalHours);
 
+      // Check if timecard exceeds 12 or 24 hours
+      const over12h = totalHours > 12;
+      const over24h = totalHours > 24;
+      const requiresApproval = over12h || over24h;
+      const status = requiresApproval ? 'pending' : 'submitted';
+
       const { error } = await supabase
         .from('time_cards')
         .insert({
@@ -264,7 +295,10 @@ export default function ManualTimeEntry() {
           overtime_hours: overtimeHours,
           break_minutes: formData.break_minutes,
           notes: formData.notes || null,
-          status: 'submitted',
+          status: status,
+          requires_approval: requiresApproval,
+          over_12h: over12h,
+          over_24h: over24h,
           created_via_punch_clock: false
         });
 
@@ -294,6 +328,32 @@ export default function ManualTimeEntry() {
   return (
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Employee Selection (for managers only) */}
+        {isManager && (
+          <div className="space-y-2">
+            <Label htmlFor="employee" className="text-sm">Employee *</Label>
+            <Select
+              value={formData.user_id}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, user_id: value, job_id: '', cost_code_id: '' }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select employee" />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No employees found</div>
+                ) : (
+                  employees.map((employee) => (
+                    <SelectItem key={employee.user_id} value={employee.user_id}>
+                      {employee.display_name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Date */}
         <div className="space-y-2">
           <Label htmlFor="date" className="text-sm flex items-center gap-2">
@@ -440,7 +500,7 @@ export default function ManualTimeEntry() {
         {/* Submit Button */}
         <Button
           type="submit"
-          disabled={loading || !formData.job_id || !formData.cost_code_id}
+          disabled={loading || !formData.user_id || !formData.job_id || !formData.cost_code_id}
           className="w-full gap-2"
           size="lg"
         >
