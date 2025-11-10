@@ -1414,22 +1414,7 @@ useEffect(() => {
             Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
           </DialogDescription>
         </DialogHeader>
-        {/* Prominent Description field at top */}
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Description</Label>
-          <Input
-            value={transaction.description || ""}
-            onChange={async (e) => {
-              const newDescription = e.target.value;
-              setTransaction((prev: any) => ({ ...prev, description: newDescription }));
-              await supabase
-                .from("credit_card_transactions")
-                .update({ description: newDescription })
-                .eq("id", transactionId);
-            }}
-            placeholder="Enter transaction description"
-          />
-        </div>
+        {/* Description field moved into the Transaction Info grid below */}
         <div className="space-y-6">
           {/* Transaction Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
@@ -1448,7 +1433,21 @@ useEffect(() => {
                 ${Number(transaction.amount).toLocaleString()}
               </p>
             </div>
-            {/* Description moved to top section */}
+            <div className="col-span-2">
+              <Label className="text-sm">Description</Label>
+              <Input
+                value={transaction.description || ""}
+                onChange={async (e) => {
+                  const newDescription = e.target.value;
+                  setTransaction((prev: any) => ({ ...prev, description: newDescription }));
+                  await supabase
+                    .from("credit_card_transactions")
+                    .update({ description: newDescription })
+                    .eq("id", transactionId);
+                }}
+                placeholder="Enter transaction description"
+              />
+            </div>
             {requestedUsers.length > 0 && (
               <div className="col-span-2">
                 <Label className="text-sm text-muted-foreground">Requested Coders</Label>

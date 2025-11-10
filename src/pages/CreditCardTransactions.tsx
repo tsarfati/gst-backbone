@@ -737,7 +737,7 @@ export default function CreditCardTransactions() {
 
   const handlePostAllCoded = async () => {
     const codedNotPosted = transactions
-      .filter(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment')
+      .filter(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment')
       .map(t => t.id);
 
     if (codedNotPosted.length === 0) {
@@ -748,7 +748,34 @@ export default function CreditCardTransactions() {
       return;
     }
 
-    await handlePostToGL(codedNotPosted);
+  await handlePostToGL(codedNotPosted);
+  };
+
+  // Helper to resolve whether attachment is required based on cost code/account
+  const requiresAttachmentFor = (t: any): boolean => {
+    if (t.job_id && t.cost_code_id) {
+      const ccJob = t.cost_codes;
+      if (ccJob) {
+        const ccCompany = (costCodes || []).find((c: any) => c.code === ccJob.code && String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase());
+        const resolved = ccCompany || ccJob;
+        return resolved?.require_attachment ?? true;
+      }
+      return true;
+    }
+    if (t.chart_account_id && t.chart_of_accounts) {
+      return t.chart_of_accounts.require_attachment ?? true;
+    }
+    return true;
+  };
+
+  const isTransactionCoded = (t: any): boolean => {
+    const hasVendor = !!t.vendor_id;
+    const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
+    const hasCostCode = t.job_id ? !!t.cost_code_id : true;
+    const hasAttachment = !!t.attachment_url;
+    const requiresByCode = requiresAttachmentFor(t);
+    const attachmentSatisfied = requiresByCode ? hasAttachment : true;
+    return hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
   };
 
   const getStatusBadge = (t: any) => {
@@ -777,25 +804,9 @@ export default function CreditCardTransactions() {
     }
 
     // For all other cases (charges, credits, refunds, or misclassified payments being coded): show coding status
-    const hasVendor = !!t.vendor_id;
-    const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
-    const hasCostCode = t.job_id ? !!t.cost_code_id : true; // cost code required only when job selected
-    const hasAttachment = !!t.attachment_url;
-    const bypass = !!t.bypass_attachment_requirement;
-
-    const costCodeRequiresAttachment = t?.cost_codes?.require_attachment ?? true;
-    const accountRequiresAttachment = t?.chart_of_accounts?.require_attachment ?? true;
-    const requiresByCode = t.job_id && t.cost_code_id
-      ? costCodeRequiresAttachment
-      : t.chart_account_id
-        ? accountRequiresAttachment
-        : true;
-
-    const attachmentSatisfied = requiresByCode ? hasAttachment : (hasAttachment || bypass);
-
     const hasMatches = !!t.invoice_id || !!t.receipt_id;
     const matchConfirmed = !!t.match_confirmed;
-    const coded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
+    const coded = isTransactionCoded(t);
 
     // Show match confirmation status if there are potential matches
     if (hasMatches && !matchConfirmed) {
@@ -812,7 +823,7 @@ export default function CreditCardTransactions() {
         : <Badge variant="destructive" key="uncoded">Uncoded</Badge>
     );
 
-    if (t.is_reconciled && !hasAttachment) {
+    if (t.is_reconciled && !t.attachment_url) {
       badges.push(<Badge variant="outline" key="noattach">*</Badge>);
     }
 
@@ -977,9 +988,10 @@ export default function CreditCardTransactions() {
                   onClick={() => handlePostToGL(Array.from(selectedTransactions))}
                   disabled={
                     postingToGL || 
-                    !Array.from(selectedTransactions).every(id => 
-                      transactions.find(t => t.id === id)?.coding_status === 'coded'
-                    )
+                    !Array.from(selectedTransactions).every(id => {
+                      const t = transactions.find(t => t.id === id);
+                      return t && isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment';
+                    })
                   }
                 >
                   <Send className="h-4 w-4 mr-2" />
@@ -1000,14 +1012,14 @@ export default function CreditCardTransactions() {
       )}
 
       {/* Post All Coded Button */}
-      {transactions.some(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment') && (
+      {transactions.some(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment') && (
         <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Ready to Post</p>
                 <p className="text-xs text-muted-foreground">
-                  {transactions.filter(t => t.coding_status === 'coded' && !t.journal_entry_id && t.transaction_type !== 'payment').length} coded transaction(s) can be posted to GL
+                  {transactions.filter(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment').length} coded transaction(s) can be posted to GL
                 </p>
               </div>
               <Button
