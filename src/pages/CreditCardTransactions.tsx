@@ -33,6 +33,7 @@ export default function CreditCardTransactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [distsByTx, setDistsByTx] = useState<Record<string, any[]>>({});
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -123,6 +124,21 @@ export default function CreditCardTransactions() {
         .order("code");
 
       setCostCodes(costCodesData || []);
+
+      // Fetch distributions for all listed transactions and hydrate with cost code metadata
+      const txIds = (transData || []).map((t: any) => t.id);
+      if (txIds.length > 0) {
+        const { data: distRows } = await supabase
+          .from('credit_card_transaction_distributions')
+          .select('transaction_id, job_id, amount, percentage, cost_codes:cost_code_id(id, code, type, require_attachment)')
+          .in('transaction_id', txIds);
+        const map: Record<string, any[]> = {};
+        (distRows || []).forEach((row: any) => {
+          if (!map[row.transaction_id]) map[row.transaction_id] = [];
+          map[row.transaction_id].push(row);
+        });
+        setDistsByTx(map);
+      }
 
       // Fetch users for coding requests (admins, controllers, project managers)
       const { data: usersData } = await supabase
@@ -772,6 +788,34 @@ export default function CreditCardTransactions() {
   };
 
   const isTransactionCoded = (t: any): boolean => {
+    // First, honor distribution-based coding
+    const dist = distsByTx[t.id] || [];
+    if (dist.length > 0) {
+      const totalAmt = Math.abs(Number(t.amount || 0));
+      const distSum = dist.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+      const validLines = dist.every((d: any) => d.job_id && d.cost_codes?.id && Number(d.amount) > 0);
+      const hasVendor = !!t.vendor_id;
+      const hasAttachment = !!t.attachment_url;
+
+      // Determine if any line requires an attachment using company-level overrides by code/type
+      const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
+      const perLineRequires = dist.map((line: any) => {
+        const jobCC = line.cost_codes; // { id, code, type, require_attachment }
+        if (!jobCC) return true; // default require if unknown
+        const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(jobCC.code));
+        if (jobCC.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
+        const typeMatch = jobCC?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(jobCC.type || '').toLowerCase()) : null;
+        const resolved = typeMatch || companyMatches[0] || jobCC;
+        return resolved?.require_attachment ?? true;
+      });
+      const requiresByCode = perLineRequires.some(Boolean);
+
+      const coded = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+      console.log('CC coded calc (dist)', { id: t.id, validLines, distSum, totalAmt, hasVendor, requiresByCode, hasAttachment, coded });
+      return coded;
+    }
+
+    // Fallback: single-code determination
     const hasVendor = !!t.vendor_id;
     const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
     const hasCostCode = t.job_id ? !!t.cost_code_id : true;
