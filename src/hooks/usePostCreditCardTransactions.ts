@@ -94,7 +94,6 @@ export function usePostCreditCardTransactions() {
               description: trans.description || trans.merchant_name,
               job_id: trans.job_id,
               cost_code_id: trans.cost_code_id,
-              vendor_id: trans.vendor_id,
             },
             {
               journal_entry_id: journalEntry.id,
