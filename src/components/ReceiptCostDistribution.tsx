@@ -6,7 +6,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Plus, Trash2, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,7 @@ interface CostDistribution {
   percentage: number;
   job_name?: string;
   cost_code_display?: string;
+  chart_account_id?: string;
 }
 
 interface ReceiptCostDistributionProps {
@@ -29,6 +30,7 @@ interface ReceiptCostDistributionProps {
   initialDistribution?: CostDistribution[];
   onChange: (distribution: CostDistribution[]) => void;
   disabled?: boolean;
+  expenseAccounts?: ExpenseAccount[];
 }
 
 interface Job {
@@ -43,12 +45,20 @@ interface CostCode {
   type: string;
 }
 
+interface ExpenseAccount {
+  id: string;
+  account_number: string;
+  account_name: string;
+  account_type: string;
+}
+
 export default function ReceiptCostDistribution({ 
   totalAmount, 
   companyId,
   initialDistribution = [], 
   onChange, 
-  disabled = false 
+  disabled = false,
+  expenseAccounts = []
 }: ReceiptCostDistributionProps) {
   const { toast } = useToast();
   const [distribution, setDistribution] = useState<CostDistribution[]>(
@@ -129,7 +139,8 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
       job_id: '',
       cost_code_id: '',
       amount: 0,
-      percentage: 0
+      percentage: 0,
+      chart_account_id: ''
     };
     setDistribution(prev => [...prev, newDistribution]);
   };
@@ -152,12 +163,30 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
       
       const updated = { ...d, [field]: value };
       
-      // If job changes, load cost codes and reset cost code selection
-      if (field === 'job_id') {
+      // If job_or_account changes (special field for Job/Control dropdown)
+      if (field === 'job_id' && value.startsWith) {
+        const [type, itemId] = value.split('_');
+        if (type === 'job') {
+          updated.job_id = itemId;
+          updated.chart_account_id = '';
+          loadCostCodesForJob(itemId);
+          updated.cost_code_id = '';
+          const job = jobs.find(j => j.id === itemId);
+          updated.job_name = job?.name;
+        } else if (type === 'account') {
+          updated.chart_account_id = itemId;
+          updated.job_id = '';
+          updated.cost_code_id = '';
+          updated.job_name = '';
+        }
+      }
+      // Regular job_id update (backward compatibility)
+      else if (field === 'job_id' && value && !value.startsWith) {
         loadCostCodesForJob(value);
         updated.cost_code_id = '';
         const job = jobs.find(j => j.id === value);
         updated.job_name = job?.name;
+        updated.chart_account_id = '';
       }
       
       // If cost code changes, update display
@@ -262,27 +291,78 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
               </div>
 
               <div>
-                <Label className="text-xs">Job</Label>
-                <Select
-                  value={dist.job_id}
-                  onValueChange={(value) => updateDistribution(dist.id, 'job_id', value)}
-                  disabled={disabled}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Select a job" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border border-border shadow-md z-50">
-                    {jobs.map((job) => (
-                      <SelectItem key={job.id} value={job.id} className="hover:bg-primary/10 hover:text-primary">
-                        {job.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs">Job/Control *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      disabled={disabled}
+                      className="w-full h-8 justify-between text-xs font-normal"
+                    >
+                      {dist.job_id 
+                        ? jobs.find(j => j.id === dist.job_id)?.name || 'Select job or expense account'
+                        : dist.chart_account_id
+                          ? (() => {
+                              const account = expenseAccounts.find(a => a.id === dist.chart_account_id);
+                              return account ? `${account.account_number} - ${account.account_name}` : 'Select job or expense account';
+                            })()
+                          : 'Select job or expense account'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0 z-[1000] bg-background shadow-lg border">
+                    <Command>
+                      <CommandInput placeholder="Search jobs or accounts..." />
+                      <CommandList className="max-h-72 overflow-y-auto">
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        {jobs.length > 0 && (
+                          <CommandGroup heading="Jobs">
+                            {jobs.map((job) => (
+                              <CommandItem
+                                key={`job_${job.id}`}
+                                value={job.name}
+                                onSelect={() => updateDistribution(dist.id, 'job_id', `job_${job.id}`)}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    dist.job_id === job.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {job.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {expenseAccounts.length > 0 && (
+                          <CommandGroup heading="Expense Accounts">
+                            {expenseAccounts.map((account) => (
+                              <CommandItem
+                                key={`account_${account.id}`}
+                                value={`${account.account_number} ${account.account_name}`}
+                                onSelect={() => updateDistribution(dist.id, 'job_id', `account_${account.id}`)}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    dist.chart_account_id === account.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {account.account_number} - {account.account_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
+              {dist.job_id && (
               <div>
-                <Label className="text-xs">Cost Code</Label>
+                <Label className="text-xs">Cost Code *</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -358,6 +438,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                   </PopoverContent>
                 </Popover>
               </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
