@@ -531,7 +531,8 @@ export default function TimecardReports() {
         const over12 = flagOver12 && totalHours > 12 && totalHours <= 24;
         const shouldFlag = over24 || over12;
         let statusWithFlag = record.status;
-        if (shouldFlag && statusWithFlag !== 'approved' && statusWithFlag !== 'rejected') {
+        // Force pending status for flagged cards, even if previously approved
+        if (shouldFlag) {
           statusWithFlag = 'pending';
         }
 

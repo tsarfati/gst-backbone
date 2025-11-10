@@ -305,7 +305,11 @@ export default function TimecardReportViews({
                     {records.map((record) => (
                       <TableRow 
                         key={record.id}
-                        className="cursor-pointer hover:bg-primary/10 transition-colors"
+                        className={`cursor-pointer transition-colors ${
+                          record.over_12h || record.over_24h 
+                            ? 'bg-red-50 dark:bg-red-950/30 animate-pulse hover:bg-red-100 dark:hover:bg-red-950/50' 
+                            : 'hover:bg-primary/10'
+                        }`}
                         onClick={() => handleViewPunchDetails(record)}
                       >
                         <TableCell className="font-medium">{record.employee_name}</TableCell>
