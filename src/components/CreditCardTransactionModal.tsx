@@ -1697,10 +1697,17 @@ const resolveAttachmentRequirement = (): boolean => {
           )}
 
           {/* Cost Distribution - Show for charges and credits, but not for payments */}
-          {(
-            (transaction.transaction_type || '').toLowerCase() !== 'payment' ||
-            String(transaction.description || '').toLowerCase().match(/credit|refund|return/)
-          ) && (
+          {(() => {
+            const tt = String(transaction.transaction_type || '').toLowerCase();
+            const desc = String(transaction.description || '').toLowerCase();
+            const isPaymentType = tt === 'payment';
+            const isPaymentDesc = /payment|auto ?pay|autopay|pmt|thank you|bill ?pay|card ?payment/.test(desc);
+            const isRefundLike = /credit|refund|return|reversal|rebate|cashback|chargeback/.test(desc);
+            const amt = Number(transaction.amount || 0);
+            const isNegative = Number.isFinite(amt) && amt < 0;
+            const show = (!isPaymentType && !isPaymentDesc) || isRefundLike || isNegative;
+            return show;
+          })() && (
             <div className="mt-4">
               <ReceiptCostDistribution
                 totalAmount={Math.abs(Number(transaction.amount || 0))}
