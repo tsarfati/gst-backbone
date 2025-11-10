@@ -935,6 +935,27 @@ useEffect(() => {
     }
   };
 
+  // Compute whether the currently selected code/account requires an attachment
+  const resolveAttachmentRequirement = (): boolean => {
+    try {
+      if (isJobSelected && transaction?.cost_code_id) {
+        const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
+        const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
+        const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
+        if (ccCompany && ccCompany.require_attachment === false) return false;
+        if (ccJob && ccJob.require_attachment === false) return false;
+        return ccCompany?.require_attachment ?? ccJob?.require_attachment ?? true;
+      }
+      if (!isJobSelected && transaction?.chart_account_id) {
+        const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id) || (transaction as any)?.chart_of_accounts;
+        return acct?.require_attachment ?? true;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  };
+
   const updateCodingStatus = async () => {
     if (!transaction) return;
 
@@ -958,36 +979,8 @@ useEffect(() => {
     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
-    // Determine attachment requirement based on selected code/account using local lists
-    let costCodeRequiresAttachment = true;
-    if (isJobSelected && transaction?.cost_code_id) {
-      const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-        || (transaction as any)?.cost_codes;
-      const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
-      const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
-      // Prefer company-level false; otherwise fall back to job-level
-      if (ccCompany && ccCompany.require_attachment === false) {
-        costCodeRequiresAttachment = false;
-      } else if (ccJob && ccJob.require_attachment === false) {
-        costCodeRequiresAttachment = false;
-      } else {
-        costCodeRequiresAttachment = (ccCompany?.require_attachment ?? ccJob?.require_attachment ?? true);
-      }
-    }
-
-    let accountRequiresAttachment = true;
-    if (!isJobSelected && transaction?.chart_account_id) {
-      const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
-        || (transaction as any)?.chart_of_accounts;
-      accountRequiresAttachment = acct?.require_attachment ?? true;
-    }
-
-    const requiresByCode = (isJobSelected && transaction.cost_code_id)
-      ? costCodeRequiresAttachment
-      : (transaction.chart_account_id ? accountRequiresAttachment : true);
-
-    // If required by code/account: must have attachment
-    // If not required: attachment is not needed at all
+    const requiresByCode = resolveAttachmentRequirement();
+    // If required by code/account: must have attachment; otherwise not needed
     const attachmentSatisfied = requiresByCode ? hasAttachment : true;
 
     // All fields including vendor are required for coded status
@@ -1908,27 +1901,7 @@ useEffect(() => {
             <div className="flex items-center justify-between mb-2">
               <Label>
                 Attachment {(() => {
-                  // Resolve attachment requirement from selected cost code/account using local caches
-                  let requiresByCode = true;
-                  if (transaction?.cost_code_id && isJobSelected) {
-                    const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
-                      || (transaction as any)?.cost_codes;
-                    const norm = (s: any) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
-                    const ccCompany = ccJob && (costCodes || []).find((c: any) => norm(c.code) === norm(ccJob.code));
-                    if (ccCompany && ccCompany.require_attachment === false) {
-                      requiresByCode = false;
-                    } else if (ccJob && ccJob.require_attachment === false) {
-                      requiresByCode = false;
-                    } else {
-                      const resolvedCC = ccCompany || ccJob || (costCodes || []).find((c: any) => c.id === transaction.cost_code_id);
-                      requiresByCode = resolvedCC?.require_attachment ?? true;
-                    }
-                  } else if (transaction?.chart_account_id && !isJobSelected) {
-                    const acct = (expenseAccounts || []).find((a: any) => a.id === transaction.chart_account_id)
-                      || (transaction as any)?.chart_of_accounts;
-                    requiresByCode = acct?.require_attachment ?? true;
-                  }
-                  const showStar = requiresByCode;
+                  const showStar = resolveAttachmentRequirement();
                   return showStar ? '*' : null;
                 })()}
               </Label>
