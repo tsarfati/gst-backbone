@@ -73,7 +73,7 @@ export function CreditCardTransactionModal({
   const [loadedDistributionIds, setLoadedDistributionIds] = useState<string[]>([]);
   const [isLinkedToBill, setIsLinkedToBill] = useState(false);
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
-
+  const [distCostCodesMeta, setDistCostCodesMeta] = useState<any[]>([]);
   // Immediate persist for distribution changes triggered from UI
   const persistDistribution = async (dist: any[]) => {
     if (!transactionId || !currentCompany) return;
@@ -130,6 +130,27 @@ useEffect(() => {
   
   return () => clearTimeout(timer);
 }, [ccDistribution, open, transactionId, currentCompany]);
+
+// Hydrate distribution cost code metadata for attachment requirement resolution
+useEffect(() => {
+  const loadMeta = async () => {
+    try {
+      const ids = Array.from(new Set([
+        ...ccDistribution.map((d: any) => d.cost_code_id).filter(Boolean),
+        transaction?.cost_code_id
+      ].filter(Boolean)));
+      if (ids.length === 0) { setDistCostCodesMeta([]); return; }
+      const { data } = await supabase
+        .from('cost_codes')
+        .select('id, code, type, require_attachment, job_id')
+        .in('id', ids as string[]);
+      setDistCostCodesMeta(data || []);
+    } catch (e) {
+      setDistCostCodesMeta([]);
+    }
+  };
+  if (open) loadMeta();
+}, [open, ccDistribution, transaction?.cost_code_id]);
 
 useEffect(() => {
   if (open && transactionId && currentCompany) {
@@ -1051,41 +1072,44 @@ const resolveAttachmentRequirement = (): boolean => {
   try {
     const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
 
-    // If using distribution across multiple cost codes, derive requirement from the lines
-    if (ccDistribution && ccDistribution.length > 0) {
-      const perLineRequires = ccDistribution.map((line: any) => {
-        const lineCcJob = (jobCostCodes || []).find((c: any) => c.id === line.cost_code_id);
-        if (lineCcJob) {
-          const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(lineCcJob.code));
-          // If any related definition explicitly disables attachment, do not require for this line
-          if (lineCcJob.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) {
-            return false;
-          }
-          const typeMatch = lineCcJob?.type
-            ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(lineCcJob.type || '').toLowerCase())
-            : null;
-          const resolved = (typeMatch?.require_attachment 
-            ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) 
-            ?? lineCcJob?.require_attachment 
-            ?? true);
-          return Boolean(resolved);
+  // If using distribution across multiple cost codes, derive requirement from the lines
+  if (ccDistribution && ccDistribution.length > 0) {
+    const perLineRequires = ccDistribution.map((line: any) => {
+      const jobMeta = (distCostCodesMeta || []).find((c: any) => c.id === line.cost_code_id);
+      if (jobMeta) {
+        const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(jobMeta.code));
+        // If any related definition explicitly disables attachment, do not require for this line
+        if (jobMeta.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) {
+          return false;
         }
-        // Fallback to safe default if we cannot resolve the cost code line
-        return true;
-      });
-      // Require an attachment if ANY distribution line requires it
-      return perLineRequires.some(Boolean);
-    }
+        const typeMatch = jobMeta?.type
+          ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(jobMeta.type || '').toLowerCase())
+          : null;
+        const resolved = (typeMatch?.require_attachment
+          ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined)
+          ?? jobMeta?.require_attachment
+          ?? true);
+        return Boolean(resolved);
+      }
+      // Fallback to safe default if we cannot resolve the cost code line
+      return true;
+    });
+    // Require an attachment if ANY distribution line requires it
+    return perLineRequires.some(Boolean);
+  }
 
-    // Single-code path (job+cost code)
-    if (isJobSelected && transaction?.cost_code_id) {
-      const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id) || (transaction as any)?.cost_codes;
-      const companyMatches = ccJob ? (costCodes || []).filter((c: any) => core(c.code) === core(ccJob.code)) : [];
-      // If any related definition explicitly disables attachment, do not require
-      if (ccJob?.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
-      const typeMatch = ccJob?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
-      return (typeMatch?.require_attachment ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) ?? ccJob?.require_attachment ?? true);
-    }
+  // Single-code path (job+cost code)
+  if (isJobSelected && transaction?.cost_code_id) {
+    const ccJob = (jobCostCodes || []).find((c: any) => c.id === transaction.cost_code_id)
+      || (distCostCodesMeta || []).find((c: any) => c.id === transaction.cost_code_id)
+      || (transaction as any)?.cost_codes;
+    const baseCode = ccJob?.code;
+    const companyMatches = baseCode ? (costCodes || []).filter((c: any) => core(c.code) === core(baseCode)) : [];
+    // If any related definition explicitly disables attachment, do not require
+    if ((ccJob && ccJob.require_attachment === false) || companyMatches.some((c: any) => c.require_attachment === false)) return false;
+    const typeMatch = ccJob?.type && baseCode ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
+    return (typeMatch?.require_attachment ?? (companyMatches.length ? companyMatches[0]?.require_attachment : undefined) ?? ccJob?.require_attachment ?? true);
+  }
 
     // Account path (no job)
     if (!isJobSelected && transaction?.chart_account_id) {
