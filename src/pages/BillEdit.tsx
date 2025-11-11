@@ -316,8 +316,8 @@ export default function BillEdit() {
     vendorId?: string,
     vendorsList?: any[]
   ) => {
-    // Filter to only job-assigned cost codes with a type, excluding dynamic cost codes
-    let filtered = codes.filter(cc => cc.job_id === jobId && !cc.is_dynamic_group && cc.type);
+    // Filter to only job-assigned cost codes, excluding dynamic cost codes
+    let filtered = codes.filter(cc => cc.job_id === jobId && !cc.is_dynamic_group);
     
     // Remove duplicates by code AND type
     const codeMap = new Map<string, CostCode>();
