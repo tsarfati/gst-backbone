@@ -377,6 +377,8 @@ export default function TimecardReports() {
       // Filter deleted records at database level unless explicitly requested
       if (!filters.showDeleted) {
         query = query.is('deleted_at', null);
+        // Also exclude records marked with status 'deleted' for backward compatibility
+        query = query.neq('status', 'deleted');
       }
 
       // Apply filters
@@ -870,6 +872,24 @@ export default function TimecardReports() {
         showNotes: filters.showNotes || undefined,
       };
 
+      // Ensure export respects deleted filter
+      const dataForExport = filters.showDeleted ? data : (data || []).filter((r: any) => r.status !== 'deleted');
+
+      // Recalculate summary based on exported dataset
+      const exportTotals = (dataForExport || []).reduce((acc: any, r: any) => {
+        const th = Number(r.total_hours || 0);
+        const oh = Number(r.overtime_hours || 0);
+        acc.totalHours += th;
+        acc.overtimeHours += oh;
+        return acc;
+      }, { totalHours: 0, overtimeHours: 0 });
+      const exportSummary = {
+        totalRecords: dataForExport.length,
+        totalHours: exportTotals.totalHours,
+        overtimeHours: exportTotals.overtimeHours,
+        regularHours: exportTotals.totalHours - exportTotals.overtimeHours,
+      };
+
       const reportData: ReportData = {
         title: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Timecard Report`,
         dateRange: filters.startDate && filters.endDate 
@@ -878,13 +898,8 @@ export default function TimecardReports() {
         employee: filters.employees.length === 1 
           ? employees.find(e => e.user_id === filters.employees[0])?.display_name 
           : undefined,
-        data,
-        summary: {
-          totalRecords: data.length,
-          totalHours: summary.totalHours,
-          overtimeHours: summary.totalOvertimeHours,
-          regularHours: summary.totalRegularHours
-        },
+        data: dataForExport,
+        summary: exportSummary,
         filters: filterDetails
       };
 

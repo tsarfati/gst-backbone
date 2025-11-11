@@ -522,7 +522,7 @@ export default function TimeSheets() {
       // Soft delete: keep audit trail, mark as deleted
       const { error } = await supabase
         .from('time_cards')
-        .update({ status: 'deleted' })
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
         .eq('id', deleteTimeCardId);
 
       if (error) throw error;

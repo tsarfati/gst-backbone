@@ -260,7 +260,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       
       const { error } = await supabase
         .from('time_cards')
-        .update({ status: 'deleted' })
+        .update({ status: 'deleted', deleted_at: new Date().toISOString() })
         .eq('id', timeCardId);
 
       if (error) throw error;
