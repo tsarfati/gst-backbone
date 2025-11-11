@@ -825,8 +825,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         .update({
           status: 'rejected',
           approved_by: null,
-          approved_at: null,
-          review_notes: comments
+          approved_at: null
         })
         .eq('id', timeCard!.id);
 
