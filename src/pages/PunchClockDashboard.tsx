@@ -589,15 +589,27 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     
     loadPendingChangeRequests();
     
-    // Set up real-time subscription
+    // Set up real-time subscriptions for both change requests and time cards
     const channel = supabase
-      .channel('pending-change-requests')
+      .channel('pending-approvals')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'time_card_change_requests'
+        },
+        () => {
+          loadPendingChangeRequests();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'time_cards',
+          filter: `company_id=eq.${currentCompany.id}`
         },
         () => {
           loadPendingChangeRequests();
