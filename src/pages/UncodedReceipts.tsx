@@ -370,8 +370,9 @@ export default function UncodedReceipts() {
     }
   };
 
-  const handleDeleteReceipt = (receiptId: string) => {
-    deleteReceipt(receiptId);
+  const handleDeleteReceipt = async (receiptId: string) => {
+    await deleteReceipt(receiptId);
+    setSelectedReceipt(null);
     toast({
       title: "Receipt Deleted",
       description: "The receipt has been permanently deleted.",
