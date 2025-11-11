@@ -332,10 +332,13 @@ export default function BillEdit() {
     // Get vendor type - use vendorsList if provided, otherwise use state
     const vendorList = vendorsList || vendors;
     const vendor = vendorList.find(v => v.id === (vendorId || formData.vendor_id));
-    const vendorType = (vendor as any)?.vendor_type;
+    const rawType = (vendor as any)?.vendor_type || '';
+    const vt = String(rawType).toLowerCase().trim();
+    // Treat any kind of contractor or design professional as subcontractor-like
+    const isSubOrDesign = vt.includes('contractor') || vt.includes('design');
     
     // Filter by vendor type
-    if (vendorType === 'Contractor' || vendorType === 'Design Professional') {
+    if (isSubOrDesign) {
       // For subcontractors/design professionals, only show sub, other, or labor cost codes
       // Also allow NULL types (treat as 'other')
       filtered = filtered.filter(cc => !cc.type || cc.type === 'sub' || cc.type === 'other' || cc.type === 'labor');

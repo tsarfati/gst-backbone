@@ -1070,7 +1070,7 @@ useEffect(() => {
 // Compute whether the currently selected code/account requires an attachment
 const resolveAttachmentRequirement = (): boolean => {
   try {
-    const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
+    const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "");
 
   // If using distribution across multiple cost codes, derive requirement from the lines
   if (ccDistribution && ccDistribution.length > 0) {
@@ -1161,7 +1161,7 @@ const resolveAttachmentRequirement = (): boolean => {
             .in('id', ids);
           jobLevelCodes = ccBatch || [];
         }
-        const core = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, '').replace(/[^0-9.]/g, '');
+        const core = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, '');
         const perLineRequires = distribution.map((line: any) => {
           const jobCC = jobLevelCodes.find((c: any) => c.id === line.cost_code_id);
           if (!jobCC) return true; // default require if unknown
@@ -1235,9 +1235,10 @@ const resolveAttachmentRequirement = (): boolean => {
     }
 
     // For all other transaction types (charges, credits, refunds), check all requirements
-    const hasVendor = !!selectedVendorId;
-    const hasJobOrAccount = !!selectedJobOrAccount;
-    const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
+    const hasVendor = !!(selectedVendorId || transaction.vendor_id);
+    const jobSelected = isJobSelected || !!transaction.job_id;
+    const hasJobOrAccount = !!(selectedJobOrAccount || transaction.job_id || transaction.chart_account_id);
+    const hasCostCode = jobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
     const hasAttachment = !!transaction.attachment_url;
 
     const requiresByCode = resolveAttachmentRequirement();
