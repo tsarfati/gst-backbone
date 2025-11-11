@@ -1518,30 +1518,26 @@ const resolveAttachmentRequirement = (): boolean => {
 
   const handleMarkComplete = async () => {
     try {
-      // Check if attachment is required but missing
-      const requiresByCode = resolveAttachmentRequirement();
-      const hasAttachment = !!transaction.attachment_url;
-      
-      if (requiresByCode && !hasAttachment && !bypassAttachmentRequirement) {
-        toast({
-          title: "Attachment Required",
-          description: "The selected cost code requires an attachment. Please upload a document or enable bypass.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       // Persist current distribution lines first
       await persistDistribution(ccDistribution);
 
-      // Recompute and persist coded status
+      // Recompute and persist coded status based on all requirements
+      // Status will only be "coded" if all required fields are present
       await updateCodingStatus();
 
-      // Optionally finish any open coding requests
-      await supabase
-        .from("credit_card_coding_requests")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
-        .eq("transaction_id", transactionId);
+      // Mark coding requests as completed if transaction is now coded
+      const { data: updatedTrans } = await supabase
+        .from("credit_card_transactions")
+        .select("coding_status")
+        .eq("id", transactionId)
+        .single();
+      
+      if (updatedTrans?.coding_status === "coded") {
+        await supabase
+          .from("credit_card_coding_requests")
+          .update({ status: "completed", completed_at: new Date().toISOString() })
+          .eq("transaction_id", transactionId);
+      }
 
       toast({ title: "Saved", description: "Transaction coding saved successfully" });
       onComplete();
