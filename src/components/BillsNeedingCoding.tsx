@@ -100,14 +100,26 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
         }
       } else {
         // For other roles, show all bills in company
-        const { data: companyJobs } = await supabase
+        const { data: companyJobs, error: jobsError } = await supabase
           .from('jobs')
           .select('id')
           .eq('company_id', currentCompany.id);
 
+        if (jobsError) {
+          console.error('Error fetching company jobs:', jobsError);
+          setBills([]);
+          setLoading(false);
+          return;
+        }
+
         if (companyJobs && companyJobs.length > 0) {
           const jobIds = companyJobs.map(j => j.id);
           query = query.in('job_id', jobIds);
+        } else {
+          // Company has no jobs, return empty
+          setBills([]);
+          setLoading(false);
+          return;
         }
       }
 
