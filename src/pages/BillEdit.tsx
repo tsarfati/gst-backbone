@@ -79,7 +79,9 @@ export default function BillEdit() {
     internal_notes: '',
     payment_terms: '',
     is_subcontract_invoice: false,
-    is_reimbursement: false
+    is_reimbursement: false,
+    retainage_amount: 0,
+    retainage_percentage: 0
   });
 
   useEffect(() => {
@@ -281,7 +283,9 @@ export default function BillEdit() {
         internal_notes: (typedBillData as any).internal_notes || '',
         payment_terms: typedBillData.payment_terms || '',
         is_subcontract_invoice: typedBillData.is_subcontract_invoice || false,
-        is_reimbursement: typedBillData.is_reimbursement || false
+        is_reimbursement: typedBillData.is_reimbursement || false,
+        retainage_amount: (typedBillData as any).retainage_amount || 0,
+        retainage_percentage: (typedBillData as any).retainage_percentage || 0
       });
       
       // Filter cost codes AFTER formData and vendors are set
@@ -584,7 +588,9 @@ export default function BillEdit() {
         internal_notes: formData.internal_notes || null,
         payment_terms: formData.payment_terms,
         is_subcontract_invoice: formData.is_subcontract_invoice,
-        is_reimbursement: formData.is_reimbursement
+        is_reimbursement: formData.is_reimbursement,
+        retainage_amount: formData.retainage_amount || 0,
+        retainage_percentage: formData.retainage_percentage || 0
       };
 
       // Update status if it changed
