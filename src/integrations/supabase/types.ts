@@ -2241,6 +2241,8 @@ export type Database = {
           payment_terms: string | null
           pending_coding: boolean | null
           purchase_order_id: string | null
+          retainage_amount: number | null
+          retainage_percentage: number | null
           status: string
           subcontract_id: string | null
           updated_at: string
@@ -2268,6 +2270,8 @@ export type Database = {
           payment_terms?: string | null
           pending_coding?: boolean | null
           purchase_order_id?: string | null
+          retainage_amount?: number | null
+          retainage_percentage?: number | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string
@@ -2295,6 +2299,8 @@ export type Database = {
           payment_terms?: string | null
           pending_coding?: boolean | null
           purchase_order_id?: string | null
+          retainage_amount?: number | null
+          retainage_percentage?: number | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string

@@ -61,7 +61,9 @@ export default function AddBill() {
     commitment_type: "",
     is_reimbursement: false,
     use_terms: true, // toggle between due date and terms
-    request_pm_help: false // Request help from PM for coding
+    request_pm_help: false, // Request help from PM for coding
+    retainage_amount: 0,
+    retainage_percentage: 0
   });
   
   const [billType, setBillType] = useState<"non_commitment" | "commitment">("non_commitment");
@@ -458,6 +460,17 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       handleInputChange("vendor_id", selectedSubcontract.vendor_id);
       handleInputChange("job_id", selectedSubcontract.job_id);
       
+      // Calculate retainage if applicable
+      const retainagePercentage = selectedSubcontract.apply_retainage ? (selectedSubcontract.retainage_percentage || 0) : 0;
+      setFormData(prev => ({ ...prev, retainage_percentage: retainagePercentage }));
+      
+      // Calculate retainage amount if bill amount exists
+      const billAmount = parseFloat(formData.amount) || 0;
+      if (billAmount > 0) {
+        const retainageAmount = billAmount * (retainagePercentage / 100);
+        setFormData(prev => ({ ...prev, retainage_amount: retainageAmount }));
+      }
+      
       // Fetch cost codes for the job FIRST before processing distribution
       await fetchCostCodesForJob(selectedSubcontract.job_id);
       
@@ -690,7 +703,17 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Recalculate retainage if bill amount changes and we have a retainage percentage
+      if (field === 'amount' && typeof value === 'string' && updated.retainage_percentage > 0) {
+        const billAmount = parseFloat(value) || 0;
+        updated.retainage_amount = billAmount * (updated.retainage_percentage / 100);
+      }
+      
+      return updated;
+    });
     
     // Check for duplicate invoice number when it changes
     if (field === 'invoice_number' && typeof value === 'string' && formData.vendor_id) {
@@ -1209,7 +1232,9 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             pending_coding: false,
             assigned_to_pm: assignedToPm,
             file_url: attachedReceipt?.file_url || null,
-            status: 'pending_approval'
+            status: 'pending_approval',
+            retainage_amount: formData.retainage_amount || 0,
+            retainage_percentage: formData.retainage_percentage || 0
           }));
 
           const { data: inserted, error } = await supabase
@@ -1264,6 +1289,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             created_by: user.data.user.id,
             pending_coding: shouldPendCoding,
             assigned_to_pm: assignedToPm,
+            retainage_amount: formData.retainage_amount || 0,
+            retainage_percentage: formData.retainage_percentage || 0,
             file_url: attachedReceipt?.file_url || null,
             status: shouldPendCoding ? 'pending_coding' : 'pending_approval'
           })
