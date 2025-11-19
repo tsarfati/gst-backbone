@@ -151,9 +151,19 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
   const handleViewFile = async (filePath: string, fileName: string) => {
     try {
+      // Extract the path from the full URL if it's a URL
+      let path = filePath;
+      if (filePath.includes('/storage/v1/object/')) {
+        // Extract path after the bucket name
+        const match = filePath.match(/\/subcontract-files\/(.+)$/);
+        if (match) {
+          path = match[1];
+        }
+      }
+
       const { data, error } = await supabase.storage
         .from('subcontract-files')
-        .download(filePath);
+        .download(path);
 
       if (error) throw error;
 
