@@ -50,23 +50,28 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
         setTotalPages(numPages);
         const canvases: HTMLCanvasElement[] = [];
 
-        // Render all pages
-        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-          if (cancelled) break;
+      // Render all pages
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        if (cancelled) break;
 
-          const page = await pdf.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 1.5 }); // Higher scale for better quality
+        const page = await pdf.getPage(pageNum);
+        
+        // Calculate scale to fit the viewport width
+        const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
+        const pageViewport = page.getViewport({ scale: 1 });
+        const scale = (containerWidth * 0.95) / pageViewport.width; // 95% to add some padding
+        const viewport = page.getViewport({ scale });
 
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          if (!context) continue;
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (!context) continue;
 
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
 
-          await page.render({ canvasContext: context, viewport }).promise;
-          canvases.push(canvas);
-        }
+        await page.render({ canvasContext: context, viewport }).promise;
+        canvases.push(canvas);
+      }
 
         if (!cancelled) {
           setPages(canvases);
@@ -216,7 +221,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
                           }
                         }
                       }}
-                      style={{ width: `${Math.round(canvas.width * (zoom || 1))}px`, height: `${Math.round(canvas.height * (zoom || 1))}px` }}
+                      style={{ width: '100%', height: 'auto' }}
                     />
                   </div>
                 </div>
