@@ -167,7 +167,9 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
       if (error) throw error;
 
-      setViewingFile({ file: data as File, name: fileName });
+      // Create a proper File object from the Blob
+      const fileObj = new File([data], fileName, { type: data.type });
+      setViewingFile({ file: fileObj, name: fileName });
     } catch (error) {
       console.error('Error downloading file:', error);
       toast({
