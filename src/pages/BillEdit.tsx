@@ -1001,6 +1001,7 @@ export default function BillEdit() {
             subcontractDistribution={commitmentDistribution}
             billAmount={formData.amount}
             onChange={setBillDistribution}
+            jobId={formData.job_id}
           />
         )}
 
