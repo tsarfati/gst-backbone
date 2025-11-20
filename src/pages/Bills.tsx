@@ -58,7 +58,7 @@ const getStatusVariant = (status: string) => {
       return "secondary";
     case "approved":
     case "pending_payment":
-      return "warning"; // Orange for awaiting payment
+      return "info"; // Blue for awaiting payment
     case "overdue":
       return "destructive";
     case "draft":
