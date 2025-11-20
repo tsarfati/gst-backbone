@@ -27,6 +27,7 @@ import type { CodedReceipt } from "@/contexts/ReceiptContext";
 import QuickAddVendor from "@/components/QuickAddVendor";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import BillDistributionSection from "@/components/BillDistributionSection";
+import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
 
 interface DistributionLineItem {
   id: string;
@@ -1853,6 +1854,18 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                           />
                         </div>
                       </div>
+                      
+                      {/* Budget Status Display */}
+                      {item.job_id && item.cost_code_id && item.amount && (
+                        <div className="pt-3 border-t">
+                          <BudgetStatusDisplay
+                            jobId={item.job_id}
+                            costCodeId={item.cost_code_id}
+                            billAmount={item.amount}
+                            showWarning={true}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
 
@@ -2145,6 +2158,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                     subcontractDistribution={commitmentDistribution}
                     billAmount={formData.amount}
                     onChange={setBillDistribution}
+                    jobId={formData.job_id}
                   />
                 )}
 

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Building, Code, Plus, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
 
 interface Job {
   id: string;
@@ -263,6 +264,15 @@ export default function AccountingJobCostSelector({
             </div>
           </CardContent>
         </Card>
+      )}
+      
+      {/* Budget Status Display */}
+      {selectedJobId && selectedCostCodeId && (
+        <BudgetStatusDisplay
+          jobId={selectedJobId}
+          costCodeId={selectedCostCodeId}
+          showWarning={false}
+        />
       )}
     </div>
   );

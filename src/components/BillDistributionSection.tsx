@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
+import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
 
 interface BillDistributionItem {
   cost_code_id: string;
@@ -17,12 +18,14 @@ interface BillDistributionSectionProps {
   subcontractDistribution: any[];
   billAmount: string;
   onChange: (distribution: BillDistributionItem[]) => void;
+  jobId?: string;
 }
 
 export default function BillDistributionSection({
   subcontractDistribution,
   billAmount,
-  onChange
+  onChange,
+  jobId
 }: BillDistributionSectionProps) {
   const [distributionItems, setDistributionItems] = useState<BillDistributionItem[]>([]);
 
@@ -117,6 +120,18 @@ export default function BillDistributionSection({
                   placeholder="0.00"
                 />
               </div>
+              
+              {/* Budget Status for this cost code */}
+              {jobId && item.cost_code_id && item.amount && (
+                <div className="pt-3 border-t">
+                  <BudgetStatusDisplay
+                    jobId={jobId}
+                    costCodeId={item.cost_code_id}
+                    billAmount={item.amount}
+                    showWarning={true}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
