@@ -140,7 +140,7 @@ export default function BillApprovalActions({
       case "pending_approval":
         return { text: "Pending Approval", variant: "warning" as const, icon: Clock };
       case "pending_payment":
-        return { text: "Pending Payment", variant: "default" as const, icon: Clock };
+        return { text: "Pending Payment", variant: "info" as const, icon: Clock };
       case "paid":
         return { text: "Paid", variant: "success" as const, icon: CheckCircle };
       case "rejected":

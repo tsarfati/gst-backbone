@@ -50,6 +50,9 @@ All colors MUST be HSL.
     --warning: 38 100% 55%;
     --warning-foreground: 0 0% 98%;
 
+    --info: 200 100% 45%;
+    --info-foreground: 0 0% 98%;
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
