@@ -463,14 +463,17 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       
       // Calculate retainage if applicable
       const retainagePercentage = selectedSubcontract.apply_retainage ? (selectedSubcontract.retainage_percentage || 0) : 0;
-      setFormData(prev => ({ ...prev, retainage_percentage: retainagePercentage }));
       
-      // Calculate retainage amount if bill amount exists
-      const billAmount = parseFloat(formData.amount) || 0;
-      if (billAmount > 0) {
-        const retainageAmount = billAmount * (retainagePercentage / 100);
-        setFormData(prev => ({ ...prev, retainage_amount: retainageAmount }));
-      }
+      // Update retainage percentage first, amount will be calculated when bill amount changes
+      setFormData(prev => {
+        const billAmount = parseFloat(prev.amount) || 0;
+        const retainageAmount = billAmount > 0 ? billAmount * (retainagePercentage / 100) : 0;
+        return {
+          ...prev,
+          retainage_percentage: retainagePercentage,
+          retainage_amount: retainageAmount
+        };
+      });
       
       // Fetch cost codes for the job FIRST before processing distribution
       await fetchCostCodesForJob(selectedSubcontract.job_id);
@@ -708,9 +711,12 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       const updated = { ...prev, [field]: value };
       
       // Recalculate retainage if bill amount changes and we have a retainage percentage
-      if (field === 'amount' && typeof value === 'string' && updated.retainage_percentage > 0) {
+      if (field === 'amount' && typeof value === 'string') {
         const billAmount = parseFloat(value) || 0;
-        updated.retainage_amount = billAmount * (updated.retainage_percentage / 100);
+        // Only calculate if we have a retainage percentage set
+        if (updated.retainage_percentage > 0) {
+          updated.retainage_amount = billAmount * (updated.retainage_percentage / 100);
+        }
       }
       
       return updated;
@@ -1164,12 +1170,16 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           }
 
           // For non-commitment bills with distribution, create multiple invoice records
-          const invoicesToInsert = validItems.map(item => ({
+          // Add suffix to invoice number for split bills
+          const baseInvoiceNumber = formData.invoice_number || null;
+          const needsSuffix = validItems.length > 1 && baseInvoiceNumber;
+          
+          const invoicesToInsert = validItems.map((item, index) => ({
             vendor_id: formData.vendor_id,
             job_id: item.job_id,
             cost_code_id: item.cost_code_id || null,
             amount: parseFloat(item.amount),
-            invoice_number: formData.invoice_number || null,
+            invoice_number: needsSuffix ? `${baseInvoiceNumber}-${index + 1}` : baseInvoiceNumber,
             issue_date: formData.issueDate,
             due_date: dueDate,
             payment_terms: formData.use_terms ? formData.payment_terms : null,
@@ -1214,29 +1224,43 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         // If this is a subcontract/PO with multi-distribution, create separate invoice records
         if (isCommitmentBill && needsDistribution && billDistribution.length > 1) {
           // Create multiple invoice records for distribution
-          const invoicesToInsert = billDistribution.map(dist => ({
-            vendor_id: formData.vendor_id,
-            job_id: formData.job_id,
-            cost_code_id: dist.cost_code_id,
-            subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
-            purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
-            amount: parseFloat(dist.amount),
-            invoice_number: formData.invoice_number || null,
-            issue_date: formData.issueDate,
-            due_date: dueDate,
-            payment_terms: formData.use_terms ? formData.payment_terms : null,
-            description: formData.description,
-            internal_notes: formData.internal_notes || null,
-            is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
-            is_reimbursement: formData.is_reimbursement,
-            created_by: user.data.user.id,
-            pending_coding: false,
-            assigned_to_pm: assignedToPm,
-            file_url: attachedReceipt?.file_url || null,
-            status: 'pending_approval',
-            retainage_amount: formData.retainage_amount || 0,
-            retainage_percentage: formData.retainage_percentage || 0
-          }));
+          // Calculate proportional retainage for each distribution item
+          const totalBillAmount = parseFloat(formData.amount) || 0;
+          const retainagePercentage = formData.retainage_percentage || 0;
+          
+          // Add suffix to invoice number for split bills
+          const baseInvoiceNumber = formData.invoice_number || null;
+          const needsSuffix = billDistribution.length > 1 && baseInvoiceNumber;
+          
+          const invoicesToInsert = billDistribution.map((dist, index) => {
+            const lineAmount = parseFloat(dist.amount);
+            // Calculate retainage for this line item proportionally
+            const lineRetainageAmount = retainagePercentage > 0 ? lineAmount * (retainagePercentage / 100) : 0;
+            
+            return {
+              vendor_id: formData.vendor_id,
+              job_id: formData.job_id,
+              cost_code_id: dist.cost_code_id,
+              subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
+              purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
+              amount: lineAmount,
+              invoice_number: needsSuffix ? `${baseInvoiceNumber}-${index + 1}` : baseInvoiceNumber,
+              issue_date: formData.issueDate,
+              due_date: dueDate,
+              payment_terms: formData.use_terms ? formData.payment_terms : null,
+              description: formData.description,
+              internal_notes: formData.internal_notes || null,
+              is_subcontract_invoice: formData.is_commitment && formData.commitment_type === 'subcontract',
+              is_reimbursement: formData.is_reimbursement,
+              created_by: user.data.user.id,
+              pending_coding: false,
+              assigned_to_pm: assignedToPm,
+              file_url: attachedReceipt?.file_url || null,
+              status: 'pending_approval',
+              retainage_amount: lineRetainageAmount,
+              retainage_percentage: retainagePercentage
+            };
+          });
 
           const { data: inserted, error } = await supabase
             .from('invoices')
