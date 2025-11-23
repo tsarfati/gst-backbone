@@ -363,7 +363,20 @@ export default function BillEdit() {
   };
 
   const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      // Recalculate retainage if bill amount changes and we have a retainage percentage
+      if (field === 'amount' && typeof value === 'string') {
+        const billAmount = parseFloat(value) || 0;
+        // Only calculate if we have a retainage percentage set
+        if (updated.retainage_percentage > 0) {
+          updated.retainage_amount = billAmount * (updated.retainage_percentage / 100);
+        }
+      }
+      
+      return updated;
+    });
     
     // Update cost codes when job, invoice type, or vendor changes
     if (field === 'job_id' || field === 'is_subcontract_invoice' || field === 'vendor_id') {
@@ -618,13 +631,24 @@ export default function BillEdit() {
           .delete()
           .eq('invoice_id', id);
         
-        // Insert new distributions
-        const distributionRecords = billDistribution.map(dist => ({
-          invoice_id: id,
-          cost_code_id: dist.cost_code_id,
-          amount: parseFloat(dist.amount),
-          percentage: dist.percentage
-        }));
+        // Calculate proportional retainage for each distribution item
+        const retainagePercentage = formData.retainage_percentage || 0;
+        
+        // Insert new distributions with proportional retainage
+        const distributionRecords = billDistribution.map(dist => {
+          const lineAmount = parseFloat(dist.amount);
+          // Calculate retainage for this line item proportionally
+          const lineRetainageAmount = retainagePercentage > 0 ? lineAmount * (retainagePercentage / 100) : 0;
+          
+          return {
+            invoice_id: id,
+            cost_code_id: dist.cost_code_id,
+            amount: lineAmount,
+            percentage: dist.percentage,
+            retainage_amount: lineRetainageAmount,
+            retainage_percentage: retainagePercentage
+          };
+        });
         
         const { error: distError } = await supabase
           .from('invoice_cost_distributions')
