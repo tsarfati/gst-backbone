@@ -1192,51 +1192,62 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             return;
           }
 
-          // For non-commitment bills with distribution, create multiple invoice records
-          // Add suffix to invoice number for split bills
-          const baseInvoiceNumber = formData.invoice_number || null;
-          const needsSuffix = validItems.length > 1 && baseInvoiceNumber;
+          // Create ONE invoice record with total amount
+          const totalAmount = validItems.reduce((sum, item) => sum + parseFloat(item.amount), 0);
           
-          const invoicesToInsert = validItems.map((item, index) => ({
-            vendor_id: formData.vendor_id,
-            job_id: item.job_id,
-            cost_code_id: item.cost_code_id || null,
-            amount: parseFloat(item.amount),
-            invoice_number: needsSuffix ? `${baseInvoiceNumber}-${index + 1}` : baseInvoiceNumber,
-            issue_date: formData.issueDate,
-            due_date: dueDate,
-            payment_terms: formData.use_terms ? formData.payment_terms : null,
-            description: formData.description,
-            internal_notes: formData.internal_notes || null,
-            is_subcontract_invoice: false,
-            is_reimbursement: formData.is_reimbursement,
-            file_url: attachedReceipt?.file_url || null,
-            created_by: user.data.user.id,
-            pending_coding: false,
-            assigned_to_pm: assignedToPm,
-            status: 'pending_approval'
-          }));
-
           const { data: inserted, error } = await supabase
             .from('invoices')
-            .insert(invoicesToInsert)
-            .select('id');
+            .insert({
+              vendor_id: formData.vendor_id,
+              job_id: validItems[0].job_id, // Use first job as primary
+              cost_code_id: null, // Will be distributed via invoice_cost_distributions
+              amount: totalAmount,
+              invoice_number: formData.invoice_number || null,
+              issue_date: formData.issueDate,
+              due_date: dueDate,
+              payment_terms: formData.use_terms ? formData.payment_terms : null,
+              description: formData.description,
+              internal_notes: formData.internal_notes || null,
+              is_subcontract_invoice: false,
+              is_reimbursement: formData.is_reimbursement,
+              file_url: attachedReceipt?.file_url || null,
+              created_by: user.data.user.id,
+              pending_coding: false,
+              assigned_to_pm: assignedToPm,
+              status: 'pending_approval'
+            })
+            .select('id')
+            .single();
 
           if (error) throw error;
           
           if (inserted) {
-            insertedInvoiceIds = inserted.map((row: any) => row.id);
-            if (attachedReceipt && insertedInvoiceIds.length) {
-              const auditRows = insertedInvoiceIds.map((id) => ({
-                invoice_id: id,
+            insertedInvoiceIds = [inserted.id];
+            
+            // Create distribution records
+            const distributions = validItems.map(item => ({
+              invoice_id: inserted.id,
+              cost_code_id: item.cost_code_id || null,
+              amount: parseFloat(item.amount),
+              percentage: (parseFloat(item.amount) / totalAmount) * 100
+            }));
+            
+            const { error: distError } = await supabase
+              .from('invoice_cost_distributions')
+              .insert(distributions);
+            
+            if (distError) throw distError;
+            
+            if (attachedReceipt) {
+              await supabase.from('invoice_audit_trail').insert({
+                invoice_id: inserted.id,
                 change_type: 'update',
                 field_name: 'attachment',
                 old_value: null,
                 new_value: attachedReceipt.id,
                 reason: `Attached coded receipt: ${attachedReceipt.filename}`,
                 changed_by: user.data.user!.id
-              }));
-              await supabase.from('invoice_audit_trail').insert(auditRows);
+              });
             }
           }
         }
@@ -1244,30 +1255,24 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         // For commitment bills, determine cost code automatically
         let costCodeId = formData.cost_code_id || null;
         
-        // If this is a subcontract/PO with multi-distribution, create separate invoice records
+        // If this is a subcontract/PO with multi-distribution, create one invoice with distributions
         if (isCommitmentBill && needsDistribution && billDistribution.length > 1) {
-          // Create multiple invoice records for distribution
-          // Calculate proportional retainage for each distribution item
           const totalBillAmount = parseFloat(formData.amount) || 0;
           const retainagePercentage = formData.retainage_percentage || 0;
+          const totalRetainageAmount = retainagePercentage > 0 ? totalBillAmount * (retainagePercentage / 100) : 0;
           
-          // Add suffix to invoice number for split bills
-          const baseInvoiceNumber = formData.invoice_number || null;
-          const needsSuffix = billDistribution.length > 1 && baseInvoiceNumber;
-          
-          const invoicesToInsert = billDistribution.map((dist, index) => {
-            const lineAmount = parseFloat(dist.amount);
-            // Calculate retainage for this line item proportionally
-            const lineRetainageAmount = retainagePercentage > 0 ? lineAmount * (retainagePercentage / 100) : 0;
-            
-            return {
+          const { data: inserted, error } = await supabase
+            .from('invoices')
+            .insert({
               vendor_id: formData.vendor_id,
               job_id: formData.job_id,
-              cost_code_id: dist.cost_code_id,
+              cost_code_id: null, // Will be distributed via invoice_cost_distributions
               subcontract_id: formData.is_commitment && formData.commitment_type === 'subcontract' ? formData.subcontract_id : null,
               purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
-              amount: lineAmount,
-              invoice_number: needsSuffix ? `${baseInvoiceNumber}-${index + 1}` : baseInvoiceNumber,
+              amount: totalBillAmount,
+              retainage_percentage: retainagePercentage,
+              retainage_amount: totalRetainageAmount,
+              invoice_number: formData.invoice_number || null,
               issue_date: formData.issueDate,
               due_date: dueDate,
               payment_terms: formData.use_terms ? formData.payment_terms : null,
@@ -1279,35 +1284,42 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               pending_coding: false,
               assigned_to_pm: assignedToPm,
               file_url: attachedReceipt?.file_url || null,
-              status: 'pending_approval',
-              retainage_amount: lineRetainageAmount,
-              retainage_percentage: retainagePercentage
-            };
-          });
-
-          const { data: inserted, error } = await supabase
-            .from('invoices')
-            .insert(invoicesToInsert)
-            .select('id');
+              status: 'pending_approval'
+            })
+            .select('id')
+            .single();
 
           if (error) throw error;
           
-          if (inserted && inserted.length) {
-            insertedInvoiceIds = inserted.map((row: any) => row.id);
-          }
-
-          // Add audit trail for attached receipt
-          if (attachedReceipt && inserted && inserted.length) {
-            const auditRows = inserted.map((row: any) => ({
-              invoice_id: row.id,
-              change_type: 'update',
-              field_name: 'attachment',
-              old_value: null,
-              new_value: attachedReceipt.id,
-              reason: `Attached coded receipt: ${attachedReceipt.filename}`,
-              changed_by: user.data.user!.id
+          if (inserted) {
+            insertedInvoiceIds = [inserted.id];
+            
+            // Create distribution records
+            const distributions = billDistribution.map(dist => ({
+              invoice_id: inserted.id,
+              cost_code_id: dist.cost_code_id,
+              amount: parseFloat(dist.amount),
+              percentage: (parseFloat(dist.amount) / totalBillAmount) * 100
             }));
-            await supabase.from('invoice_audit_trail').insert(auditRows);
+            
+            const { error: distError } = await supabase
+              .from('invoice_cost_distributions')
+              .insert(distributions);
+            
+            if (distError) throw distError;
+
+            // Add audit trail for attached receipt
+            if (attachedReceipt) {
+              await supabase.from('invoice_audit_trail').insert({
+                invoice_id: inserted.id,
+                change_type: 'update',
+                field_name: 'attachment',
+                old_value: null,
+                new_value: attachedReceipt.id,
+                reason: `Attached coded receipt: ${attachedReceipt.filename}`,
+                changed_by: user.data.user!.id
+              });
+            }
           }
         } else {
           // Single commitment bill or single cost code
