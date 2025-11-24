@@ -399,7 +399,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     try {
       const { data } = await supabase
         .from('subcontracts')
-        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount')
+        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount, retainage_percentage')
         .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
         .eq('status', 'active');
       
@@ -415,7 +415,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     try {
       const { data } = await supabase
         .from('purchase_orders')
-        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount')
+        .select('*, vendors(name), jobs!inner(company_id), cost_distribution, total_distributed_amount, retainage_percentage')
         .eq('jobs.company_id', currentCompany?.id || profile?.current_company_id)
         .eq('status', 'approved');
       
@@ -429,7 +429,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     try {
       const { data } = await supabase
         .from('subcontracts')
-        .select('*, vendors(name)')
+        .select('*, vendors(name), retainage_percentage')
         .eq('job_id', jobId)
         .eq('status', 'active');
       
@@ -443,7 +443,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     try {
       const { data } = await supabase
         .from('purchase_orders')
-        .select('*, vendors(name)')
+        .select('*, vendors(name), retainage_percentage')
         .eq('job_id', jobId)
         .eq('status', 'approved');
       
@@ -461,8 +461,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       handleInputChange("vendor_id", selectedSubcontract.vendor_id);
       handleInputChange("job_id", selectedSubcontract.job_id);
       
-      // Calculate retainage if applicable
-      const retainagePercentage = selectedSubcontract.apply_retainage ? (selectedSubcontract.retainage_percentage || 0) : 0;
+      // Set retainage from subcontract
+      const retainagePercentage = selectedSubcontract.retainage_percentage || 0;
       
       // Update retainage percentage first, amount will be calculated when bill amount changes
       setFormData(prev => {
@@ -535,6 +535,20 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     if (selectedPO) {
       handleInputChange("vendor_id", selectedPO.vendor_id);
       handleInputChange("job_id", selectedPO.job_id);
+      
+      // Set retainage from purchase order
+      const retainagePercentage = selectedPO.retainage_percentage || 0;
+      
+      // Update retainage percentage first, amount will be calculated when bill amount changes
+      setFormData(prev => {
+        const billAmount = parseFloat(prev.amount) || 0;
+        const retainageAmount = billAmount > 0 ? billAmount * (retainagePercentage / 100) : 0;
+        return {
+          ...prev,
+          retainage_percentage: retainagePercentage,
+          retainage_amount: retainageAmount
+        };
+      });
       
       // Fetch cost codes for the job FIRST before processing distribution
       await fetchCostCodesForJob(selectedPO.job_id);
@@ -716,6 +730,15 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         // Only calculate if we have a retainage percentage set
         if (updated.retainage_percentage > 0) {
           updated.retainage_amount = billAmount * (updated.retainage_percentage / 100);
+        }
+      }
+      
+      // Recalculate retainage if percentage changes and we have an amount
+      if (field === 'retainage_percentage' && typeof value === 'string') {
+        const percentage = parseFloat(value) || 0;
+        const billAmount = parseFloat(updated.amount) || 0;
+        if (percentage > 0 && billAmount > 0) {
+          updated.retainage_amount = billAmount * (percentage / 100);
         }
       }
       
@@ -2184,6 +2207,27 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                     onChange={setBillDistribution}
                     jobId={formData.job_id}
                   />
+                )}
+
+                {/* Retainage Display */}
+                {formData.retainage_percentage > 0 && (
+                  <div className="border rounded-lg p-4 bg-muted/50">
+                    <Label className="text-sm font-medium mb-3 block">Retainage</Label>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Retainage Percentage:</span>
+                        <span className="font-medium">{formData.retainage_percentage}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Retainage Amount:</span>
+                        <span className="font-medium">${(formData.retainage_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold border-t pt-2">
+                        <span>Net Payable:</span>
+                        <span>${((parseFloat(formData.amount) || 0) - (formData.retainage_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {/* Previously Billed Summary */}
