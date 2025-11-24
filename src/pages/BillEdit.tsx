@@ -783,7 +783,7 @@ export default function BillEdit() {
             </div>
 
             {/* Only show job/cost code selectors if single distribution or no commitment */}
-            {commitmentDistribution.length <= 1 && (
+            {commitmentDistribution.length <= 1 && billDistribution.length <= 1 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="job_control">
@@ -1027,6 +1027,61 @@ export default function BillEdit() {
             onChange={setBillDistribution}
             jobId={formData.job_id}
           />
+        )}
+
+        {/* Non-Commitment Bill Distribution Section - Show if bill has multiple distributions but no commitment */}
+        {!subcontractInfo && !bill?.purchase_order_id && billDistribution.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Cost Distribution
+                <Badge variant="secondary" className="text-xs">
+                  {billDistribution.length} Line Items
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {billDistribution.map((dist, index) => {
+                  const distJob = jobs.find(j => j.id === dist.job_id);
+                  const distCostCode = allCostCodes.find(cc => cc.id === dist.cost_code_id);
+                  return (
+                    <div key={dist.id} className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">Line Item {index + 1}</div>
+                          {distJob && <div className="text-sm text-muted-foreground">Job: {distJob.name}</div>}
+                          {distCostCode && (
+                            <div className="text-sm text-muted-foreground">
+                              Cost Code: {distCostCode.code} - {distCostCode.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">${parseFloat(dist.amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {dist.percentage?.toFixed(2)}%
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="border-t pt-4">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>Total Distributed:</span>
+                  <span>
+                    ${billDistribution.reduce((sum, d) => sum + parseFloat(d.amount || '0'), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                <AlertCircle className="h-4 w-4" />
+                <span>Distribution editing is not currently supported. To modify, please delete and re-enter the bill.</span>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Bill Approval Section */}

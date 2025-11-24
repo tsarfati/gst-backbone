@@ -2199,7 +2199,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                 </div>
 
                 {/* Cost Distribution Display - Show if single distribution */}
-                {commitmentDistribution.length === 1 && (
+                {billType === "commitment" && commitmentDistribution.length === 1 && (
                   <div className="space-y-4">
                     <div className="border rounded-lg p-4 bg-success/5">
                       <Label className="text-sm font-medium mb-3 block">Cost Code (Auto-Applied)</Label>
@@ -2211,8 +2211,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                   </div>
                 )}
 
-                {/* Cost Distribution Section - Show if multiple distributions */}
-                {needsDistribution && commitmentDistribution.length > 1 && (
+                {/* Cost Distribution Section - Show for commitment bills with multiple distributions */}
+                {billType === "commitment" && needsDistribution && commitmentDistribution.length > 1 && (
                   <BillDistributionSection
                     subcontractDistribution={commitmentDistribution}
                     billAmount={formData.amount}
