@@ -791,14 +791,17 @@ useEffect(() => {
         match.matchScore = Math.min(100, Math.round((match.matchScore / 105) * 100));
       });
       
-      console.log('Suggested matches found:', matches.length, 'matches:', matches);
-      setSuggestedMatches(matches);
+      // Filter out matches with 0 score (exact amount mismatch)
+      const validMatches = matches.filter(match => match.matchScore > 0);
+      
+      console.log('Suggested matches found:', validMatches.length, 'matches:', validMatches);
+      setSuggestedMatches(validMatches);
       // Show matches if not yet confirmed (including for payment transactions)
-      if (matches.length > 0 && !transData.match_confirmed) {
+      if (validMatches.length > 0 && !transData.match_confirmed) {
         console.log('Setting showMatches to true');
         setShowMatches(true);
       } else {
-        console.log('Not showing matches - length:', matches.length, 'confirmed:', transData.match_confirmed);
+        console.log('Not showing matches - length:', validMatches.length, 'confirmed:', transData.match_confirmed);
       }
     } catch (error) {
       console.error("Error fetching suggested matches:", error);
