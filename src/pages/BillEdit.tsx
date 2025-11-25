@@ -513,7 +513,7 @@ export default function BillEdit() {
       }
 
       // Validate required fields for bills with distributions
-      if (commitmentDistribution.length > 1) {
+      if (commitmentDistribution.length > 1 || billDistribution.length > 1) {
         // Multi-distribution bill - validate distribution
         if (billDistribution.length === 0) {
           toast({
@@ -623,8 +623,8 @@ export default function BillEdit() {
 
       if (error) throw error;
       
-      // Save distribution if this is a multi-distribution commitment bill
-      if (commitmentDistribution.length > 1 && billDistribution.length > 0) {
+      // Save distribution if this is a multi-distribution bill (commitment or non-commitment)
+      if ((commitmentDistribution.length > 1 || billDistribution.length > 1) && billDistribution.length > 0) {
         // Delete existing distributions
         await supabase
           .from('invoice_cost_distributions')
