@@ -813,22 +813,13 @@ useEffect(() => {
     const itemDate = new Date(itemType === 'bill' ? item.issue_date : (item.receipt_date || item.transaction_date));
 
     // Amount match (0-60 points) - HIGHEST PRIORITY
+    // Require exact amount match for all item types
     const amountDiff = Math.abs(transAmount - itemAmount);
-    // For matching to another credit card transaction, require exact amount match
-    if (itemType === 'transaction' && amountDiff >= 0.01) {
-      return 0; // immediately discard as non-match
+    if (amountDiff >= 0.01) {
+      return 0; // immediately discard as non-match - amounts must be exact
     }
-    if (amountDiff < 0.01) {
-      // Exact match
-      score += 60;
-    } else if (amountDiff < 1) {
-      // Within $1
-      score += 55;
-    } else {
-      // Scaled by difference
-      const amountScore = Math.max(0, 60 - (amountDiff / transAmount) * 60);
-      score += amountScore;
-    }
+    // Exact match
+    score += 60;
 
     // Vendor match (0-25 points)
     if (transaction.vendor_id && item.vendors?.id === transaction.vendor_id) {
