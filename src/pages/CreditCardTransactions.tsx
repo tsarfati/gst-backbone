@@ -179,10 +179,10 @@ export default function CreditCardTransactions() {
           // We'll assume receipts with status 'coded' and attached to something are excluded
           // This would need proper tracking - for now we include all receipts
           
-          // Check if amount is within 1% tolerance
+          // Require exact amount match
           const amountMatch = Math.abs(
             Number(receipt.amount) - Number(transaction.amount)
-          ) / Number(transaction.amount) < 0.01;
+          ) < 0.01;
 
           // Check if dates are within 3 days
           const transDate = new Date(transaction.transaction_date);
