@@ -292,6 +292,10 @@ export function usePostCreditCardTransactions() {
             continue;
           }
 
+          // Determine if this transaction is a credit/refund (negative amount or explicit credit type)
+          const isCreditTransaction =
+            Number(trans.amount) < 0 || trans.transaction_type === "credit";
+
           // Single-line entries can be posted as one balanced journal entry
           if (expenseLines.length === 1) {
             const line = expenseLines[0];
@@ -312,24 +316,43 @@ export function usePostCreditCardTransactions() {
 
             if (jeError) throw jeError;
 
-            const singleLinesToInsert = [
-              {
-                journal_entry_id: journalEntry.id,
-                account_id: line.account_id,
-                debit_amount: amount,
-                credit_amount: 0,
-                description: line.description,
-                job_id: line.job_id ?? null,
-                cost_code_id: line.cost_code_id ?? null,
-              },
-              {
-                journal_entry_id: journalEntry.id,
-                account_id: liabilityAccountId,
-                debit_amount: 0,
-                credit_amount: amount,
-                description: `${trans.credit_cards.card_name} - ${transDescription}`,
-              },
-            ];
+            const debitLine = isCreditTransaction
+              ? {
+                  journal_entry_id: journalEntry.id,
+                  account_id: liabilityAccountId,
+                  debit_amount: amount,
+                  credit_amount: 0,
+                  description: `${trans.credit_cards.card_name} - ${transDescription}`,
+                }
+              : {
+                  journal_entry_id: journalEntry.id,
+                  account_id: line.account_id,
+                  debit_amount: amount,
+                  credit_amount: 0,
+                  description: line.description,
+                  job_id: line.job_id ?? null,
+                  cost_code_id: line.cost_code_id ?? null,
+                };
+
+            const creditLine = isCreditTransaction
+              ? {
+                  journal_entry_id: journalEntry.id,
+                  account_id: line.account_id,
+                  debit_amount: 0,
+                  credit_amount: amount,
+                  description: line.description,
+                  job_id: line.job_id ?? null,
+                  cost_code_id: line.cost_code_id ?? null,
+                }
+              : {
+                  journal_entry_id: journalEntry.id,
+                  account_id: liabilityAccountId,
+                  debit_amount: 0,
+                  credit_amount: amount,
+                  description: `${trans.credit_cards.card_name} - ${transDescription}`,
+                };
+
+            const singleLinesToInsert = [debitLine, creditLine];
 
             const { error: singleLinesError } = await supabase
               .from("journal_entry_lines")
@@ -373,24 +396,43 @@ export function usePostCreditCardTransactions() {
 
               lastJournalEntryId = journalEntry.id;
 
-              const distLinesToInsert = [
-                {
-                  journal_entry_id: journalEntry.id,
-                  account_id: line.account_id,
-                  debit_amount: amount,
-                  credit_amount: 0,
-                  description: line.description,
-                  job_id: line.job_id ?? null,
-                  cost_code_id: line.cost_code_id ?? null,
-                },
-                {
-                  journal_entry_id: journalEntry.id,
-                  account_id: liabilityAccountId,
-                  debit_amount: 0,
-                  credit_amount: amount,
-                  description: `${trans.credit_cards.card_name} - ${transDescription}`,
-                },
-              ];
+              const distLinesToInsert = isCreditTransaction
+                ? [
+                    {
+                      journal_entry_id: journalEntry.id,
+                      account_id: liabilityAccountId,
+                      debit_amount: amount,
+                      credit_amount: 0,
+                      description: `${trans.credit_cards.card_name} - ${transDescription}`,
+                    },
+                    {
+                      journal_entry_id: journalEntry.id,
+                      account_id: line.account_id,
+                      debit_amount: 0,
+                      credit_amount: amount,
+                      description: line.description,
+                      job_id: line.job_id ?? null,
+                      cost_code_id: line.cost_code_id ?? null,
+                    },
+                  ]
+                : [
+                    {
+                      journal_entry_id: journalEntry.id,
+                      account_id: line.account_id,
+                      debit_amount: amount,
+                      credit_amount: 0,
+                      description: line.description,
+                      job_id: line.job_id ?? null,
+                      cost_code_id: line.cost_code_id ?? null,
+                    },
+                    {
+                      journal_entry_id: journalEntry.id,
+                      account_id: liabilityAccountId,
+                      debit_amount: 0,
+                      credit_amount: amount,
+                      description: `${trans.credit_cards.card_name} - ${transDescription}`,
+                    },
+                  ];
 
               const { error: distLinesError } = await supabase
                 .from("journal_entry_lines")
