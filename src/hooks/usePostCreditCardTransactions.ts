@@ -119,7 +119,7 @@ export function usePostCreditCardTransactions() {
 
               let lineAccountId: string | null | undefined = null;
 
-              // If job is specified, look up the job's linked expense account
+              // 1) Prefer job-level expense account, if configured
               if (dist.job_id) {
                 const { data: jobAccount } = await supabase
                   .from("account_associations")
@@ -132,7 +132,21 @@ export function usePostCreditCardTransactions() {
                 lineAccountId = jobAccount?.account_id;
               }
 
-              // Fall back to cost code's account or transaction's account if no job expense account
+              // 2) Fall back to cost code association record if no job expense account
+              if (!lineAccountId && dist.cost_code_id) {
+                const { data: ccAssoc } = await supabase
+                  .from("account_associations")
+                  .select("account_id")
+                  .eq("cost_code_id", dist.cost_code_id)
+                  .eq("company_id", companyId)
+                  .maybeSingle();
+
+                if (ccAssoc?.account_id) {
+                  lineAccountId = ccAssoc.account_id;
+                }
+              }
+
+              // 3) Finally fall back to cost code's own account or transaction's account
               if (!lineAccountId) {
                 lineAccountId = dist.cost_codes?.chart_account_id || trans.chart_account_id;
               }
@@ -175,7 +189,7 @@ export function usePostCreditCardTransactions() {
             // Simple path: single transaction-level coding
             let expenseAccountId: string | null | undefined = null;
 
-            // If job is specified, look up the job's linked expense account
+            // 1) Prefer job-level expense account, if configured
             if (trans.job_id) {
               const { data: jobAccount } = await supabase
                 .from("account_associations")
@@ -188,7 +202,21 @@ export function usePostCreditCardTransactions() {
               expenseAccountId = jobAccount?.account_id;
             }
 
-            // Fall back to cost code's account or transaction's chart account
+            // 2) Fall back to cost code association record if no job expense account
+            if (!expenseAccountId && trans.cost_code_id) {
+              const { data: ccAssoc } = await supabase
+                .from("account_associations")
+                .select("account_id")
+                .eq("cost_code_id", trans.cost_code_id)
+                .eq("company_id", companyId)
+                .maybeSingle();
+
+              if (ccAssoc?.account_id) {
+                expenseAccountId = ccAssoc.account_id;
+              }
+            }
+
+            // 3) Finally fall back to cost code's account or transaction's chart account
             if (!expenseAccountId) {
               if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
                 expenseAccountId = trans.cost_codes.chart_account_id;
