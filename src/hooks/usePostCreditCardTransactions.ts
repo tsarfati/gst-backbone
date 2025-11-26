@@ -117,24 +117,40 @@ export function usePostCreditCardTransactions() {
               const lineAmount = Math.abs(Number(dist.amount));
               if (!lineAmount) continue;
 
-              // Prefer account from the distribution cost code; fall back to the transaction's account
-              let lineAccountId: string | null | undefined =
-                dist.cost_codes?.chart_account_id || trans.chart_account_id;
+              let lineAccountId: string | null | undefined = null;
+
+              // If job is specified, look up the job's linked expense account
+              if (dist.job_id) {
+                const { data: jobAccount } = await supabase
+                  .from("account_associations")
+                  .select("account_id")
+                  .eq("job_id", dist.job_id)
+                  .eq("company_id", companyId)
+                  .eq("association_type", "job_expense")
+                  .maybeSingle();
+
+                lineAccountId = jobAccount?.account_id;
+              }
+
+              // Fall back to cost code's account or transaction's account if no job expense account
+              if (!lineAccountId) {
+                lineAccountId = dist.cost_codes?.chart_account_id || trans.chart_account_id;
+              }
 
               if (!lineAccountId) {
-                if (dist.cost_code_id && !dist.cost_codes?.chart_account_id) {
+                if (dist.job_id) {
+                  errors.push(
+                    `${transDescription}: Job has no expense GL account assigned. Please assign a GL account to this job in Account Association settings.`
+                  );
+                } else if (dist.cost_code_id && !dist.cost_codes?.chart_account_id) {
                   errors.push(
                     `${transDescription}: Cost code "${
                       dist.cost_codes?.code || "selected"
                     }" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`
                   );
-                } else if (!trans.chart_account_id) {
-                  errors.push(
-                    `${transDescription}: No GL account selected for distribution line. Please select either a GL account or a cost code with an assigned GL account.`
-                  );
                 } else {
                   errors.push(
-                    `${transDescription}: No expense account assigned for distribution line.`
+                    `${transDescription}: No GL account for distribution line. Please assign a GL account.`
                   );
                 }
                 distributionHasError = true;
@@ -156,30 +172,46 @@ export function usePostCreditCardTransactions() {
               continue;
             }
           } else {
-            // Legacy/simple path: use the transaction-level account / cost code
-            let expenseAccountId: string | null | undefined =
-              trans.chart_account_id;
+            // Simple path: single transaction-level coding
+            let expenseAccountId: string | null | undefined = null;
 
-            // If cost code is selected, try to get account from cost code
-            // (regardless of whether job is selected or not)
-            if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
-              expenseAccountId = trans.cost_codes.chart_account_id;
+            // If job is specified, look up the job's linked expense account
+            if (trans.job_id) {
+              const { data: jobAccount } = await supabase
+                .from("account_associations")
+                .select("account_id")
+                .eq("job_id", trans.job_id)
+                .eq("company_id", companyId)
+                .eq("association_type", "job_expense")
+                .maybeSingle();
+
+              expenseAccountId = jobAccount?.account_id;
+            }
+
+            // Fall back to cost code's account or transaction's chart account
+            if (!expenseAccountId) {
+              if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
+                expenseAccountId = trans.cost_codes.chart_account_id;
+              } else {
+                expenseAccountId = trans.chart_account_id;
+              }
             }
 
             if (!expenseAccountId) {
-              // Provide specific error message based on what's missing
-              if (trans.cost_code_id && !trans.cost_codes?.chart_account_id) {
+              if (trans.job_id) {
+                errors.push(
+                  `${transDescription}: Job has no expense GL account assigned. Please assign a GL account to this job in Account Association settings.`
+                );
+              } else if (trans.cost_code_id && !trans.cost_codes?.chart_account_id) {
                 errors.push(
                   `${transDescription}: Cost code "${
                     trans.cost_codes?.code || "selected"
                   }" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`
                 );
-              } else if (!trans.chart_account_id) {
-                errors.push(
-                  `${transDescription}: No GL account selected. Please select either a GL account or a cost code with an assigned GL account.`
-                );
               } else {
-                errors.push(`${transDescription}: No expense account assigned`);
+                errors.push(
+                  `${transDescription}: No GL account selected. Please select a GL account or assign one to the job.`
+                );
               }
               continue;
             }
