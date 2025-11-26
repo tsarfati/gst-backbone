@@ -2331,7 +2331,7 @@ const resolveAttachmentRequirement = (): boolean => {
                     const hasAttachment = !!transaction.attachment_url;
                     const requiresByCode = resolveAttachmentRequirement();
                     const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
-                    return coded && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment';
+                    return coded && !transaction?.journal_entry_id;
                   })() && (
                     <Button
                       variant="default"
