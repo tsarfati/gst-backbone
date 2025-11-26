@@ -788,11 +788,6 @@ export default function CreditCardTransactions() {
   };
 
   const isTransactionCoded = (t: any): boolean => {
-    // Never allow payments to be posted to GL - they should only be reconciled
-    if (t.transaction_type === "payment") {
-      return false;
-    }
-
     // Primary source of truth: stored coding_status flag from DB
     if (t.coding_status === "coded") {
       return true;

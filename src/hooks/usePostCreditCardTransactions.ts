@@ -94,13 +94,6 @@ export function usePostCreditCardTransactions() {
             continue;
           }
 
-          // Skip payments - they're handled separately
-          if (trans.transaction_type === "payment") {
-            errors.push(
-              `${transDescription}: Payments cannot be posted this way`
-            );
-            continue;
-          }
 
           // Get the liability account from credit card
           const liabilityAccountId = trans.credit_cards?.liability_account_id;
@@ -292,9 +285,11 @@ export function usePostCreditCardTransactions() {
             continue;
           }
 
-          // Determine if this transaction is a credit/refund (negative amount or explicit credit type)
+          // Determine if this transaction should reverse the normal charge direction
           const isCreditTransaction =
-            Number(trans.amount) < 0 || trans.transaction_type === "credit";
+            Number(trans.amount) < 0 ||
+            trans.transaction_type === "credit" ||
+            trans.transaction_type === "payment";
 
           // Single-line entries can be posted as one balanced journal entry
           if (expenseLines.length === 1) {
