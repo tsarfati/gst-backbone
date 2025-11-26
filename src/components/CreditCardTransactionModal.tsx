@@ -74,6 +74,8 @@ export function CreditCardTransactionModal({
   const [isLinkedToBill, setIsLinkedToBill] = useState(false);
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
   const [distCostCodesMeta, setDistCostCodesMeta] = useState<any[]>([]);
+  const [zoomLevel, setZoomLevel] = useState(100);
+  
   // Immediate persist for distribution changes triggered from UI
   const persistDistribution = async (dist: any[]) => {
     if (!transactionId || !currentCompany) return;
@@ -1704,24 +1706,61 @@ const resolveAttachmentRequirement = (): boolean => {
         <div className="flex h-full">
           {/* Left Column: Document Preview (50%) */}
           <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col">
-            <div className="p-4 border-b bg-background">
+            <div className="p-4 border-b bg-background flex items-center justify-between">
               <h3 className="font-semibold text-lg">Document Preview</h3>
+              {(transaction?.attachment_url || attachmentPreview) && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZoomLevel(prev => Math.max(50, prev - 25))}
+                    disabled={zoomLevel <= 50}
+                  >
+                    -
+                  </Button>
+                  <span className="text-sm font-medium min-w-[60px] text-center">
+                    {zoomLevel}%
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZoomLevel(prev => Math.min(200, prev + 25))}
+                    disabled={zoomLevel >= 200}
+                  >
+                    +
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setZoomLevel(100)}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex-1 overflow-auto p-4">
               {(transaction?.attachment_url || attachmentPreview) ? (
-                <div className="h-full flex flex-col">
-                  {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                    <UrlPdfInlinePreview 
-                      url={(attachmentPreview || transaction.attachment_url) as string} 
-                      className="w-full h-full"
-                    />
-                  ) : (
-                    <img
-                      src={(attachmentPreview || transaction.attachment_url) as string}
-                      alt="Attachment preview"
-                      className="w-full h-full object-contain"
-                    />
-                  )}
+                <div className="h-full flex flex-col items-center justify-start">
+                  <div style={{ 
+                    transform: `scale(${zoomLevel / 100})`,
+                    transformOrigin: 'top center',
+                    transition: 'transform 0.2s ease',
+                    width: `${100 / (zoomLevel / 100)}%`,
+                  }}>
+                    {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
+                      <UrlPdfInlinePreview 
+                        url={(attachmentPreview || transaction.attachment_url) as string} 
+                        className="w-full"
+                      />
+                    ) : (
+                      <img
+                        src={(attachmentPreview || transaction.attachment_url) as string}
+                        alt="Attachment preview"
+                        className="w-full h-auto"
+                      />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center">
