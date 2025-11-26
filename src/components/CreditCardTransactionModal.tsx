@@ -1706,7 +1706,7 @@ const resolveAttachmentRequirement = (): boolean => {
         <div className="flex h-full">
           {/* Left Column: Document Preview (50%) */}
           <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col">
-            <div className="p-4 border-b bg-background flex items-center justify-between">
+            <div className="p-4 border-b bg-background flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-lg">Document Preview</h3>
               {(transaction?.attachment_url || attachmentPreview) && (
                 <div className="flex items-center gap-2">
@@ -1739,31 +1739,29 @@ const resolveAttachmentRequirement = (): boolean => {
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto">
               {(transaction?.attachment_url || attachmentPreview) ? (
-                <div className="h-full flex flex-col items-center justify-start">
-                  <div style={{ 
-                    transform: `scale(${zoomLevel / 100})`,
-                    transformOrigin: 'top center',
-                    transition: 'transform 0.2s ease',
-                    width: `${100 / (zoomLevel / 100)}%`,
-                  }}>
-                    {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                      <UrlPdfInlinePreview 
-                        url={(attachmentPreview || transaction.attachment_url) as string} 
-                        className="w-full"
-                      />
-                    ) : (
-                      <img
-                        src={(attachmentPreview || transaction.attachment_url) as string}
-                        alt="Attachment preview"
-                        className="w-full h-auto"
-                      />
-                    )}
-                  </div>
+                <div className="p-4" style={{ 
+                  transform: `scale(${zoomLevel / 100})`,
+                  transformOrigin: 'top left',
+                  width: `${(100 / zoomLevel) * 100}%`,
+                  minHeight: `${(100 / zoomLevel) * 100}%`
+                }}>
+                  {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
+                    <UrlPdfInlinePreview 
+                      url={(attachmentPreview || transaction.attachment_url) as string} 
+                      className="w-full"
+                    />
+                  ) : (
+                    <img
+                      src={(attachmentPreview || transaction.attachment_url) as string}
+                      alt="Attachment preview"
+                      className="w-full h-auto"
+                    />
+                  )}
                 </div>
               ) : (
-                <div className="h-full flex items-center justify-center">
+                <div className="h-full flex items-center justify-center p-4">
                   <div className="text-center text-muted-foreground">
                     <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p className="text-sm">No attachment uploaded</p>
@@ -1775,16 +1773,16 @@ const resolveAttachmentRequirement = (): boolean => {
           </div>
 
           {/* Right Column: Form Content (50%) */}
-          <div className="w-1/2 h-full flex flex-col">
-            <DialogHeader className="p-6 border-b">
+          <div className="w-1/2 h-full flex flex-col overflow-hidden">
+            <DialogHeader className="p-6 border-b shrink-0">
               <DialogTitle>Code Transaction</DialogTitle>
               <DialogDescription>
                 Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
               </DialogDescription>
             </DialogHeader>
             
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-6">
           {/* Transaction Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
             <div>
@@ -2284,7 +2282,7 @@ const resolveAttachmentRequirement = (): boolean => {
             </div>
 
             {/* Footer Actions */}
-            <div className="border-t p-6">
+            <div className="border-t p-6 shrink-0">
               <div className="flex justify-between gap-2">
                 <div>
                   {(() => {
