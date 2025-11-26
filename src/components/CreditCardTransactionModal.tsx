@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -75,6 +75,10 @@ export function CreditCardTransactionModal({
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
   const [distCostCodesMeta, setDistCostCodesMeta] = useState<any[]>([]);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
+  const previewScrollRef = useRef<HTMLDivElement>(null);
   
   // Immediate persist for distribution changes triggered from UI
   const persistDistribution = async (dist: any[]) => {
@@ -1739,15 +1743,43 @@ const resolveAttachmentRequirement = (): boolean => {
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-auto min-h-0">
+            <div 
+              ref={previewScrollRef}
+              className={cn(
+                "flex-1 overflow-auto min-h-0",
+                zoomLevel > 100 && "cursor-grab active:cursor-grabbing"
+              )}
+              onMouseDown={(e) => {
+                if (zoomLevel > 100 && previewScrollRef.current) {
+                  setIsPanning(true);
+                  setPanStart({ x: e.clientX, y: e.clientY });
+                  setScrollStart({
+                    left: previewScrollRef.current.scrollLeft,
+                    top: previewScrollRef.current.scrollTop
+                  });
+                  e.preventDefault();
+                }
+              }}
+              onMouseMove={(e) => {
+                if (isPanning && previewScrollRef.current) {
+                  const deltaX = panStart.x - e.clientX;
+                  const deltaY = panStart.y - e.clientY;
+                  previewScrollRef.current.scrollLeft = scrollStart.left + deltaX;
+                  previewScrollRef.current.scrollTop = scrollStart.top + deltaY;
+                }
+              }}
+              onMouseUp={() => setIsPanning(false)}
+              onMouseLeave={() => setIsPanning(false)}
+            >
               {(transaction?.attachment_url || attachmentPreview) ? (
                 <div className="p-4">
                   <div
-                    className="inline-block"
+                    className="inline-block select-none"
                     style={{
                       width: `${zoomLevel}%`,
                       minWidth: "100%",
                       transformOrigin: "top left",
+                      pointerEvents: isPanning ? "none" : "auto"
                     }}
                   >
                     {String(attachmentPreview || transaction.attachment_url)
@@ -1762,6 +1794,7 @@ const resolveAttachmentRequirement = (): boolean => {
                         src={(attachmentPreview || transaction.attachment_url) as string}
                         alt="Attachment preview"
                         className="w-full h-auto"
+                        draggable={false}
                       />
                     )}
                   </div>
