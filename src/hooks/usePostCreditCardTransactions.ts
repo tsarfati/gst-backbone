@@ -12,7 +12,7 @@ export function usePostCreditCardTransactions() {
         .select(`
           *,
           credit_cards!inner(id, liability_account_id, company_id, card_name),
-          cost_codes(id, chart_account_id),
+          cost_codes(id, chart_account_id, code),
           vendors(id, name)
         `)
         .in("id", transactionIds);
@@ -62,7 +62,14 @@ export function usePostCreditCardTransactions() {
           }
 
           if (!expenseAccountId) {
-            errors.push(`${trans.description}: No expense account assigned`);
+            // Provide specific error message based on what's missing
+            if (trans.cost_code_id && !trans.cost_codes?.chart_account_id) {
+              errors.push(`${trans.description}: Cost code "${trans.cost_codes?.code || 'selected'}" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`);
+            } else if (!trans.chart_account_id) {
+              errors.push(`${trans.description}: No GL account selected. Please select either a GL account or a cost code with an assigned GL account.`);
+            } else {
+              errors.push(`${trans.description}: No expense account assigned`);
+            }
             continue;
           }
 
