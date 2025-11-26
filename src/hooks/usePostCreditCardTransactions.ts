@@ -292,57 +292,125 @@ export function usePostCreditCardTransactions() {
             continue;
           }
 
-          const amount = totalDebitAmount;
+          // Single-line entries can be posted as one balanced journal entry
+          if (expenseLines.length === 1) {
+            const line = expenseLines[0];
+            const amount = line.debit_amount;
 
-          // Create journal entry
-          const { data: journalEntry, error: jeError } = await supabase
-            .from("journal_entries")
-            .insert({
-              company_id: companyId,
-              entry_date: trans.transaction_date,
-              description: `Credit Card: ${trans.credit_cards.card_name} - ${transDescription}`,
-              status: "posted",
-              created_by: userId,
-              reference: trans.reference_number ?? null,
-            })
-            .select()
-            .single();
+            const { data: journalEntry, error: jeError } = await supabase
+              .from("journal_entries")
+              .insert({
+                company_id: companyId,
+                entry_date: trans.transaction_date,
+                description: `Credit Card: ${trans.credit_cards.card_name} - ${transDescription}`,
+                status: "posted",
+                created_by: userId,
+                reference: trans.reference_number ?? null,
+              })
+              .select()
+              .single();
 
-          if (jeError) throw jeError;
+            if (jeError) throw jeError;
 
-          // Create journal entry lines
-          const linesToInsert = [
-            ...expenseLines.map((line) => ({
-              journal_entry_id: journalEntry.id,
-              account_id: line.account_id,
-              debit_amount: line.debit_amount,
-              credit_amount: line.credit_amount,
-              description: line.description,
-              job_id: line.job_id ?? null,
-              cost_code_id: line.cost_code_id ?? null,
-            })),
-            {
-              journal_entry_id: journalEntry.id,
-              account_id: liabilityAccountId,
-              debit_amount: 0,
-              credit_amount: amount,
-              description: `${trans.credit_cards.card_name} - ${transDescription}`,
-            },
-          ];
+            const singleLinesToInsert = [
+              {
+                journal_entry_id: journalEntry.id,
+                account_id: line.account_id,
+                debit_amount: amount,
+                credit_amount: 0,
+                description: line.description,
+                job_id: line.job_id ?? null,
+                cost_code_id: line.cost_code_id ?? null,
+              },
+              {
+                journal_entry_id: journalEntry.id,
+                account_id: liabilityAccountId,
+                debit_amount: 0,
+                credit_amount: amount,
+                description: `${trans.credit_cards.card_name} - ${transDescription}`,
+              },
+            ];
 
-          const { error: linesError } = await supabase
-            .from("journal_entry_lines")
-            .insert(linesToInsert);
+            const { error: singleLinesError } = await supabase
+              .from("journal_entry_lines")
+              .insert(singleLinesToInsert);
 
-          if (linesError) throw linesError;
+            if (singleLinesError) throw singleLinesError;
 
-          // Link the journal entry back to the transaction
-          const { error: updateError } = await supabase
-            .from("credit_card_transactions")
-            .update({ journal_entry_id: journalEntry.id })
-            .eq("id", trans.id);
+            // Link the (single) journal entry back to the transaction
+            const { error: updateError } = await supabase
+              .from("credit_card_transactions")
+              .update({ journal_entry_id: journalEntry.id })
+              .eq("id", trans.id);
 
-          if (updateError) throw updateError;
+            if (updateError) throw updateError;
+
+            // Use this journal entry id for any payment records below
+            trans.journal_entry_id = journalEntry.id;
+          } else {
+            // Multi-line distribution: the journal_entry_lines trigger enforces
+            // balance per entry, so we create one JE per distribution line,
+            // each individually balanced.
+            let lastJournalEntryId: string | null = null;
+
+            for (const line of expenseLines) {
+              const amount = line.debit_amount;
+
+              const { data: journalEntry, error: jeError } = await supabase
+                .from("journal_entries")
+                .insert({
+                  company_id: companyId,
+                  entry_date: trans.transaction_date,
+                  description: `Credit Card: ${trans.credit_cards.card_name} - ${transDescription}`,
+                  status: "posted",
+                  created_by: userId,
+                  reference: trans.reference_number ?? null,
+                })
+                .select()
+                .single();
+
+              if (jeError) throw jeError;
+
+              lastJournalEntryId = journalEntry.id;
+
+              const distLinesToInsert = [
+                {
+                  journal_entry_id: journalEntry.id,
+                  account_id: line.account_id,
+                  debit_amount: amount,
+                  credit_amount: 0,
+                  description: line.description,
+                  job_id: line.job_id ?? null,
+                  cost_code_id: line.cost_code_id ?? null,
+                },
+                {
+                  journal_entry_id: journalEntry.id,
+                  account_id: liabilityAccountId,
+                  debit_amount: 0,
+                  credit_amount: amount,
+                  description: `${trans.credit_cards.card_name} - ${transDescription}`,
+                },
+              ];
+
+              const { error: distLinesError } = await supabase
+                .from("journal_entry_lines")
+                .insert(distLinesToInsert);
+
+              if (distLinesError) throw distLinesError;
+            }
+
+            if (lastJournalEntryId) {
+              const { error: updateError } = await supabase
+                .from("credit_card_transactions")
+                .update({ journal_entry_id: lastJournalEntryId })
+                .eq("id", trans.id);
+
+              if (updateError) throw updateError;
+
+              // Use the last journal entry id for any payment records below
+              trans.journal_entry_id = lastJournalEntryId;
+            }
+          }
 
           // If linked to an invoice (matched_bill_id or invoice_id), mark it as paid and create payment record
           const linkedInvoiceId = trans.matched_bill_id || trans.invoice_id;
@@ -379,7 +447,7 @@ export function usePostCreditCardTransactions() {
                   payment_method: "credit_card",
                   payment_number: `CC-${trans.credit_cards.card_name}-${trans.transaction_date}`,
                   vendor_id: invoice.vendor_id,
-                  journal_entry_id: journalEntry.id,
+                  journal_entry_id: trans.journal_entry_id ?? null,
                   created_by: userId,
                   memo: `Credit Card Payment via ${trans.credit_cards.card_name} - ${trans.description}`,
                   status: "cleared",
