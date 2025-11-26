@@ -788,6 +788,12 @@ export default function CreditCardTransactions() {
   };
 
   const isTransactionCoded = (t: any): boolean => {
+    // Primary source of truth: stored coding_status flag from DB
+    if (t.coding_status === "coded") {
+      return true;
+    }
+
+    // Fallback: infer coding based on current field values (legacy/partial rows)
     // First, honor distribution-based coding
     const dist = distsByTx[t.id] || [];
     if (dist.length > 0) {
