@@ -753,7 +753,7 @@ export default function CreditCardTransactions() {
 
   const handlePostAllCoded = async () => {
     const codedNotPosted = transactions
-      .filter(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment')
+      .filter(t => isTransactionCoded(t) && !t.journal_entry_id)
       .map(t => t.id);
 
     if (codedNotPosted.length === 0) {
@@ -788,6 +788,11 @@ export default function CreditCardTransactions() {
   };
 
   const isTransactionCoded = (t: any): boolean => {
+    // Never treat plain payments without coding as "coded" for GL posting
+    if (t.transaction_type === "payment" && !t.job_id && !t.chart_account_id) {
+      return false;
+    }
+
     // Primary source of truth: stored coding_status flag from DB
     if (t.coding_status === "coded") {
       return true;
@@ -1045,7 +1050,7 @@ export default function CreditCardTransactions() {
                     postingToGL || 
                     !Array.from(selectedTransactions).every(id => {
                       const t = transactions.find(t => t.id === id);
-                      return t && isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment';
+                      return t && isTransactionCoded(t) && !t.journal_entry_id;
                     })
                   }
                 >
@@ -1067,14 +1072,14 @@ export default function CreditCardTransactions() {
       )}
 
       {/* Post All Coded Button */}
-      {transactions.some(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment') && (
+      {transactions.some(t => isTransactionCoded(t) && !t.journal_entry_id) && (
         <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Ready to Post</p>
                 <p className="text-xs text-muted-foreground">
-                  {transactions.filter(t => isTransactionCoded(t) && !t.journal_entry_id && t.transaction_type !== 'payment').length} coded transaction(s) can be posted to GL
+                  {transactions.filter(t => isTransactionCoded(t) && !t.journal_entry_id).length} coded transaction(s) can be posted to GL
                 </p>
               </div>
               <Button
