@@ -1700,15 +1700,52 @@ const resolveAttachmentRequirement = (): boolean => {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Code Transaction</DialogTitle>
-          <DialogDescription>
-            Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
-          </DialogDescription>
-        </DialogHeader>
-        {/* Description field moved into the Transaction Info grid below */}
-        <div className="space-y-6">
+      <DialogContent className="max-w-7xl h-[90vh] overflow-hidden p-0">
+        <div className="flex h-full">
+          {/* Left Column: Document Preview (50%) */}
+          <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col">
+            <div className="p-4 border-b bg-background">
+              <h3 className="font-semibold text-lg">Document Preview</h3>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {(transaction?.attachment_url || attachmentPreview) ? (
+                <div className="h-full flex flex-col">
+                  {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
+                    <UrlPdfInlinePreview 
+                      url={(attachmentPreview || transaction.attachment_url) as string} 
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <img
+                      src={(attachmentPreview || transaction.attachment_url) as string}
+                      alt="Attachment preview"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-sm">No attachment uploaded</p>
+                    <p className="text-xs mt-1">Upload a document to see it here</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Form Content (50%) */}
+          <div className="w-1/2 h-full flex flex-col">
+            <DialogHeader className="p-6 border-b">
+              <DialogTitle>Code Transaction</DialogTitle>
+              <DialogDescription>
+                Set vendor, select a Job or a Chart of Accounts (expense). If a Job is selected, a Cost Code is required.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
           {/* Transaction Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
             <div>
@@ -2043,7 +2080,7 @@ const resolveAttachmentRequirement = (): boolean => {
             />
           </div>
 
-          {/* Attachment */}
+          {/* Attachment Upload Section */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label>
@@ -2052,10 +2089,7 @@ const resolveAttachmentRequirement = (): boolean => {
                   return showStar ? '*' : null;
                 })()}
               </Label>
-              {null}
-            </div>
-            {(transaction?.attachment_url || attachmentPreview) ? (
-              <div className="space-y-3 mt-2">
+              {(transaction?.attachment_url || attachmentPreview) && (
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -2063,7 +2097,7 @@ const resolveAttachmentRequirement = (): boolean => {
                     onClick={() => setFullScreenOpen(true)}
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    View Full Size
+                    Open Full Screen
                   </Button>
                   <Button
                     size="sm"
@@ -2084,25 +2118,9 @@ const resolveAttachmentRequirement = (): boolean => {
                     Remove
                   </Button>
                 </div>
-
-                { (attachmentPreview || transaction.attachment_url) && (
-                  <div key={(attachmentPreview || transaction.attachment_url) as string} className="border rounded-lg overflow-hidden bg-muted">
-                    {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                      <UrlPdfInlinePreview 
-                        url={(attachmentPreview || transaction.attachment_url) as string} 
-                        className="w-full max-h-96 overflow-y-auto"
-                      />
-                    ) : (
-                      <img
-                        src={(attachmentPreview || transaction.attachment_url) as string}
-                        alt="Attachment preview"
-                        className="w-full h-auto max-h-96 object-contain"
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
+              )}
+            </div>
+            {!(transaction?.attachment_url || attachmentPreview) && (
               <div className="space-y-3 mt-2">
                 {/* Upload Button */}
                 <label className="cursor-pointer inline-block">
@@ -2223,38 +2241,44 @@ const resolveAttachmentRequirement = (): boolean => {
               >
                 Send
               </Button>
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-between gap-2 pt-4 border-t">
-            <div>
-              {(() => {
-                const hasVendor = !!selectedVendorId;
-                const hasJobOrAccount = !!selectedJobOrAccount;
-                const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true;
-                const hasAttachment = !!transaction.attachment_url;
-                const requiresByCode = resolveAttachmentRequirement();
-                const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
-                return coded && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment';
-              })() && (
-                <Button
-                  variant="default"
-                  onClick={handlePostToGL}
-                  disabled={postingToGL}
-                >
-                  {postingToGL ? "Posting..." : "Post to GL"}
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Close
-              </Button>
-              <Button onClick={handleMarkComplete}>
-                Save
-              </Button>
+            {/* Footer Actions */}
+            <div className="border-t p-6">
+              <div className="flex justify-between gap-2">
+                <div>
+                  {(() => {
+                    const hasVendor = !!selectedVendorId;
+                    const hasJobOrAccount = !!selectedJobOrAccount;
+                    const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true;
+                    const hasAttachment = !!transaction.attachment_url;
+                    const requiresByCode = resolveAttachmentRequirement();
+                    const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
+                    return coded && !transaction?.journal_entry_id && transaction?.transaction_type !== 'payment';
+                  })() && (
+                    <Button
+                      variant="default"
+                      onClick={handlePostToGL}
+                      disabled={postingToGL}
+                    >
+                      {postingToGL ? "Posting..." : "Post to GL"}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    Close
+                  </Button>
+                  <Button onClick={handleMarkComplete}>
+                    Save
+                  </Button>
+                </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
