@@ -55,8 +55,9 @@ export function usePostCreditCardTransactions() {
           // Determine the expense account
           let expenseAccountId = trans.chart_account_id;
           
-          // If job selected, try to get account from cost code
-          if (trans.job_id && trans.cost_code_id && trans.cost_codes?.chart_account_id) {
+          // If cost code is selected, try to get account from cost code
+          // (regardless of whether job is selected or not)
+          if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
             expenseAccountId = trans.cost_codes.chart_account_id;
           }
 
