@@ -1702,10 +1702,10 @@ const resolveAttachmentRequirement = (): boolean => {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h-[90vh] overflow-hidden p-0">
-        <div className="flex h-full">
+      <DialogContent className="max-w-7xl h[90vh] overflow-hidden p-0">
+        <div className="flex h-full min-h-0">
           {/* Left Column: Document Preview (50%) */}
-          <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col">
+          <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col min-h-0">
             <div className="p-4 border-b bg-background flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-lg">Document Preview</h3>
               {(transaction?.attachment_url || attachmentPreview) && (
@@ -1739,26 +1739,32 @@ const resolveAttachmentRequirement = (): boolean => {
                 </div>
               )}
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto min-h-0">
               {(transaction?.attachment_url || attachmentPreview) ? (
-                <div className="p-4" style={{ 
-                  transform: `scale(${zoomLevel / 100})`,
-                  transformOrigin: 'top left',
-                  width: `${(100 / zoomLevel) * 100}%`,
-                  minHeight: `${(100 / zoomLevel) * 100}%`
-                }}>
-                  {String(attachmentPreview || transaction.attachment_url).toLowerCase().includes('.pdf') ? (
-                    <UrlPdfInlinePreview 
-                      url={(attachmentPreview || transaction.attachment_url) as string} 
-                      className="w-full"
-                    />
-                  ) : (
-                    <img
-                      src={(attachmentPreview || transaction.attachment_url) as string}
-                      alt="Attachment preview"
-                      className="w-full h-auto"
-                    />
-                  )}
+                <div className="p-4">
+                  <div
+                    className="inline-block"
+                    style={{
+                      width: `${zoomLevel}%`,
+                      minWidth: "100%",
+                      transformOrigin: "top left",
+                    }}
+                  >
+                    {String(attachmentPreview || transaction.attachment_url)
+                      .toLowerCase()
+                      .includes(".pdf") ? (
+                      <UrlPdfInlinePreview
+                        url={(attachmentPreview || transaction.attachment_url) as string}
+                        className="w-full h-auto"
+                      />
+                    ) : (
+                      <img
+                        src={(attachmentPreview || transaction.attachment_url) as string}
+                        alt="Attachment preview"
+                        className="w-full h-auto"
+                      />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center p-4">
@@ -1773,7 +1779,7 @@ const resolveAttachmentRequirement = (): boolean => {
           </div>
 
           {/* Right Column: Form Content (50%) */}
-          <div className="w-1/2 h-full flex flex-col overflow-hidden">
+          <div className="w-1/2 h-full flex flex-col overflow-hidden min-h-0">
             <DialogHeader className="p-6 border-b shrink-0">
               <DialogTitle>Code Transaction</DialogTitle>
               <DialogDescription>
@@ -1781,7 +1787,7 @@ const resolveAttachmentRequirement = (): boolean => {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               <div className="p-6 space-y-6">
           {/* Transaction Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
