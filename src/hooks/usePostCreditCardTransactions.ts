@@ -126,7 +126,7 @@ export function usePostCreditCardTransactions() {
                   .select("account_id")
                   .eq("job_id", dist.job_id)
                   .eq("company_id", companyId)
-                  .eq("association_type", "job_expense")
+                  .in("association_type", ["job_expense", "job_revenue"])
                   .maybeSingle();
 
                 lineAccountId = jobAccount?.account_id;
@@ -196,7 +196,7 @@ export function usePostCreditCardTransactions() {
                 .select("account_id")
                 .eq("job_id", trans.job_id)
                 .eq("company_id", companyId)
-                .eq("association_type", "job_expense")
+                .in("association_type", ["job_expense", "job_revenue"])
                 .maybeSingle();
 
               expenseAccountId = jobAccount?.account_id;
