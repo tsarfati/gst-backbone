@@ -1702,7 +1702,7 @@ const resolveAttachmentRequirement = (): boolean => {
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h[90vh] overflow-hidden p-0">
+      <DialogContent className="max-w-7xl h-[90vh] overflow-hidden p-0">
         <div className="flex h-full min-h-0">
           {/* Left Column: Document Preview (50%) */}
           <div className="w-1/2 h-full border-r bg-muted/30 flex flex-col min-h-0">
