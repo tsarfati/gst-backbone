@@ -1,10 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Posts coded credit card transactions to the GL by creating balanced journal entries.
+//
+// This implementation supports two coding paths:
+// 1) Simple: transaction has a single expense account/cost code
+// 2) Distributed: one or more rows exist in credit_card_transaction_distributions
+//    and each row is posted as a separate debit line (with job/cost code),
+//    all balanced against the credit card liability account.
 export function usePostCreditCardTransactions() {
   const { toast } = useToast();
 
-  const postTransactionsToGL = async (transactionIds: string[], userId: string) => {
+  const postTransactionsToGL = async (
+    transactionIds: string[],
+    userId: string
+  ) => {
     try {
       // Fetch all transactions with their details
       const { data: transactions, error: fetchError } = await supabase
@@ -25,56 +35,174 @@ export function usePostCreditCardTransactions() {
       const errors: string[] = [];
       const posted: string[] = [];
 
-      for (const trans of transactions) {
+      // Preload any distribution lines for the selected transactions so we can
+      // post detailed expense splits when they exist
+      const { data: distRows, error: distError } = await supabase
+        .from("credit_card_transaction_distributions")
+        .select(`
+          id,
+          transaction_id,
+          amount,
+          job_id,
+          cost_code_id,
+          cost_codes:cost_code_id(id, code, chart_account_id)
+        `)
+        .in("transaction_id", transactionIds);
+
+      if (distError) throw distError;
+
+      const distsByTransaction = new Map<string, any[]>();
+      (distRows || []).forEach((row: any) => {
+        const key = row.transaction_id as string;
+        const existing = distsByTransaction.get(key) || [];
+        existing.push(row);
+        distsByTransaction.set(key, existing);
+      });
+
+      type ExpenseLine = {
+        journal_entry_id?: string;
+        account_id: string;
+        debit_amount: number;
+        credit_amount: number;
+        description: string;
+        job_id?: string | null;
+        cost_code_id?: string | null;
+      };
+
+      for (const trans of transactions as any[]) {
         try {
+          const transDescription =
+            trans.description || trans.merchant_name || "Transaction";
+
           // Skip if already posted
           if (trans.journal_entry_id) {
-            errors.push(`${trans.description}: Already posted to GL`);
+            errors.push(`${transDescription}: Already posted to GL`);
             continue;
           }
 
           // Skip if not coded
-          if (trans.coding_status !== 'coded') {
-            errors.push(`${trans.description}: Not fully coded`);
+          if (trans.coding_status !== "coded") {
+            errors.push(`${transDescription}: Not fully coded`);
             continue;
           }
 
           // Skip payments - they're handled separately
-          if (trans.transaction_type === 'payment') {
-            errors.push(`${trans.description}: Payments cannot be posted this way`);
+          if (trans.transaction_type === "payment") {
+            errors.push(
+              `${transDescription}: Payments cannot be posted this way`
+            );
             continue;
           }
 
           // Get the liability account from credit card
           const liabilityAccountId = trans.credit_cards?.liability_account_id;
           if (!liabilityAccountId) {
-            errors.push(`${trans.description}: Credit card has no liability account`);
+            errors.push(
+              `${transDescription}: Credit card has no liability account`
+            );
             continue;
           }
 
-          // Determine the expense account
-          let expenseAccountId = trans.chart_account_id;
-          
-          // If cost code is selected, try to get account from cost code
-          // (regardless of whether job is selected or not)
-          if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
-            expenseAccountId = trans.cost_codes.chart_account_id;
-          }
+          const companyId: string = trans.credit_cards.company_id;
+          const transDists = distsByTransaction.get(trans.id) || [];
 
-          if (!expenseAccountId) {
-            // Provide specific error message based on what's missing
-            if (trans.cost_code_id && !trans.cost_codes?.chart_account_id) {
-              errors.push(`${trans.description}: Cost code "${trans.cost_codes?.code || 'selected'}" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`);
-            } else if (!trans.chart_account_id) {
-              errors.push(`${trans.description}: No GL account selected. Please select either a GL account or a cost code with an assigned GL account.`);
-            } else {
-              errors.push(`${trans.description}: No expense account assigned`);
+          const expenseLines: ExpenseLine[] = [];
+          let totalDebitAmount = 0;
+
+          if (transDists.length > 0) {
+            // Distributed path: each distribution row becomes an expense line
+            let distributionHasError = false;
+
+            for (const dist of transDists) {
+              const lineAmount = Math.abs(Number(dist.amount));
+              if (!lineAmount) continue;
+
+              // Prefer account from the distribution cost code; fall back to the transaction's account
+              let lineAccountId: string | null | undefined =
+                dist.cost_codes?.chart_account_id || trans.chart_account_id;
+
+              if (!lineAccountId) {
+                if (dist.cost_code_id && !dist.cost_codes?.chart_account_id) {
+                  errors.push(
+                    `${transDescription}: Cost code "${
+                      dist.cost_codes?.code || "selected"
+                    }" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`
+                  );
+                } else if (!trans.chart_account_id) {
+                  errors.push(
+                    `${transDescription}: No GL account selected for distribution line. Please select either a GL account or a cost code with an assigned GL account.`
+                  );
+                } else {
+                  errors.push(
+                    `${transDescription}: No expense account assigned for distribution line.`
+                  );
+                }
+                distributionHasError = true;
+                break;
+              }
+
+              expenseLines.push({
+                account_id: lineAccountId,
+                debit_amount: lineAmount,
+                credit_amount: 0,
+                description: transDescription,
+                job_id: dist.job_id,
+                cost_code_id: dist.cost_code_id,
+              });
+              totalDebitAmount += lineAmount;
             }
+
+            if (distributionHasError) {
+              continue;
+            }
+          } else {
+            // Legacy/simple path: use the transaction-level account / cost code
+            let expenseAccountId: string | null | undefined =
+              trans.chart_account_id;
+
+            // If cost code is selected, try to get account from cost code
+            // (regardless of whether job is selected or not)
+            if (trans.cost_code_id && trans.cost_codes?.chart_account_id) {
+              expenseAccountId = trans.cost_codes.chart_account_id;
+            }
+
+            if (!expenseAccountId) {
+              // Provide specific error message based on what's missing
+              if (trans.cost_code_id && !trans.cost_codes?.chart_account_id) {
+                errors.push(
+                  `${transDescription}: Cost code "${
+                    trans.cost_codes?.code || "selected"
+                  }" has no GL account assigned. Please assign a GL account to this cost code in Cost Code settings.`
+                );
+              } else if (!trans.chart_account_id) {
+                errors.push(
+                  `${transDescription}: No GL account selected. Please select either a GL account or a cost code with an assigned GL account.`
+                );
+              } else {
+                errors.push(`${transDescription}: No expense account assigned`);
+              }
+              continue;
+            }
+
+            const singleAmount = Math.abs(Number(trans.amount));
+
+            expenseLines.push({
+              account_id: expenseAccountId,
+              debit_amount: singleAmount,
+              credit_amount: 0,
+              description: transDescription,
+              job_id: trans.job_id,
+              cost_code_id: trans.cost_code_id,
+            });
+            totalDebitAmount = singleAmount;
+          }
+
+          if (!expenseLines.length || totalDebitAmount <= 0) {
+            errors.push(`${transDescription}: No expense lines to post`);
             continue;
           }
 
-          const companyId = trans.credit_cards.company_id;
-          const amount = Math.abs(Number(trans.amount));
+          const amount = totalDebitAmount;
 
           // Create journal entry
           const { data: journalEntry, error: jeError } = await supabase
@@ -82,7 +210,7 @@ export function usePostCreditCardTransactions() {
             .insert({
               company_id: companyId,
               entry_date: trans.transaction_date,
-              description: `Credit Card: ${trans.credit_cards.card_name} - ${trans.description}`,
+              description: `Credit Card: ${trans.credit_cards.card_name} - ${transDescription}`,
               status: "posted",
               created_by: userId,
               reference: trans.reference_number ?? null,
@@ -93,28 +221,28 @@ export function usePostCreditCardTransactions() {
           if (jeError) throw jeError;
 
           // Create journal entry lines
-          const lines = [
-            {
+          const linesToInsert = [
+            ...expenseLines.map((line) => ({
               journal_entry_id: journalEntry.id,
-              account_id: expenseAccountId,
-              debit_amount: amount,
-              credit_amount: 0,
-              description: trans.description || trans.merchant_name,
-              job_id: trans.job_id,
-              cost_code_id: trans.cost_code_id,
-            },
+              account_id: line.account_id,
+              debit_amount: line.debit_amount,
+              credit_amount: line.credit_amount,
+              description: line.description,
+              job_id: line.job_id ?? null,
+              cost_code_id: line.cost_code_id ?? null,
+            })),
             {
               journal_entry_id: journalEntry.id,
               account_id: liabilityAccountId,
               debit_amount: 0,
               credit_amount: amount,
-              description: `${trans.credit_cards.card_name} - ${trans.description || trans.merchant_name}`,
+              description: `${trans.credit_cards.card_name} - ${transDescription}`,
             },
           ];
 
           const { error: linesError } = await supabase
             .from("journal_entry_lines")
-            .insert(lines);
+            .insert(linesToInsert);
 
           if (linesError) throw linesError;
 
@@ -146,7 +274,10 @@ export function usePostCreditCardTransactions() {
                 .eq("id", linkedInvoiceId);
 
               if (invoiceError) {
-                console.error("Failed to update invoice status:", invoiceError);
+                console.error(
+                  "Failed to update invoice status:",
+                  invoiceError
+                );
               }
 
               // Create payment record
@@ -186,9 +317,13 @@ export function usePostCreditCardTransactions() {
             }
           }
 
-          posted.push(trans.description || trans.merchant_name || "Transaction");
+          posted.push(transDescription);
         } catch (err: any) {
-          errors.push(`${trans.description}: ${err.message}`);
+          const transDescription =
+            (trans as any)?.description ||
+            (trans as any)?.merchant_name ||
+            "Transaction";
+          errors.push(`${transDescription}: ${err.message}`);
         }
       }
 
