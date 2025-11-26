@@ -70,6 +70,14 @@ export function usePostCreditCardTransactions() {
       };
 
       for (const trans of transactions as any[]) {
+        console.log('[CC GL] Start posting transaction', {
+          id: trans.id,
+          description: trans.description,
+          amount: trans.amount,
+          coding_status: trans.coding_status,
+          hasJournalEntry: !!trans.journal_entry_id,
+          transaction_type: trans.transaction_type,
+        });
         try {
           const transDescription =
             trans.description || trans.merchant_name || "Transaction";
@@ -110,6 +118,7 @@ export function usePostCreditCardTransactions() {
           let totalDebitAmount = 0;
 
           if (transDists.length > 0) {
+            console.log('[CC GL] Using distributions for transaction', trans.id, transDists);
             // Distributed path: each distribution row becomes an expense line
             let distributionHasError = false;
 
@@ -119,7 +128,7 @@ export function usePostCreditCardTransactions() {
 
               let lineAccountId: string | null | undefined = null;
 
-              // 1) Prefer job-level expense account, if configured
+              // 1) Prefer job-level expense or revenue account, if configured
               if (dist.job_id) {
                 const { data: jobAccount } = await supabase
                   .from("account_associations")
@@ -128,6 +137,13 @@ export function usePostCreditCardTransactions() {
                   .eq("company_id", companyId)
                   .in("association_type", ["job_expense", "job_revenue"])
                   .maybeSingle();
+
+                console.log('[CC GL] Job account lookup for distribution', {
+                  transactionId: trans.id,
+                  distId: dist.id,
+                  jobId: dist.job_id,
+                  jobAccount,
+                });
 
                 lineAccountId = jobAccount?.account_id;
               }
@@ -141,6 +157,13 @@ export function usePostCreditCardTransactions() {
                   .eq("company_id", companyId)
                   .maybeSingle();
 
+                console.log('[CC GL] Cost code association lookup for distribution', {
+                  transactionId: trans.id,
+                  distId: dist.id,
+                  costCodeId: dist.cost_code_id,
+                  ccAssoc,
+                });
+
                 if (ccAssoc?.account_id) {
                   lineAccountId = ccAssoc.account_id;
                 }
@@ -152,6 +175,13 @@ export function usePostCreditCardTransactions() {
               }
 
               if (!lineAccountId) {
+                console.warn('[CC GL] Missing GL account for distribution', {
+                  transactionId: trans.id,
+                  distId: dist.id,
+                  dist,
+                  transChartAccountId: trans.chart_account_id,
+                });
+
                 if (dist.job_id) {
                   errors.push(
                     `${transDescription}: Job has no expense GL account assigned. Please assign a GL account to this job in Account Association settings.`
@@ -379,6 +409,12 @@ export function usePostCreditCardTransactions() {
 
           posted.push(transDescription);
         } catch (err: any) {
+          console.error('[CC GL] Failed to post transaction', {
+            id: (trans as any)?.id,
+            description: (trans as any)?.description,
+            error: err,
+            message: err?.message,
+          });
           const transDescription =
             (trans as any)?.description ||
             (trans as any)?.merchant_name ||
