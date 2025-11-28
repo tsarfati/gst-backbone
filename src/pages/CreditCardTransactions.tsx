@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -49,6 +49,7 @@ export default function CreditCardTransactions() {
   const { postTransactionsToGL } = usePostCreditCardTransactions();
   const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const scrollPositionRef = useRef<number>(0);
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -666,8 +667,18 @@ export default function CreditCardTransactions() {
   };
 
   const openTransactionDetail = (transactionId: string) => {
+    // Save current scroll position
+    scrollPositionRef.current = window.scrollY;
     setSelectedTransactionId(transactionId);
     setShowDetailModal(true);
+  };
+
+  const handleModalComplete = async () => {
+    await fetchData();
+    // Restore scroll position after data is fetched
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollPositionRef.current);
+    });
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -1247,7 +1258,7 @@ export default function CreditCardTransactions() {
           open={showDetailModal}
           onOpenChange={setShowDetailModal}
           transactionId={selectedTransactionId}
-          onComplete={fetchData}
+          onComplete={handleModalComplete}
           initialMatches={matchedReceipts.get(selectedTransactionId) || []}
         />
       )}
