@@ -14,6 +14,7 @@ import { CalendarIcon, Download, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { exportCreditCardTransactionReport } from "@/utils/pdfExport";
+import * as XLSX from "xlsx";
 
 interface CreditCard {
   id: string;
@@ -225,6 +226,61 @@ export default function CreditCardTransactionReport() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (!selectedCard || !dateFrom || !dateTo || transactions.length === 0) {
+      toast({
+        title: "Cannot Export",
+        description: "Please generate a report first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const selectedCardData = creditCards.find(c => c.id === selectedCard);
+      
+      const worksheetData = [
+        ["Credit Card Transaction Report"],
+        [],
+        ["Company:", currentCompany?.name || ""],
+        ["Credit Card:", `${selectedCardData?.card_name} (*${selectedCardData?.card_number_last_four})`],
+        ["Date Range:", `${format(dateFrom, "MM/dd/yyyy")} - ${format(dateTo, "MM/dd/yyyy")}`],
+        ["Total Amount:", `$${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        [],
+        ["Date", "Amount", "Vendor", "Description", "Account/Job", "Cost Code", "Class"],
+        ...transactions.map(txn => [
+          format(new Date(txn.transaction_date), "MM/dd/yyyy"),
+          Number(txn.amount),
+          txn.vendor_name || txn.merchant_name || "",
+          txn.description || "",
+          txn.chart_account_name || txn.job_name || "",
+          txn.cost_code || "",
+          txn.cost_code_type || ""
+        ]),
+        [],
+        ["", "", "", "", "", "Total:", totalAmount]
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
+
+      const fileName = `credit-card-transactions-${format(dateFrom, "yyyy-MM-dd")}-to-${format(dateTo, "yyyy-MM-dd")}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+
+      toast({
+        title: "Success",
+        description: "Report exported to Excel",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message || "Failed to export to Excel",
+        variant: "destructive",
+      });
+    }
+  };
+
   const totalAmount = transactions.reduce((sum, txn) => sum + Number(txn.amount), 0);
 
   return (
@@ -320,14 +376,20 @@ export default function CreditCardTransactionReport() {
               Generate Report
             </Button>
             {transactions.length > 0 && (
-              <Button variant="outline" onClick={handleExportPDF} disabled={exporting}>
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+              <>
+                <Button variant="outline" onClick={handleExportPDF} disabled={exporting}>
+                  {exporting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Export PDF
+                </Button>
+                <Button variant="outline" onClick={handleExportExcel}>
                   <Download className="mr-2 h-4 w-4" />
-                )}
-                Export to PDF
-              </Button>
+                  Export Excel
+                </Button>
+              </>
             )}
           </div>
         </CardContent>
