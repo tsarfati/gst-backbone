@@ -11,6 +11,7 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import BudgetTransactionDrillDown from "@/components/BudgetTransactionDrillDown";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -56,6 +57,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [drillDownCostCode, setDrillDownCostCode] = useState<{ id: string; description: string } | null>(null);
   const { toast } = useToast();
   const { canEdit } = useActionPermissions();
   const canEditBudget = canEdit('job_budgets');
@@ -90,18 +92,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
 
       if (budgetError) throw budgetError;
 
-      const normalizedBudgetLines: BudgetLine[] = (budgetData || []).map((bd: any) => ({
-        id: bd.id,
-        cost_code_id: bd.cost_code_id,
-        budgeted_amount: bd.budgeted_amount,
-        actual_amount: bd.actual_amount,
-        committed_amount: bd.committed_amount,
-        is_dynamic: bd.is_dynamic,
-        parent_budget_id: bd.parent_budget_id,
-        cost_code: bd.cost_codes
+      // Calculate actual amounts from journal entries and invoices
+      const budgetLinesWithActuals = await Promise.all((budgetData || []).map(async (bd: any) => {
+        const actualAmount = await calculateActualAmount(jobId, bd.cost_code_id);
+        
+        return {
+          id: bd.id,
+          cost_code_id: bd.cost_code_id,
+          budgeted_amount: bd.budgeted_amount,
+          actual_amount: actualAmount,
+          committed_amount: bd.committed_amount,
+          is_dynamic: bd.is_dynamic,
+          parent_budget_id: bd.parent_budget_id,
+          cost_code: bd.cost_codes
+        };
       }));
 
-      setBudgetLines(normalizedBudgetLines);
+      setBudgetLines(budgetLinesWithActuals);
     } catch (error) {
       console.error('Error loading budget data:', error);
       toast({
@@ -111,6 +118,42 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const calculateActualAmount = async (jobId: string, costCodeId: string): Promise<number> => {
+    try {
+      // Get amounts from journal entry lines (posted transactions)
+      const { data: journalLines, error: jeError } = await supabase
+        .from('journal_entry_lines')
+        .select('debit_amount')
+        .eq('job_id', jobId)
+        .eq('cost_code_id', costCodeId);
+
+      if (jeError) throw jeError;
+
+      const journalTotal = (journalLines || []).reduce((sum, line) => 
+        sum + Number(line.debit_amount || 0), 0
+      );
+
+      // Get amounts from invoices (may not all be posted yet)
+      const { data: invoices, error: invError } = await supabase
+        .from('invoices')
+        .select('amount')
+        .eq('job_id', jobId)
+        .eq('cost_code_id', costCodeId);
+
+      if (invError) throw invError;
+
+      const invoiceTotal = (invoices || []).reduce((sum, inv) => 
+        sum + Number(inv.amount || 0), 0
+      );
+
+      // Use the higher of the two (journal entries should include posted invoices)
+      return Math.max(journalTotal, invoiceTotal);
+    } catch (error) {
+      console.error('Error calculating actual amount:', error);
+      return 0;
     }
   };
 
@@ -525,10 +568,22 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                             />
                           </TableCell>
                           <TableCell>
-                            {line.is_dynamic 
-                              ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))
-                              : formatCurrency(line.actual_amount)
-                            }
+                            <button
+                              onClick={() => !line.is_dynamic && setDrillDownCostCode({
+                                id: line.cost_code_id,
+                                description: `${line.cost_code?.code} - ${line.cost_code?.description}`
+                              })}
+                              className={cn(
+                                "font-mono hover:text-primary hover:underline transition-colors text-left",
+                                line.is_dynamic && "cursor-default hover:no-underline"
+                              )}
+                              disabled={line.is_dynamic}
+                            >
+                              {line.is_dynamic 
+                                ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))
+                                : formatCurrency(line.actual_amount)
+                              }
+                            </button>
                           </TableCell>
                           <TableCell>
                             {line.is_dynamic 
@@ -565,10 +620,20 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
         
         <div className="flex justify-end p-4 border-t">
           <div className="text-lg font-semibold">
-            Total Budget: {formatCurrency(totalBudget)}
-          </div>
+          Total Budget: {formatCurrency(totalBudget)}
         </div>
+      </div>
       </CardContent>
+
+      {drillDownCostCode && (
+        <BudgetTransactionDrillDown
+          jobId={jobId}
+          costCodeId={drillDownCostCode.id}
+          costCodeDescription={drillDownCostCode.description}
+          open={!!drillDownCostCode}
+          onOpenChange={(open) => !open && setDrillDownCostCode(null)}
+        />
+      )}
     </Card>
   );
 }
