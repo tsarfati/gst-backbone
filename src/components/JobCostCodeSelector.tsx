@@ -88,8 +88,7 @@ export default function JobCostCodeSelector({
         .order('code');
 
       if (error) throw error;
-      const cleaned = (data || []).filter(cc => !/^\d+\.0$/.test(cc.code));
-      setMasterCostCodes(cleaned);
+      setMasterCostCodes(data || []);
     } catch (error) {
       console.error('Error loading master cost codes:', error);
       toast({
