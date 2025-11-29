@@ -472,24 +472,45 @@ export default function MakePayment() {
       const invoice = invoices.find(inv => inv.id === invoiceId);
       if (!invoice) continue;
 
-      // Check if bill has a job assigned but no cost code
-      if (invoice.job_id && !invoice.cost_code_id) {
-        toast({
-          title: "Uncoded Bill",
-          description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is assigned to a job but has no cost code. Please code the bill before paying.`,
-          variant: "destructive",
-        });
-        return;
-      }
+      // Check if bill has cost distributions (multi-line coding)
+      const { data: distributionCheck } = await supabase
+        .from('invoice_cost_distributions')
+        .select('id, cost_code_id, amount')
+        .eq('invoice_id', invoiceId);
 
-      // Check if bill has no job and no chart account
-      if (!invoice.job_id && !invoice.chart_account_id) {
-        toast({
-          title: "Uncoded Bill",
-          description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is not assigned to a job or expense account. Please code the bill before paying.`,
-          variant: "destructive",
-        });
-        return;
+      const hasDistributions = distributionCheck && distributionCheck.length > 0;
+
+      if (hasDistributions) {
+        // Validate all distribution lines have cost codes
+        for (const dist of distributionCheck!) {
+          if (!dist.cost_code_id) {
+            toast({
+              title: "Uncoded Bill",
+              description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} has distribution lines that are not coded to cost codes. Please code all lines before paying.`,
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      } else {
+        // Single-line bill - validate the main invoice fields
+        if (invoice.job_id && !invoice.cost_code_id) {
+          toast({
+            title: "Uncoded Bill",
+            description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is assigned to a job but has no cost code. Please code the bill before paying.`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (!invoice.job_id && !invoice.chart_account_id) {
+          toast({
+            title: "Uncoded Bill",
+            description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is not assigned to a job or expense account. Please code the bill before paying.`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
     }
 
