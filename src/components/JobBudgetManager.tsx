@@ -568,22 +568,30 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
                             />
                           </TableCell>
                           <TableCell>
-                            <button
-                              onClick={() => !line.is_dynamic && setDrillDownCostCode({
-                                id: line.cost_code_id,
-                                description: `${line.cost_code?.code} - ${line.cost_code?.description}`
-                              })}
-                              className={cn(
-                                "font-mono hover:text-primary hover:underline transition-colors text-left",
-                                line.is_dynamic && "cursor-default hover:no-underline"
-                              )}
-                              disabled={line.is_dynamic}
-                            >
-                              {line.is_dynamic 
-                                ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))
-                                : formatCurrency(line.actual_amount)
-                              }
-                            </button>
+                            {line.is_dynamic ? (
+                              <span className="font-mono">
+                                {formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))}
+                              </span>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Budget line clicked:', {
+                                    costCodeId: line.cost_code_id,
+                                    code: line.cost_code?.code,
+                                    description: line.cost_code?.description
+                                  });
+                                  setDrillDownCostCode({
+                                    id: line.cost_code_id,
+                                    description: `${line.cost_code?.code} - ${line.cost_code?.description}`
+                                  });
+                                }}
+                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                type="button"
+                              >
+                                {formatCurrency(line.actual_amount)}
+                              </button>
+                            )}
                           </TableCell>
                           <TableCell>
                             {line.is_dynamic 
