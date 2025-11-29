@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -11,7 +12,6 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import BudgetTransactionDrillDown from "@/components/BudgetTransactionDrillDown";
 
 interface JobBudgetManagerProps {
   jobId: string;
@@ -58,7 +58,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [drillDownCostCode, setDrillDownCostCode] = useState<{ id: string; description: string } | null>(null);
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { canEdit } = useActionPermissions();
   const isPlanning = jobStatus === 'planning';
@@ -578,15 +578,13 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  console.log('Budget line clicked:', {
+                                  const params = new URLSearchParams({
+                                    jobId: jobId,
                                     costCodeId: line.cost_code_id,
-                                    code: line.cost_code?.code,
-                                    description: line.cost_code?.description
+                                    jobName: jobName || "",
+                                    costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
                                   });
-                                  setDrillDownCostCode({
-                                    id: line.cost_code_id,
-                                    description: `${line.cost_code?.code} - ${line.cost_code?.description}`
-                                  });
+                                  navigate(`/reports/project-cost-transaction-history?${params.toString()}`);
                                 }}
                                 className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
                                 type="button"
@@ -634,16 +632,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         </div>
       </div>
       </CardContent>
-
-      {drillDownCostCode && (
-        <BudgetTransactionDrillDown
-          jobId={jobId}
-          costCodeId={drillDownCostCode.id}
-          costCodeDescription={drillDownCostCode.description}
-          open={!!drillDownCostCode}
-          onOpenChange={(open) => !open && setDrillDownCostCode(null)}
-        />
-      )}
     </Card>
   );
 }
