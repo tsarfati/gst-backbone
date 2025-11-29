@@ -109,11 +109,52 @@ export default function CreditCardTransactionReport() {
 
       if (error) throw error;
 
+      const txIds = (data || []).map((txn: any) => txn.id);
+
+      let distsByTransaction: Record<string, any[]> = {};
+
+      if (txIds.length > 0) {
+        const { data: distRows, error: distError } = await supabase
+          .from("credit_card_transaction_distributions")
+          .select(`
+            transaction_id,
+            job_id,
+            cost_code_id,
+            amount,
+            percentage,
+            jobs:job_id(name),
+            cost_codes:cost_code_id(code, description, type)
+          `)
+          .in("transaction_id", txIds);
+
+        if (distError) throw distError;
+
+        (distRows || []).forEach((row: any) => {
+          if (!distsByTransaction[row.transaction_id]) {
+            distsByTransaction[row.transaction_id] = [];
+          }
+          distsByTransaction[row.transaction_id].push(row);
+        });
+      }
+
       const formattedData: TransactionData[] = (data || []).map((txn: any) => {
-        const costCodeType = txn.cost_codes?.type 
-          ? txn.cost_codes.type.charAt(0).toUpperCase() + txn.cost_codes.type.slice(1)
+        const distGroup = distsByTransaction[txn.id] || [];
+        const firstDist = distGroup[0];
+
+        const jobName = firstDist?.jobs?.name || txn.jobs?.name || null;
+
+        const costCodeSource = firstDist?.cost_codes || txn.cost_codes;
+
+        const costCode = costCodeSource
+          ? `${costCodeSource.code} - ${costCodeSource.description}`
           : null;
-        
+
+        const rawType = costCodeSource?.type || null;
+
+        const costCodeType = rawType
+          ? rawType.charAt(0).toUpperCase() + rawType.slice(1)
+          : null;
+
         return {
           id: txn.id,
           transaction_date: txn.transaction_date,
@@ -121,8 +162,8 @@ export default function CreditCardTransactionReport() {
           merchant_name: txn.merchant_name,
           description: txn.description,
           vendor_name: txn.vendors?.name || null,
-          job_name: txn.jobs?.name || null,
-          cost_code: txn.cost_codes ? `${txn.cost_codes.code} - ${txn.cost_codes.description}` : null,
+          job_name: jobName,
+          cost_code: costCode,
           cost_code_type: costCodeType,
           chart_account_name: txn.chart_of_accounts?.account_name || null,
         };
