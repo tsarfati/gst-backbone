@@ -53,18 +53,30 @@ export default function ProjectCostTransactionHistory() {
 
       if (billsError) throw billsError;
 
-      // Load credit card transactions
-      const { data: ccTransactions, error: ccError } = await supabase
-        .from("credit_card_transactions")
-        .select("id, transaction_date, amount, description, reference_number")
+      // Load credit card transactions via distributions (ensures job & cost code match)
+      const { data: ccDistributions, error: ccError } = await supabase
+        .from("credit_card_transaction_distributions")
+        .select(`
+          id,
+          amount,
+          transaction_id,
+          credit_card_transactions!inner(
+            id,
+            transaction_date,
+            amount,
+            description,
+            reference_number,
+            coding_status
+          )
+        `)
         .eq("job_id", jobId!)
         .eq("cost_code_id", costCodeId!)
-        .eq("coding_status", "coded");
+        .eq("credit_card_transactions.coding_status", "coded");
 
       if (ccError) throw ccError;
 
       const allTransactions: Transaction[] = [
-        ...(bills || []).map(bill => ({
+        ...(bills || []).map((bill: any) => ({
           id: bill.id,
           date: bill.issue_date || "",
           description: bill.description || "Bill",
@@ -72,13 +84,13 @@ export default function ProjectCostTransactionHistory() {
           type: "bill" as const,
           reference_number: bill.invoice_number || undefined,
         })),
-        ...(ccTransactions || []).map(cc => ({
-          id: cc.id,
-          date: cc.transaction_date,
-          description: cc.description || "Credit Card Transaction",
-          amount: cc.amount,
+        ...(ccDistributions || []).map((dist: any) => ({
+          id: dist.credit_card_transactions?.id || dist.transaction_id,
+          date: dist.credit_card_transactions?.transaction_date || "",
+          description: dist.credit_card_transactions?.description || "Credit Card Transaction",
+          amount: dist.amount,
           type: "credit_card" as const,
-          reference_number: cc.reference_number || undefined,
+          reference_number: dist.credit_card_transactions?.reference_number || undefined,
         })),
       ];
 
