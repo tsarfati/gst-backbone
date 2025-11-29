@@ -215,6 +215,7 @@ function AuthenticatedRoutes() {
                 <Route path="construction/dashboard" element={<ConstructionDashboard />} />
                 <Route path="construction/reports" element={<ConstructionReports />} />
                 <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
+                <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="jobs/add" element={<AddJob />} />
                 <Route path="jobs/cost-codes" element={<CostCodes />} />

@@ -1,471 +1,274 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft, Download, FileText } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useCompany } from "@/contexts/CompanyContext";
-import { toast } from "sonner";
-import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
+import { formatNumber } from "@/utils/formatNumber";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 interface Transaction {
   id: string;
   date: string;
-  type: 'bill' | 'timecard';
   description: string;
-  vendor_name?: string;
-  employee_name?: string;
-  cost_code: string;
-  cost_code_description: string;
-  class?: string;
   amount: number;
-  status?: string;
+  type: "bill" | "credit_card";
+  reference_number?: string;
 }
 
 export default function ProjectCostTransactionHistory() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { currentCompany } = useCompany();
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [selectedJob, setSelectedJob] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [groupBy, setGroupBy] = useState<"cost_code" | "class">("cost_code");
+  const { toast } = useToast();
+  
+  const jobId = searchParams.get("jobId");
+  const costCodeId = searchParams.get("costCodeId");
+  const jobName = searchParams.get("jobName");
+  const costCodeDescription = searchParams.get("costCodeDescription");
+  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [costCodes, setCostCodes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalAmount, setTotalAmount] = useState(0);
 
   useEffect(() => {
-    loadJobs();
-  }, [currentCompany]);
-
-  useEffect(() => {
-    if (selectedJob) {
-      loadCostCodes();
+    if (jobId && costCodeId) {
       loadTransactions();
     }
-  }, [selectedJob, startDate, endDate]);
-
-  const loadJobs = async () => {
-    if (!currentCompany) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id, name, status')
-        .eq('company_id', currentCompany.id)
-        .order('name');
-
-      if (error) throw error;
-      setJobs(data || []);
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-      toast.error("Failed to load jobs");
-    }
-  };
-
-  const loadCostCodes = async () => {
-    if (!selectedJob) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('cost_codes')
-        .select('id, code, description, type')
-        .eq('job_id', selectedJob)
-        .eq('is_active', true)
-        .order('code');
-
-      if (error) throw error;
-      setCostCodes(data || []);
-    } catch (error) {
-      console.error('Error loading cost codes:', error);
-    }
-  };
+  }, [jobId, costCodeId]);
 
   const loadTransactions = async () => {
-    if (!selectedJob) return;
-
-    setLoading(true);
     try {
-      const allTransactions: Transaction[] = [];
+      setLoading(true);
+      
+      // Load bills (invoices)
+      const { data: bills, error: billsError } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, issue_date, amount, description")
+        .eq("job_id", jobId!)
+        .eq("cost_code_id", costCodeId!);
 
-      // Build date filters
-      let dateFilter = '';
-      if (startDate && endDate) {
-        dateFilter = `AND issue_date >= '${startDate}' AND issue_date <= '${endDate}'`;
-      } else if (startDate) {
-        dateFilter = `AND issue_date >= '${startDate}'`;
-      } else if (endDate) {
-        dateFilter = `AND issue_date <= '${endDate}'`;
-      }
+      if (billsError) throw billsError;
 
-      // Load Bills (Invoices)
-      let billQuery = supabase
-        .from('invoices')
-        .select(`
-          id,
-          issue_date,
-          invoice_number,
-          description,
-          amount,
-          status,
-          cost_code_id,
-          vendor:vendors(name),
-          cost_code:cost_codes(code, description, type)
-        `)
-        .eq('job_id', selectedJob)
-        .neq('status', 'rejected')
-        .order('issue_date', { ascending: false });
+      // Load credit card transactions
+      const { data: ccTransactions, error: ccError } = await supabase
+        .from("credit_card_transactions")
+        .select("id, transaction_date, amount, description, reference_number")
+        .eq("job_id", jobId!)
+        .eq("cost_code_id", costCodeId!)
+        .eq("coding_status", "coded");
 
-      if (startDate) billQuery = billQuery.gte('issue_date', startDate);
-      if (endDate) billQuery = billQuery.lte('issue_date', endDate);
+      if (ccError) throw ccError;
 
-      const { data: bills, error: billsError } = await billQuery;
-
-      if (!billsError && bills) {
-        allTransactions.push(...bills.map(bill => ({
+      const allTransactions: Transaction[] = [
+        ...(bills || []).map(bill => ({
           id: bill.id,
-          date: bill.issue_date,
-          type: 'bill' as const,
-          description: bill.description || bill.invoice_number || 'Bill',
-          vendor_name: bill.vendor?.name,
-          cost_code: bill.cost_code?.code || 'Uncoded',
-          cost_code_description: bill.cost_code?.description || '',
-          class: bill.cost_code?.type,
+          date: bill.issue_date || "",
+          description: bill.description || "Bill",
           amount: bill.amount,
-          status: bill.status
-        })));
-      }
+          type: "bill" as const,
+          reference_number: bill.invoice_number || undefined,
+        })),
+        ...(ccTransactions || []).map(cc => ({
+          id: cc.id,
+          date: cc.transaction_date,
+          description: cc.description || "Credit Card Transaction",
+          amount: cc.amount,
+          type: "credit_card" as const,
+          reference_number: cc.reference_number || undefined,
+        })),
+      ];
 
-      // Load Time Cards
-      let timeQuery = supabase
-        .from('time_cards')
-        .select(`
-          id,
-          punch_in_time,
-          total_hours,
-          overtime_hours,
-          status,
-          cost_code_id,
-          profiles:user_id(first_name, last_name),
-          cost_code:cost_codes(code, description, type)
-        `)
-        .eq('job_id', selectedJob)
-        .order('punch_in_time', { ascending: false });
-
-      if (startDate) timeQuery = timeQuery.gte('punch_in_time', startDate);
-      if (endDate) timeQuery = timeQuery.lte('punch_in_time', endDate);
-
-      const { data: timecards, error: timeError } = await timeQuery;
-
-      if (!timeError && timecards) {
-        allTransactions.push(...timecards.map(tc => {
-          const profile = tc.profiles as any;
-          const costCode = tc.cost_code as any;
-          return {
-            id: tc.id,
-            date: tc.punch_in_time.split('T')[0],
-            type: 'timecard' as const,
-            description: `${tc.total_hours}hrs${tc.overtime_hours ? ` (${tc.overtime_hours} OT)` : ''}`,
-            employee_name: profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown',
-            cost_code: costCode?.code || 'Uncoded',
-            cost_code_description: costCode?.description || '',
-            class: costCode?.type,
-            amount: 0, // Labor cost not tracked in this view
-            status: tc.status
-          };
-        }));
-      }
-
-      // Sort by date descending
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
+      
+      const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
+      
       setTransactions(allTransactions);
+      setTotalAmount(total);
     } catch (error) {
-      console.error('Error loading transactions:', error);
-      toast.error("Failed to load transactions");
+      console.error("Error loading transactions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load transactions",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'bill':
-        return <Badge variant="outline">Bill</Badge>;
-      case 'timecard':
-        return <Badge variant="secondary">Time</Badge>;
-      default:
-        return null;
-    }
-  };
-
-  const getGroupedTransactions = () => {
-    if (groupBy === "cost_code") {
-      const grouped = transactions.reduce((acc, t) => {
-        const key = t.cost_code;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(t);
-        return acc;
-      }, {} as Record<string, Transaction[]>);
-      return grouped;
+  const handleTransactionClick = (transaction: Transaction) => {
+    if (transaction.type === "bill") {
+      navigate(`/bills/${transaction.id}`);
     } else {
-      const grouped = transactions.reduce((acc, t) => {
-        const key = t.class || 'Unclassified';
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(t);
-        return acc;
-      }, {} as Record<string, Transaction[]>);
-      return grouped;
+      navigate(`/credit-cards/transactions?highlight=${transaction.id}`);
     }
   };
 
-  const calculateTotal = (transactions: Transaction[]) => {
-    return transactions.reduce((sum, t) => sum + t.amount, 0);
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(16);
+    doc.text("Project Cost Transaction History", 14, 15);
+    
+    doc.setFontSize(10);
+    doc.text(`Job: ${jobName || ""}`, 14, 25);
+    doc.text(`Cost Code: ${costCodeDescription || ""}`, 14, 30);
+    doc.text(`Total Amount: $${formatNumber(totalAmount)}`, 14, 35);
+    
+    const tableData = transactions.map(t => [
+      new Date(t.date).toLocaleDateString(),
+      t.type === "bill" ? "Bill" : "Credit Card",
+      t.reference_number || "-",
+      t.description,
+      `$${formatNumber(t.amount)}`,
+    ]);
+    
+    autoTable(doc, {
+      startY: 40,
+      head: [["Date", "Type", "Reference", "Description", "Amount"]],
+      body: tableData,
+      foot: [["", "", "", "Total:", `$${formatNumber(totalAmount)}`]],
+      theme: "grid",
+      headStyles: { fillColor: [71, 85, 105] },
+      footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
+    });
+    
+    doc.save(`project-cost-transactions-${new Date().toISOString().split("T")[0]}.pdf`);
+    
+    toast({
+      title: "Success",
+      description: "PDF exported successfully",
+    });
   };
 
-  const exportToCSV = () => {
-    const csvContent = [
-      ['Date', 'Type', 'Description', 'Vendor/Employee', 'Cost Code', 'Cost Code Description', 'Class', 'Amount', 'Status'].join(','),
+  const exportToExcel = () => {
+    const worksheetData = [
+      ["Project Cost Transaction History"],
+      [],
+      ["Job:", jobName || ""],
+      ["Cost Code:", costCodeDescription || ""],
+      ["Total Amount:", `$${formatNumber(totalAmount)}`],
+      [],
+      ["Date", "Type", "Reference", "Description", "Amount"],
       ...transactions.map(t => [
-        t.date,
-        t.type,
-        `"${t.description}"`,
-        `"${t.vendor_name || t.employee_name || ''}"`,
-        t.cost_code,
-        `"${t.cost_code_description}"`,
-        t.class || '',
+        new Date(t.date).toLocaleDateString(),
+        t.type === "bill" ? "Bill" : "Credit Card",
+        t.reference_number || "-",
+        t.description,
         t.amount,
-        t.status || ''
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `project-cost-history-${selectedJob}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      ]),
+      [],
+      ["", "", "", "Total:", totalAmount],
+    ];
+    
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
+    
+    XLSX.writeFile(workbook, `project-cost-transactions-${new Date().toISOString().split("T")[0]}.xlsx`);
+    
+    toast({
+      title: "Success",
+      description: "Excel file exported successfully",
+    });
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate("/construction/reports")}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Project Cost Transaction History</h1>
-            <p className="text-muted-foreground">Detailed cost transaction history by job</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              {jobName} - {costCodeDescription}
+            </p>
           </div>
         </div>
-        {transactions.length > 0 && (
-          <Button onClick={exportToCSV} variant="outline">
+        
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToPDF}
+            disabled={loading || transactions.length === 0}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            Export PDF
           </Button>
-        )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToExcel}
+            disabled={loading || transactions.length === 0}
+          >
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Transactions</span>
+            <span className="text-lg font-semibold">
+              Total: ${formatNumber(totalAmount)}
+            </span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Job</Label>
-              <Select value={selectedJob} onValueChange={setSelectedJob}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select job" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jobs.map(job => (
-                    <SelectItem key={job.id} value={job.id}>
-                      {job.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No transactions found for this cost code
             </div>
-
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Group By</Label>
-              <Select value={groupBy} onValueChange={(v) => setGroupBy(v as "cost_code" | "class")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cost_code">Cost Code</SelectItem>
-                  <SelectItem value="class">Class</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((transaction) => (
+                  <TableRow
+                    key={`${transaction.type}-${transaction.id}`}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleTransactionClick(transaction)}
+                  >
+                    <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {transaction.type === "bill" ? "Bill" : "Credit Card"}
+                    </TableCell>
+                    <TableCell>{transaction.reference_number || "-"}</TableCell>
+                    <TableCell>{transaction.description}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      ${formatNumber(transaction.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
-
-      {loading ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">Loading transactions...</div>
-          </CardContent>
-        </Card>
-      ) : !selectedJob ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">Select a job to view cost transactions</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : transactions.length === 0 ? (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No transactions found for the selected filters</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(getGroupedTransactions()).map(([groupKey, groupTransactions]) => {
-            const firstTransaction = groupTransactions[0];
-            let displayLabel = groupKey;
-            
-            if (groupBy === "cost_code" && firstTransaction?.cost_code_description) {
-              displayLabel = `${groupKey} - ${firstTransaction.cost_code_description}`;
-            }
-            
-            return (
-              <Card key={groupKey}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>
-                      {groupBy === "cost_code" ? `Cost Code: ${displayLabel}` : `Class: ${groupKey}`}
-                    </CardTitle>
-                    <Badge variant="outline">
-                      Total: {formatCurrency(calculateTotal(groupTransactions))}
-                    </Badge>
-                  </div>
-                </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Vendor/Employee</TableHead>
-                      {groupBy === "class" && <TableHead>Cost Code</TableHead>}
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {groupTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{format(new Date(transaction.date), 'MMM d, yyyy')}</TableCell>
-                        <TableCell>{getTypeIcon(transaction.type)}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
-                        <TableCell>{transaction.vendor_name || transaction.employee_name || '—'}</TableCell>
-                        {groupBy === "class" && (
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{transaction.cost_code}</div>
-                              {transaction.cost_code_description && (
-                                <div className="text-xs text-muted-foreground">
-                                  {transaction.cost_code_description}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        )}
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(transaction.amount)}
-                        </TableCell>
-                        <TableCell>
-                          {transaction.status && (
-                            <Badge variant="outline" className="capitalize">
-                              {transaction.status.replace('_', ' ')}
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            );
-          })}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Transactions</p>
-                  <p className="text-2xl font-bold">{transactions.length}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Bills</p>
-                  <p className="text-2xl font-bold">
-                    {transactions.filter(t => t.type === 'bill').length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Time Cards</p>
-                  <p className="text-2xl font-bold">
-                    {transactions.filter(t => t.type === 'timecard').length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Amount</p>
-                  <p className="text-2xl font-bold">{formatCurrency(calculateTotal(transactions))}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
