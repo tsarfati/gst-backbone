@@ -31,7 +31,7 @@ import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import CommitmentInfo from "@/components/CommitmentInfo";
-import PdfPreview from "@/components/PdfPreview";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
 
   const getStatusVariant = (status: string) => {
@@ -720,7 +720,7 @@ export default function BillDetails() {
                   </div>
                   {doc.file_url.endsWith('.pdf') ? (
                     <div className="max-h-[800px] overflow-y-auto bg-muted/20">
-                      <PdfPreview url={doc.file_url} height={1200} />
+                      <UrlPdfInlinePreview url={doc.file_url} />
                     </div>
                   ) : (
                     <img 
@@ -760,7 +760,7 @@ export default function BillDetails() {
               </div>
               {bill.file_url.endsWith('.pdf') ? (
                 <div className="max-h-[800px] overflow-y-auto bg-muted/20">
-                  <PdfPreview url={bill.file_url} height={1200} />
+                  <UrlPdfInlinePreview url={bill.file_url} />
                 </div>
               ) : (
                 <img 
