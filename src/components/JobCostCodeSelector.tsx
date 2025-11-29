@@ -42,8 +42,8 @@ export default function JobCostCodeSelector({
   const { toast } = useToast();
   const { currentCompany } = useCompany();
 
-  // Helpers
-  const normalizeType = (t?: string | null) => (t ?? 'other');
+  // Normalize cost code type for comparisons (treat undefined/null distinctly)
+  const normalizeType = (t?: string | null) => (t ?? '');
 
   useEffect(() => {
     loadMasterCostCodes();
