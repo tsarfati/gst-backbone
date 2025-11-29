@@ -20,6 +20,9 @@ interface Transaction {
   amount: number;
   type: "bill" | "credit_card";
   reference_number?: string;
+  job_name?: string;
+  cost_code_description?: string;
+  category?: string;
 }
 
 export default function ProjectCostTransactionHistory() {
@@ -51,7 +54,15 @@ export default function ProjectCostTransactionHistory() {
       // Load bills (invoices)
       const { data: bills, error: billsError } = await supabase
         .from("invoices")
-        .select("id, invoice_number, issue_date, amount, description")
+        .select(`
+          id, 
+          invoice_number, 
+          issue_date, 
+          amount, 
+          description,
+          jobs!inner(name),
+          cost_codes!inner(description)
+        `)
         .eq("job_id", jobId!)
         .eq("cost_code_id", costCodeId!);
 
@@ -64,13 +75,16 @@ export default function ProjectCostTransactionHistory() {
           id,
           amount,
           transaction_id,
+          jobs!inner(name),
+          cost_codes!inner(description),
           credit_card_transactions!inner(
             id,
             transaction_date,
             amount,
             description,
             reference_number,
-            coding_status
+            coding_status,
+            category
           )
         `)
         .eq("job_id", jobId!)
@@ -87,6 +101,9 @@ export default function ProjectCostTransactionHistory() {
           amount: bill.amount,
           type: "bill" as const,
           reference_number: bill.invoice_number || undefined,
+          job_name: bill.jobs?.name || "",
+          cost_code_description: bill.cost_codes?.description || "",
+          category: undefined,
         })),
         ...(ccDistributions || []).map((dist: any) => ({
           id: dist.credit_card_transactions?.id || dist.transaction_id,
@@ -95,6 +112,9 @@ export default function ProjectCostTransactionHistory() {
           amount: dist.amount,
           type: "credit_card" as const,
           reference_number: dist.credit_card_transactions?.reference_number || undefined,
+          job_name: dist.jobs?.name || "",
+          cost_code_description: dist.cost_codes?.description || "",
+          category: dist.credit_card_transactions?.category || undefined,
         })),
       ];
 
@@ -156,14 +176,17 @@ export default function ProjectCostTransactionHistory() {
       t.type === "bill" ? "Bill" : "Credit Card",
       t.reference_number || "-",
       t.description,
+      t.job_name || "-",
+      t.cost_code_description || "-",
+      t.category || "-",
       `$${formatNumber(t.amount)}`,
     ]);
     
     autoTable(doc, {
       startY: 40,
-      head: [["Date", "Type", "Reference", "Description", "Amount"]],
+      head: [["Date", "Type", "Reference", "Description", "Job", "Cost Code", "Category", "Amount"]],
       body: tableData,
-      foot: [["", "", "", "Total:", `$${formatNumber(totalAmount)}`]],
+      foot: [["", "", "", "", "", "", "Total:", `$${formatNumber(totalAmount)}`]],
       theme: "grid",
       headStyles: { fillColor: [71, 85, 105] },
       footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
@@ -185,16 +208,19 @@ export default function ProjectCostTransactionHistory() {
       ["Cost Code:", costCodeDescription || ""],
       ["Total Amount:", `$${formatNumber(totalAmount)}`],
       [],
-      ["Date", "Type", "Reference", "Description", "Amount"],
+      ["Date", "Type", "Reference", "Description", "Job", "Cost Code", "Category", "Amount"],
       ...transactions.map(t => [
         new Date(t.date).toLocaleDateString(),
         t.type === "bill" ? "Bill" : "Credit Card",
         t.reference_number || "-",
         t.description,
+        t.job_name || "-",
+        t.cost_code_description || "-",
+        t.category || "-",
         t.amount,
       ]),
       [],
-      ["", "", "", "Total:", totalAmount],
+      ["", "", "", "", "", "", "Total:", totalAmount],
     ];
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
@@ -275,6 +301,9 @@ export default function ProjectCostTransactionHistory() {
                   <TableHead>Type</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Cost Code</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
@@ -291,6 +320,9 @@ export default function ProjectCostTransactionHistory() {
                     </TableCell>
                     <TableCell>{transaction.reference_number || "-"}</TableCell>
                     <TableCell>{transaction.description}</TableCell>
+                    <TableCell>{transaction.job_name || "-"}</TableCell>
+                    <TableCell>{transaction.cost_code_description || "-"}</TableCell>
+                    <TableCell>{transaction.category || "-"}</TableCell>
                     <TableCell className="text-right font-medium">
                       ${formatNumber(transaction.amount)}
                     </TableCell>
