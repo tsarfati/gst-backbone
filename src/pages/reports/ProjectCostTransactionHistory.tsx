@@ -10,6 +10,8 @@ import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Transaction {
   id: string;
@@ -33,6 +35,8 @@ export default function ProjectCostTransactionHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalAmount, setTotalAmount] = useState(0);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedBill, setSelectedBill] = useState<any>(null);
 
   useEffect(() => {
     if (jobId && costCodeId) {
@@ -112,11 +116,27 @@ export default function ProjectCostTransactionHistory() {
     }
   };
 
-  const handleTransactionClick = (transaction: Transaction) => {
+  const handleTransactionClick = async (transaction: Transaction) => {
     if (transaction.type === "bill") {
-      navigate(`/bills/${transaction.id}`);
+      // Load full bill details
+      const { data: bill, error } = await supabase
+        .from("invoices")
+        .select("*, vendors(*)")
+        .eq("id", transaction.id)
+        .single();
+      
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load bill details",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setSelectedBill(bill);
     } else {
-      navigate(`/credit-cards/transactions?highlight=${transaction.id}`);
+      setSelectedTransaction(transaction);
     }
   };
 
@@ -281,6 +301,54 @@ export default function ProjectCostTransactionHistory() {
           )}
         </CardContent>
       </Card>
+
+      {selectedTransaction && (
+        <CreditCardTransactionModal
+          transactionId={selectedTransaction.id}
+          open={!!selectedTransaction}
+          onOpenChange={(open) => !open && setSelectedTransaction(null)}
+          onComplete={() => {
+            setSelectedTransaction(null);
+            loadTransactions();
+          }}
+        />
+      )}
+
+      {selectedBill && (
+        <Dialog open={!!selectedBill} onOpenChange={() => setSelectedBill(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Bill Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Vendor</p>
+                  <p className="text-sm">{selectedBill.vendors?.name || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Invoice Number</p>
+                  <p className="text-sm">{selectedBill.invoice_number || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Date</p>
+                  <p className="text-sm">{selectedBill.issue_date ? new Date(selectedBill.issue_date).toLocaleDateString() : "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Amount</p>
+                  <p className="text-sm font-semibold">${formatNumber(selectedBill.amount)}</p>
+                </div>
+                {selectedBill.description && (
+                  <div className="col-span-2">
+                    <p className="text-sm font-medium text-muted-foreground">Description</p>
+                    <p className="text-sm">{selectedBill.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
