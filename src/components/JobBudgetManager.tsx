@@ -17,6 +17,7 @@ interface JobBudgetManagerProps {
   jobId: string;
   jobName?: string;
   selectedCostCodes: CostCode[];
+  jobStatus?: string;
 }
 
 interface CostCode {
@@ -52,7 +53,7 @@ interface DynamicBudgetSummary {
   is_over_budget: boolean;
 }
 
-export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: JobBudgetManagerProps) {
+export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jobStatus }: JobBudgetManagerProps) {
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,7 +61,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes }: 
   const [drillDownCostCode, setDrillDownCostCode] = useState<{ id: string; description: string } | null>(null);
   const { toast } = useToast();
   const { canEdit } = useActionPermissions();
-  const canEditBudget = canEdit('job_budgets');
+  const isPlanning = jobStatus === 'planning';
+  const canEditBudget = canEdit('job_budgets') && isPlanning;
 
   useEffect(() => {
     loadData();

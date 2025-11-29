@@ -126,6 +126,7 @@ export default function JobCostBudgetView() {
             jobId={id!} 
             jobName={job.name}
             selectedCostCodes={selectedCostCodes}
+            jobStatus={job.status}
           />
         </TabsContent>
         <TabsContent value="dynamic" className="mt-6">

@@ -205,16 +205,6 @@ export default function JobEdit() {
   }
 
   const handleInputChange = (field: string, value: string) => {
-    // Prevent changing TO planning status unless admin
-    if (field === 'status' && value === 'planning' && !isAdmin && formData.status !== 'planning') {
-      toast({
-        title: "Permission Denied",
-        description: "Only administrators can change a job to Planning status.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setFormData(prev => {
       const updated = {
         ...prev,
