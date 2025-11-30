@@ -161,6 +161,21 @@ serve(async (req) => {
         // Calculate overtime only if enabled in settings
         const overtimeHours = calculateOvertime ? Math.max(0, totalHours - overtimeThreshold) : 0
 
+        // Debug logging for specific problematic time card
+        if (card.id === '661d15e8-3442-4641-b6c0-6d93a31b7468') {
+          console.log('recalculate-timecards debug for card', {
+            id: card.id,
+            originalPunchIn: card.punch_in_time,
+            originalPunchOut: card.punch_out_time,
+            shiftStart: job.shift_start_time,
+            shiftEnd: job.shift_end_time,
+            adjustedPunchIn: adjustedPunchIn.toISOString(),
+            adjustedPunchOut: adjustedPunchOut.toISOString(),
+            totalHours,
+            overtimeHours,
+          })
+        }
+
         // Update the time card
         const { error: updateError } = await supabaseClient
           .from('time_cards')
@@ -174,6 +189,10 @@ serve(async (req) => {
           .eq('id', card.id)
 
         if (updateError) {
+          console.error('recalculate-timecards: failed to update time card', {
+            timecard_id: card.id,
+            message: updateError.message,
+          })
           errors.push({ timecard_id: card.id, error: updateError.message })
         } else {
           updatedCount++
