@@ -889,7 +889,12 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       
       <TimeCardDetailModal 
         open={timeCardModalOpen} 
-        onOpenChange={setTimeCardModalOpen} 
+        onOpenChange={(open) => {
+          setTimeCardModalOpen(open);
+          if (!open) {
+            loadPendingChangeRequests();
+          }
+        }} 
         timeCardId={selectedTimeCardId || undefined} 
       />
 
