@@ -915,21 +915,21 @@ serve(async (req) => {
               }
             }
 
-            // Late punch-out handling:
-            // - If late time should NOT be counted, always end at shift end.
-            // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
-            //   only time beyond the grace window is counted.
-            if (punchOutDate > shiftEnd) {
-              const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
-
-              if (!countLate) {
-                punchOutDate = shiftEnd;
-              } else if (punchOutDate <= graceEnd) {
-                // Within grace window: treat as ending at shift end
-                punchOutDate = shiftEnd;
-              }
-              // If punchOutDate > graceEnd and countLate is true, keep actual punchOutDate
-            }
+             // Late punch-out handling:
+             // - If late time should NOT be counted, always end at shift end.
+             // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
+             //   only time beyond the grace window is counted.
+             if (punchOutDate > shiftEnd) {
+               const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
+ 
+               if (!countLate) {
+                 punchOutDate = shiftEnd;
+               } else if (punchOutDate < graceEnd) {
+                 // Within grace window (less than graceEnd): treat as ending at shift end
+                 punchOutDate = shiftEnd;
+               }
+               // If punchOutDate >= graceEnd and countLate is true, keep actual punchOutDate
+             }
           }
 
           // Load punch clock settings for overtime calculation
