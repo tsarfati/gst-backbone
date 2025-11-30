@@ -105,35 +105,41 @@ serve(async (req) => {
             shiftEnd.setDate(shiftEnd.getDate() + 1)
           }
 
-          const earlyGrace = job.early_punch_in_grace_minutes || 15
-          const lateGrace = job.late_punch_out_grace_minutes || 15
-          const countEarly = job.count_early_punch_in || false
-          const countLate = job.count_late_punch_out !== false
+          const earlyGrace = job.early_punch_in_grace_minutes ?? 0
+          const lateGrace = job.late_punch_out_grace_minutes ?? 0
+          const countEarly = job.count_early_punch_in === true
+          const countLate = job.count_late_punch_out === true
 
-          // Early punch-in handling
+          // Early punch-in handling:
+          // - If early time should NOT be counted, always start at shift start.
+          // - If it SHOULD be counted, only allow up to earlyGrace minutes before shift start.
           if (punchInTime < shiftStart) {
-            const graceStart = new Date(shiftStart.getTime() - earlyGrace * 60000)
-            
-            if (punchInTime >= graceStart) {
-              // Within grace period - don't count unless setting allows
-              if (!countEarly) {
-                adjustedPunchIn = shiftStart
-              }
+            const earliestCountedStart = countEarly
+              ? new Date(shiftStart.getTime() - earlyGrace * 60000)
+              : shiftStart
+
+            if (punchInTime < earliestCountedStart) {
+              adjustedPunchIn = earliestCountedStart
+            } else if (!countEarly) {
+              // Within window but early time shouldn't be counted
+              adjustedPunchIn = shiftStart
             }
-            // Outside grace period - count all early time
           }
 
-          // Late punch-out handling
+          // Late punch-out handling:
+          // - If late time should NOT be counted, always end at shift end.
+          // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
+          //   only time beyond the grace window is counted.
           if (punchOutTime > shiftEnd) {
             const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000)
-            
-            if (punchOutTime <= graceEnd) {
-              // Within grace period - don't count unless setting allows
-              if (!countLate) {
-                adjustedPunchOut = shiftEnd
-              }
+
+            if (!countLate) {
+              adjustedPunchOut = shiftEnd
+            } else if (punchOutTime <= graceEnd) {
+              // Within grace window: treat as ending at shift end
+              adjustedPunchOut = shiftEnd
             }
-            // Outside grace period - count all late time
+            // If punchOutTime > graceEnd and countLate is true, keep actual punchOutTime
           }
         }
 
