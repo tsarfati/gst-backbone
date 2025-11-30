@@ -869,14 +869,95 @@ serve(async (req) => {
 
         // Create corresponding time card entry
         try {
-          const punchInDate = new Date(currentPunch.punch_in_time);
-          const punchOutDate = new Date(now);
-          let totalHours = Math.max(0, (punchOutDate.getTime() - punchInDate.getTime()) / (1000 * 60 * 60));
-          const breakMinutes = totalHours > 6 ? 30 : 0; // auto 30-min break if over 6 hours
-          totalHours = totalHours - breakMinutes / 60;
-          const overtimeHours = Math.max(0, totalHours - 8);
+          let punchInDate = new Date(currentPunch.punch_in_time);
+          let punchOutDate = new Date(now);
 
-          console.log(`Creating time card with cost_code_id: ${costCodeToUse}`);
+          // Load job shift time settings
+          const { data: jobShiftSettings } = await supabaseAdmin
+            .from('jobs')
+            .select('shift_start_time, shift_end_time, count_early_punch_in, early_punch_in_grace_minutes, count_late_punch_out, late_punch_out_grace_minutes')
+            .eq('id', currentPunch.job_id)
+            .maybeSingle();
+
+          // Apply shift time adjustments if configured
+          if (jobShiftSettings?.shift_start_time && jobShiftSettings?.shift_end_time) {
+            const shiftStart = new Date(punchInDate);
+            const [startHours, startMinutes] = jobShiftSettings.shift_start_time.split(':').map(Number);
+            shiftStart.setHours(startHours, startMinutes, 0, 0);
+
+            const shiftEnd = new Date(punchOutDate);
+            const [endHours, endMinutes] = jobShiftSettings.shift_end_time.split(':').map(Number);
+            shiftEnd.setHours(endHours, endMinutes, 0, 0);
+
+            // Handle overnight shifts
+            if (shiftEnd < shiftStart) {
+              shiftEnd.setDate(shiftEnd.getDate() + 1);
+            }
+
+            const earlyGrace = jobShiftSettings.early_punch_in_grace_minutes || 15;
+            const lateGrace = jobShiftSettings.late_punch_out_grace_minutes || 15;
+            const countEarly = jobShiftSettings.count_early_punch_in || false;
+            const countLate = jobShiftSettings.count_late_punch_out !== false;
+
+            // Early punch-in handling
+            if (punchInDate < shiftStart) {
+              const graceStart = new Date(shiftStart.getTime() - earlyGrace * 60000);
+              
+              if (punchInDate >= graceStart) {
+                // Within grace period - don't count unless setting allows
+                if (!countEarly) {
+                  punchInDate = shiftStart;
+                }
+              }
+              // Outside grace period - count all early time
+            }
+
+            // Late punch-out handling
+            if (punchOutDate > shiftEnd) {
+              const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
+              
+              if (punchOutDate <= graceEnd) {
+                // Within grace period - don't count unless setting allows
+                if (!countLate) {
+                  punchOutDate = shiftEnd;
+                }
+              }
+              // Outside grace period - count all late time
+            }
+          }
+
+          // Load punch clock settings for overtime calculation
+          const { data: jobOvertimeSettings } = await supabaseAdmin
+            .from('job_punch_clock_settings')
+            .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+            .eq('company_id', companyId)
+            .eq('job_id', currentPunch.job_id)
+            .maybeSingle();
+
+          const { data: companyOvertimeSettings } = await supabaseAdmin
+            .from('job_punch_clock_settings')
+            .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
+            .eq('company_id', companyId)
+            .is('job_id', null)
+            .maybeSingle();
+
+          const overtimeSettings = jobOvertimeSettings || companyOvertimeSettings || {};
+          const calculateOvertime = overtimeSettings.calculate_overtime === true;
+          const overtimeThreshold = overtimeSettings.overtime_threshold || 8;
+          const autoBreakDuration = overtimeSettings.auto_break_duration || 30;
+          const autoBreakWaitHours = overtimeSettings.auto_break_wait_hours || 6;
+
+          // Calculate total hours
+          let totalHours = Math.max(0, (punchOutDate.getTime() - punchInDate.getTime()) / (1000 * 60 * 60));
+
+          // Apply auto break deduction if over threshold
+          const breakMinutes = totalHours > autoBreakWaitHours ? autoBreakDuration : 0;
+          totalHours = totalHours - breakMinutes / 60;
+
+          // Calculate overtime only if enabled
+          const overtimeHours = calculateOvertime ? Math.max(0, totalHours - overtimeThreshold) : 0;
+
+          console.log(`Creating time card with cost_code_id: ${costCodeToUse}, total_hours: ${totalHours}, overtime: ${overtimeHours}, calculateOvertime: ${calculateOvertime}`);
 
           // Load punch clock settings to check if time card should be flagged
           const { data: flagSettings } = await supabaseAdmin
@@ -900,8 +981,8 @@ serve(async (req) => {
               company_id: companyId,
               job_id: currentPunch.job_id,
               cost_code_id: costCodeToUse,
-              punch_in_time: currentPunch.punch_in_time,
-              punch_out_time: now,
+              punch_in_time: punchInDate.toISOString(),
+              punch_out_time: punchOutDate.toISOString(),
               total_hours: totalHours,
               overtime_hours: overtimeHours,
               break_minutes: breakMinutes,
