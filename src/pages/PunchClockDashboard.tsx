@@ -510,6 +510,8 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .select('id, user_id, job_id, cost_code_id, punch_in_time, punch_out_time, total_hours, status, created_at')
         .eq('company_id', currentCompany.id)
         .in('status', ['submitted', 'pending'])
+        .is('deleted_at', null)
+        .is('approved_at', null)
         .order('created_at', { ascending: false })
         .limit(20);
       
