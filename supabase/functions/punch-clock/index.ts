@@ -881,11 +881,18 @@ serve(async (req) => {
 
           // Apply shift time adjustments if configured
           if (jobShiftSettings?.shift_start_time && jobShiftSettings?.shift_end_time) {
-            const shiftStart = new Date(punchInDate);
+            // FIXED: Convert UTC punch times to local date for shift comparison
+            // The punch times are stored as UTC but represent local times (EST = UTC-5)
+            const TIMEZONE_OFFSET_HOURS = 5 // EST offset from UTC
+            
+            const localPunchIn = new Date(punchInDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
+            const localPunchOut = new Date(punchOutDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
+            
+            const shiftStart = new Date(localPunchIn);
             const [startHours, startMinutes] = jobShiftSettings.shift_start_time.split(':').map(Number);
             shiftStart.setHours(startHours, startMinutes, 0, 0);
 
-            const shiftEnd = new Date(punchOutDate);
+            const shiftEnd = new Date(localPunchOut);
             const [endHours, endMinutes] = jobShiftSettings.shift_end_time.split(':').map(Number);
             shiftEnd.setHours(endHours, endMinutes, 0, 0);
 
@@ -902,16 +909,17 @@ serve(async (req) => {
             // Early punch-in handling:
             // - If early time should NOT be counted, always start at shift start.
             // - If it SHOULD be counted, only allow up to earlyGrace minutes before shift start.
-            if (punchInDate < shiftStart) {
+            if (localPunchIn < shiftStart) {
               const earliestCountedStart = countEarly
                 ? new Date(shiftStart.getTime() - earlyGrace * 60000)
                 : shiftStart;
 
-              if (punchInDate < earliestCountedStart) {
-                punchInDate = earliestCountedStart;
+              if (localPunchIn < earliestCountedStart) {
+                // Convert back to UTC for storage
+                punchInDate = new Date(earliestCountedStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
               } else if (!countEarly) {
                 // Within window but early time shouldn't be counted
-                punchInDate = shiftStart;
+                punchInDate = new Date(shiftStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
               }
             }
 
@@ -919,16 +927,16 @@ serve(async (req) => {
              // - If late time should NOT be counted, always end at shift end.
              // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
              //   only time beyond the grace window is counted.
-             if (punchOutDate > shiftEnd) {
+             if (localPunchOut > shiftEnd) {
                const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
  
                if (!countLate) {
-                 punchOutDate = shiftEnd;
-               } else if (punchOutDate < graceEnd) {
+                 punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
+               } else if (localPunchOut < graceEnd) {
                  // Within grace window (less than graceEnd): treat as ending at shift end
-                 punchOutDate = shiftEnd;
+                 punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
                }
-               // If punchOutDate >= graceEnd and countLate is true, keep actual punchOutDate
+               // If localPunchOut >= graceEnd and countLate is true, keep actual punchOutDate
              }
           }
 
