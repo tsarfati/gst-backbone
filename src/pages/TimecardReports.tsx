@@ -609,12 +609,16 @@ export default function TimecardReports() {
   };
 
   const checkForUnapprovedPunches = async (): Promise<boolean> => {
+    if (!currentCompany?.id) return false;
+    
     try {
       let query = supabase
         .from('time_cards')
         .select('id, status')
+        .eq('company_id', currentCompany.id) // Filter by current company
         .neq('status', 'approved')
-        .neq('status', 'deleted'); // Exclude deleted time cards from validation
+        .neq('status', 'deleted') // Exclude deleted time cards from validation
+        .is('deleted_at', null); // Exclude soft-deleted records
 
       // Apply date filters if they exist
       // Normalize date range to full days in UTC
