@@ -55,10 +55,13 @@ export default function JobForecastingView() {
           budgeted_amount,
           actual_amount,
           committed_amount,
+          is_dynamic,
+          parent_budget_id,
           cost_codes (
             id,
             code,
-            description
+            description,
+            is_dynamic_group
           )
         `)
         .eq('job_id', id)
@@ -79,47 +82,99 @@ export default function JobForecastingView() {
         (forecasts || []).map(f => [f.cost_code_id, f])
       );
 
-      // Calculate actual amounts from journal entries for accuracy
-      const lines: BudgetForecastLine[] = await Promise.all(
-        (budgets || [])
-          .filter(b => b.cost_codes && !b.cost_codes.code?.endsWith('.0')) // Skip dynamic group parents
-          .map(async (b: any) => {
-            // Get actual from journal entries
-            const { data: journalLines } = await supabase
-              .from('journal_entry_lines')
-              .select('debit_amount')
-              .eq('job_id', id)
-              .eq('cost_code_id', b.cost_code_id);
+      // Check if there are any dynamic budgets
+      const dynamicBudgets = (budgets || []).filter((b: any) => b.is_dynamic);
+      const hasDynamicBudgets = dynamicBudgets.length > 0;
 
-            const actualFromJournal = (journalLines || []).reduce(
-              (sum, line) => sum + Number(line.debit_amount || 0), 0
-            );
+      // Helper to get actuals from journal entries
+      const getActualAmount = async (costCodeId: string): Promise<number> => {
+        const { data: journalLines } = await supabase
+          .from('journal_entry_lines')
+          .select('debit_amount')
+          .eq('job_id', id)
+          .eq('cost_code_id', costCodeId);
 
-            const actual = Math.max(actualFromJournal, Number(b.actual_amount || 0));
-            const budgeted = Number(b.budgeted_amount || 0);
-            const committed = Number(b.committed_amount || 0);
-            const spent = actual + committed;
+        return (journalLines || []).reduce(
+          (sum, line) => sum + Number(line.debit_amount || 0), 0
+        );
+      };
+
+      let lines: BudgetForecastLine[] = [];
+
+      if (hasDynamicBudgets) {
+        // Show dynamic budget parents with aggregated child data
+        lines = await Promise.all(
+          dynamicBudgets.map(async (parent: any) => {
+            // Find all children of this dynamic budget
+            const children = (budgets || []).filter((b: any) => b.parent_budget_id === parent.id);
             
-            // Calculate % complete based on budget vs spent
+            // Aggregate child actuals and committed
+            let totalActual = 0;
+            let totalCommitted = 0;
+            
+            for (const child of children) {
+              const childActual = await getActualAmount(child.cost_code_id);
+              totalActual += Math.max(childActual, Number(child.actual_amount || 0));
+              totalCommitted += Number(child.committed_amount || 0);
+            }
+
+            // If no children, use parent's own values
+            if (children.length === 0) {
+              const parentActual = await getActualAmount(parent.cost_code_id);
+              totalActual = Math.max(parentActual, Number(parent.actual_amount || 0));
+              totalCommitted = Number(parent.committed_amount || 0);
+            }
+
+            const budgeted = Number(parent.budgeted_amount || 0);
+            const spent = totalActual + totalCommitted;
             const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
             
-            // Get estimated % from saved forecasts or default to calculated
-            const existingForecast = forecastMap.get(b.cost_code_id);
+            const existingForecast = forecastMap.get(parent.cost_code_id);
             
             return {
               id: existingForecast?.id,
-              cost_code_id: b.cost_code_id,
-              code: b.cost_codes?.code || '',
-              description: b.cost_codes?.description || '',
+              cost_code_id: parent.cost_code_id,
+              code: parent.cost_codes?.code || '',
+              description: parent.cost_codes?.description || '',
               budgeted_amount: budgeted,
-              actual_amount: actual,
-              committed_amount: committed,
+              actual_amount: totalActual,
+              committed_amount: totalCommitted,
               calculated_percent: calculatedPercent,
               estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
               notes: existingForecast?.notes || '',
             };
           })
-      );
+        );
+      } else {
+        // No dynamic budgets - show individual cost codes (excluding .0 suffix codes)
+        lines = await Promise.all(
+          (budgets || [])
+            .filter((b: any) => b.cost_codes && !b.cost_codes.code?.endsWith('.0'))
+            .map(async (b: any) => {
+              const actualFromJournal = await getActualAmount(b.cost_code_id);
+              const actual = Math.max(actualFromJournal, Number(b.actual_amount || 0));
+              const budgeted = Number(b.budgeted_amount || 0);
+              const committed = Number(b.committed_amount || 0);
+              const spent = actual + committed;
+              
+              const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
+              const existingForecast = forecastMap.get(b.cost_code_id);
+              
+              return {
+                id: existingForecast?.id,
+                cost_code_id: b.cost_code_id,
+                code: b.cost_codes?.code || '',
+                description: b.cost_codes?.description || '',
+                budgeted_amount: budgeted,
+                actual_amount: actual,
+                committed_amount: committed,
+                calculated_percent: calculatedPercent,
+                estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
+                notes: existingForecast?.notes || '',
+              };
+            })
+        );
+      }
 
       // Sort by cost code
       lines.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
