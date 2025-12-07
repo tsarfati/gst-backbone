@@ -413,63 +413,64 @@ export default function JobForecastingView() {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          <Table className="w-full table-fixed">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[70px]">Code</TableHead>
-                <TableHead className="w-auto">Description</TableHead>
-                <TableHead className="text-right w-[85px]">Budgeted</TableHead>
-                <TableHead className="text-right w-[85px]">Spent</TableHead>
-                <TableHead className="text-right w-[85px]">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        Remain
-                        <Info className="h-3 w-3" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Budgeted minus spent</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableHead>
-                <TableHead className="text-right w-[55px]">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        Calc%
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Spent / budgeted</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableHead>
-                <TableHead className="text-center w-[80px]">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="flex items-center gap-1 mx-auto">
-                        Est%
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Estimated % complete</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableHead>
-                <TableHead className="text-right w-[90px]">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                        +/-
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Projected over/under</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </TableHead>
-                <TableHead className="w-[100px]">Updated</TableHead>
+          <div className="overflow-x-auto">
+            <Table className="w-full">
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="w-[80px] font-semibold">Code</TableHead>
+                  <TableHead className="min-w-[180px] font-semibold">Description</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-4">Budgeted</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-4 border-l border-border/50">Spent</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-4">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Remaining
+                          <Info className="h-3 w-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Budgeted minus spent</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-center w-[70px] font-semibold px-3 border-l border-border/50">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 mx-auto">
+                          Calc %
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Spent / budgeted</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-center w-[90px] font-semibold px-3">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 mx-auto">
+                          Est %
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Estimated % complete</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right w-[120px] font-semibold px-4 border-l border-border/50">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Over/Under
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Projected over/under budget</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="w-[110px] font-semibold px-3">Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -488,29 +489,29 @@ export default function JobForecastingView() {
                   const isProjectedOver = projectedTotal > line.budgeted_amount;
                   
                   return (
-                    <TableRow key={line.cost_code_id} className={isOverBudget ? 'bg-red-50 dark:bg-red-950/20' : ''}>
-                      <TableCell className="font-mono text-xs">{line.code}</TableCell>
-                      <TableCell className="text-sm">
-                        {line.description}
+                    <TableRow key={line.cost_code_id} className={`${isOverBudget ? 'bg-destructive/5' : 'hover:bg-muted/30'}`}>
+                      <TableCell className="font-mono text-sm py-3">{line.code}</TableCell>
+                      <TableCell className="py-3">
+                        <span className="font-medium">{line.description}</span>
                         {isOverBudget && (
                           <Badge variant="destructive" className="ml-2 text-xs">
-                            Over Budget
+                            Over
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-semibold tabular-nums px-4 py-3">
                         {formatCurrency(line.budgeted_amount)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right tabular-nums px-4 py-3 border-l border-border/30">
                         {formatCurrency(spent)}
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${remaining < 0 ? 'text-destructive' : ''}`}>
+                      <TableCell className={`text-right font-medium tabular-nums px-4 py-3 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
                         {formatCurrency(remaining)}
                       </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {line.calculated_percent.toFixed(1)}%
+                      <TableCell className="text-center text-muted-foreground tabular-nums px-3 py-3 border-l border-border/30">
+                        {line.calculated_percent.toFixed(0)}%
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
                           <Input
                             type="number"
@@ -519,34 +520,34 @@ export default function JobForecastingView() {
                             step={1}
                             value={line.estimated_percent}
                             onChange={(e) => updateEstimatedPercent(line.cost_code_id, parseFloat(e.target.value) || 0)}
-                            className="w-16 text-center h-7 text-sm"
+                            className="w-14 text-center h-8 text-sm tabular-nums"
                           />
                           <span className="text-muted-foreground text-xs">%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right text-sm">
+                      <TableCell className="text-right px-4 py-3 border-l border-border/30">
                         {line.estimated_percent > 0 ? (
-                          <div className={`flex items-center justify-end gap-1 font-medium ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
-                            {isProjectedOver ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                          <div className={`flex items-center justify-end gap-1.5 font-semibold tabular-nums ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
+                            {isProjectedOver ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
                             <span>
-                              {isProjectedOver ? '-' : '+'}
-                              {formatCurrency(Math.abs(overUnder))}
+                              {isProjectedOver ? '' : '+'}
+                              {formatCurrency(overUnder)}
                             </span>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">-</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="text-xs text-muted-foreground px-3 py-3">
                         {line.updated_at ? (
-                          <div className="flex flex-col">
-                            <span>{new Date(line.updated_at).toLocaleDateString()}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{new Date(line.updated_at).toLocaleDateString()}</span>
                             {line.updated_by_name && (
-                              <span className="text-xs truncate max-w-[100px]">{line.updated_by_name}</span>
+                              <span className="truncate max-w-[90px] opacity-70">{line.updated_by_name}</span>
                             )}
                           </div>
                         ) : (
-                          <span>-</span>
+                          <span className="opacity-50">—</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -554,9 +555,10 @@ export default function JobForecastingView() {
                 })}
               </TableBody>
             </Table>
+          </div>
 
           {/* Legend */}
-          <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div className="mt-4 p-4 flex flex-wrap gap-6 text-sm text-muted-foreground border-t">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-green-600" />
               <span>Projected under budget</span>
