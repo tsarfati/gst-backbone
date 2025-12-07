@@ -413,67 +413,63 @@ export default function JobForecastingView() {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="w-full overflow-x-auto">
-            <Table className="w-full min-w-[1000px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px] whitespace-nowrap">Code</TableHead>
-                  <TableHead className="min-w-[140px]">Description</TableHead>
-                  <TableHead className="text-right w-[95px] whitespace-nowrap">Budgeted</TableHead>
-                  <TableHead className="text-right w-[95px] whitespace-nowrap">Spent</TableHead>
-                  <TableHead className="text-right w-[95px] whitespace-nowrap">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                          Remain
-                          <Info className="h-3 w-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Budgeted amount minus spent to date</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead className="text-right w-[60px] whitespace-nowrap">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                          Calc%
-                          <Info className="h-3 w-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Calculated based on spent / budgeted</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead className="text-center w-[90px] whitespace-nowrap">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger className="flex items-center gap-1 mx-auto">
-                          Est%
-                          <Info className="h-3 w-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Your estimated percentage complete</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead className="text-right w-[100px] whitespace-nowrap">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
-                          Over/Under
-                          <Info className="h-3 w-3" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Projected over/under budget based on estimate</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
-                  <TableHead className="w-[120px] whitespace-nowrap">Updated</TableHead>
+          <Table className="w-full table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[70px]">Code</TableHead>
+                <TableHead className="w-auto">Description</TableHead>
+                <TableHead className="text-right w-[85px]">Budgeted</TableHead>
+                <TableHead className="text-right w-[85px]">Spent</TableHead>
+                <TableHead className="text-right w-[85px]">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                        Remain
+                        <Info className="h-3 w-3" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Budgeted minus spent</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="text-right w-[55px]">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                        Calc%
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Spent / budgeted</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="text-center w-[80px]">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 mx-auto">
+                        Est%
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Estimated % complete</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="text-right w-[90px]">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                        +/-
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Projected over/under</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableHead>
+                <TableHead className="w-[100px]">Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -558,7 +554,6 @@ export default function JobForecastingView() {
                 })}
               </TableBody>
             </Table>
-          </div>
 
           {/* Legend */}
           <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
