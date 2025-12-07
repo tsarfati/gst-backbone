@@ -397,6 +397,19 @@ export default function JobForecastingView() {
                   <TableHead>Description</TableHead>
                   <TableHead className="text-right w-[120px]">Budgeted</TableHead>
                   <TableHead className="text-right w-[120px]">Spent</TableHead>
+                  <TableHead className="text-right w-[120px]">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Remaining
+                          <Info className="h-3 w-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Budgeted amount minus spent to date</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                   <TableHead className="text-right w-[100px]">
                     <TooltipProvider>
                       <Tooltip>
@@ -423,13 +436,35 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="w-[80px]">Variance</TableHead>
+                  <TableHead className="text-right w-[120px]">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Over/Under
+                          <Info className="h-3 w-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Projected over/under budget based on estimate</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {forecastLines.map((line) => {
-                  const variance = line.estimated_percent - line.calculated_percent;
-                  const isOverBudget = (line.actual_amount + line.committed_amount) > line.budgeted_amount;
+                  const spent = line.actual_amount + line.committed_amount;
+                  const remaining = line.budgeted_amount - spent;
+                  const isOverBudget = spent > line.budgeted_amount;
+                  
+                  // Calculate projected over/under based on estimate
+                  // If estimate is X% complete and we've spent Y, projected total = Y / (X/100)
+                  // Over/under = budgeted - projected total
+                  const projectedTotal = line.estimated_percent > 0 
+                    ? (spent / (line.estimated_percent / 100)) 
+                    : (line.estimated_percent === 0 && spent > 0 ? Infinity : 0);
+                  const overUnder = line.budgeted_amount - projectedTotal;
+                  const isProjectedOver = projectedTotal > line.budgeted_amount;
                   
                   return (
                     <TableRow key={line.cost_code_id} className={isOverBudget ? 'bg-red-50 dark:bg-red-950/20' : ''}>
@@ -446,7 +481,10 @@ export default function JobForecastingView() {
                         {formatCurrency(line.budgeted_amount)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(line.actual_amount + line.committed_amount)}
+                        {formatCurrency(spent)}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${remaining < 0 ? 'text-destructive' : ''}`}>
+                        {formatCurrency(remaining)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {line.calculated_percent.toFixed(1)}%
@@ -465,16 +503,18 @@ export default function JobForecastingView() {
                           <span className="text-muted-foreground">%</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className={`font-medium ${
-                          Math.abs(variance) < 5 
-                            ? 'text-muted-foreground' 
-                            : variance > 0 
-                              ? 'text-green-600' 
-                              : 'text-amber-600'
-                        }`}>
-                          {variance > 0 ? '+' : ''}{variance.toFixed(1)}%
-                        </span>
+                      <TableCell className="text-right">
+                        {line.estimated_percent > 0 ? (
+                          <div className={`flex items-center justify-end gap-1 font-medium ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
+                            {isProjectedOver ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+                            <span>
+                              {isProjectedOver ? '-' : '+'}
+                              {formatCurrency(Math.abs(overUnder))}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -482,24 +522,20 @@ export default function JobForecastingView() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Legend */}
+          <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
+              <span>Projected under budget</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-destructive" />
+              <span>Projected over budget</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-green-600" />
-          <span>Ahead of calculated (positive variance)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-amber-600" />
-          <span>Behind calculated (negative variance)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-red-500" />
-          <span>Over budget</span>
-        </div>
-      </div>
     </div>
   );
 }
