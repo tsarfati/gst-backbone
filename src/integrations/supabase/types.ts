@@ -2418,6 +2418,68 @@ export type Database = {
         }
         Relationships: []
       }
+      job_budget_forecasts: {
+        Row: {
+          cost_code_id: string
+          created_at: string
+          estimated_percent_complete: number | null
+          id: string
+          job_id: string
+          notes: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cost_code_id: string
+          created_at?: string
+          estimated_percent_complete?: number | null
+          id?: string
+          job_id: string
+          notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cost_code_id?: string
+          created_at?: string
+          estimated_percent_complete?: number | null
+          id?: string
+          job_id?: string
+          notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_budget_forecasts_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_budget_forecasts_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "job_budget_forecasts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_budget_forecasts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_budgets: {
         Row: {
           actual_amount: number
