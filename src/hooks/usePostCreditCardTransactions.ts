@@ -123,12 +123,13 @@ export function usePostCreditCardTransactions() {
 
               // 1) Prefer job-level expense or revenue account, if configured
               if (dist.job_id) {
+                // Only look for job_expense accounts - credit card transactions are expenses, not revenue
                 const { data: jobAccount } = await supabase
                   .from("account_associations")
                   .select("account_id")
                   .eq("job_id", dist.job_id)
                   .eq("company_id", companyId)
-                  .in("association_type", ["job_expense", "job_revenue"])
+                  .eq("association_type", "job_expense")
                   .maybeSingle();
 
                 console.log('[CC GL] Job account lookup for distribution', {
@@ -214,12 +215,13 @@ export function usePostCreditCardTransactions() {
 
             // 1) Prefer job-level expense account, if configured
             if (trans.job_id) {
+              // Only look for job_expense accounts - credit card transactions are expenses, not revenue
               const { data: jobAccount } = await supabase
                 .from("account_associations")
                 .select("account_id")
                 .eq("job_id", trans.job_id)
                 .eq("company_id", companyId)
-                .in("association_type", ["job_expense", "job_revenue"])
+                .eq("association_type", "job_expense")
                 .maybeSingle();
 
               expenseAccountId = jobAccount?.account_id;
