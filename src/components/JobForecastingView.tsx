@@ -24,6 +24,8 @@ interface BudgetForecastLine {
   calculated_percent: number;
   estimated_percent: number;
   notes?: string;
+  updated_at?: string;
+  updated_by_name?: string;
 }
 
 interface JobSummary {
@@ -77,9 +79,27 @@ export default function JobForecastingView() {
 
       if (forecastError) throw forecastError;
 
+      // Load profile names for updated_by users
+      const updatedByIds = [...new Set((forecasts || []).map(f => f.updated_by).filter(Boolean))];
+      let profileMap = new Map<string, string>();
+      
+      if (updatedByIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name')
+          .in('user_id', updatedByIds);
+        
+        profileMap = new Map(
+          (profiles || []).map(p => [p.user_id, `${p.first_name || ''} ${p.last_name || ''}`.trim()])
+        );
+      }
+
       // Create a map of existing forecasts by cost_code_id
       const forecastMap = new Map(
-        (forecasts || []).map(f => [f.cost_code_id, f])
+        (forecasts || []).map(f => [f.cost_code_id, {
+          ...f,
+          updated_by_name: f.updated_by ? profileMap.get(f.updated_by) || null : null
+        }])
       );
 
       // Check if there are any dynamic budgets
@@ -142,6 +162,8 @@ export default function JobForecastingView() {
               calculated_percent: calculatedPercent,
               estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
               notes: existingForecast?.notes || '',
+              updated_at: existingForecast?.updated_at,
+              updated_by_name: existingForecast?.updated_by_name,
             };
           })
         );
@@ -171,6 +193,8 @@ export default function JobForecastingView() {
                 calculated_percent: calculatedPercent,
                 estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
                 notes: existingForecast?.notes || '',
+                updated_at: existingForecast?.updated_at,
+                updated_by_name: existingForecast?.updated_by_name,
               };
             })
         );
@@ -449,6 +473,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
+                  <TableHead className="w-[160px]">Last Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -514,6 +539,18 @@ export default function JobForecastingView() {
                           </div>
                         ) : (
                           <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {line.updated_at ? (
+                          <div className="flex flex-col">
+                            <span>{new Date(line.updated_at).toLocaleDateString()}</span>
+                            {line.updated_by_name && (
+                              <span className="text-xs">{line.updated_by_name}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span>-</span>
                         )}
                       </TableCell>
                     </TableRow>
