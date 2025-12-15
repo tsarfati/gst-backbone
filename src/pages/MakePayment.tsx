@@ -69,6 +69,8 @@ interface Invoice {
   jobs?: Job;
   cost_code_id?: string;
   chart_account_id?: string;
+  amount_paid?: number;
+  balance_due?: number;
 }
 
 interface Payment {
@@ -156,8 +158,10 @@ export default function MakePayment() {
       if (bill) {
         setSelectedVendor(bill.vendor_id);
         setSelectedInvoices([bill.id]);
-        setIsPartialPayment(false);
-        setPayment(prev => ({ ...prev, vendor_id: bill.vendor_id, amount: bill.amount }));
+        // If there's a prior payment, default to the remaining balance
+        const paymentAmount = bill.balance_due ?? bill.amount;
+        setIsPartialPayment(bill.amount_paid && bill.amount_paid > 0);
+        setPayment(prev => ({ ...prev, vendor_id: bill.vendor_id, amount: paymentAmount }));
       }
     }
   }, [location.state, allInvoices]);
@@ -200,10 +204,31 @@ export default function MakePayment() {
         .order('due_date');
 
       if (invoicesError) throw invoicesError;
-      const formattedInvoices = (invoicesData || []).map(invoice => ({
-        ...invoice,
-        vendor: invoice.vendors
-      }));
+      
+      // Fetch payments made on each invoice to calculate balance due
+      const invoiceIds = (invoicesData || []).map(inv => inv.id);
+      const { data: paymentLinesData } = await supabase
+        .from('payment_invoice_lines')
+        .select('invoice_id, amount_paid')
+        .in('invoice_id', invoiceIds);
+      
+      // Calculate amount paid per invoice
+      const paidByInvoice: Record<string, number> = {};
+      (paymentLinesData || []).forEach(pl => {
+        paidByInvoice[pl.invoice_id] = (paidByInvoice[pl.invoice_id] || 0) + Number(pl.amount_paid || 0);
+      });
+      
+      const formattedInvoices = (invoicesData || []).map(invoice => {
+        const amountPaid = paidByInvoice[invoice.id] || 0;
+        const balanceDue = Number(invoice.amount) - amountPaid;
+        return {
+          ...invoice,
+          vendor: invoice.vendors,
+          amount_paid: amountPaid,
+          balance_due: balanceDue
+        };
+      }).filter(inv => inv.balance_due > 0); // Only show invoices with remaining balance
+      
       setAllInvoices(formattedInvoices);
       setInvoices(formattedInvoices);
 
@@ -381,11 +406,11 @@ export default function MakePayment() {
     
     setSelectedInvoices(newSelectedInvoices);
     
-    // Calculate total amount from selected invoices
+    // Calculate total amount from selected invoices (use balance_due if available)
     if (newSelectedInvoices.length > 0) {
       const totalAmount = newSelectedInvoices.reduce((sum, id) => {
         const inv = invoices.find(i => i.id === id);
-        return sum + (inv?.amount || 0);
+        return sum + (inv?.balance_due ?? inv?.amount ?? 0);
       }, 0);
       
       setPayment(prev => ({ 
@@ -1303,7 +1328,9 @@ export default function MakePayment() {
                       <TableHead>Job</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Due Date</TableHead>
-                      <TableHead>Amount</TableHead>
+                      <TableHead>Bill Amount</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Balance Due</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1338,6 +1365,14 @@ export default function MakePayment() {
                           <TableCell className="max-w-xs truncate">{invoice.description}</TableCell>
                           <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            {invoice.amount_paid && invoice.amount_paid > 0 ? (
+                              <span className="text-green-600">${invoice.amount_paid.toFixed(2)}</span>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className={`font-medium ${invoice.amount_paid && invoice.amount_paid > 0 ? 'text-orange-600' : ''}`}>
+                            ${(invoice.balance_due ?? invoice.amount).toFixed(2)}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -1370,7 +1405,16 @@ export default function MakePayment() {
                           <h4 className="font-medium">Invoice #{invoice.invoice_number}</h4>
                           <p className="text-sm text-muted-foreground">{invoice.vendor?.name}</p>
                         </div>
-                        <Badge variant="outline">${invoice.amount.toFixed(2)}</Badge>
+                        <div className="text-right">
+                          {invoice.amount_paid && invoice.amount_paid > 0 ? (
+                            <>
+                              <p className="text-sm text-muted-foreground line-through">${invoice.amount.toFixed(2)}</p>
+                              <Badge variant="outline" className="text-orange-600">Balance: ${(invoice.balance_due ?? invoice.amount).toFixed(2)}</Badge>
+                            </>
+                          ) : (
+                            <Badge variant="outline">${invoice.amount.toFixed(2)}</Badge>
+                          )}
+                        </div>
                       </div>
                       <UrlPdfInlinePreview 
                         url={documentUrl} 

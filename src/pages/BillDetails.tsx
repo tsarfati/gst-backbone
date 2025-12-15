@@ -81,6 +81,9 @@ export default function BillDetails() {
   const [payNumber, setPayNumber] = useState<number>(0);
   const [documents, setDocuments] = useState<any[]>([]);
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
+  const [paymentsReceived, setPaymentsReceived] = useState<any[]>([]);
+  const [totalPaid, setTotalPaid] = useState<number>(0);
+  const [balanceDue, setBalanceDue] = useState<number>(0);
   
   const calculateDaysOverdue = (dueDate: string): number => {
     const due = new Date(dueDate);
@@ -148,6 +151,34 @@ export default function BillDetails() {
           
           if (documentsData) {
             setDocuments(documentsData);
+          }
+          
+          // Fetch payments made on this bill
+          const { data: paymentLines } = await supabase
+            .from('payment_invoice_lines')
+            .select(`
+              id,
+              amount_paid,
+              created_at,
+              payments:payment_id (
+                id,
+                payment_number,
+                payment_date,
+                payment_method,
+                status
+              )
+            `)
+            .eq('invoice_id', data.id);
+          
+          if (paymentLines && paymentLines.length > 0) {
+            setPaymentsReceived(paymentLines);
+            const paid = paymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
+            setTotalPaid(paid);
+            setBalanceDue(Number(data.amount || 0) - paid);
+          } else {
+            setPaymentsReceived([]);
+            setTotalPaid(0);
+            setBalanceDue(Number(data.amount || 0));
           }
         }
         
@@ -538,9 +569,23 @@ export default function BillDetails() {
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Invoice Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Amount</p>
+                  <p className="text-sm text-muted-foreground">Bill Amount</p>
                   <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
                 </div>
+                {totalPaid > 0 && (
+                  <>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Amount Paid</p>
+                      <p className="font-medium text-2xl text-green-600">${totalPaid.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Balance Due</p>
+                      <p className={`font-medium text-2xl ${balanceDue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                        ${balanceDue.toLocaleString()}
+                      </p>
+                    </div>
+                  </>
+                )}
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
                   <div className="flex items-center gap-2">
@@ -657,6 +702,43 @@ export default function BillDetails() {
                     prevPayments={commitmentTotals.prevPayments}
                     contractBalance={commitmentTotals.contractBalance}
                   />
+                </div>
+              </>
+            )}
+
+            {/* Payment History */}
+            {paymentsReceived.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="font-medium mb-3 text-sm text-muted-foreground">Payment History</h4>
+                  <div className="space-y-2">
+                    {paymentsReceived.map((pl) => (
+                      <div 
+                        key={pl.id} 
+                        className="flex items-center justify-between p-3 bg-muted/50 rounded-md cursor-pointer hover:bg-muted transition-colors"
+                        onClick={() => navigate(`/payables/payments/${pl.payments?.payment_number}`)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <DollarSign className="h-4 w-4 text-green-600" />
+                          <div>
+                            <p className="font-medium">{pl.payments?.payment_number}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {pl.payments?.payment_date ? new Date(pl.payments.payment_date).toLocaleDateString() : 'N/A'}
+                              {' • '}
+                              {pl.payments?.payment_method?.replace(/_/g, ' ')?.replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-green-600">${Number(pl.amount_paid).toLocaleString()}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {pl.payments?.status?.replace(/_/g, ' ')?.replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
