@@ -282,28 +282,48 @@ export default function MakePayment() {
     setInvoices(filtered);
   };
 
-  const generatePaymentNumber = async () => {
+  const generatePaymentNumber = async (): Promise<string> => {
     try {
+      // Get the maximum payment number by extracting the numeric portion
       const { data, error } = await supabase
         .from('payments')
         .select('payment_number')
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .like('payment_number', 'PAY-%')
+        .order('payment_number', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
 
-      let nextNumber = 1;
+      let maxNumber = 0;
       if (data && data.length > 0) {
-        const lastNumber = parseInt(data[0].payment_number.replace('PAY-', ''));
-        nextNumber = lastNumber + 1;
+        // Find the highest number by parsing all payment numbers
+        for (const payment of data) {
+          const numStr = payment.payment_number?.replace('PAY-', '') || '0';
+          const num = parseInt(numStr, 10);
+          if (!isNaN(num) && num > maxNumber) {
+            maxNumber = num;
+          }
+        }
       }
+
+      const nextNumber = maxNumber + 1;
+      const newPaymentNumber = `PAY-${nextNumber.toString().padStart(6, '0')}`;
 
       setPayment(prev => ({
         ...prev,
-        payment_number: `PAY-${nextNumber.toString().padStart(6, '0')}`
+        payment_number: newPaymentNumber
       }));
+
+      return newPaymentNumber;
     } catch (error) {
       console.error('Error generating payment number:', error);
+      // Fallback: use timestamp-based number to avoid conflicts
+      const fallbackNumber = `PAY-${Date.now()}`;
+      setPayment(prev => ({
+        ...prev,
+        payment_number: fallbackNumber
+      }));
+      return fallbackNumber;
     }
   };
 
@@ -549,9 +569,12 @@ export default function MakePayment() {
     try {
       const user = await supabase.auth.getUser();
       
+      // Generate fresh payment number right before save to avoid conflicts
+      const freshPaymentNumber = await generatePaymentNumber();
+      
       // Create payment - payments start as 'pending' and progress to 'sent'/'cleared' via workflow
       const paymentToInsert = {
-        payment_number: payment.payment_number,
+        payment_number: freshPaymentNumber,
         vendor_id: payment.vendor_id,
         payment_method: payment.payment_method,
         payment_date: payment.payment_date,
