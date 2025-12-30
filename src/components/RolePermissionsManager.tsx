@@ -135,6 +135,7 @@ const roles = [
   { key: 'project_manager', label: 'Project Manager', color: 'bg-green-100 text-green-800', description: 'Project management' },
   { key: 'employee', label: 'Employee', color: 'bg-gray-100 text-gray-800', description: 'Basic employee access' },
   { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access - Cannot create, edit, or delete' },
+  { key: 'vendor', label: 'Vendor', color: 'bg-amber-100 text-amber-800', description: 'External vendor access' },
 ];
 
 export default function RolePermissionsManager() {
@@ -146,7 +147,7 @@ export default function RolePermissionsManager() {
   const [customPermissions, setCustomPermissions] = useState<CustomRolePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [openRoles, setOpenRoles] = useState<Record<string, boolean>>({});
+  const [openRoles, setOpenRoles] = useState<Record<string, boolean>>({}); // All collapsed by default
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState({
     role_key: '',
