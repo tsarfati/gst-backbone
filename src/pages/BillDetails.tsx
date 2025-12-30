@@ -84,6 +84,7 @@ export default function BillDetails() {
   const [paymentsReceived, setPaymentsReceived] = useState<any[]>([]);
   const [totalPaid, setTotalPaid] = useState<number>(0);
   const [balanceDue, setBalanceDue] = useState<number>(0);
+  const [distributions, setDistributions] = useState<any[]>([]);
   
   const calculateDaysOverdue = (dueDate: string): number => {
     const due = new Date(dueDate);
@@ -195,6 +196,37 @@ export default function BillDetails() {
             setPaymentsReceived([]);
             setTotalPaid(0);
             setBalanceDue(Number(data.amount || 0));
+          }
+          
+          // Load cost distributions
+          const { data: distData } = await supabase
+            .from('invoice_cost_distributions')
+            .select(`
+              id,
+              job_id,
+              cost_code_id,
+              amount,
+              percentage,
+              jobs (id, name),
+              cost_codes (id, code, description, type)
+            `)
+            .eq('invoice_id', data.id);
+          
+          if (distData && distData.length > 0) {
+            setDistributions(distData);
+          } else if (data.job_id || data.cost_code_id) {
+            // Create a single distribution from the main job/cost code
+            setDistributions([{
+              id: 'main',
+              job_id: data.job_id,
+              cost_code_id: data.cost_code_id,
+              amount: data.amount,
+              percentage: 100,
+              jobs: data.jobs,
+              cost_codes: data.cost_codes
+            }]);
+          } else {
+            setDistributions([]);
           }
         }
         
@@ -652,16 +684,6 @@ export default function BillDetails() {
                   <p className="text-sm text-muted-foreground">Payment Terms</p>
                   <p className="font-medium">{bill?.payment_terms ? `${bill.payment_terms} days` : 'N/A'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Job</p>
-                  <p className="font-medium">{bill?.jobs?.name || 'Not set'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cost Code</p>
-                  <p className="font-medium">
-                    {bill?.cost_codes ? `${bill.cost_codes.code} - ${bill.cost_codes.description}` : 'Not set'}
-                  </p>
-                </div>
                 {/* Pay Number or Reimbursement - conditionally displayed */}
                 {bill?.subcontract_id && payNumber > 0 ? (
                   <div>
@@ -772,7 +794,64 @@ export default function BillDetails() {
                       </div>
                     ))}
                   </div>
-                </div>
+      </div>
+
+      {/* Cost Distribution Section */}
+      {!bill?.subcontract_id && !bill?.purchase_order_id && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Cost Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {distributions.length > 0 ? (
+              <div className="space-y-3">
+                {distributions.map((dist, index) => (
+                  <div key={dist.id || index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {dist.jobs?.name && (
+                          <Badge variant="outline">{dist.jobs.name}</Badge>
+                        )}
+                        {dist.cost_codes && (
+                          <span className="text-sm font-medium">
+                            {dist.cost_codes.code} - {dist.cost_codes.description}
+                          </span>
+                        )}
+                        {dist.cost_codes?.type && (
+                          <Badge variant="secondary" className="text-xs capitalize">
+                            {dist.cost_codes.type}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">
+                        ${Number(dist.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {Number(dist.percentage || 0).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {distributions.length > 1 && (
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="font-medium">Total</span>
+                    <span className="font-medium">
+                      ${distributions.reduce((sum, d) => sum + Number(d.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-4">No cost distribution set</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
               </>
             )}
           </CardContent>
