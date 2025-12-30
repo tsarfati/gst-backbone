@@ -24,6 +24,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const logLoginAttempt = async (userId: string, success: boolean, method: string) => {
+    try {
+      await supabase.from('user_login_audit').insert({
+        user_id: userId,
+        login_time: new Date().toISOString(),
+        login_method: method,
+        success,
+        user_agent: navigator.userAgent,
+      });
+    } catch (err) {
+      console.error('Failed to log login attempt:', err);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,6 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Defer Supabase calls with setTimeout to avoid deadlock
           setTimeout(async () => {
             try {
+              // Log login for OAuth and other sign-in events
+              if (event === 'SIGNED_IN') {
+                const method = session.user.app_metadata?.provider || 'unknown';
+                await logLoginAttempt(session.user.id, true, method);
+              }
+              
               const { data: profileData } = await supabase
                 .from('profiles')
                 .select('*')
@@ -53,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     );
-
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -84,10 +103,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
     return { error };
   };
 
