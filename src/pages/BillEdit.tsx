@@ -786,136 +786,7 @@ export default function BillEdit() {
               </div>
             </div>
 
-            {/* Only show job/cost code selectors if single distribution or no commitment */}
-            {commitmentDistribution.length <= 1 && billDistribution.length <= 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="job_control">
-                    Job / Control
-                    <span className="text-destructive ml-1">*</span>
-                  </Label>
-                  <Select 
-                    value={formData.job_id || formData.cost_code_id} 
-                    onValueChange={(value) => {
-                      const isJob = jobs.find(j => j.id === value);
-                      if (isJob) {
-                        handleInputChange("job_id", value);
-                        setFormData(prev => ({ ...prev, cost_code_id: '' }));
-                      } else {
-                        // It's an expense account - clear job and set as cost_code_id
-                        setFormData(prev => ({ ...prev, job_id: '', cost_code_id: value }));
-                      }
-                    }}
-                    disabled={!!subcontractInfo || commitmentDistribution.length === 1}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select job or expense" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
-                      {jobs.map((job) => (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.name}
-                        </SelectItem>
-                      ))}
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
-                      {(() => {
-                        const filtered = expenseAccounts.filter((account) => {
-                          const match = String(account.account_number ?? '').match(/^\d+/);
-                          const num = match ? Number(match[0]) : NaN;
-                          const inRange = !Number.isNaN(num) && num >= 50000 && num <= 59000;
-                          return !inRange; // Exclude 50000-59000 from Job/Control menu
-                        });
-                        return filtered.length === 0 ? (
-                          <div className="px-2 py-2 text-sm text-muted-foreground">No expense accounts available</div>
-                        ) : (
-                          filtered.map((account) => (
-                            <SelectItem key={account.id} value={account.id}>
-                              {account.account_number} - {account.account_name}
-                            </SelectItem>
-                          ))
-                        );
-                      })()}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {formData.job_id && (
-                  <div className="space-y-2">
-                    <Label htmlFor="cost_code">Cost Code</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className="w-full justify-between"
-                          disabled={!!subcontractInfo || commitmentDistribution.length === 1}
-                        >
-                          {formData.cost_code_id ? (
-                            <div className="flex items-center gap-2">
-                              <span>
-                                {(() => {
-                                  const code = costCodes.find(c => c.id === formData.cost_code_id);
-                                  return code ? `${code.code} - ${code.description}` : "Select cost code";
-                                })()}
-                              </span>
-                              {(() => {
-                                const code = costCodes.find(c => c.id === formData.cost_code_id);
-                                return code?.type ? (
-                                  <Badge variant="outline">
-                                    {code.type === 'labor' ? 'Labor' : 
-                                     code.type === 'material' ? 'Material' : 
-                                     code.type === 'equipment' ? 'Equipment' : 
-                                     code.type === 'sub' ? 'Subcontractor' : 
-                                     code.type === 'other' ? 'Other' : code.type}
-                                  </Badge>
-                                ) : null;
-                              })()}
-                            </div>
-                          ) : (
-                            "Select cost code"
-                          )}
-                          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[500px] p-0 bg-background z-[60]" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search cost codes..." />
-                          <CommandEmpty>No cost code found.</CommandEmpty>
-                          <CommandList>
-                            {costCodes.map((code) => (
-                              <CommandItem
-                                key={code.id}
-                                value={`${code.code} ${code.description} ${code.type} ${code.id}`}
-                                onSelect={() => handleInputChange("cost_code_id", code.id)}
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${
-                                    formData.cost_code_id === code.id ? "opacity-100" : "opacity-0"
-                                  }`}
-                                />
-                                <div className="flex items-center gap-2 flex-1">
-                                  <span>{code.code} - {code.description}</span>
-                                  {code.type && (
-                                    <Badge variant="outline">
-                                      {code.type === 'labor' ? 'Labor' : 
-                                       code.type === 'material' ? 'Material' : 
-                                       code.type === 'equipment' ? 'Equipment' : 
-                                       code.type === 'sub' ? 'Subcontractor' : 
-                                       code.type === 'other' ? 'Other' : code.type}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Job/Cost Code moved to Cost Distribution section */}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1093,57 +964,25 @@ export default function BillEdit() {
 
         {/* Non-Commitment Bill Cost Distribution Section - Always show for non-commitment bills */}
         {!subcontractInfo && !bill?.purchase_order_id && commitmentDistribution.length <= 1 && (
-          <>
-            {!showMultiDistribution ? (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Cost Distribution</CardTitle>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setShowMultiDistribution(true);
-                        // Initialize with current job/cost code if set
-                        if (formData.job_id || formData.cost_code_id) {
-                          const billAmount = parseFloat(formData.amount) || 0;
-                          setBillDistribution([{
-                            id: crypto.randomUUID(),
-                            job_id: formData.job_id || formData.cost_code_id,
-                            cost_code_id: formData.cost_code_id,
-                            amount: billAmount,
-                            percentage: 100
-                          }]);
-                        }
-                      }}
-                    >
-                      Split to Multiple Cost Codes
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    This bill is currently coded to a single job and cost code. Click the button above to distribute across multiple cost codes or jobs.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <BillCostDistribution
-                totalAmount={parseFloat(formData.amount) || 0}
-                companyId={currentCompany?.id || profile?.current_company_id || ''}
-                initialDistribution={billDistribution}
-                onChange={(dist) => {
-                  setBillDistribution(dist);
-                  // When using multi-distribution, clear the single job/cost code selection
-                  if (dist.length > 0) {
-                    setFormData(prev => ({ ...prev, job_id: '', cost_code_id: '' }));
-                  }
-                }}
-                disabled={saving}
-              />
-            )}
-          </>
+          <BillCostDistribution
+            totalAmount={parseFloat(formData.amount) || 0}
+            companyId={currentCompany?.id || profile?.current_company_id || ''}
+            initialDistribution={billDistribution.length > 0 ? billDistribution : (formData.job_id || formData.cost_code_id ? [{
+              id: crypto.randomUUID(),
+              job_id: formData.job_id,
+              cost_code_id: formData.cost_code_id,
+              amount: parseFloat(formData.amount) || 0,
+              percentage: 100
+            }] : [])}
+            onChange={(dist) => {
+              setBillDistribution(dist);
+              // When using multi-distribution, clear the single job/cost code selection
+              if (dist.length > 0) {
+                setFormData(prev => ({ ...prev, job_id: '', cost_code_id: '' }));
+              }
+            }}
+            disabled={saving}
+          />
         )}
 
         {/* Bill Approval Section */}
