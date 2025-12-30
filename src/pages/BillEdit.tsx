@@ -21,6 +21,7 @@ import PdfInlinePreview from "@/components/PdfInlinePreview";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import BillApprovalActions from "@/components/BillApprovalActions";
 import BillDistributionSection from "@/components/BillDistributionSection";
+import BillCostDistribution from "@/components/BillCostDistribution";
 
 interface Vendor {
   id: string;
@@ -66,6 +67,7 @@ export default function BillEdit() {
   const [jobData, setJobData] = useState<any>(null);
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
+  const [showMultiDistribution, setShowMultiDistribution] = useState(false);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -235,6 +237,7 @@ export default function BillEdit() {
         .eq('invoice_id', id);
       if (existingDist && existingDist.length > 0) {
         setBillDistribution(existingDist);
+        setShowMultiDistribution(true);
       }
 
       // Get commitment distribution to check for auto-population
@@ -636,15 +639,16 @@ export default function BillEdit() {
         
         // Insert new distributions with proportional retainage
         const distributionRecords = billDistribution.map(dist => {
-          const lineAmount = parseFloat(dist.amount);
+          const lineAmount = parseFloat(dist.amount) || 0;
           // Calculate retainage for this line item proportionally
           const lineRetainageAmount = retainagePercentage > 0 ? lineAmount * (retainagePercentage / 100) : 0;
           
           return {
             invoice_id: id,
-            cost_code_id: dist.cost_code_id,
+            job_id: dist.job_id || null,
+            cost_code_id: dist.cost_code_id || null,
             amount: lineAmount,
-            percentage: dist.percentage,
+            percentage: dist.percentage || 0,
             retainage_amount: lineRetainageAmount,
             retainage_percentage: retainagePercentage
           };
@@ -1029,59 +1033,59 @@ export default function BillEdit() {
           />
         )}
 
-        {/* Non-Commitment Bill Distribution Section - Show if bill has multiple distributions but no commitment */}
-        {!subcontractInfo && !bill?.purchase_order_id && billDistribution.length > 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Cost Distribution
-                <Badge variant="secondary" className="text-xs">
-                  {billDistribution.length} Line Items
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {billDistribution.map((dist, index) => {
-                  const distJob = jobs.find(j => j.id === dist.job_id);
-                  const distCostCode = allCostCodes.find(cc => cc.id === dist.cost_code_id);
-                  return (
-                    <div key={dist.id} className="border rounded-lg p-4 space-y-3 bg-muted/20">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium">Line Item {index + 1}</div>
-                          {distJob && <div className="text-sm text-muted-foreground">Job: {distJob.name}</div>}
-                          {distCostCode && (
-                            <div className="text-sm text-muted-foreground">
-                              Cost Code: {distCostCode.code} - {distCostCode.description}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium">${parseFloat(dist.amount || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                          <Badge variant="outline" className="text-xs mt-1">
-                            {dist.percentage?.toFixed(2)}%
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="border-t pt-4">
-                <div className="flex justify-between text-sm font-medium">
-                  <span>Total Distributed:</span>
-                  <span>
-                    ${billDistribution.reduce((sum, d) => sum + parseFloat(d.amount || '0'), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                <AlertCircle className="h-4 w-4" />
-                <span>Distribution editing is not currently supported. To modify, please delete and re-enter the bill.</span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Non-Commitment Bill Cost Distribution Section - Always show for non-commitment bills */}
+        {!subcontractInfo && !bill?.purchase_order_id && commitmentDistribution.length <= 1 && (
+          <>
+            {!showMultiDistribution ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Cost Distribution</CardTitle>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowMultiDistribution(true);
+                        // Initialize with current job/cost code if set
+                        if (formData.job_id || formData.cost_code_id) {
+                          const billAmount = parseFloat(formData.amount) || 0;
+                          setBillDistribution([{
+                            id: crypto.randomUUID(),
+                            job_id: formData.job_id || formData.cost_code_id,
+                            cost_code_id: formData.cost_code_id,
+                            amount: billAmount,
+                            percentage: 100
+                          }]);
+                        }
+                      }}
+                    >
+                      Split to Multiple Cost Codes
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    This bill is currently coded to a single job and cost code. Click the button above to distribute across multiple cost codes or jobs.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <BillCostDistribution
+                totalAmount={parseFloat(formData.amount) || 0}
+                companyId={currentCompany?.id || profile?.current_company_id || ''}
+                initialDistribution={billDistribution}
+                onChange={(dist) => {
+                  setBillDistribution(dist);
+                  // When using multi-distribution, clear the single job/cost code selection
+                  if (dist.length > 0) {
+                    setFormData(prev => ({ ...prev, job_id: '', cost_code_id: '' }));
+                  }
+                }}
+                disabled={saving}
+              />
+            )}
+          </>
         )}
 
         {/* Bill Approval Section */}
