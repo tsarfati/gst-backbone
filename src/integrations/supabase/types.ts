@@ -4239,6 +4239,7 @@ export type Database = {
           status: string | null
           updated_at: string
           user_id: string
+          vendor_id: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -4262,6 +4263,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id: string
+          vendor_id?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -4285,6 +4287,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id?: string
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -4306,6 +4309,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "employee_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -6227,6 +6237,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -6242,6 +6253,7 @@ export type Database = {
         Args: { _company: string; _user: string }
         Returns: boolean
       }
+      is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
       pin_insert_job_photo: {
         Args: {
           p_job_id: string
