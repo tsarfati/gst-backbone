@@ -398,7 +398,17 @@ export default function BillCostDistribution({
                             (() => {
                               const codes = costCodesByJob[dist.job_id] || [];
                               const code = codes.find(c => c.id === dist.cost_code_id);
-                              return code ? `${code.code} - ${code.description}` : 'Select...';
+                              if (!code) return 'Select...';
+                              return (
+                                <span className="flex items-center gap-2">
+                                  <span>{code.code} - {code.description}</span>
+                                  {code.type && (
+                                    <Badge variant="secondary" className="text-xs capitalize">
+                                      {code.type}
+                                    </Badge>
+                                  )}
+                                </span>
+                              );
                             })()
                           ) : (
                             "Select cost code..."
@@ -414,7 +424,7 @@ export default function BillCostDistribution({
                             {getFilteredCostCodes(dist.job_id, dist.id).map(code => (
                               <CommandItem
                                 key={code.id}
-                                value={`${code.code} ${code.description}`}
+                                value={`${code.code} ${code.description} ${code.type || ''}`}
                                 onSelect={() => {
                                   updateDistribution(dist.id, 'cost_code_id', code.id);
                                   // Auto-set the type filter when selecting a code
@@ -430,10 +440,10 @@ export default function BillCostDistribution({
                                     dist.cost_code_id === code.id ? "opacity-100" : "opacity-0"
                                   )}
                                 />
-                                <div className="flex items-center gap-2">
-                                  <span>{code.code} - {code.description}</span>
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="flex-1">{code.code} - {code.description}</span>
                                   {code.type && (
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge variant="secondary" className="text-xs capitalize ml-auto">
                                       {code.type}
                                     </Badge>
                                   )}
