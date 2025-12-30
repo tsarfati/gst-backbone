@@ -199,16 +199,23 @@ export default function BillDetails() {
           }
           
           // Load cost distributions
+          // NOTE: invoice_cost_distributions does not have a direct jobs relationship;
+          // we derive the job via cost_codes.job_id.
           const { data: distData } = await supabase
             .from('invoice_cost_distributions')
             .select(`
               id,
-              job_id,
               cost_code_id,
               amount,
               percentage,
-              jobs (id, name),
-              cost_codes (id, code, description, type)
+              cost_codes (
+                id,
+                code,
+                description,
+                type,
+                job_id,
+                jobs (id, name)
+              )
             `)
             .eq('invoice_id', data.id);
           
@@ -824,8 +831,8 @@ export default function BillDetails() {
                   <div key={dist.id || index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        {dist.jobs?.name && (
-                          <Badge variant="outline">{dist.jobs.name}</Badge>
+                        {(dist.jobs?.name || dist.cost_codes?.jobs?.name) && (
+                          <Badge variant="outline">{dist.jobs?.name || dist.cost_codes?.jobs?.name}</Badge>
                         )}
                         {dist.cost_codes && (
                           <span className="text-sm font-medium">

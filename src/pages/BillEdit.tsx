@@ -236,7 +236,19 @@ export default function BillEdit() {
         .select('*')
         .eq('invoice_id', id);
       if (existingDist && existingDist.length > 0) {
-        setBillDistribution(existingDist);
+        // invoice_cost_distributions only stores cost_code_id; derive job_id from the cost code
+        const normalized = existingDist.map((d: any) => {
+          const costCode = allCostCodesData.data?.find(cc => cc.id === d.cost_code_id);
+          return {
+            id: d.id,
+            job_id: costCode?.job_id || '',
+            cost_code_id: d.cost_code_id || '',
+            amount: Number(d.amount) || 0,
+            percentage: Number(d.percentage) || 0,
+          };
+        });
+
+        setBillDistribution(normalized);
         setShowMultiDistribution(true);
       }
 
