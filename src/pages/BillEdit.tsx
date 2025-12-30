@@ -628,29 +628,34 @@ export default function BillEdit() {
       
       // Save distribution if this is a multi-distribution bill (commitment or non-commitment)
       if ((commitmentDistribution.length > 1 || billDistribution.length > 1) && billDistribution.length > 0) {
+        // Filter out any distributions without a cost_code_id (required field)
+        const validDistributions = billDistribution.filter(dist => dist.cost_code_id);
+        
+        if (validDistributions.length === 0) {
+          toast({
+            title: "Validation Error",
+            description: "Each distribution line must have a cost code selected",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+        
         // Delete existing distributions
         await supabase
           .from('invoice_cost_distributions')
           .delete()
           .eq('invoice_id', id);
         
-        // Calculate proportional retainage for each distribution item
-        const retainagePercentage = formData.retainage_percentage || 0;
-        
-        // Insert new distributions with proportional retainage
-        const distributionRecords = billDistribution.map(dist => {
+        // Insert new distributions - only use columns that exist in the table
+        const distributionRecords = validDistributions.map(dist => {
           const lineAmount = parseFloat(dist.amount) || 0;
-          // Calculate retainage for this line item proportionally
-          const lineRetainageAmount = retainagePercentage > 0 ? lineAmount * (retainagePercentage / 100) : 0;
           
           return {
             invoice_id: id,
-            job_id: dist.job_id || null,
-            cost_code_id: dist.cost_code_id || null,
+            cost_code_id: dist.cost_code_id,
             amount: lineAmount,
-            percentage: dist.percentage || 0,
-            retainage_amount: lineRetainageAmount,
-            retainage_percentage: retainagePercentage
+            percentage: dist.percentage || 0
           };
         });
         
