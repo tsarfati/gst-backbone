@@ -1020,6 +1020,64 @@ export default function BillEdit() {
                 />
               </div>
             )}
+
+            {/* Retainage Section - Show for commitment bills or if retainage was already set */}
+            {(subcontractInfo || formData.retainage_percentage > 0 || formData.retainage_amount > 0) && (
+              <div className="pt-4 border-t space-y-4">
+                <h4 className="font-medium">Retainage</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="retainage_percentage">Retainage %</Label>
+                    <Input
+                      id="retainage_percentage"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={formData.retainage_percentage || ''}
+                      onChange={(e) => {
+                        const percentage = parseFloat(e.target.value) || 0;
+                        const billAmount = parseFloat(formData.amount) || 0;
+                        const retainageAmount = billAmount * (percentage / 100);
+                        setFormData(prev => ({
+                          ...prev,
+                          retainage_percentage: percentage,
+                          retainage_amount: Math.round(retainageAmount * 100) / 100
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="retainage_amount">Retainage Amount</Label>
+                    <Input
+                      id="retainage_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.retainage_amount || ''}
+                      onChange={(e) => {
+                        const amount = parseFloat(e.target.value) || 0;
+                        const billAmount = parseFloat(formData.amount) || 0;
+                        const percentage = billAmount > 0 ? (amount / billAmount) * 100 : 0;
+                        setFormData(prev => ({
+                          ...prev,
+                          retainage_amount: amount,
+                          retainage_percentage: Math.round(percentage * 100) / 100
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Net Payable</Label>
+                    <div className="h-10 flex items-center px-3 bg-muted rounded-md">
+                      <span className="font-medium text-green-600">
+                        ${((parseFloat(formData.amount) || 0) - (formData.retainage_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

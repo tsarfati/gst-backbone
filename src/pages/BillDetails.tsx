@@ -588,6 +588,23 @@ export default function BillDetails() {
                   <p className="text-sm text-muted-foreground">Bill Amount</p>
                   <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
                 </div>
+                {/* Retainage Section - show for commitment bills with retainage */}
+                {(bill?.retainage_percentage > 0 || bill?.retainage_amount > 0) && (
+                  <>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Retainage ({bill?.retainage_percentage}%)</p>
+                      <p className="font-medium text-xl text-orange-600">
+                        -${Number(bill?.retainage_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Net Payable</p>
+                      <p className="font-medium text-2xl text-green-600">
+                        ${(Number(bill?.amount || 0) - Number(bill?.retainage_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </>
+                )}
                 {totalPaid > 0 && (
                   <>
                     <div>
