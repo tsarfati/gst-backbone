@@ -695,6 +695,45 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'dashboard.budget_tracking': true,
       'dashboard.project_progress': true,
     }
+  },
+  {
+    role: 'vendor',
+    label: 'Vendor',
+    color: 'secondary',
+    permissions: {
+      // Jobs - View only jobs they're assigned to
+      'jobs.view': true,
+      'jobs.view_details': true,
+      
+      // Bills - View and submit bills
+      'bills.view': true,
+      'bills.view_details': true,
+      'bills.view_amounts': true,
+      'bills.create': true,
+      'bills.upload_attachments': true,
+      'bills.add_notes': true,
+      'bills.communicate': true,
+      
+      // Purchase Orders - View only
+      'po.view': true,
+      'po.view_details': true,
+      
+      // Subcontracts - View only their subcontracts
+      'subcontracts.view': true,
+      'subcontracts.view_details': true,
+      'subcontracts.upload_docs': true,
+      
+      // Documents - Upload compliance documents
+      'vendors.view_compliance': true,
+      'vendors.manage_compliance': true,
+      'vendors.upload_insurance': true,
+      'vendors.upload_permits': true,
+      'vendors.upload_contracts': true,
+      
+      // Dashboard - Limited view
+      'dashboard.notifications': true,
+      'dashboard.messages': true,
+    }
   }
 ];
 

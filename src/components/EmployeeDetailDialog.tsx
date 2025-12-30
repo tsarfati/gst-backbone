@@ -38,7 +38,9 @@ const roleColors = {
   controller: 'secondary',
   project_manager: 'default',
   employee: 'outline',
-  view_only: 'outline'
+  view_only: 'outline',
+  company_admin: 'destructive',
+  vendor: 'secondary'
 } as const;
 
 const roleLabels = {
@@ -46,7 +48,9 @@ const roleLabels = {
   controller: 'Controller',
   project_manager: 'Project Manager',
   employee: 'Employee',
-  view_only: 'View Only'
+  view_only: 'View Only',
+  company_admin: 'Company Admin',
+  vendor: 'Vendor'
 } as const;
 
 export default function EmployeeDetailDialog({ open, onOpenChange, employee }: EmployeeDetailDialogProps) {

@@ -72,7 +72,10 @@ export default function UserDetails() {
     admin: 'bg-destructive',
     controller: 'bg-primary',
     project_manager: 'bg-accent',
-    employee: 'bg-muted'
+    employee: 'bg-muted',
+    view_only: 'bg-muted',
+    company_admin: 'bg-destructive',
+    vendor: 'bg-secondary'
   };
 
   const statusColors: Record<string, string> = {

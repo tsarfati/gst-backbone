@@ -42,7 +42,11 @@ export default function UserManagement() {
   const roleColors = {
     admin: 'bg-red-500',
     controller: 'bg-blue-500', 
-    employee: 'bg-gray-500'
+    project_manager: 'bg-green-500',
+    employee: 'bg-gray-500',
+    view_only: 'bg-gray-400',
+    company_admin: 'bg-red-500',
+    vendor: 'bg-purple-500'
   };
 
   useEffect(() => {
