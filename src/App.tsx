@@ -132,6 +132,7 @@ import VisitorLogin from "./pages/VisitorLogin";
 import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
+import VendorDashboard from "./pages/VendorDashboard";
 
 const queryClient = new QueryClient();
 
@@ -200,7 +201,7 @@ function AuthenticatedRoutes() {
               <Route path="/" element={
                 <ProtectedRoute>
                   <AccessControl>
-                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin']}>
+                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin', 'vendor']}>
                       <Layout />
                     </RoleGuard>
                   </AccessControl>
@@ -208,6 +209,16 @@ function AuthenticatedRoutes() {
               }>
                 <Route index element={<Dashboard />} />
                 <Route path="dashboard" element={<Navigate to="/" replace />} />
+                <Route path="vendor/dashboard" element={
+                  <RoleGuard allowedRoles={['vendor']}>
+                    <VendorDashboard />
+                  </RoleGuard>
+                } />
+                <Route path="vendor/compliance" element={
+                  <RoleGuard allowedRoles={['vendor', 'admin', 'controller']}>
+                    <VendorDashboard />
+                  </RoleGuard>
+                } />
                 <Route path="upload" element={<UploadReceipts />} />
                 <Route path="uncoded" element={<UncodedReceipts />} />
                 <Route path="receipts" element={<CodedReceipts />} />
