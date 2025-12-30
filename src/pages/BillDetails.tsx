@@ -102,9 +102,25 @@ export default function BillDetails() {
 
   useEffect(() => {
     if (id) {
-      fetchBillDetails();
+      // Check if bill is pending_coding and redirect to edit page
+      const checkAndRedirect = async () => {
+        const { data } = await supabase
+          .from('invoices')
+          .select('status')
+          .eq('id', id)
+          .maybeSingle();
+        
+        if (data?.status === 'pending_coding') {
+          navigate(`/invoices/${id}/edit`, { replace: true });
+          return;
+        }
+        
+        fetchBillDetails();
+      };
+      
+      checkAndRedirect();
     }
-  }, [id]);
+  }, [id, navigate]);
 
   const fetchBillDetails = async () => {
     try {
