@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   Edit,
   MapPin,
-  Menu,
   Clock,
   Building2,
   Store
@@ -23,7 +22,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
-import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 
@@ -345,18 +343,6 @@ export default function UserDetails() {
         </CardContent>
       </Card>
 
-      {/* Menu Access */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Menu className="h-5 w-5" />
-            Menu Access Permissions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <UserMenuPermissions userId={userId!} userRole={user.role} />
-        </CardContent>
-      </Card>
 
       {/* Login Audit Trail */}
       <Card>

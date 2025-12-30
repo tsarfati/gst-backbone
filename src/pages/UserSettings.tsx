@@ -11,13 +11,12 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, UserCheck, UserPlus, Shield } from 'lucide-react';
-import RoleDefinitions from "@/components/RoleDefinitions";
-import UserMenuPermissions from "@/components/UserMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
 import UserRoleManagement from "@/components/UserRoleManagement";
+import RolePermissionsManager from "@/components/RolePermissionsManager";
 
 interface UserProfile {
   id: string;
@@ -58,7 +57,6 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
-  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<string | null>(null);
   const [selectedUserForJobAccess, setSelectedUserForJobAccess] = useState<string | null>(null);
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
@@ -256,12 +254,6 @@ export default function UserSettings() {
             Role Definitions
           </TabsTrigger>
           <TabsTrigger 
-            value="menu-access" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            Menu Access
-          </TabsTrigger>
-          <TabsTrigger 
             value="job-access" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
           >
@@ -330,42 +322,9 @@ export default function UserSettings() {
         </TabsContent>
 
         <TabsContent value="roles">
-          <RoleDefinitions />
+          <RolePermissionsManager />
         </TabsContent>
 
-        <TabsContent value="menu-access">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Select User</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select
-                  value={selectedUserForPermissions || ''}
-                  onValueChange={setSelectedUserForPermissions}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a user to manage menu access" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.display_name || `${user.first_name} ${user.last_name}`} - {roleLabels[user.role as keyof typeof roleLabels]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-            
-            {selectedUserForPermissions && (
-              <UserMenuPermissions 
-                userId={selectedUserForPermissions}
-                userRole={users.find(u => u.user_id === selectedUserForPermissions)?.role || 'employee'}
-              />
-            )}
-          </div>
-        </TabsContent>
 
         <TabsContent value="job-access">
           <div className="space-y-6">
