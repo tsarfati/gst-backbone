@@ -17,7 +17,8 @@ import {
   MapPin,
   Menu,
   Clock,
-  Building2
+  Building2,
+  Store
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +42,12 @@ interface UserProfile {
   approved_at?: string;
   department?: string;
   notes?: string;
+  vendor_id?: string;
+}
+
+interface Vendor {
+  id: string;
+  name: string;
 }
 
 interface Job {
@@ -64,6 +71,7 @@ export default function UserDetails() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
+  const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
@@ -103,6 +111,20 @@ export default function UserDetails() {
 
       if (profileData) {
         setUser(profileData);
+        
+        // Fetch associated vendor if user is a vendor
+        if (profileData.vendor_id) {
+          const { data: vendorData } = await supabase
+            .from('vendors')
+            .select('id, name')
+            .eq('id', profileData.vendor_id)
+            .single();
+          
+          if (vendorData) {
+            setAssociatedVendor(vendorData);
+          }
+        }
+        
         setLoading(false);
         return;
       }
@@ -267,6 +289,12 @@ export default function UserDetails() {
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-4 w-4" />
                     <span>{user.department}</span>
+                  </div>
+                )}
+                {associatedVendor && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Store className="h-4 w-4" />
+                    <span>Associated Vendor: {associatedVendor.name}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-muted-foreground">

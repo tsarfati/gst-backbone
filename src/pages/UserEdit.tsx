@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code, Key } from 'lucide-react';
+import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code, Key, Store } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +32,12 @@ interface UserProfile {
   created_at: string;
   approved_at?: string;
   approved_by?: string;
+  vendor_id?: string;
+}
+
+interface Vendor {
+  id: string;
+  name: string;
 }
 
 const roleColors = {
@@ -73,6 +79,8 @@ export default function UserEdit() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [costCodeSearch, setCostCodeSearch] = useState('');
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
 
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
@@ -86,6 +94,7 @@ export default function UserEdit() {
       fetchUserJobAccess();
       fetchLoginHistory();
       fetchTimecardSettings();
+      fetchVendors();
     }
   }, [userId, currentCompany]);
 
@@ -127,6 +136,10 @@ export default function UserEdit() {
         ...profileData.data,
         role: companyRole
       });
+      // Set the vendor_id if user is a vendor
+      if (profileData.data.vendor_id) {
+        setSelectedVendorId(profileData.data.vendor_id);
+      }
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({
@@ -137,6 +150,24 @@ export default function UserEdit() {
       navigate('/settings/users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVendors = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
     }
   };
 
@@ -271,7 +302,8 @@ export default function UserEdit() {
           display_name: user.display_name,
           role: user.role,
           has_global_job_access: user.has_global_job_access,
-          status: user.status
+          status: user.status,
+          vendor_id: user.role === 'vendor' ? selectedVendorId : null
         })
         .eq('user_id', user.user_id);
 
@@ -582,6 +614,7 @@ export default function UserEdit() {
                       <SelectItem value="employee">Employee</SelectItem>
                       <SelectItem value="view_only">View Only</SelectItem>
                       <SelectItem value="company_admin">Company Admin</SelectItem>
+                      <SelectItem value="vendor">Vendor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -602,6 +635,30 @@ export default function UserEdit() {
                   </Select>
                 </div>
               </div>
+
+              {user.role === 'vendor' && (
+                <div className="space-y-2">
+                  <Label htmlFor="vendor_id">Associated Vendor</Label>
+                  <Select 
+                    value={selectedVendorId || ''} 
+                    onValueChange={(value) => setSelectedVendorId(value || null)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a vendor to associate..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendors.map((vendor) => (
+                        <SelectItem key={vendor.id} value={vendor.id}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    This vendor user will only see bills, subcontracts, jobs, and payments associated with the selected vendor.
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center space-x-2">
                 <Checkbox
