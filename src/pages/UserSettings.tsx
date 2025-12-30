@@ -25,7 +25,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
+  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   created_at: string;
   pin_code?: string;
   jobs?: { id: string; name: string; }[];
@@ -39,7 +39,8 @@ const roleColors = {
   project_manager: 'default',
   employee: 'outline',
   view_only: 'outline',
-  company_admin: 'destructive'
+  company_admin: 'destructive',
+  vendor: 'secondary'
 } as const;
 
 const roleLabels = {
@@ -48,7 +49,8 @@ const roleLabels = {
   project_manager: 'Project Manager',
   employee: 'Employee',
   view_only: 'View Only',
-  company_admin: 'Company Admin'
+  company_admin: 'Company Admin',
+  vendor: 'Vendor'
 };
 
 export default function UserSettings() {
@@ -164,7 +166,7 @@ export default function UserSettings() {
     }
   };
 
-  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin') => {
+  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor') => {
     try {
       // Update the role in user_company_access for this specific company
       const { error } = await supabase

@@ -72,7 +72,9 @@ const ROLE_LABELS = {
   controller: 'Controller',
   project_manager: 'Project Manager',
   employee: 'Employee',
-  view_only: 'View Only'
+  view_only: 'View Only',
+  company_admin: 'Company Admin',
+  vendor: 'Vendor'
 };
 
 export default function RoleDefaultPageSettings() {
@@ -126,7 +128,7 @@ export default function RoleDefaultPageSettings() {
       setSaving(true);
 
       const updates = rolePages.map(rolePage => ({
-        role: rolePage.role as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only',
+        role: rolePage.role as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor',
         default_page: rolePage.default_page,
         created_by: profile?.user_id || ''
       }));

@@ -36,7 +36,9 @@ const roleColors = {
   controller: 'secondary',
   project_manager: 'default',
   employee: 'outline',
-  view_only: 'outline'
+  view_only: 'outline',
+  company_admin: 'destructive',
+  vendor: 'secondary'
 } as const;
 
 export default function EmployeeViews({ employees, currentView, canManageEmployees, loading, onEmployeeClick }: EmployeeViewsProps) {

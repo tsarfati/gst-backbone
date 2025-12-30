@@ -24,7 +24,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin';
+  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   status: string;
   avatar_url?: string;
   has_global_job_access: boolean;
@@ -40,7 +40,8 @@ const roleColors = {
   project_manager: 'default',
   employee: 'outline',
   view_only: 'outline',
-  company_admin: 'destructive'
+  company_admin: 'destructive',
+  vendor: 'secondary'
 } as const;
 
 const roleLabels = {
@@ -49,7 +50,8 @@ const roleLabels = {
   project_manager: 'Project Manager',
   employee: 'Employee',
   view_only: 'View Only',
-  company_admin: 'Company Admin'
+  company_admin: 'Company Admin',
+  vendor: 'Vendor'
 };
 
 export default function UserEdit() {
