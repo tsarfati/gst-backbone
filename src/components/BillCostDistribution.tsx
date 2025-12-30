@@ -37,6 +37,8 @@ interface CostCode {
   code: string;
   description: string;
   type: string;
+  is_dynamic_group: boolean | null;
+  parent_cost_code_id: string | null;
 }
 
 interface ExpenseAccount {
@@ -62,6 +64,7 @@ export default function BillCostDistribution({
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
   const [loading, setLoading] = useState(true);
   const [openPopover, setOpenPopover] = useState<Record<string, boolean>>({});
+  const [selectedCostType, setSelectedCostType] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
@@ -108,17 +111,34 @@ export default function BillCostDistribution({
   const loadCostCodesForJob = async (jobId: string) => {
     if (!jobId || costCodesByJob[jobId]) return;
 
+    // Load all active cost codes for the job (excluding dynamic groups, but including their children)
     const { data } = await supabase
       .from('cost_codes')
-      .select('id, code, description, type')
+      .select('id, code, description, type, is_dynamic_group, parent_cost_code_id')
       .eq('job_id', jobId)
       .eq('is_active', true)
-      .eq('is_dynamic_group', false)
       .order('code');
 
     if (data) {
-      setCostCodesByJob(prev => ({ ...prev, [jobId]: data }));
+      // Filter out dynamic groups - only show individual cost codes (non-groups)
+      const filteredCodes = data.filter(code => !code.is_dynamic_group);
+      setCostCodesByJob(prev => ({ ...prev, [jobId]: filteredCodes }));
     }
+  };
+
+  // Get unique cost code types for filtering
+  const getCostCodeTypes = (jobId: string): string[] => {
+    const codes = costCodesByJob[jobId] || [];
+    const types = [...new Set(codes.map(c => c.type).filter(Boolean))];
+    return types as string[];
+  };
+
+  // Filter cost codes by selected type
+  const getFilteredCostCodes = (jobId: string, distId: string): CostCode[] => {
+    const codes = costCodesByJob[jobId] || [];
+    const selectedType = selectedCostType[distId];
+    if (!selectedType) return codes;
+    return codes.filter(c => c.type === selectedType);
   };
 
   const addDistribution = () => {
@@ -327,66 +347,105 @@ export default function BillCostDistribution({
 
               {/* Cost Code Selector - only show if a job is selected (not expense account) */}
               {dist.job_id && jobs.find(j => j.id === dist.job_id) && (
-                <div className="space-y-2">
-                  <Label>Cost Code</Label>
-                  <Popover 
-                    open={openPopover[`cc-${dist.id}`]} 
-                    onOpenChange={(open) => setOpenPopover(prev => ({ ...prev, [`cc-${dist.id}`]: open }))}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-between"
+                <>
+                  {/* Cost Code Type Filter */}
+                  {getCostCodeTypes(dist.job_id).length > 1 && (
+                    <div className="space-y-2">
+                      <Label>Cost Code Category</Label>
+                      <Select
+                        value={selectedCostType[dist.id] || "all"}
+                        onValueChange={(value) => {
+                          setSelectedCostType(prev => ({ ...prev, [dist.id]: value === "all" ? "" : value }));
+                          // Clear cost code if type changes
+                          if (dist.cost_code_id) {
+                            const currentCode = (costCodesByJob[dist.job_id] || []).find(c => c.id === dist.cost_code_id);
+                            if (currentCode && value !== "all" && currentCode.type !== value) {
+                              updateDistribution(dist.id, 'cost_code_id', '');
+                            }
+                          }
+                        }}
                         disabled={disabled}
                       >
-                        {dist.cost_code_id ? (
-                          (() => {
-                            const codes = costCodesByJob[dist.job_id] || [];
-                            const code = codes.find(c => c.id === dist.cost_code_id);
-                            return code ? `${code.code} - ${code.description}` : 'Select...';
-                          })()
-                        ) : (
-                          "Select cost code..."
-                        )}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search cost codes..." />
-                        <CommandEmpty>No cost codes found.</CommandEmpty>
-                        <CommandList>
-                          {(costCodesByJob[dist.job_id] || []).map(code => (
-                            <CommandItem
-                              key={code.id}
-                              value={`${code.code} ${code.description}`}
-                              onSelect={() => {
-                                updateDistribution(dist.id, 'cost_code_id', code.id);
-                                setOpenPopover(prev => ({ ...prev, [`cc-${dist.id}`]: false }));
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  dist.cost_code_id === code.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <div className="flex items-center gap-2">
-                                <span>{code.code} - {code.description}</span>
-                                {code.type && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {code.type}
-                                  </Badge>
-                                )}
-                              </div>
-                            </CommandItem>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {getCostCodeTypes(dist.job_id).map(type => (
+                            <SelectItem key={type} value={type}>
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </SelectItem>
                           ))}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Cost Code</Label>
+                    <Popover 
+                      open={openPopover[`cc-${dist.id}`]} 
+                      onOpenChange={(open) => setOpenPopover(prev => ({ ...prev, [`cc-${dist.id}`]: open }))}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between"
+                          disabled={disabled}
+                        >
+                          {dist.cost_code_id ? (
+                            (() => {
+                              const codes = costCodesByJob[dist.job_id] || [];
+                              const code = codes.find(c => c.id === dist.cost_code_id);
+                              return code ? `${code.code} - ${code.description}` : 'Select...';
+                            })()
+                          ) : (
+                            "Select cost code..."
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search cost codes..." />
+                          <CommandEmpty>No cost codes found.</CommandEmpty>
+                          <CommandList>
+                            {getFilteredCostCodes(dist.job_id, dist.id).map(code => (
+                              <CommandItem
+                                key={code.id}
+                                value={`${code.code} ${code.description}`}
+                                onSelect={() => {
+                                  updateDistribution(dist.id, 'cost_code_id', code.id);
+                                  // Auto-set the type filter when selecting a code
+                                  if (code.type) {
+                                    setSelectedCostType(prev => ({ ...prev, [dist.id]: code.type }));
+                                  }
+                                  setOpenPopover(prev => ({ ...prev, [`cc-${dist.id}`]: false }));
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    dist.cost_code_id === code.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex items-center gap-2">
+                                  <span>{code.code} - {code.description}</span>
+                                  {code.type && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {code.type}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
               )}
             </div>
 
