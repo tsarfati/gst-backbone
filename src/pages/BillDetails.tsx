@@ -795,6 +795,18 @@ export default function BillDetails() {
                     ))}
                   </div>
       </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="lg:col-span-3">
+          <BillCommunications 
+            billId={bill?.id || ''}
+            vendorId={bill?.vendor_id || ''}
+          />
+        </div>
+      </div>
 
       {/* Cost Distribution Section */}
       {!bill?.subcontract_id && !bill?.purchase_order_id && (
@@ -852,18 +864,6 @@ export default function BillDetails() {
           </CardContent>
         </Card>
       )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="lg:col-span-3">
-          <BillCommunications 
-            billId={bill?.id || ''}
-            vendorId={bill?.vendor_id || ''}
-          />
-        </div>
-      </div>
 
       {/* Receipt Suggestions */}
       {!bill?.file_url && (
