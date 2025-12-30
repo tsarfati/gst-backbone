@@ -34,6 +34,14 @@ export function useRoleBasedRouting() {
           return;
         }
 
+        // For vendors, redirect to vendor dashboard
+        if (profile.role === 'vendor') {
+          if (location.pathname === '/auth' || location.pathname === '/') {
+            navigate('/vendor/dashboard', { replace: true });
+          }
+          return;
+        }
+
         // Only redirect if we're on one of the initial/generic pages
         const initialPaths = ['/', '/auth'];
         
