@@ -44,6 +44,15 @@ interface InvoiceData {
   due_date?: string;
 }
 
+interface PaymentData {
+  payment_number: string;
+  payment_date: string;
+  amount: number;
+  payment_method: string;
+  check_number?: string;
+  memo?: string;
+}
+
 interface CompanyData {
   name: string;
   logo_url?: string;
@@ -58,6 +67,7 @@ interface JobData {
 export const generateCommitmentStatusReport = async (
   subcontract: SubcontractData,
   invoices: InvoiceData[],
+  payments: PaymentData[],
   company: CompanyData,
   job: JobData
 ) => {
@@ -197,6 +207,41 @@ export const generateCommitmentStatusReport = async (
       startY: yPosition,
       head: [['Invoice #', 'Date', 'Amount', 'Status', 'Due Date']],
       body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [100, 100, 100] },
+      styles: { fontSize: 9 },
+      margin: { left: margin, right: margin },
+    });
+
+    yPosition = (pdf as any).lastAutoTable.finalY + 15;
+  }
+
+  // Payments Table
+  if (payments.length > 0) {
+    // Check if we need a new page
+    if (yPosition > pdf.internal.pageSize.height - 80) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Payments', margin, yPosition);
+    yPosition += 10;
+
+    const paymentTableData = payments.map(pmt => [
+      pmt.payment_number || 'N/A',
+      format(new Date(pmt.payment_date), 'MM/dd/yyyy'),
+      `$${formatNumber(pmt.amount)}`,
+      pmt.payment_method || 'N/A',
+      pmt.check_number || '-',
+      pmt.memo || '-',
+    ]);
+
+    autoTable(pdf, {
+      startY: yPosition,
+      head: [['Payment #', 'Date', 'Amount', 'Method', 'Check #', 'Memo']],
+      body: paymentTableData,
       theme: 'grid',
       headStyles: { fillColor: [100, 100, 100] },
       styles: { fontSize: 9 },
