@@ -44,6 +44,7 @@ interface PhotoAlbum {
   description?: string;
   is_auto_employee_album: boolean;
   created_at: string;
+  cover_photo_url?: string;
 }
 
 interface PhotoComment {
@@ -133,6 +134,14 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     }
   }, [selectedPhoto]);
 
+  // Reload photos when selectedAlbumId changes
+  useEffect(() => {
+    if (selectedAlbumId) {
+      setLoading(true);
+      loadPhotos();
+    }
+  }, [selectedAlbumId]);
+
   const loadPhotos = async () => {
     try {
       let query = supabase
@@ -174,7 +183,26 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setAlbums(data || []);
+      
+      // Fetch cover photo for each album (latest photo)
+      const albumsWithCovers = await Promise.all(
+        (data || []).map(async (album) => {
+          const { data: latestPhoto } = await supabase
+            .from('job_photos')
+            .select('photo_url')
+            .eq('album_id', album.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          return {
+            ...album,
+            cover_photo_url: latestPhoto?.photo_url || null
+          };
+        })
+      );
+      
+      setAlbums(albumsWithCovers);
 
       // Ensure the auto employee album exists once per mount
       if (!ensuredEmployeeAlbumRef.current && user?.id) {
@@ -187,13 +215,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           if (!rpcError) {
             ensuredEmployeeAlbumRef.current = true;
             // Reload albums to include the newly created one
-            const { data: refreshed } = await supabase
-              .from('photo_albums')
-              .select('*')
-              .eq('job_id', jobId)
-              .order('is_auto_employee_album', { ascending: false })
-              .order('created_at', { ascending: true });
-            setAlbums(refreshed || []);
+            loadAlbums();
             toast({ title: 'Employee album ready', description: 'Created Employee Uploads album for this job.' });
           } else {
             console.error('Error creating employee album:', rpcError);
@@ -658,9 +680,17 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                 setLoading(true);
               }}
             >
-              <CardContent className="p-4 flex flex-col items-center text-center">
-                <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors">
-                  <FolderPlus className="h-8 w-8 text-primary" />
+              <CardContent className="p-3 flex flex-col items-center text-center">
+                <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden group-hover:ring-2 ring-primary transition-all">
+                  {album.cover_photo_url ? (
+                    <img 
+                      src={album.cover_photo_url} 
+                      alt={album.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <FolderPlus className="h-8 w-8 text-muted-foreground" />
+                  )}
                 </div>
                 <p className="text-sm font-medium line-clamp-2">{album.name}</p>
                 {album.is_auto_employee_album && (
