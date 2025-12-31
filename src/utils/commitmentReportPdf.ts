@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { formatNumber } from './formatNumber';
 import { format } from 'date-fns';
 
@@ -193,7 +193,7 @@ export const generateCommitmentStatusReport = async (
       inv.due_date ? format(new Date(inv.due_date), 'MM/dd/yyyy') : 'N/A',
     ]);
 
-    (pdf as any).autoTable({
+    autoTable(pdf, {
       startY: yPosition,
       head: [['Invoice #', 'Date', 'Amount', 'Status', 'Due Date']],
       body: tableData,
