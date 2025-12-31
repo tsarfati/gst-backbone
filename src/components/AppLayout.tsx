@@ -49,6 +49,18 @@ const navigationCategories = [
     collapsible: true,
   },
   {
+    title: "Receivables",
+    icon: HandCoins,
+    items: [
+      { name: "Dashboard", href: "/receivables", menuKey: "receivables" },
+      { name: "Customers", href: "/receivables/customers", menuKey: "receivables" },
+      { name: "Invoices", href: "/receivables/invoices", menuKey: "receivables" },
+      { name: "Payments", href: "/receivables/payments", menuKey: "receivables" },
+      { name: "Reports", href: "/receivables/reports", menuKey: "reports" },
+    ],
+    collapsible: true,
+  },
+  {
     title: "Payables",
     icon: CreditCard,
     items: [
@@ -102,18 +114,6 @@ const navigationCategories = [
       { name: "All Tasks", href: "/tasks", menuKey: "jobs" },
       { name: "Project Tasks", href: "/tasks/projects", menuKey: "jobs" },
       { name: "Deadlines", href: "/tasks/deadlines", menuKey: "jobs" },
-    ],
-    collapsible: true,
-  },
-  {
-    title: "Receivables",
-    icon: HandCoins,
-    items: [
-      { name: "Dashboard", href: "/receivables", menuKey: "receivables" },
-      { name: "Customers", href: "/receivables/customers", menuKey: "receivables" },
-      { name: "Invoices", href: "/receivables/invoices", menuKey: "receivables" },
-      { name: "Payments", href: "/receivables/payments", menuKey: "receivables" },
-      { name: "Reports", href: "/receivables/reports", menuKey: "reports" },
     ],
     collapsible: true,
   },
