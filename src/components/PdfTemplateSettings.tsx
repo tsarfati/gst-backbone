@@ -32,6 +32,7 @@ interface TemplateSettings {
   table_border_color?: string;
   table_stripe_color?: string;
   auto_size_columns?: boolean;
+  use_company_logo?: boolean;
   header_images?: Array<{
     url: string;
     x: number;
@@ -1071,6 +1072,43 @@ export default function PdfTemplateSettings() {
                 </CardContent>
               </Card>
 
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-reconciliation">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-reconciliation"
+                      checked={reconciliationTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setReconciliationTemplate({ ...reconciliationTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Edit Mode Toggle */}
               <Card>
                 <CardHeader>
@@ -1422,6 +1460,43 @@ export default function PdfTemplateSettings() {
                 </CardContent>
               </Card>
 
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-gl">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-gl"
+                      checked={generalLedgerTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setGeneralLedgerTemplate({ ...generalLedgerTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Save Button */}
               <div className="flex justify-end">
                 <Button
@@ -1620,6 +1695,43 @@ export default function PdfTemplateSettings() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-cc">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-cc"
+                      checked={creditCardTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setCreditCardTemplate({ ...creditCardTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="commitment" className="space-y-6">
@@ -1677,6 +1789,43 @@ export default function PdfTemplateSettings() {
                       ))}
                     </SelectContent>
                   </Select>
+                </CardContent>
+              </Card>
+
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-commitment">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-commitment"
+                      checked={commitmentTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setCommitmentTemplate({ ...commitmentTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1809,6 +1958,43 @@ export default function PdfTemplateSettings() {
                 onTemplateUpdate={() => loadTemplate('invoice')}
               />
 
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-invoice">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-invoice"
+                      checked={invoiceTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setInvoiceTemplate({ ...invoiceTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
@@ -1876,6 +2062,43 @@ export default function PdfTemplateSettings() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-receipt">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-receipt"
+                      checked={receiptTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setReceiptTemplate({ ...receiptTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="timecard" className="space-y-6">
@@ -1932,6 +2155,43 @@ export default function PdfTemplateSettings() {
                       ))}
                     </SelectContent>
                   </Select>
+                </CardContent>
+              </Card>
+
+              {/* Use Company Logo Toggle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4" />
+                    Company Logo in Header
+                  </CardTitle>
+                  <CardDescription>
+                    Use your company logo instead of text company name in the PDF header
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label htmlFor="use-logo-timecard">Use Company Logo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-logo-timecard"
+                      checked={timecardTemplate.use_company_logo || false}
+                      onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, use_company_logo: checked })}
+                      disabled={!currentCompany?.logo_url}
+                    />
+                  </div>
+                  {!currentCompany?.logo_url && (
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Upload a company logo in Company Settings to enable this feature.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
 
