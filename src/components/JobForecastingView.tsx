@@ -106,17 +106,88 @@ export default function JobForecastingView() {
       const dynamicBudgets = (budgets || []).filter((b: any) => b.is_dynamic);
       const hasDynamicBudgets = dynamicBudgets.length > 0;
 
-      // Helper to get actuals from journal entries
+      // Helper to get actuals from journal entries AND paid invoices
       const getActualAmount = async (costCodeId: string): Promise<number> => {
+        // Get from posted journal entry lines
         const { data: journalLines } = await supabase
           .from('journal_entry_lines')
-          .select('debit_amount')
+          .select('debit_amount, journal_entries!inner(status)')
+          .eq('job_id', id)
+          .eq('cost_code_id', costCodeId)
+          .eq('journal_entries.status', 'posted');
+
+        const journalTotal = (journalLines || []).reduce(
+          (sum, line) => sum + Number(line.debit_amount || 0), 0
+        );
+
+        // Get from paid invoices (these are actual costs)
+        const { data: paidInvoices } = await supabase
+          .from('invoices')
+          .select('amount')
+          .eq('job_id', id)
+          .eq('cost_code_id', costCodeId)
+          .eq('status', 'paid');
+
+        const invoiceTotal = (paidInvoices || []).reduce(
+          (sum, inv) => sum + Number(inv.amount || 0), 0
+        );
+
+        return journalTotal + invoiceTotal;
+      };
+
+      // Helper to get committed amounts from unpaid invoices, subcontracts, and POs
+      const getCommittedAmount = async (costCodeId: string): Promise<number> => {
+        let total = 0;
+
+        // Unpaid invoices (pending, approved, pending_payment, etc.) - not paid, not cancelled
+        const { data: unpaidInvoices } = await supabase
+          .from('invoices')
+          .select('amount, status')
+          .eq('job_id', id)
+          .eq('cost_code_id', costCodeId)
+          .not('status', 'in', '("paid","cancelled")');
+
+        total += (unpaidInvoices || []).reduce(
+          (sum, inv) => sum + Number(inv.amount || 0), 0
+        );
+
+        // Subcontracts - check cost_distribution
+        const { data: subcontracts } = await supabase
+          .from('subcontracts')
+          .select('contract_amount, cost_distribution')
+          .eq('job_id', id)
+          .not('status', 'eq', 'cancelled');
+
+        (subcontracts || []).forEach((sub: any) => {
+          const raw = sub.cost_distribution;
+          let parsed: any = raw;
+          if (typeof raw === 'string') {
+            try { parsed = JSON.parse(raw); } catch { parsed = null; }
+          }
+          const items = Array.isArray(parsed) ? parsed : 
+            (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) ? parsed.items : [];
+          
+          items.forEach((dist: any) => {
+            if (dist?.cost_code_id === costCodeId) {
+              total += Number(dist?.amount || 0);
+            }
+          });
+        });
+
+        // Purchase orders
+        const { data: purchaseOrders } = await (supabase as any)
+          .from('purchase_orders')
+          .select('amount, status')
           .eq('job_id', id)
           .eq('cost_code_id', costCodeId);
 
-        return (journalLines || []).reduce(
-          (sum, line) => sum + Number(line.debit_amount || 0), 0
-        );
+        (purchaseOrders || []).forEach((po: any) => {
+          if (po?.status !== 'cancelled') {
+            total += Number(po?.amount || 0);
+          }
+        });
+
+        return total;
       };
 
       let lines: BudgetForecastLine[] = [];
@@ -128,21 +199,21 @@ export default function JobForecastingView() {
             // Find all children of this dynamic budget
             const children = (budgets || []).filter((b: any) => b.parent_budget_id === parent.id);
             
-            // Aggregate child actuals and committed
+            // Aggregate child actuals and committed from live queries
             let totalActual = 0;
             let totalCommitted = 0;
             
             for (const child of children) {
               const childActual = await getActualAmount(child.cost_code_id);
-              totalActual += Math.max(childActual, Number(child.actual_amount || 0));
-              totalCommitted += Number(child.committed_amount || 0);
+              const childCommitted = await getCommittedAmount(child.cost_code_id);
+              totalActual += childActual;
+              totalCommitted += childCommitted;
             }
 
-            // If no children, use parent's own values
+            // If no children, use parent's own values from live queries
             if (children.length === 0) {
-              const parentActual = await getActualAmount(parent.cost_code_id);
-              totalActual = Math.max(parentActual, Number(parent.actual_amount || 0));
-              totalCommitted = Number(parent.committed_amount || 0);
+              totalActual = await getActualAmount(parent.cost_code_id);
+              totalCommitted = await getCommittedAmount(parent.cost_code_id);
             }
 
             const budgeted = Number(parent.budgeted_amount || 0);
@@ -173,10 +244,9 @@ export default function JobForecastingView() {
           (budgets || [])
             .filter((b: any) => b.cost_codes && !b.cost_codes.code?.endsWith('.0'))
             .map(async (b: any) => {
-              const actualFromJournal = await getActualAmount(b.cost_code_id);
-              const actual = Math.max(actualFromJournal, Number(b.actual_amount || 0));
+              const actual = await getActualAmount(b.cost_code_id);
+              const committed = await getCommittedAmount(b.cost_code_id);
               const budgeted = Number(b.budgeted_amount || 0);
-              const committed = Number(b.committed_amount || 0);
               const spent = actual + committed;
               
               const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
