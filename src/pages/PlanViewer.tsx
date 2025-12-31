@@ -74,7 +74,7 @@ export default function PlanViewer() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
