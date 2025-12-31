@@ -32,12 +32,15 @@ export default function JobEdit() {
   const [customers, setCustomers] = useState<{ id: string; name: string; display_name: string | null }[]>([]);
   const permissions = useActionPermissions();
 
+  // Only redirect if we have confirmed the user lacks permission
+  // Don't redirect while still loading - profile may not be ready yet
   useEffect(() => {
     if (!id) return;
-    if (!permissions.canEditJobs()) {
+    // Wait for profile to load before checking permissions
+    if (profile && !permissions.canEditJobs()) {
       navigate(`/jobs/${id}`, { replace: true });
     }
-  }, [id, permissions, navigate]);
+  }, [id, permissions, navigate, profile]);
 
   const [formData, setFormData] = useState({
     name: "",
