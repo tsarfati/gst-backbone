@@ -153,7 +153,13 @@ export async function processAIATemplate(
     const arrayBuffer = await response.arrayBuffer();
     console.log('Template file size:', arrayBuffer.byteLength, 'bytes');
     
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    // Read with cellStyles to preserve formatting
+    const workbook = XLSX.read(arrayBuffer, { 
+      type: 'array',
+      cellStyles: true,
+      cellNF: true,
+      cellDates: true,
+    });
     console.log('Workbook sheets:', workbook.SheetNames);
 
     // Create placeholder mappings
@@ -214,7 +220,7 @@ export async function processAIATemplate(
 
       const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
 
-      // First pass: Replace simple placeholders
+      // First pass: Replace simple placeholders while preserving cell formatting
       for (let row = range.s.r; row <= range.e.r; row++) {
         for (let col = range.s.c; col <= range.e.c; col++) {
           const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
@@ -225,14 +231,22 @@ export async function processAIATemplate(
             const newValue = replacePlaceholders(originalValue, placeholders);
             
             if (newValue !== originalValue) {
+              // Preserve the cell's style (s property) when updating value
+              const cellStyle = cell.s;
               cell.v = newValue;
-              cell.w = newValue;
+              cell.w = String(newValue);
+              if (cellStyle) {
+                cell.s = cellStyle;
+              }
               // If the result looks like a number, convert it
               if (typeof newValue === 'string' && /^\$?[\d,]+\.?\d*$/.test(newValue.replace(/[$,]/g, ''))) {
                 const numValue = parseFloat(newValue.replace(/[$,]/g, ''));
                 if (!isNaN(numValue)) {
                   cell.t = 'n';
                   cell.v = numValue;
+                  if (cellStyle) {
+                    cell.s = cellStyle;
+                  }
                 }
               }
             }
@@ -296,10 +310,12 @@ export async function processAIATemplate(
             if (templateCell) {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
               const newValue = replacePlaceholders(templateCell.v, itemPlaceholders);
+              // Copy cell including style
               sheet[cellAddress] = {
                 ...templateCell,
                 v: newValue,
                 w: String(newValue),
+                s: templateCell.s, // Preserve cell style
               };
             }
           }
@@ -312,8 +328,13 @@ export async function processAIATemplate(
       }
     }
 
-    // Generate the processed workbook as a blob
-    const outputBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    // Generate the processed workbook as a blob, preserving styles
+    const outputBuffer = XLSX.write(workbook, { 
+      bookType: 'xlsx', 
+      type: 'array',
+      cellStyles: true,
+      bookSST: true,
+    });
     return new Blob([outputBuffer], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
