@@ -119,17 +119,48 @@ export default function Jobs() {
 
       console.log('Filtered jobs:', filtered.length, 'for company:', companyId);
 
-      const mapped = filtered.map((j: any) => ({
-        id: j.id,
-        name: j.name,
-        client: j.client,
-        budget: j.budget_total ? `$${Number(j.budget_total).toLocaleString()}` : "$0",
-        spent: "$0",
-        receipts: 0,
-        startDate: j.start_date || "-",
-        status: j.status || "planning",
-        company_id: j.company_id, // Keep company_id for debugging
-      }));
+      // Fetch actual spent amounts and receipt counts for each job
+      const jobIds = filtered.map((j: any) => j.id);
+      
+      // Get actual amounts from job_budgets
+      const { data: budgetData } = await supabase
+        .from('job_budgets')
+        .select('job_id, actual_amount')
+        .in('job_id', jobIds.length > 0 ? jobIds : ['00000000-0000-0000-0000-000000000000']);
+      
+      // Get receipt counts
+      const { data: receiptData } = await supabase
+        .from('receipts')
+        .select('job_id')
+        .in('job_id', jobIds.length > 0 ? jobIds : ['00000000-0000-0000-0000-000000000000']);
+      
+      // Aggregate actual amounts per job
+      const spentByJob: Record<string, number> = {};
+      (budgetData || []).forEach((b: any) => {
+        spentByJob[b.job_id] = (spentByJob[b.job_id] || 0) + (Number(b.actual_amount) || 0);
+      });
+      
+      // Count receipts per job
+      const receiptsByJob: Record<string, number> = {};
+      (receiptData || []).forEach((r: any) => {
+        receiptsByJob[r.job_id] = (receiptsByJob[r.job_id] || 0) + 1;
+      });
+
+      const mapped = filtered.map((j: any) => {
+        const spent = spentByJob[j.id] || 0;
+        const budget = Number(j.budget_total) || 0;
+        return {
+          id: j.id,
+          name: j.name,
+          client: j.client,
+          budget: budget ? `$${budget.toLocaleString()}` : "$0",
+          spent: `$${spent.toLocaleString()}`,
+          receipts: receiptsByJob[j.id] || 0,
+          startDate: j.start_date || "-",
+          status: j.status || "planning",
+          company_id: j.company_id, // Keep company_id for debugging
+        };
+      });
       
       console.log('Final mapped jobs:', mapped);
       setJobs(mapped);
