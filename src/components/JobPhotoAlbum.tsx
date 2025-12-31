@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -87,6 +87,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const [showAddToAlbumDialog, setShowAddToAlbumDialog] = useState(false);
   const [targetAlbumId, setTargetAlbumId] = useState<string>('');
   const [createNewAlbumFromSelection, setCreateNewAlbumFromSelection] = useState(false);
+  const [showEditAlbumDialog, setShowEditAlbumDialog] = useState(false);
+  const [editAlbumName, setEditAlbumName] = useState('');
+  const [editAlbumDescription, setEditAlbumDescription] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -407,6 +410,37 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     }
   };
 
+  const handleUpdateAlbum = async () => {
+    if (!user || !selectedAlbumId || !editAlbumName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('photo_albums')
+        .update({
+          name: editAlbumName.trim(),
+          description: editAlbumDescription.trim() || null,
+        })
+        .eq('id', selectedAlbumId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Album updated successfully',
+      });
+
+      setShowEditAlbumDialog(false);
+      loadAlbums();
+    } catch (error) {
+      console.error('Error updating album:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update album',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleAddComment = async () => {
     if (!user || !selectedPhoto || !newComment.trim()) return;
 
@@ -608,41 +642,63 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Job Photo Album</h2>
+        {selectedAlbumId ? (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => {
+              setSelectedAlbumId('');
+              setSelectionMode(false);
+              setSelectedPhotos(new Set());
+            }}>
+              <X className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <h2 className="text-2xl font-bold">
+              {albums.find(a => a.id === selectedAlbumId)?.name || 'Album'}
+            </h2>
+          </div>
+        ) : (
+          <h2 className="text-2xl font-bold">Job Photo Album</h2>
+        )}
         <div className="flex gap-2">
-          {!selectionMode ? (
-            <>
-              <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
-                <FolderPlus className="h-4 w-4 mr-2" />
-                Create Album
+          {selectedAlbumId ? (
+            // Inside an album - show Edit Album button and selection controls
+            !selectionMode ? (
+              <Button variant="outline" onClick={() => {
+                const album = albums.find(a => a.id === selectedAlbumId);
+                if (album) {
+                  setEditAlbumName(album.name);
+                  setEditAlbumDescription(album.description || '');
+                  setShowEditAlbumDialog(true);
+                }
+              }}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Album
               </Button>
-              <Button variant="outline" onClick={() => setSelectionMode(true)}>
-                <CheckSquare className="h-4 w-4 mr-2" />
-                Select Photos
-              </Button>
-              <Button onClick={handleOpenUpload}>
-                <Camera className="h-4 w-4 mr-2" />
-                Add Photo
-              </Button>
-            </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={selectAll}>
+                  Select All
+                </Button>
+                <Button variant="outline" onClick={deselectAll}>
+                  Deselect All
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setSelectionMode(false);
+                    setSelectedPhotos(new Set());
+                  }}
+                >
+                  Cancel
+                </Button>
+              </>
+            )
           ) : (
-            <>
-              <Button variant="outline" onClick={selectAll}>
-                Select All
-              </Button>
-              <Button variant="outline" onClick={deselectAll}>
-                Deselect All
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setSelectionMode(false);
-                  setSelectedPhotos(new Set());
-                }}
-              >
-                Cancel
-              </Button>
-            </>
+            // Album list view - only show Create Album
+            <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
+              <FolderPlus className="h-4 w-4 mr-2" />
+              Create Album
+            </Button>
           )}
         </div>
       </div>
@@ -655,10 +711,6 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               {selectedPhotos.size} photo(s) selected
             </span>
             <div className="flex gap-2">
-              <Button onClick={() => setShowAddToAlbumDialog(true)}>
-                <FolderPlus className="h-4 w-4 mr-2" />
-                Add to Album
-              </Button>
               <Button variant="destructive" onClick={handleBulkDelete}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected
@@ -707,29 +759,14 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         </div>
       ) : (
         <>
-          {/* Back to Albums button */}
-          <div className="flex items-center gap-2 mb-4">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedAlbumId('')}>
-              <X className="h-4 w-4 mr-1" />
-              Back to Albums
-            </Button>
-            <span className="text-lg font-semibold">
-              {albums.find(a => a.id === selectedAlbumId)?.name || 'Album'}
-            </span>
-          </div>
-
       {photos.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Camera className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h3 className="text-xl font-semibold mb-2">No Photos Yet</h3>
             <p className="text-muted-foreground mb-4">
-              Start building your job photo album by taking photos.
+              Photos will appear here when employees upload them.
             </p>
-            <Button onClick={handleOpenUpload}>
-              <Camera className="h-4 w-4 mr-2" />
-              Take First Photo
-            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -757,19 +794,6 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                       className="h-6 w-6 bg-background border-2"
                     />
                   </div>
-                )}
-                {!selectionMode && user?.id === photo.uploaded_by && (
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(photo.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 )}
               </div>
               <CardContent className="p-3 space-y-2">
@@ -1088,6 +1112,51 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               className="w-full"
             >
               {createNewAlbumFromSelection ? 'Create & Add Photos' : 'Add to Album'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Album Dialog */}
+      <Dialog open={showEditAlbumDialog} onOpenChange={setShowEditAlbumDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Album</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Album Name</label>
+              <Input
+                value={editAlbumName}
+                onChange={(e) => setEditAlbumName(e.target.value)}
+                placeholder="Enter album name..."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+              <Textarea
+                value={editAlbumDescription}
+                onChange={(e) => setEditAlbumDescription(e.target.value)}
+                placeholder="Describe this album..."
+                rows={3}
+              />
+            </div>
+            <Separator />
+            <div>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  setSelectionMode(true);
+                  setShowEditAlbumDialog(false);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Select Photos to Delete
+              </Button>
+            </div>
+            <Button onClick={handleUpdateAlbum} disabled={!editAlbumName.trim()} className="w-full">
+              Save Changes
             </Button>
           </div>
         </DialogContent>
