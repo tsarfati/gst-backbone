@@ -161,10 +161,21 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       // Parse cost_distribution JSON to find amounts for this cost code
       (subcontracts || []).forEach((sub: any) => {
         const raw = sub.cost_distribution;
-        const items = Array.isArray(raw)
-          ? raw
-          : raw && typeof raw === 'object' && Array.isArray((raw as any).items)
-            ? (raw as any).items
+
+        // cost_distribution is jsonb, but older writes stored it as a JSON string
+        let parsed: any = raw;
+        if (typeof raw === 'string') {
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = null;
+          }
+        }
+
+        const items = Array.isArray(parsed)
+          ? parsed
+          : parsed && typeof parsed === 'object' && Array.isArray((parsed as any).items)
+            ? (parsed as any).items
             : [];
 
         items.forEach((dist: any) => {
