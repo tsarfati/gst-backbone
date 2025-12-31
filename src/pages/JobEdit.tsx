@@ -442,37 +442,10 @@ export default function JobEdit() {
             <p className="text-muted-foreground">Update job details and settings</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {permissions.canDelete('jobs') && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Job
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure you want to delete this job?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the job
-                    and all associated data including receipts, photos, and documents.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete Job
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          <Button onClick={handleSave} disabled={!permissions.canEditJobs()}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Changes
-          </Button>
-        </div>
+        <Button onClick={handleSave} disabled={!permissions.canEditJobs()}>
+          <Save className="h-4 w-4 mr-2" />
+          Save Changes
+        </Button>
       </div>
 
       {/* Form */}
