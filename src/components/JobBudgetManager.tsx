@@ -96,7 +96,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
       if (budgetError) throw budgetError;
 
-      // Calculate actual amount for a SPECIFIC cost code ID only (no aggregation by code string)
+      // Calculate actual amount for a SPECIFIC cost code ID only
+      // EXCLUDES invoices linked to subcontracts (those are payments against commitments, not separate actuals)
       const calculateActualAmount = async (costCodeId: string): Promise<number> => {
         try {
           // Posted journal entry lines (debit amounts for expenses)
@@ -114,26 +115,28 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             0
           );
 
-          // Paid invoices (direct)
+          // Paid invoices (direct) - EXCLUDE those linked to subcontracts
           const { data: paidInvoices } = await supabase
             .from("invoices")
-            .select("amount")
+            .select("amount, subcontract_id")
             .eq("job_id", jobId)
             .eq("cost_code_id", costCodeId)
-            .eq("status", "paid");
+            .eq("status", "paid")
+            .is("subcontract_id", null);
 
           const invoiceTotal = (paidInvoices || []).reduce(
             (sum, inv) => sum + Number((inv as any).amount || 0),
             0
           );
 
-          // Paid invoices (distributed)
+          // Paid invoices (distributed) - EXCLUDE those linked to subcontracts
           const { data: paidDistributions } = await supabase
             .from("invoice_cost_distributions")
-            .select("amount, invoices!inner(job_id,status)")
+            .select("amount, invoices!inner(job_id, status, subcontract_id)")
             .eq("cost_code_id", costCodeId)
             .eq("invoices.job_id", jobId)
-            .eq("invoices.status", "paid");
+            .eq("invoices.status", "paid")
+            .is("invoices.subcontract_id", null);
 
           const distTotal = (paidDistributions || []).reduce(
             (sum, d) => sum + Number((d as any).amount || 0),
@@ -147,39 +150,13 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         }
       };
 
+      // Calculate committed amount - Subcontracts + POs only (total commitment value)
+      // Does NOT include unpaid invoices since those are payments against commitments
       const calculateCommittedAmount = async (costCodeId: string): Promise<number> => {
         try {
           let total = 0;
 
-          // Unpaid invoices (direct)
-          const { data: unpaidInvoices, error: invError } = await supabase
-            .from("invoices")
-            .select("amount, status")
-            .eq("job_id", jobId)
-            .eq("cost_code_id", costCodeId)
-            .not("status", "in", '("paid","cancelled")');
-
-          if (invError) throw invError;
-
-          total += (unpaidInvoices || []).reduce(
-            (sum, inv) => sum + Number((inv as any).amount || 0),
-            0
-          );
-
-          // Unpaid invoices (distributed)
-          const { data: unpaidDistributions } = await supabase
-            .from("invoice_cost_distributions")
-            .select("amount, invoices!inner(job_id,status)")
-            .eq("cost_code_id", costCodeId)
-            .eq("invoices.job_id", jobId)
-            .not("invoices.status", "in", '("paid","cancelled")');
-
-          total += (unpaidDistributions || []).reduce(
-            (sum, d) => sum + Number((d as any).amount || 0),
-            0
-          );
-
-          // Subcontracts
+          // Subcontracts (cost_distribution)
           const { data: subcontracts, error: subError } = await supabase
             .from("subcontracts")
             .select("cost_distribution")
