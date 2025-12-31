@@ -55,6 +55,7 @@ interface JobBudgetSummary {
   cost_code_id: string;
   cost_code: string;
   description: string;
+  type: string;
   budgeted: number;
   actual: number;
   committed: number;
@@ -208,7 +209,7 @@ export default function ProjectCostTransactionHistory() {
           budgeted_amount,
           actual_amount,
           committed_amount,
-          cost_codes(id, code, description)
+          cost_codes(id, code, description, type)
         `)
         .eq("job_id", jobId)
         .not("cost_code_id", "is", null);
@@ -219,6 +220,7 @@ export default function ProjectCostTransactionHistory() {
         cost_code_id: b.cost_code_id,
         cost_code: b.cost_codes?.code || "",
         description: b.cost_codes?.description || "",
+        type: b.cost_codes?.type || "",
         budgeted: Number(b.budgeted_amount) || 0,
         actual: Number(b.actual_amount) || 0,
         committed: Number(b.committed_amount) || 0,
@@ -619,65 +621,102 @@ export default function ProjectCostTransactionHistory() {
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape" });
     
-    doc.setFontSize(16);
-    doc.text("Project Cost Transaction History", 14, 15);
+    // Compact header
+    doc.setFontSize(12);
+    doc.setFont(undefined as any, "bold");
+    doc.text("Project Cost Transaction History", 14, 10);
+    doc.setFontSize(8);
+    doc.setFont(undefined as any, "normal");
+    doc.text(`${getSelectedJobName()} | Total: $${formatNumber(totalAmount)} | ${new Date().toLocaleDateString()}`, 14, 15);
     
-    doc.setFontSize(10);
-    doc.text(`Job: ${getSelectedJobName()}`, 14, 25);
-    doc.text(`Total Amount: $${formatNumber(totalAmount)}`, 14, 30);
-    
-    let yPos = 40;
-    
+    // Build flat table data for compact view
+    const tableData: any[][] = [];
     groupedTransactions.forEach(group => {
-      // Cost code header
-      doc.setFontSize(11);
-      doc.setFont(undefined as any, "bold");
-      doc.text(`${group.costCode} - ${group.costCodeDescription}`, 14, yPos);
-      doc.text(`$${formatNumber(group.costCodeTotal)}`, 180, yPos, { align: "right" });
-      yPos += 6;
-      
       group.categories.forEach(cat => {
-        const tableData = cat.transactions.map(t => {
-          // Determine the type label - use credit card name if available
+        cat.transactions.forEach(t => {
           let typeLabel = "Posted";
           if (t.type === "bill") typeLabel = "Bill";
-          else if (t.type === "subcontract") typeLabel = "Subcontract";
+          else if (t.type === "subcontract") typeLabel = "Sub";
           else if (t.type === "credit_card") typeLabel = t.credit_card_name || "CC";
-          else if (t.credit_card_name) typeLabel = t.credit_card_name; // For posted CC transactions
+          else if (t.credit_card_name) typeLabel = t.credit_card_name;
           
-          return [
+          tableData.push([
+            group.costCode,
+            cat.category,
             new Date(t.date).toLocaleDateString(),
             typeLabel,
-            t.vendor_name || "-",
+            (t.vendor_name || "-").substring(0, 20),
             t.reference_number || "-",
-            t.description.substring(0, 35),
+            t.description.substring(0, 30),
             `$${formatNumber(t.amount)}`,
-          ];
+          ]);
         });
-        
-        autoTable(doc, {
-          startY: yPos,
-          head: [[cat.category, "", "", "", "", `$${formatNumber(cat.total)}`]],
-          body: tableData,
-          theme: "plain",
-          headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
-          bodyStyles: { fontSize: 8 },
-          alternateRowStyles: { fillColor: [239, 246, 255] }, // Light blue for alternating rows
-          columnStyles: {
-            0: { cellWidth: 22 },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 30 },
-            5: { halign: "right" },
-          },
-          margin: { left: 20 },
-        });
-        
-        yPos = (doc as any).lastAutoTable.finalY + 4;
       });
-      
-      yPos += 4;
+    });
+    
+    autoTable(doc, {
+      startY: 18,
+      head: [["Code", "Category", "Date", "Type", "Vendor", "Ref#", "Description", "Amount"]],
+      body: tableData,
+      theme: "grid",
+      headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7, cellPadding: 1 },
+      bodyStyles: { fontSize: 6, cellPadding: 1 },
+      alternateRowStyles: { fillColor: [239, 246, 255] },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 18 },
+        6: { cellWidth: "auto" },
+        7: { cellWidth: 22, halign: "right" },
+      },
+      margin: { left: 10, right: 10 },
+    });
+    
+    // Add category summary at the end
+    const summaryY = (doc as any).lastAutoTable.finalY + 6;
+    doc.setFontSize(9);
+    doc.setFont(undefined as any, "bold");
+    doc.text("Cost Summary by Category", 14, summaryY);
+    
+    const summaryData = categorySummary.map(s => [
+      s.category,
+      `$${formatNumber(s.previousCost)}`,
+      `$${formatNumber(s.currentCost)}`,
+      `$${formatNumber(s.costToDate)}`,
+      `$${formatNumber(s.budget)}`,
+      `$${formatNumber(s.difference)}`,
+      `${s.percent.toFixed(1)}%`,
+    ]);
+    const totals = categorySummary.reduce((acc, s) => ({
+      prev: acc.prev + s.previousCost, curr: acc.curr + s.currentCost,
+      toDate: acc.toDate + s.costToDate, budget: acc.budget + s.budget, diff: acc.diff + s.difference,
+    }), { prev: 0, curr: 0, toDate: 0, budget: 0, diff: 0 });
+    const totalPct = totals.budget > 0 ? (totals.toDate / totals.budget) * 100 : 0;
+    summaryData.push(["TOTAL", `$${formatNumber(totals.prev)}`, `$${formatNumber(totals.curr)}`, `$${formatNumber(totals.toDate)}`, `$${formatNumber(totals.budget)}`, `$${formatNumber(totals.diff)}`, `${totalPct.toFixed(1)}%`]);
+    
+    autoTable(doc, {
+      startY: summaryY + 2,
+      head: [["Category", "Prev Cost", "Curr Cost", "Cost to Date", "Budget", "Difference", "% Used"]],
+      body: summaryData,
+      theme: "grid",
+      headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7, cellPadding: 1 },
+      bodyStyles: { fontSize: 7, cellPadding: 1 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 25, halign: "right" },
+        2: { cellWidth: 25, halign: "right" },
+        3: { cellWidth: 28, halign: "right" },
+        4: { cellWidth: 28, halign: "right" },
+        5: { cellWidth: 28, halign: "right" },
+        6: { cellWidth: 20, halign: "right" },
+      },
+      margin: { left: 10, right: 10 },
     });
     
     doc.save(`project-cost-transactions-${new Date().toISOString().split("T")[0]}.pdf`);
@@ -776,11 +815,9 @@ export default function ProjectCostTransactionHistory() {
   const categorySummary = useMemo(() => {
     const categoryTotals: Record<string, { previousCost: number; currentCost: number; budget: number }> = {};
     
-    // Calculate budgets by category from jobBudgetSummary
+    // Calculate budgets by category from jobBudgetSummary - use the type directly from budget
     jobBudgetSummary.forEach(budget => {
-      // Get the cost code to determine category
-      const costCode = costCodes.find(cc => cc.id === budget.cost_code_id);
-      const category = normalizeCategory(costCode?.type);
+      const category = normalizeCategory(budget.type);
       if (!categoryTotals[category]) {
         categoryTotals[category] = { previousCost: 0, currentCost: 0, budget: 0 };
       }
@@ -795,10 +832,6 @@ export default function ProjectCostTransactionHistory() {
       }
       categoryTotals[cat].currentCost += t.amount;
     });
-    
-    // Calculate previous costs (all transactions minus filtered transactions)
-    // For now, previous = 0 and current = cost to date since we don't have period filtering
-    // If date filters are applied, we could calculate previous as costs before the filter period
     
     // Sort by predefined order
     const categoryOrder = ["Labor", "Material", "Equipment", "Subcontract", "Purchase Order", "Other"];
@@ -822,7 +855,7 @@ export default function ProjectCostTransactionHistory() {
           percent,
         };
       });
-  }, [filteredTransactions, jobBudgetSummary, costCodes]);
+  }, [filteredTransactions, jobBudgetSummary]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
