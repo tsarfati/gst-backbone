@@ -34,6 +34,8 @@ interface Transaction {
   cost_code_id?: string;
   cost_code_description?: string;
   category?: string;
+  vendor_name?: string;
+  credit_card_name?: string;
 }
 
 interface Job {
@@ -270,7 +272,8 @@ export default function ProjectCostTransactionHistory() {
           id, invoice_number, issue_date, amount, description, status, bill_category, cost_code_id, subcontract_id,
           jobs(name),
           cost_codes(id, code, description, type),
-          subcontracts(id, name)
+          subcontracts(id, name),
+          vendors(id, name)
         `)
         .eq("job_id", selectedJobId);
       
@@ -285,7 +288,9 @@ export default function ProjectCostTransactionHistory() {
           jobs(name),
           cost_codes(id, code, description, type),
           credit_card_transactions(
-            id, transaction_date, amount, description, reference_number, coding_status, category, journal_entry_id
+            id, transaction_date, amount, description, reference_number, coding_status, category, journal_entry_id, vendor_id,
+            credit_cards(id, card_name),
+            vendors(id, name)
           )
         `)
         .eq("job_id", selectedJobId);
@@ -347,6 +352,7 @@ export default function ProjectCostTransactionHistory() {
               cost_code_id: bill.cost_code_id || "",
               cost_code_description: bill.cost_codes?.description || "",
               category: normalizeCategory(category),
+              vendor_name: bill.vendors?.name || undefined,
             };
           }),
         // Credit card transactions not yet posted
@@ -364,6 +370,8 @@ export default function ProjectCostTransactionHistory() {
             cost_code_id: dist.cost_code_id || "",
             cost_code_description: dist.cost_codes?.description || "",
             category: normalizeCategory(dist.credit_card_transactions?.category || dist.cost_codes?.type),
+            vendor_name: dist.credit_card_transactions?.vendors?.name || undefined,
+            credit_card_name: dist.credit_card_transactions?.credit_cards?.card_name || undefined,
           })),
       ];
 
@@ -563,22 +571,25 @@ export default function ProjectCostTransactionHistory() {
         const tableData = cat.transactions.map(t => [
           new Date(t.date).toLocaleDateString(),
           t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
-            t.type === "credit_card" ? "CC" : "Posted",
+            t.type === "credit_card" ? (t.credit_card_name || "CC") : "Posted",
+          t.vendor_name || "-",
           t.reference_number || "-",
-          t.description.substring(0, 40),
+          t.description.substring(0, 35),
           `$${formatNumber(t.amount)}`,
         ]);
         
         autoTable(doc, {
           startY: yPos,
-          head: [[cat.category, "", "", "", `$${formatNumber(cat.total)}`]],
+          head: [[cat.category, "", "", "", "", `$${formatNumber(cat.total)}`]],
           body: tableData,
           theme: "plain",
           headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9 },
           bodyStyles: { fontSize: 8 },
           columnStyles: {
-            0: { cellWidth: 25 },
-            4: { halign: "right" },
+            0: { cellWidth: 22 },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 30 },
+            5: { halign: "right" },
           },
           margin: { left: 20 },
         });
@@ -603,18 +614,19 @@ export default function ProjectCostTransactionHistory() {
     ];
 
     groupedTransactions.forEach(group => {
-      worksheetData.push([`${group.costCode} - ${group.costCodeDescription}`, "", "", "", "", `$${formatNumber(group.costCodeTotal)}`]);
+      worksheetData.push([`${group.costCode} - ${group.costCodeDescription}`, "", "", "", "", "", `$${formatNumber(group.costCodeTotal)}`]);
       
       group.categories.forEach(cat => {
-        worksheetData.push(["", cat.category, "", "", "", `$${formatNumber(cat.total)}`]);
-        worksheetData.push(["", "Date", "Type", "Reference", "Description", "Amount"]);
+        worksheetData.push(["", cat.category, "", "", "", "", `$${formatNumber(cat.total)}`]);
+        worksheetData.push(["", "Date", "Type", "Vendor", "Reference", "Description", "Amount"]);
         
         cat.transactions.forEach(t => {
           worksheetData.push([
             "",
             new Date(t.date).toLocaleDateString(),
             t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
-              t.type === "credit_card" ? "Credit Card" : "Posted",
+              t.type === "credit_card" ? (t.credit_card_name || "Credit Card") : "Posted",
+            t.vendor_name || "-",
             t.reference_number || "-",
             t.description,
             t.amount,
@@ -625,27 +637,13 @@ export default function ProjectCostTransactionHistory() {
       worksheetData.push([]);
     });
 
-    // Add summary
-    worksheetData.push(["JOB COST SUMMARY"]);
-    worksheetData.push(["Cost Code", "Description", "Budgeted", "Actual", "Committed", "Variance"]);
-    jobBudgetSummary.forEach(s => {
-      worksheetData.push([
-        s.cost_code,
-        s.description,
-        s.budgeted,
-        s.actual,
-        s.committed,
-        s.budgeted - s.actual - s.committed,
-      ]);
+    // Add category summary
+    worksheetData.push(["TOTAL COST BY CATEGORY"]);
+    worksheetData.push(["Category", "Total"]);
+    categorySummary.forEach(s => {
+      worksheetData.push([s.category, s.total]);
     });
-    
-    const totals = jobBudgetSummary.reduce((acc, s) => ({
-      budgeted: acc.budgeted + s.budgeted,
-      actual: acc.actual + s.actual,
-      committed: acc.committed + s.committed,
-    }), { budgeted: 0, actual: 0, committed: 0 });
-    
-    worksheetData.push(["TOTAL", "", totals.budgeted, totals.actual, totals.committed, totals.budgeted - totals.actual - totals.committed]);
+    worksheetData.push(["TOTAL", totalAmount]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
@@ -662,14 +660,24 @@ export default function ProjectCostTransactionHistory() {
     !!dateTo,
   ].filter(Boolean).length;
 
-  // Calculate summary totals
-  const summaryTotals = useMemo(() => {
-    return jobBudgetSummary.reduce((acc, s) => ({
-      budgeted: acc.budgeted + s.budgeted,
-      actual: acc.actual + s.actual,
-      committed: acc.committed + s.committed,
-    }), { budgeted: 0, actual: 0, committed: 0 });
-  }, [jobBudgetSummary]);
+  // Calculate summary totals by category
+  const categorySummary = useMemo(() => {
+    const categoryTotals: Record<string, number> = {};
+    filteredTransactions.forEach(t => {
+      const cat = t.category || "Other";
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + t.amount;
+    });
+    
+    // Sort by predefined order
+    const categoryOrder = ["Labor", "Material", "Equipment", "Subcontract", "Purchase Order", "Other"];
+    return Object.entries(categoryTotals)
+      .sort((a, b) => {
+        const aIndex = categoryOrder.indexOf(a[0]);
+        const bIndex = categoryOrder.indexOf(b[0]);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      })
+      .map(([category, total]) => ({ category, total }));
+  }, [filteredTransactions]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -930,6 +938,7 @@ export default function ProjectCostTransactionHistory() {
                                   <TableRow>
                                     <TableHead className="w-[100px]">Date</TableHead>
                                     <TableHead className="w-[80px]">Type</TableHead>
+                                    <TableHead className="w-[120px]">Vendor</TableHead>
                                     <TableHead className="w-[100px]">Reference</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead className="text-right w-[100px]">Amount</TableHead>
@@ -949,11 +958,14 @@ export default function ProjectCostTransactionHistory() {
                                         <Badge variant="outline" className="text-xs">
                                           {t.type === "bill" ? "Bill" : 
                                            t.type === "subcontract" ? "Sub" :
-                                           t.type === "credit_card" ? "CC" : "Posted"}
+                                           t.type === "credit_card" ? (t.credit_card_name || "CC") : "Posted"}
                                         </Badge>
                                       </TableCell>
+                                      <TableCell className="text-sm truncate max-w-[120px]">
+                                        {t.vendor_name || "-"}
+                                      </TableCell>
                                       <TableCell className="text-sm">{t.reference_number || "-"}</TableCell>
-                                      <TableCell className="text-sm max-w-[300px] truncate">{t.description}</TableCell>
+                                      <TableCell className="text-sm max-w-[250px] truncate">{t.description}</TableCell>
                                       <TableCell className="text-right font-medium">
                                         ${formatNumber(t.amount)}
                                       </TableCell>
@@ -974,54 +986,30 @@ export default function ProjectCostTransactionHistory() {
         </CardContent>
       </Card>
 
-      {/* Job Cost Summary */}
-      {selectedJobId && jobBudgetSummary.length > 0 && (
+      {/* Total Cost by Category Summary */}
+      {selectedJobId && categorySummary.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Job Cost Summary</CardTitle>
+            <CardTitle>Total Cost by Category</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cost Code</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Budgeted</TableHead>
-                  <TableHead className="text-right">Actual</TableHead>
-                  <TableHead className="text-right">Committed</TableHead>
-                  <TableHead className="text-right">Variance</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {jobBudgetSummary.map((s) => {
-                  const variance = s.budgeted - s.actual - s.committed;
-                  return (
-                    <TableRow key={s.cost_code_id}>
-                      <TableCell className="font-mono">{s.cost_code}</TableCell>
-                      <TableCell>{s.description}</TableCell>
-                      <TableCell className="text-right">${formatNumber(s.budgeted)}</TableCell>
-                      <TableCell className="text-right">${formatNumber(s.actual)}</TableCell>
-                      <TableCell className="text-right">${formatNumber(s.committed)}</TableCell>
-                      <TableCell className={cn(
-                        "text-right font-medium",
-                        variance < 0 ? "text-destructive" : ""
-                      )}>
-                        ${formatNumber(variance)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {categorySummary.map((s) => (
+                  <TableRow key={s.category}>
+                    <TableCell>{getCategoryBadge(s.category)}</TableCell>
+                    <TableCell className="text-right font-medium">${formatNumber(s.total)}</TableCell>
+                  </TableRow>
+                ))}
                 <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell colSpan={2}>TOTAL</TableCell>
-                  <TableCell className="text-right">${formatNumber(summaryTotals.budgeted)}</TableCell>
-                  <TableCell className="text-right">${formatNumber(summaryTotals.actual)}</TableCell>
-                  <TableCell className="text-right">${formatNumber(summaryTotals.committed)}</TableCell>
-                  <TableCell className={cn(
-                    "text-right",
-                    summaryTotals.budgeted - summaryTotals.actual - summaryTotals.committed < 0 ? "text-destructive" : ""
-                  )}>
-                    ${formatNumber(summaryTotals.budgeted - summaryTotals.actual - summaryTotals.committed)}
-                  </TableCell>
+                  <TableCell>TOTAL</TableCell>
+                  <TableCell className="text-right">${formatNumber(totalAmount)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
