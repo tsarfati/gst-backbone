@@ -662,17 +662,26 @@ export default function PdfTemplateSettings() {
         created_by: user.id
       };
 
-      if (template.id) {
+      // Check if template already exists for this company and type
+      const { data: existingTemplate } = await supabase
+        .from('pdf_templates')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('template_type', template.template_type)
+        .eq('template_name', template.template_type === 'timecard' ? 'default' : (templateData.template_name || 'default'))
+        .maybeSingle();
+
+      if (template.id || existingTemplate?.id) {
         const { error } = await supabase
           .from('pdf_templates')
           .update(templateData)
-          .eq('id', template.id);
+          .eq('id', template.id || existingTemplate?.id);
         
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('pdf_templates')
-          .insert([templateData]);
+          .insert([{ ...templateData, template_name: templateData.template_name || 'default' }]);
         
         if (error) throw error;
       }
