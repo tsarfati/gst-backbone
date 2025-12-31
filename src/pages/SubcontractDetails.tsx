@@ -23,6 +23,7 @@ export default function SubcontractDetails() {
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
 const [changeOrders, setChangeOrders] = useState<any[]>([]);
 const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
 const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
@@ -82,6 +83,26 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           .eq('subcontract_id', id)
           .order('created_at', { ascending: false });
         setInvoices(invoiceData || []);
+
+        // Fetch payments related to these invoices
+        if (invoiceData && invoiceData.length > 0) {
+          const invoiceIds = invoiceData.map((inv: any) => inv.id);
+          const { data: paymentLines } = await supabase
+            .from('payment_invoice_lines')
+            .select('payment_id, amount_paid, payments(*)')
+            .in('invoice_id', invoiceIds);
+
+          // Extract unique payments
+          const paymentsMap = new Map();
+          (paymentLines || []).forEach((line: any) => {
+            if (line.payments && !paymentsMap.has(line.payments.id)) {
+              paymentsMap.set(line.payments.id, line.payments);
+            }
+          });
+          setPayments(Array.from(paymentsMap.values()));
+        } else {
+          setPayments([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching subcontract:', error);
@@ -127,6 +148,14 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           amount: parseFloat(inv.amount),
           status: inv.status,
           due_date: inv.due_date,
+        })),
+        payments.map(pmt => ({
+          payment_number: pmt.payment_number || 'N/A',
+          payment_date: pmt.payment_date,
+          amount: parseFloat(pmt.amount),
+          payment_method: pmt.payment_method || 'N/A',
+          check_number: pmt.check_number,
+          memo: pmt.memo,
         })),
         companyData || { name: 'Company' },
         {
