@@ -18,7 +18,7 @@ interface Transaction {
   date: string;
   description: string;
   amount: number;
-  type: "bill" | "credit_card";
+  type: "bill" | "credit_card" | "journal_entry";
   reference_number?: string;
   job_name?: string;
   cost_code_description?: string;
@@ -40,18 +40,67 @@ export default function ProjectCostTransactionHistory() {
   const [totalAmount, setTotalAmount] = useState(0);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [selectedBill, setSelectedBill] = useState<any>(null);
+  const [resolvedCostCodeId, setResolvedCostCodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (jobId && costCodeId) {
-      loadTransactions();
+      resolveCostCodeId();
     }
   }, [jobId, costCodeId]);
+
+  useEffect(() => {
+    if (jobId && resolvedCostCodeId) {
+      loadTransactions();
+    }
+  }, [jobId, resolvedCostCodeId]);
+
+  // costCodeId might be a budget ID or an actual cost_code_id - resolve it
+  const resolveCostCodeId = async () => {
+    // First check if it's a budget ID
+    const { data: budget } = await supabase
+      .from("job_budgets")
+      .select("cost_code_id")
+      .eq("id", costCodeId!)
+      .maybeSingle();
+
+    if (budget?.cost_code_id) {
+      setResolvedCostCodeId(budget.cost_code_id);
+    } else {
+      // It's already a cost_code_id
+      setResolvedCostCodeId(costCodeId);
+    }
+  };
 
   const loadTransactions = async () => {
     try {
       setLoading(true);
       
-      // Load bills (invoices)
+      const actualCostCodeId = resolvedCostCodeId!;
+
+      // Load journal entry lines (primary source of posted transactions)
+      const { data: journalLines, error: jelError } = await supabase
+        .from("journal_entry_lines")
+        .select(`
+          id,
+          debit_amount,
+          credit_amount,
+          description,
+          journal_entries!inner(
+            id,
+            entry_date,
+            entry_number,
+            description,
+            status
+          ),
+          jobs(name),
+          cost_codes(description)
+        `)
+        .eq("job_id", jobId!)
+        .eq("cost_code_id", actualCostCodeId);
+
+      if (jelError) throw jelError;
+
+      // Load bills (invoices) that might not be posted yet
       const { data: bills, error: billsError } = await supabase
         .from("invoices")
         .select(`
@@ -60,62 +109,86 @@ export default function ProjectCostTransactionHistory() {
           issue_date, 
           amount, 
           description,
-          jobs!inner(name),
-          cost_codes!inner(description)
+          status,
+          jobs(name),
+          cost_codes(description)
         `)
         .eq("job_id", jobId!)
-        .eq("cost_code_id", costCodeId!);
+        .eq("cost_code_id", actualCostCodeId);
 
       if (billsError) throw billsError;
 
-      // Load credit card transactions via distributions (ensures job & cost code match)
+      // Load credit card transactions via distributions
       const { data: ccDistributions, error: ccError } = await supabase
         .from("credit_card_transaction_distributions")
         .select(`
           id,
           amount,
           transaction_id,
-          jobs!inner(name),
-          cost_codes!inner(description),
-          credit_card_transactions!inner(
+          jobs(name),
+          cost_codes(description),
+          credit_card_transactions(
             id,
             transaction_date,
             amount,
             description,
             reference_number,
             coding_status,
-            category
+            category,
+            journal_entry_id
           )
         `)
         .eq("job_id", jobId!)
-        .eq("cost_code_id", costCodeId!)
-        .eq("credit_card_transactions.coding_status", "coded");
+        .eq("cost_code_id", actualCostCodeId);
 
       if (ccError) throw ccError;
 
+      // Track journal entry IDs to avoid duplicates
+      const journalEntryIds = new Set((journalLines || []).map((jl: any) => jl.journal_entries?.id));
+
       const allTransactions: Transaction[] = [
-        ...(bills || []).map((bill: any) => ({
-          id: bill.id,
-          date: bill.issue_date || "",
-          description: bill.description || "Bill",
-          amount: bill.amount,
-          type: "bill" as const,
-          reference_number: bill.invoice_number || undefined,
-          job_name: bill.jobs?.name || "",
-          cost_code_description: bill.cost_codes?.description || "",
-          category: undefined,
-        })),
-        ...(ccDistributions || []).map((dist: any) => ({
-          id: dist.credit_card_transactions?.id || dist.transaction_id,
-          date: dist.credit_card_transactions?.transaction_date || "",
-          description: dist.credit_card_transactions?.description || "Credit Card Transaction",
-          amount: dist.amount,
-          type: "credit_card" as const,
-          reference_number: dist.credit_card_transactions?.reference_number || undefined,
-          job_name: dist.jobs?.name || "",
-          cost_code_description: dist.cost_codes?.description || "",
-          category: dist.credit_card_transactions?.category || undefined,
-        })),
+        // Journal entry lines (debit amounts are expenses)
+        ...(journalLines || [])
+          .filter((jl: any) => jl.debit_amount > 0)
+          .map((jl: any) => ({
+            id: jl.id,
+            date: jl.journal_entries?.entry_date || "",
+            description: jl.description || jl.journal_entries?.description || "Journal Entry",
+            amount: Number(jl.debit_amount) || 0,
+            type: "journal_entry" as const,
+            reference_number: jl.journal_entries?.entry_number || undefined,
+            job_name: jl.jobs?.name || "",
+            cost_code_description: jl.cost_codes?.description || "",
+            category: undefined,
+          })),
+        // Bills not yet posted (no journal entry)
+        ...(bills || [])
+          .filter((bill: any) => bill.status !== 'posted')
+          .map((bill: any) => ({
+            id: bill.id,
+            date: bill.issue_date || "",
+            description: bill.description || "Bill",
+            amount: Number(bill.amount) || 0,
+            type: "bill" as const,
+            reference_number: bill.invoice_number || undefined,
+            job_name: bill.jobs?.name || "",
+            cost_code_description: bill.cost_codes?.description || "",
+            category: undefined,
+          })),
+        // Credit card transactions not yet posted
+        ...(ccDistributions || [])
+          .filter((dist: any) => !dist.credit_card_transactions?.journal_entry_id)
+          .map((dist: any) => ({
+            id: dist.credit_card_transactions?.id || dist.transaction_id,
+            date: dist.credit_card_transactions?.transaction_date || "",
+            description: dist.credit_card_transactions?.description || "Credit Card Transaction",
+            amount: Number(dist.amount) || 0,
+            type: "credit_card" as const,
+            reference_number: dist.credit_card_transactions?.reference_number || undefined,
+            job_name: dist.jobs?.name || "",
+            cost_code_description: dist.cost_codes?.description || "",
+            category: dist.credit_card_transactions?.category || undefined,
+          })),
       ];
 
       allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -316,7 +389,7 @@ export default function ProjectCostTransactionHistory() {
                   >
                     <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      {transaction.type === "bill" ? "Bill" : "Credit Card"}
+                      {transaction.type === "bill" ? "Bill" : transaction.type === "credit_card" ? "Credit Card" : "Posted"}
                     </TableCell>
                     <TableCell>{transaction.reference_number || "-"}</TableCell>
                     <TableCell>{transaction.description}</TableCell>
