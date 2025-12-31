@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
@@ -21,6 +22,7 @@ interface Transaction {
   type: "bill" | "credit_card" | "journal_entry";
   reference_number?: string;
   job_name?: string;
+  cost_code?: string;
   cost_code_description?: string;
   category?: string;
 }
@@ -93,7 +95,7 @@ export default function ProjectCostTransactionHistory() {
             status
           ),
           jobs(name),
-          cost_codes(description)
+          cost_codes(code, description, type)
         `)
         .eq("job_id", jobId!)
         .eq("cost_code_id", actualCostCodeId);
@@ -110,8 +112,9 @@ export default function ProjectCostTransactionHistory() {
           amount, 
           description,
           status,
+          bill_category,
           jobs(name),
-          cost_codes(description)
+          cost_codes(code, description, type)
         `)
         .eq("job_id", jobId!)
         .eq("cost_code_id", actualCostCodeId);
@@ -126,7 +129,7 @@ export default function ProjectCostTransactionHistory() {
           amount,
           transaction_id,
           jobs(name),
-          cost_codes(description),
+          cost_codes(code, description, type),
           credit_card_transactions(
             id,
             transaction_date,
@@ -158,8 +161,9 @@ export default function ProjectCostTransactionHistory() {
              type: "journal_entry" as const,
              reference_number: jl.journal_entries?.reference || undefined,
              job_name: jl.jobs?.name || "",
+             cost_code: jl.cost_codes?.code || "",
              cost_code_description: jl.cost_codes?.description || "",
-             category: undefined,
+             category: jl.cost_codes?.type || undefined,
            })),
         // Bills not yet posted (no journal entry)
         ...(bills || [])
@@ -172,8 +176,9 @@ export default function ProjectCostTransactionHistory() {
             type: "bill" as const,
             reference_number: bill.invoice_number || undefined,
             job_name: bill.jobs?.name || "",
+            cost_code: bill.cost_codes?.code || "",
             cost_code_description: bill.cost_codes?.description || "",
-            category: undefined,
+            category: bill.bill_category || bill.cost_codes?.type || undefined,
           })),
         // Credit card transactions not yet posted
         ...(ccDistributions || [])
@@ -186,8 +191,9 @@ export default function ProjectCostTransactionHistory() {
             type: "credit_card" as const,
             reference_number: dist.credit_card_transactions?.reference_number || undefined,
             job_name: dist.jobs?.name || "",
+            cost_code: dist.cost_codes?.code || "",
             cost_code_description: dist.cost_codes?.description || "",
-            category: dist.credit_card_transactions?.category || undefined,
+            category: dist.credit_card_transactions?.category || dist.cost_codes?.type || undefined,
           })),
       ];
 
@@ -244,16 +250,21 @@ export default function ProjectCostTransactionHistory() {
     doc.text(`Cost Code: ${costCodeDescription || ""}`, 14, 30);
     doc.text(`Total Amount: $${formatNumber(totalAmount)}`, 14, 35);
     
-    const tableData = transactions.map(t => [
-      new Date(t.date).toLocaleDateString(),
-      t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
-      t.reference_number || "-",
-      t.description,
-      t.job_name || "-",
-      t.cost_code_description || "-",
-      t.category || "-",
-      `$${formatNumber(t.amount)}`,
-    ]);
+    const tableData = transactions.map(t => {
+      const costCodeDisplay = t.cost_code 
+        ? `${t.cost_code} - ${t.cost_code_description || ""}`
+        : t.cost_code_description || "-";
+      return [
+        new Date(t.date).toLocaleDateString(),
+        t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
+        t.reference_number || "-",
+        t.description,
+        t.job_name || "-",
+        costCodeDisplay,
+        t.category || "-",
+        `$${formatNumber(t.amount)}`,
+      ];
+    });
     
     autoTable(doc, {
       startY: 40,
@@ -282,16 +293,21 @@ export default function ProjectCostTransactionHistory() {
       ["Total Amount:", `$${formatNumber(totalAmount)}`],
       [],
       ["Date", "Type", "Reference", "Description", "Job", "Cost Code", "Category", "Amount"],
-      ...transactions.map(t => [
-        new Date(t.date).toLocaleDateString(),
-        t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
-        t.reference_number || "-",
-        t.description,
-        t.job_name || "-",
-        t.cost_code_description || "-",
-        t.category || "-",
-        t.amount,
-      ]),
+      ...transactions.map(t => {
+        const costCodeDisplay = t.cost_code 
+          ? `${t.cost_code} - ${t.cost_code_description || ""}`
+          : t.cost_code_description || "-";
+        return [
+          new Date(t.date).toLocaleDateString(),
+          t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
+          t.reference_number || "-",
+          t.description,
+          t.job_name || "-",
+          costCodeDisplay,
+          t.category || "-",
+          t.amount,
+        ];
+      }),
       [],
       ["", "", "", "", "", "", "Total:", totalAmount],
     ];
@@ -381,26 +397,51 @@ export default function ProjectCostTransactionHistory() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((transaction) => (
-                  <TableRow
-                    key={`${transaction.type}-${transaction.id}`}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleTransactionClick(transaction)}
-                  >
-                    <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {transaction.type === "bill" ? "Bill" : transaction.type === "credit_card" ? "Credit Card" : "Posted"}
-                    </TableCell>
-                    <TableCell>{transaction.reference_number || "-"}</TableCell>
-                    <TableCell>{transaction.description}</TableCell>
-                    <TableCell>{transaction.job_name || "-"}</TableCell>
-                    <TableCell>{transaction.cost_code_description || "-"}</TableCell>
-                    <TableCell>{transaction.category || "-"}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      ${formatNumber(transaction.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {transactions.map((transaction) => {
+                  const getCategoryBadge = (category?: string) => {
+                    if (!category) return <span className="text-muted-foreground">-</span>;
+                    const label = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+                    const variants: Record<string, string> = {
+                      labor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+                      material: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+                      materials: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+                      equipment: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+                      sub: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+                      subcontract: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+                      other: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
+                    };
+                    return (
+                      <Badge className={variants[category.toLowerCase()] || variants.other}>
+                        {label === "Materials" ? "Material" : label === "Subcontract" ? "Sub" : label}
+                      </Badge>
+                    );
+                  };
+
+                  const costCodeDisplay = transaction.cost_code 
+                    ? `${transaction.cost_code} - ${transaction.cost_code_description || ""}`
+                    : transaction.cost_code_description || "-";
+
+                  return (
+                    <TableRow
+                      key={`${transaction.type}-${transaction.id}`}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleTransactionClick(transaction)}
+                    >
+                      <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {transaction.type === "bill" ? "Bill" : transaction.type === "credit_card" ? "Credit Card" : "Posted"}
+                      </TableCell>
+                      <TableCell>{transaction.reference_number || "-"}</TableCell>
+                      <TableCell>{transaction.description}</TableCell>
+                      <TableCell>{transaction.job_name || "-"}</TableCell>
+                      <TableCell>{costCodeDisplay}</TableCell>
+                      <TableCell>{getCategoryBadge(transaction.category)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        ${formatNumber(transaction.amount)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
