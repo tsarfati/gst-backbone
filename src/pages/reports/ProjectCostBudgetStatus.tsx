@@ -75,25 +75,12 @@ export default function ProjectCostBudgetStatus() {
     try {
       setLoading(true);
 
-      // First get all cost codes to understand hierarchy
-      const { data: costCodesData } = await supabase
-        .from("cost_codes")
-        .select("id, code, description, is_dynamic_group, parent_cost_code_id, job_id")
-        .eq("company_id", currentCompany!.id)
-        .eq("is_active", true);
-
-      // Create lookup maps
-      const costCodeMap = new Map(costCodesData?.map(cc => [cc.id, cc]) || []);
-      const dynamicParentIds = new Set(
-        costCodesData?.filter(cc => cc.is_dynamic_group).map(cc => cc.id) || []
-      );
-
       let query = supabase
         .from("job_budgets")
         .select(`
-          id, job_id, cost_code_id, budgeted_amount, actual_amount, committed_amount,
+          id, job_id, cost_code_id, budgeted_amount, actual_amount, committed_amount, is_dynamic, parent_budget_id,
           jobs!inner(id, name, company_id),
-          cost_codes!inner(id, code, description, is_dynamic_group, parent_cost_code_id)
+          cost_codes!inner(id, code, description)
         `)
         .eq("jobs.company_id", currentCompany!.id);
 
@@ -104,11 +91,14 @@ export default function ProjectCostBudgetStatus() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Filter out dynamic group parent codes, only show their children
+      // Create a map of budget IDs to their data for parent lookups
+      const budgetMap = new Map((data || []).map((item: any) => [item.id, item]));
+
+      // Filter out dynamic budget parents (is_dynamic = true), only show regular lines and children
       const lines: BudgetLine[] = (data || [])
         .filter((item: any) => {
-          // Exclude dynamic group parent codes
-          if (item.cost_codes?.is_dynamic_group) return false;
+          // Exclude dynamic budget parents - these are aggregate entries
+          if (item.is_dynamic === true) return false;
           return true;
         })
         .map((item: any) => {
@@ -118,19 +108,15 @@ export default function ProjectCostBudgetStatus() {
           const remaining = budgeted - actual - committed;
           const percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
 
-          // Check if this code has a dynamic parent
-          const parentId = item.cost_codes?.parent_cost_code_id;
-          const parentCode = parentId ? costCodeMap.get(parentId) : null;
-          const hasDynamicParent = parentCode?.is_dynamic_group || false;
-
-          // Get dynamic parent info if applicable
+          // Check if this line has a dynamic parent budget
           let dynamicParentCode: string | undefined;
           let dynamicParentBudget: number | undefined;
-          if (hasDynamicParent && parentCode) {
-            dynamicParentCode = parentCode.code;
-            // Find the budget for the dynamic parent
-            const parentBudget = data?.find((d: any) => d.cost_code_id === parentId);
-            dynamicParentBudget = parentBudget?.budgeted_amount || 0;
+          if (item.parent_budget_id) {
+            const parentBudget = budgetMap.get(item.parent_budget_id);
+            if (parentBudget && parentBudget.is_dynamic) {
+              dynamicParentCode = parentBudget.cost_codes?.code;
+              dynamicParentBudget = parentBudget.budgeted_amount || 0;
+            }
           }
 
           return {
@@ -145,8 +131,8 @@ export default function ProjectCostBudgetStatus() {
             committed,
             remaining,
             percent_used: percentUsed,
-            is_dynamic_group: item.cost_codes?.is_dynamic_group || false,
-            parent_cost_code_id: item.cost_codes?.parent_cost_code_id,
+            is_dynamic_group: item.is_dynamic || false,
+            parent_cost_code_id: item.parent_budget_id,
             dynamic_parent_code: dynamicParentCode,
             dynamic_parent_budget: dynamicParentBudget,
           };
