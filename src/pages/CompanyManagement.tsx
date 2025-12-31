@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
 import PdfTemplateSettings from '@/components/PdfTemplateSettings';
+import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -499,6 +500,10 @@ export default function CompanyManagement() {
             <FileText className="h-4 w-4 mr-2" />
             PDF Templates
           </TabsTrigger>
+          <TabsTrigger value="aia-templates">
+            <FileText className="h-4 w-4 mr-2" />
+            AIA Templates
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -904,6 +909,10 @@ export default function CompanyManagement() {
 
       <TabsContent value="templates">
         <PdfTemplateSettings />
+      </TabsContent>
+
+      <TabsContent value="aia-templates">
+        <AIAInvoiceTemplateSettings />
       </TabsContent>
 
       </Tabs>
