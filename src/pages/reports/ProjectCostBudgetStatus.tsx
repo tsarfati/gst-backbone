@@ -14,18 +14,25 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BudgetLine {
   id: string;
   job_id: string;
   job_name: string;
   cost_code: string;
+  cost_code_id: string;
   cost_code_description: string;
   budgeted: number;
   actual: number;
   committed: number;
   remaining: number;
   percent_used: number;
+  is_dynamic_group: boolean;
+  parent_cost_code_id: string | null;
+  dynamic_parent_code?: string;
+  dynamic_parent_budget?: number;
 }
 
 interface Job {
@@ -68,12 +75,25 @@ export default function ProjectCostBudgetStatus() {
     try {
       setLoading(true);
 
+      // First get all cost codes to understand hierarchy
+      const { data: costCodesData } = await supabase
+        .from("cost_codes")
+        .select("id, code, description, is_dynamic_group, parent_cost_code_id, job_id")
+        .eq("company_id", currentCompany!.id)
+        .eq("is_active", true);
+
+      // Create lookup maps
+      const costCodeMap = new Map(costCodesData?.map(cc => [cc.id, cc]) || []);
+      const dynamicParentIds = new Set(
+        costCodesData?.filter(cc => cc.is_dynamic_group).map(cc => cc.id) || []
+      );
+
       let query = supabase
         .from("job_budgets")
         .select(`
-          id, job_id, budgeted_amount, actual_amount, committed_amount,
+          id, job_id, cost_code_id, budgeted_amount, actual_amount, committed_amount,
           jobs!inner(id, name, company_id),
-          cost_codes!inner(code, description)
+          cost_codes!inner(id, code, description, is_dynamic_group, parent_cost_code_id)
         `)
         .eq("jobs.company_id", currentCompany!.id);
 
@@ -84,26 +104,53 @@ export default function ProjectCostBudgetStatus() {
       const { data, error } = await query;
       if (error) throw error;
 
-      const lines: BudgetLine[] = (data || []).map((item: any) => {
-        const budgeted = item.budgeted_amount || 0;
-        const actual = item.actual_amount || 0;
-        const committed = item.committed_amount || 0;
-        const remaining = budgeted - actual - committed;
-        const percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
+      // Filter out dynamic group parent codes, only show their children
+      const lines: BudgetLine[] = (data || [])
+        .filter((item: any) => {
+          // Exclude dynamic group parent codes
+          if (item.cost_codes?.is_dynamic_group) return false;
+          return true;
+        })
+        .map((item: any) => {
+          const budgeted = item.budgeted_amount || 0;
+          const actual = item.actual_amount || 0;
+          const committed = item.committed_amount || 0;
+          const remaining = budgeted - actual - committed;
+          const percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
 
-        return {
-          id: item.id,
-          job_id: item.job_id,
-          job_name: item.jobs?.name || "-",
-          cost_code: item.cost_codes?.code || "-",
-          cost_code_description: item.cost_codes?.description || "-",
-          budgeted,
-          actual,
-          committed,
-          remaining,
-          percent_used: percentUsed,
-        };
-      });
+          // Check if this code has a dynamic parent
+          const parentId = item.cost_codes?.parent_cost_code_id;
+          const parentCode = parentId ? costCodeMap.get(parentId) : null;
+          const hasDynamicParent = parentCode?.is_dynamic_group || false;
+
+          // Get dynamic parent info if applicable
+          let dynamicParentCode: string | undefined;
+          let dynamicParentBudget: number | undefined;
+          if (hasDynamicParent && parentCode) {
+            dynamicParentCode = parentCode.code;
+            // Find the budget for the dynamic parent
+            const parentBudget = data?.find((d: any) => d.cost_code_id === parentId);
+            dynamicParentBudget = parentBudget?.budgeted_amount || 0;
+          }
+
+          return {
+            id: item.id,
+            job_id: item.job_id,
+            job_name: item.jobs?.name || "-",
+            cost_code: item.cost_codes?.code || "-",
+            cost_code_id: item.cost_codes?.id || "",
+            cost_code_description: item.cost_codes?.description || "-",
+            budgeted,
+            actual,
+            committed,
+            remaining,
+            percent_used: percentUsed,
+            is_dynamic_group: item.cost_codes?.is_dynamic_group || false,
+            parent_cost_code_id: item.cost_codes?.parent_cost_code_id,
+            dynamic_parent_code: dynamicParentCode,
+            dynamic_parent_budget: dynamicParentBudget,
+          };
+        });
 
       // Sort by job name, then cost code
       lines.sort((a, b) => {
@@ -355,7 +402,26 @@ export default function ProjectCostBudgetStatus() {
                       onClick={() => navigate(`/reports/project-cost-transaction-history?jobId=${line.job_id}&costCodeId=${line.id}&jobName=${encodeURIComponent(line.job_name)}&costCodeDescription=${encodeURIComponent(line.cost_code_description)}`)}
                     >
                       <TableCell>{line.job_name}</TableCell>
-                      <TableCell className="font-medium">{line.cost_code}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {line.cost_code}
+                          {line.dynamic_parent_code && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                  Dynamic
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Part of dynamic budget group: {line.dynamic_parent_code}</p>
+                                {line.dynamic_parent_budget !== undefined && (
+                                  <p>Group budget: ${formatNumber(line.dynamic_parent_budget)}</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="max-w-[200px] truncate">{line.cost_code_description}</TableCell>
                       <TableCell className="text-right">${formatNumber(line.budgeted)}</TableCell>
                       <TableCell className="text-right">${formatNumber(line.actual)}</TableCell>
