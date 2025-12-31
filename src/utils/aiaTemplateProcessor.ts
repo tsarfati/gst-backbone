@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -231,22 +231,25 @@ export async function processAIATemplate(
             const newValue = replacePlaceholders(originalValue, placeholders);
             
             if (newValue !== originalValue) {
-              // Preserve the cell's style (s property) when updating value
-              const cellStyle = cell.s;
+              // Preserve the cell's style + number format
+              const cellStyle = (cell as any).s;
+              const cellFormat = (cell as any).z;
+              const cellType = cell.t;
+
               cell.v = newValue;
               cell.w = String(newValue);
-              if (cellStyle) {
-                cell.s = cellStyle;
-              }
-              // If the result looks like a number, convert it
+              if (cellStyle) (cell as any).s = cellStyle;
+              if (cellFormat) (cell as any).z = cellFormat;
+              if (cellType) cell.t = cellType;
+
+              // If the result looks like a number, convert it BUT keep number format
               if (typeof newValue === 'string' && /^\$?[\d,]+\.?\d*$/.test(newValue.replace(/[$,]/g, ''))) {
                 const numValue = parseFloat(newValue.replace(/[$,]/g, ''));
                 if (!isNaN(numValue)) {
                   cell.t = 'n';
                   cell.v = numValue;
-                  if (cellStyle) {
-                    cell.s = cellStyle;
-                  }
+                  if (cellStyle) (cell as any).s = cellStyle;
+                  if (cellFormat) (cell as any).z = cellFormat;
                 }
               }
             }
