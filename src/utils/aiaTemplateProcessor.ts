@@ -213,56 +213,37 @@ export async function processAIATemplate(
     // Process each worksheet
     workbook.eachSheet((worksheet) => {
       let sovTemplateRow: number | null = null;
-      let sovTemplateRowData: { col: number; value: any; style: Partial<ExcelJS.Style> }[] = [];
 
-      // First pass: Find SOV template row and replace simple placeholders
-      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      // First pass: locate SOV template row + replace non-SOV placeholders (strings only)
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        row.eachCell({ includeEmpty: true }, (cell) => {
           const cellValue = cell.value;
-          
-          if (cellValue !== null && cellValue !== undefined) {
-            const stringValue = String(cellValue);
-            
-            // Check for SOV placeholder row
-            if (stringValue.includes('{sov_') && sovTemplateRow === null) {
-              sovTemplateRow = rowNumber;
-              // Capture the entire row as template
-              row.eachCell({ includeEmpty: true }, (templateCell, templateCol) => {
-                sovTemplateRowData.push({
-                  col: templateCol,
-                  value: templateCell.value,
-                  style: {
-                    font: templateCell.font ? { ...templateCell.font } : undefined,
-                    fill: templateCell.fill ? { ...templateCell.fill } : undefined,
-                    border: templateCell.border ? { ...templateCell.border } : undefined,
-                    alignment: templateCell.alignment ? { ...templateCell.alignment } : undefined,
-                    numFmt: templateCell.numFmt,
-                  },
-                });
-              });
-            }
-            
-            // Replace placeholders (but not SOV placeholders yet)
-            if (!stringValue.includes('{sov_')) {
-              const newValue = replacePlaceholders(stringValue, placeholders);
-              if (newValue !== stringValue) {
-                // Set value while preserving all formatting
-                cell.value = newValue;
-              }
+          if (typeof cellValue !== 'string') return;
+
+          // Identify the first row that contains any SOV placeholders
+          if (cellValue.includes('{sov_') && sovTemplateRow === null) {
+            sovTemplateRow = rowNumber;
+            return;
+          }
+
+          // Replace regular placeholders
+          if (cellValue.includes('{') && !cellValue.includes('{sov_')) {
+            const newValue = replacePlaceholders(cellValue, placeholders);
+            if (newValue !== cellValue) {
+              cell.value = newValue;
             }
           }
         });
       });
 
-      // Second pass: Handle SOV line items
+      // Second pass: expand + fill SOV rows while preserving formatting and formulas
       if (sovTemplateRow !== null && data.lineItems.length > 0) {
-        // Insert rows for additional line items (minus 1 since template row exists)
+        // Duplicate the template row so each line item gets a row with identical formatting/formulas
         if (data.lineItems.length > 1) {
-          const emptyRows = new Array(data.lineItems.length - 1).fill([]);
-          worksheet.insertRows(sovTemplateRow + 1, emptyRows);
+          // exceljs typings vary; duplicateRow exists at runtime
+          (worksheet as any).duplicateRow(sovTemplateRow, data.lineItems.length - 1, true);
         }
 
-        // Populate line items
         data.lineItems.forEach((item, index) => {
           const targetRowNumber = sovTemplateRow! + index;
           const targetRow = worksheet.getRow(targetRowNumber);
@@ -280,20 +261,11 @@ export async function processAIATemplate(
             sov_retainage: formatCurrency(item.retainage),
           };
 
-          // Apply template to each cell
-          sovTemplateRowData.forEach(({ col, value, style }) => {
-            const cell = targetRow.getCell(col);
-            
-            // Replace placeholders in value
-            const newValue = replacePlaceholders(String(value || ''), { ...placeholders, ...itemPlaceholders });
-            cell.value = newValue;
-            
-            // Apply preserved style
-            if (style.font) cell.font = style.font;
-            if (style.fill) cell.fill = style.fill as ExcelJS.Fill;
-            if (style.border) cell.border = style.border;
-            if (style.alignment) cell.alignment = style.alignment;
-            if (style.numFmt) cell.numFmt = style.numFmt;
+          // Only replace placeholders in string cells; leave formulas/styles untouched
+          targetRow.eachCell({ includeEmpty: true }, (cell) => {
+            if (typeof cell.value !== 'string') return;
+            if (!cell.value.includes('{sov_')) return;
+            cell.value = replacePlaceholders(cell.value, itemPlaceholders);
           });
 
           targetRow.commit();
