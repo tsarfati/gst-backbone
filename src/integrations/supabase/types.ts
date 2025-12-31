@@ -86,6 +86,53 @@ export type Database = {
           },
         ]
       }
+      aia_invoice_templates: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          file_name: string
+          file_size: number
+          file_url: string
+          id: string
+          is_default: boolean
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          file_name: string
+          file_size?: number
+          file_url: string
+          id?: string
+          is_default?: boolean
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          file_name?: string
+          file_size?: number
+          file_url?: string
+          id?: string
+          is_default?: boolean
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aia_invoice_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ar_invoice_line_items: {
         Row: {
           ar_invoice_id: string
