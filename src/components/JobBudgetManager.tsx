@@ -147,21 +147,46 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
   const calculateCommittedAmount = async (jobId: string, costCodeId: string): Promise<number> => {
     try {
-      // Get amounts from unposted invoices
-      const { data: invoices, error: invError } = await supabase
-        .from('invoices')
-        .select('amount, status')
+      let total = 0;
+
+      // Get committed amounts from subcontracts (via cost_distribution JSON)
+      const { data: subcontracts, error: subError } = await supabase
+        .from('subcontracts')
+        .select('contract_amount, cost_distribution')
         .eq('job_id', jobId)
+        .not('status', 'eq', 'cancelled');
+
+      if (subError) throw subError;
+
+      // Parse cost_distribution JSON to find amounts for this cost code
+      (subcontracts || []).forEach((sub: any) => {
+        const distribution = sub.cost_distribution;
+        if (Array.isArray(distribution)) {
+          distribution.forEach((dist: any) => {
+            if (dist.cost_code_id === costCodeId) {
+              total += Number(dist.amount || 0);
+            }
+          });
+        }
+      });
+
+      // Get committed amounts from purchase orders
+      // POs don't have cost_code_id directly, so we check invoice_cost_distributions
+      // for bills against POs that match this cost code
+      const { data: poDistributions, error: poDistError } = await supabase
+        .from('invoice_cost_distributions')
+        .select('amount, invoices!inner(job_id, status)')
         .eq('cost_code_id', costCodeId)
-        .neq('status', 'posted');
+        .eq('invoices.job_id', jobId)
+        .neq('invoices.status', 'posted');
 
-      if (invError) throw invError;
+      if (poDistError) throw poDistError;
 
-      const invoiceTotal = (invoices || []).reduce((sum, inv) => 
-        sum + Number(inv.amount || 0), 0
+      total += (poDistributions || []).reduce((sum, dist) => 
+        sum + Number(dist.amount || 0), 0
       );
 
-      // Get amounts from unposted credit card transaction distributions
+      // Also include unposted credit card transaction distributions
       const { data: ccDists, error: ccError } = await supabase
         .from('credit_card_transaction_distributions')
         .select('amount, credit_card_transactions(journal_entry_id)')
@@ -175,7 +200,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
         .reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
-      return invoiceTotal + ccTotal;
+      total += ccTotal;
+
+      return total;
     } catch (error) {
       console.error('Error calculating committed amount:', error);
       return 0;
@@ -622,9 +649,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                           </TableCell>
                           <TableCell>
                             {line.is_dynamic ? (
-                              <span className="font-mono">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const params = new URLSearchParams({
+                                    jobId: jobId,
+                                    costCodeId: line.cost_code_id,
+                                    jobName: jobName || "",
+                                    costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
+                                    type: "actual",
+                                  });
+                                  navigate(`/construction/reports/cost-history?${params.toString()}`);
+                                }}
+                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                type="button"
+                              >
                                 {formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))}
-                              </span>
+                              </button>
                             ) : (
                               <button
                                 onClick={(e) => {
@@ -634,8 +675,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     costCodeId: line.cost_code_id,
                                     jobName: jobName || "",
                                     costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
+                                    type: "actual",
                                   });
-                                  navigate(`/reports/project-cost-transaction-history?${params.toString()}`);
+                                  navigate(`/construction/reports/cost-history?${params.toString()}`);
                                 }}
                                 className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
                                 type="button"
@@ -645,10 +687,43 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                             )}
                           </TableCell>
                           <TableCell>
-                            {line.is_dynamic 
-                              ? formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.committed_amount, 0))
-                              : formatCurrency(line.committed_amount)
-                            }
+                            {line.is_dynamic ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const params = new URLSearchParams({
+                                    jobId: jobId,
+                                    costCodeId: line.cost_code_id,
+                                    jobName: jobName || "",
+                                    costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
+                                    type: "committed",
+                                  });
+                                  navigate(`/construction/reports/committed-details?${params.toString()}`);
+                                }}
+                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                type="button"
+                              >
+                                {formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.committed_amount, 0))}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const params = new URLSearchParams({
+                                    jobId: jobId,
+                                    costCodeId: line.cost_code_id,
+                                    jobName: jobName || "",
+                                    costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
+                                    type: "committed",
+                                  });
+                                  navigate(`/construction/reports/committed-details?${params.toString()}`);
+                                }}
+                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                type="button"
+                              >
+                                {formatCurrency(line.committed_amount)}
+                              </button>
+                            )}
                           </TableCell>
                           <TableCell>
                             <span className={`${

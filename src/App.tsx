@@ -123,6 +123,7 @@ import ProjectTransactionReport from "./pages/reports/ProjectTransactionReport";
 import SubcontractSummaryReport from "./pages/reports/SubcontractSummaryReport";
 import SubcontractDetailsByVendor from "./pages/reports/SubcontractDetailsByVendor";
 import ProjectCostBudgetStatus from "./pages/reports/ProjectCostBudgetStatus";
+import CommittedCostDetails from "./pages/reports/CommittedCostDetails";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
@@ -238,6 +239,7 @@ function AuthenticatedRoutes() {
                 <Route path="construction/dashboard" element={<ConstructionDashboard />} />
                 <Route path="construction/reports" element={<ConstructionReports />} />
                 <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
+                <Route path="construction/reports/committed-details" element={<CommittedCostDetails />} />
                 <Route path="construction/reports/transactions" element={<ProjectTransactionReport />} />
                 <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
                 <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
