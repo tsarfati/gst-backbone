@@ -193,7 +193,6 @@ export default function Jobs() {
 
     switch (currentView) {
       case "icons":
-      case "list":
         return (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {jobs.map((job) => (
@@ -205,27 +204,48 @@ export default function Jobs() {
             ))}
           </div>
         );
-      case "compact":
+      case "list":
         return (
-          <div className="space-y-2">
-            {jobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer"
-                onClick={() => handleJobClick(job)}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{job.name}</h3>
-                    <p className="text-sm text-muted-foreground">{job.client}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{job.budget}</p>
-                    <p className="text-sm text-muted-foreground">{job.status}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="text-left text-sm text-muted-foreground">
+                  <th className="p-3 font-medium">Job Name</th>
+                  <th className="p-3 font-medium">Client</th>
+                  <th className="p-3 font-medium text-right">Budget</th>
+                  <th className="p-3 font-medium text-right">Spent</th>
+                  <th className="p-3 font-medium text-right">Receipts</th>
+                  <th className="p-3 font-medium">Status</th>
+                  <th className="p-3 font-medium">Start Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => {
+                  const spentValue = parseInt(job.spent.replace(/[$,]/g, '')) || 0;
+                  const budgetValue = parseInt(job.budget.replace(/[$,]/g, '')) || 0;
+                  const usage = budgetValue > 0 ? Math.round((spentValue / budgetValue) * 100) : 0;
+                  return (
+                    <tr
+                      key={job.id}
+                      className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
+                      onClick={() => handleJobClick(job)}
+                    >
+                      <td className="p-3 font-medium">{job.name}</td>
+                      <td className="p-3 text-muted-foreground">{job.client || "-"}</td>
+                      <td className="p-3 text-right">{job.budget}</td>
+                      <td className="p-3 text-right">{job.spent}</td>
+                      <td className="p-3 text-right">{job.receipts}</td>
+                      <td className="p-3">
+                        <Badge variant={job.status === "active" ? "default" : "secondary"}>
+                          {job.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-muted-foreground">{job.startDate}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         );
       case "super-compact":
