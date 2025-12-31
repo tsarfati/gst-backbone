@@ -136,6 +136,7 @@ import ARPayments from "./pages/ARPayments";
 import ReceivablesReports from "./pages/ReceivablesReports";
 import ReceivablesDashboard from "./pages/ReceivablesDashboard";
 import AddARInvoice from "./pages/AddARInvoice";
+import ARInvoiceDetails from "./pages/ARInvoiceDetails";
 import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
@@ -407,6 +408,8 @@ function AuthenticatedRoutes() {
                 <Route path="receivables/customers/add" element={<CustomerEdit />} />
                 <Route path="receivables/invoices" element={<ARInvoices />} />
                 <Route path="receivables/invoices/add" element={<AddARInvoice />} />
+                <Route path="receivables/invoices/:id" element={<ARInvoiceDetails />} />
+                <Route path="receivables/invoices/:id/edit" element={<AddARInvoice />} />
                 <Route path="receivables/payments" element={<ARPayments />} />
                 <Route path="receivables/reports" element={<ReceivablesReports />} />
               </Route>
