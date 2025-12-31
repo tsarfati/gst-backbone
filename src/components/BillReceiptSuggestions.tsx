@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, DollarSign, Building2, FileText, Link, Eye } from "lucide-react";
+import { Lightbulb, DollarSign, Building2, FileText, Link, Eye, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { CodedReceipt, useReceipts } from "@/contexts/ReceiptContext";
 import { useToast } from "@/hooks/use-toast";
 import ReceiptPreviewModal from "./ReceiptPreviewModal";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface BillReceiptSuggestionsProps {
   billVendorId?: string;
@@ -14,6 +15,7 @@ interface BillReceiptSuggestionsProps {
   billJobId?: string;
   billDate?: string;
   onReceiptAttached?: (receipt: CodedReceipt) => void;
+  attachedReceiptIds?: string[];
 }
 
 export default function BillReceiptSuggestions({ 
@@ -22,12 +24,20 @@ export default function BillReceiptSuggestions({
   billAmount,
   billJobId,
   billDate,
-  onReceiptAttached 
+  onReceiptAttached,
+  attachedReceiptIds = []
 }: BillReceiptSuggestionsProps) {
   const { codedReceipts, uncodedReceipts } = useReceipts();
   const { toast } = useToast();
   const [previewReceipt, setPreviewReceipt] = useState<CodedReceipt | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [localAttachedIds, setLocalAttachedIds] = useState<Set<string>>(new Set(attachedReceiptIds));
+  const [isOpen, setIsOpen] = useState(true);
+
+  // Sync with external attachedReceiptIds
+  useEffect(() => {
+    setLocalAttachedIds(new Set(attachedReceiptIds));
+  }, [attachedReceiptIds]);
 
   const suggestedReceipts = useMemo(() => {
     // Convert uncoded receipts to coded format for compatibility
@@ -138,17 +148,35 @@ export default function BillReceiptSuggestions({
           receipt, 
           score, 
           reasons,
-          matchPercentage: Math.round(matchPercentage)
+          matchPercentage: Math.round(matchPercentage),
+          isAttached: localAttachedIds.has(receipt.id)
         };
       })
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => {
+        // Sort attached receipts to the bottom
+        if (a.isAttached !== b.isAttached) {
+          return a.isAttached ? 1 : -1;
+        }
+        return b.score - a.score;
+      })
       .slice(0, 5); // Limit to top 5 suggestions
 
     return suggestions;
-  }, [codedReceipts, uncodedReceipts, billVendorId, billAmount, billJobId, billDate]);
+  }, [codedReceipts, uncodedReceipts, billVendorId, billAmount, billJobId, billDate, localAttachedIds]);
+
+  // Auto-collapse when all receipts are attached
+  const unattachedCount = suggestedReceipts.filter(s => !s.isAttached).length;
+  useEffect(() => {
+    if (unattachedCount === 0 && suggestedReceipts.length > 0) {
+      setIsOpen(false);
+    }
+  }, [unattachedCount, suggestedReceipts.length]);
 
   const handleAttachReceipt = async (receipt: CodedReceipt) => {
     try {
+      // Mark as attached locally
+      setLocalAttachedIds(prev => new Set([...prev, receipt.id]));
+      
       toast({
         title: "Receipt Attached",
         description: `Receipt ${receipt.filename} has been attached to this bill`,
@@ -169,6 +197,8 @@ export default function BillReceiptSuggestions({
     return null;
   }
 
+  const attachedCount = suggestedReceipts.filter(s => s.isAttached).length;
+
   return (
     <>
       <ReceiptPreviewModal
@@ -178,83 +208,129 @@ export default function BillReceiptSuggestions({
         onAttach={handleAttachReceipt}
       />
       
-      <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-amber-600">
-          <Lightbulb className="h-5 w-5" />
-          Suggested Receipts
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Found {suggestedReceipts.length} receipt{suggestedReceipts.length !== 1 ? 's' : ''} that might match this bill
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {suggestedReceipts.map(({ receipt, reasons, matchPercentage }) => (
-          <div key={receipt.id} className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-              </div>
-              
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">{receipt.filename}</p>
-                  <Badge variant="default" className="text-xs">
-                    {matchPercentage}% Match
-                  </Badge>
-                  <div className="flex gap-1">
-                    {reasons.map(reason => (
-                      <Badge key={reason} variant="secondary" className="text-xs">
-                        {reason === 'Same vendor' && <Building2 className="h-3 w-3 mr-1" />}
-                        {(reason === 'Similar amount' || reason === 'Exact amount match' || reason === 'Very close amount') && <DollarSign className="h-3 w-3 mr-1" />}
-                        {reason}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <Card className="mb-6">
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-amber-600">
+                    <Lightbulb className="h-5 w-5" />
+                    Suggested Receipts
+                    {attachedCount > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {attachedCount} attached
                       </Badge>
-                    ))}
-                  </div>
+                    )}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {unattachedCount > 0 
+                      ? `Found ${unattachedCount} receipt${unattachedCount !== 1 ? 's' : ''} that might match this bill`
+                      : 'All suggested receipts have been attached'}
+                  </p>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                  <div>
-                    <span className="font-medium">Vendor:</span> {receipt.vendor || 'Unknown'}
-                  </div>
-                  <div>
-                    <span className="font-medium">Amount:</span> ${Number(receipt.amount || 0).toLocaleString()}
-                  </div>
-                  <div>
-                    <span className="font-medium">Date:</span> {new Date(receipt.date).toLocaleDateString()}
-                  </div>
-                  <div>
-                    <span className="font-medium">Job:</span> {receipt.jobName || 'Not assigned'}
-                  </div>
-                </div>
+                {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
               </div>
-            </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+              {suggestedReceipts.map(({ receipt, reasons, matchPercentage, isAttached }) => (
+                <div 
+                  key={receipt.id} 
+                  className={`flex items-center justify-between p-4 border rounded-lg ${isAttached ? 'bg-muted/50 border-green-200' : ''}`}
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${isAttached ? 'bg-green-100' : 'bg-muted'}`}>
+                      {isAttached ? (
+                        <Check className="h-6 w-6 text-green-600" />
+                      ) : (
+                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-medium ${isAttached ? 'text-muted-foreground' : ''}`}>{receipt.filename}</p>
+                        {isAttached ? (
+                          <Badge variant="default" className="bg-green-600 text-xs">
+                            <Check className="h-3 w-3 mr-1" />
+                            Attached
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="text-xs">
+                            {matchPercentage}% Match
+                          </Badge>
+                        )}
+                        {!isAttached && (
+                          <div className="flex gap-1">
+                            {reasons.map(reason => (
+                              <Badge key={reason} variant="secondary" className="text-xs">
+                                {reason === 'Same vendor' && <Building2 className="h-3 w-3 mr-1" />}
+                                {(reason === 'Similar amount' || reason === 'Exact amount match' || reason === 'Very close amount') && <DollarSign className="h-3 w-3 mr-1" />}
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className={`grid grid-cols-2 gap-4 text-sm ${isAttached ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
+                        <div>
+                          <span className="font-medium">Vendor:</span> {receipt.vendor || 'Unknown'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Amount:</span> ${Number(receipt.amount || 0).toLocaleString()}
+                        </div>
+                        <div>
+                          <span className="font-medium">Date:</span> {new Date(receipt.date).toLocaleDateString()}
+                        </div>
+                        <div>
+                          <span className="font-medium">Job:</span> {receipt.jobName || 'Not assigned'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPreviewReceipt(receipt);
-                  setIsPreviewOpen(true);
-                }}
-              >
-                <Eye className="h-4 w-4 mr-1" />
-                Preview
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleAttachReceipt(receipt)}
-                className="flex items-center gap-2"
-              >
-                <Link className="h-4 w-4" />
-                Attach
-              </Button>
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPreviewReceipt(receipt);
+                        setIsPreviewOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Preview
+                    </Button>
+                    {isAttached ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled
+                        className="flex items-center gap-2"
+                      >
+                        <Check className="h-4 w-4" />
+                        Attached
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAttachReceipt(receipt)}
+                        className="flex items-center gap-2"
+                      >
+                        <Link className="h-4 w-4" />
+                        Attach
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </>
   );
 }
