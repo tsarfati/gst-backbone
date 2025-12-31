@@ -19,7 +19,9 @@ interface JobCardProps {
 }
 
 export default function JobCard({ job, onClick }: JobCardProps) {
-  const budgetUsage = Math.round((parseInt(job.spent.replace(/[$,]/g, '')) / parseInt(job.budget.replace(/[$,]/g, ''))) * 100);
+  const spentValue = parseInt(job.spent.replace(/[$,]/g, '')) || 0;
+  const budgetValue = parseInt(job.budget.replace(/[$,]/g, '')) || 0;
+  const budgetUsage = budgetValue > 0 ? Math.round((spentValue / budgetValue) * 100) : 0;
 
   return (
     <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
