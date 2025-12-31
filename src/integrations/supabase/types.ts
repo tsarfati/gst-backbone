@@ -5024,6 +5024,7 @@ export type Database = {
       purchase_orders: {
         Row: {
           amount: number
+          cost_code_id: string | null
           created_at: string
           created_by: string
           description: string | null
@@ -5039,6 +5040,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cost_code_id?: string | null
           created_at?: string
           created_by: string
           description?: string | null
@@ -5054,6 +5056,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cost_code_id?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
@@ -5068,6 +5071,20 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_orders_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
           {
             foreignKeyName: "purchase_orders_job_id_fkey"
             columns: ["job_id"]
