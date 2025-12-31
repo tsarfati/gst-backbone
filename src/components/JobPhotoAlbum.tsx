@@ -68,7 +68,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const { user } = useAuth();
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
-  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('all');
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showCreateAlbumDialog, setShowCreateAlbumDialog] = useState(false);
@@ -144,7 +144,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         `)
         .eq('job_id', jobId);
 
-      if (selectedAlbumId !== 'all') {
+      if (selectedAlbumId) {
         query = query.eq('album_id', selectedAlbumId);
       }
 
@@ -228,7 +228,11 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -268,7 +272,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           setPhotoPreview(URL.createObjectURL(blob));
           stopCamera();
         }
-      }, 'image/jpeg', 0.95);
+      }, 'image/jpeg', 1.0);
     }
   };
 
@@ -642,27 +646,47 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         </Card>
       )}
 
-      {/* Album Filter */}
-      <div className="flex gap-2 items-center">
-        <label className="text-sm font-medium">Album:</label>
-        <Select value={selectedAlbumId} onValueChange={(value) => {
-          setSelectedAlbumId(value);
-          setLoading(true);
-          loadPhotos();
-        }}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Photos</SelectItem>
-            {albums.map((album) => (
-              <SelectItem key={album.id} value={album.id}>
-                {album.name} {album.is_auto_employee_album && '(Auto)'}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Album Icons Grid */}
+      {!selectedAlbumId || selectedAlbumId === 'all' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {albums.map((album) => (
+            <Card 
+              key={album.id} 
+              className="cursor-pointer hover:border-primary transition-colors group"
+              onClick={() => {
+                setSelectedAlbumId(album.id);
+                setLoading(true);
+              }}
+            >
+              <CardContent className="p-4 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors">
+                  <FolderPlus className="h-8 w-8 text-primary" />
+                </div>
+                <p className="text-sm font-medium line-clamp-2">{album.name}</p>
+                {album.is_auto_employee_album && (
+                  <span className="text-xs text-muted-foreground mt-1">Employee Uploads</span>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {albums.length === 0 && (
+            <div className="col-span-full text-center py-8 text-muted-foreground">
+              No albums yet. Create one to get started.
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Back to Albums button */}
+          <div className="flex items-center gap-2 mb-4">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedAlbumId('')}>
+              <X className="h-4 w-4 mr-1" />
+              Back to Albums
+            </Button>
+            <span className="text-lg font-semibold">
+              {albums.find(a => a.id === selectedAlbumId)?.name || 'Album'}
+            </span>
+          </div>
 
       {photos.length === 0 ? (
         <Card>
@@ -754,6 +778,8 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             </Card>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {/* Upload Dialog */}
