@@ -24,10 +24,16 @@ interface JobPhoto {
   location_lat?: number;
   location_lng?: number;
   location_address?: string;
+  pin_employee_id?: string;
   profiles?: {
     first_name?: string;
     last_name?: string;
     avatar_url?: string;
+  };
+  pin_employees?: {
+    first_name?: string;
+    last_name?: string;
+    display_name?: string;
   };
 }
 
@@ -132,7 +138,8 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .from('job_photos')
         .select(`
           *,
-          profiles(first_name, last_name, avatar_url)
+          profiles(first_name, last_name, avatar_url),
+          pin_employees(first_name, last_name, display_name)
         `)
         .eq('job_id', jobId);
 
@@ -715,12 +722,18 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={photo.profiles?.avatar_url} />
                     <AvatarFallback>
-                      {photo.profiles?.first_name?.[0]}{photo.profiles?.last_name?.[0]}
+                      {photo.pin_employee_id && photo.pin_employees 
+                        ? `${photo.pin_employees.first_name?.[0] || ''}${photo.pin_employees.last_name?.[0] || ''}`
+                        : `${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`
+                      }
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {photo.profiles?.first_name} {photo.profiles?.last_name}
+                      {photo.pin_employee_id && photo.pin_employees 
+                        ? (photo.pin_employees.display_name || `${photo.pin_employees.first_name} ${photo.pin_employees.last_name}`)
+                        : `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`
+                      }
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(photo.created_at), 'MMM d, yyyy h:mm a')}

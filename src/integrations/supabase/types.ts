@@ -3063,6 +3063,7 @@ export type Database = {
           location_lng: number | null
           note: string | null
           photo_url: string
+          pin_employee_id: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -3076,6 +3077,7 @@ export type Database = {
           location_lng?: number | null
           note?: string | null
           photo_url: string
+          pin_employee_id?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -3089,6 +3091,7 @@ export type Database = {
           location_lng?: number | null
           note?: string | null
           photo_url?: string
+          pin_employee_id?: string | null
           updated_at?: string
           uploaded_by?: string
         }
@@ -3112,6 +3115,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_photos_pin_employee_id_fkey"
+            columns: ["pin_employee_id"]
+            isOneToOne: false
+            referencedRelation: "pin_employees"
             referencedColumns: ["id"]
           },
           {

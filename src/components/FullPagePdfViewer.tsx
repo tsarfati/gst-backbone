@@ -183,7 +183,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
 
       {/* PDF Content */}
       <div className="flex-1 overflow-auto bg-muted/30" ref={containerRef}>
-        <div className="py-8 px-4 inline-block">
+        <div className="w-full h-full">
           {loading && (
             <div className="flex flex-col items-center justify-center h-96 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -201,15 +201,15 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
           )}
 
           {!loading && !error && pages.length > 0 && (
-            <div className="space-y-8">
+            <div className="space-y-4 p-2">
               {pages.map((canvas, index) => (
                 <div key={index} className="bg-white shadow-lg rounded-lg overflow-hidden">
-                  <div className="p-2 border-b bg-muted/50">
+                  <div className="p-1 border-b bg-muted/50">
                     <p className="text-xs text-muted-foreground text-center">
                       Page {index + 1}
                     </p>
                   </div>
-                  <div className="flex justify-center p-4">
+                  <div className="w-full">
                     <canvas
                       ref={(el) => {
                         if (el && canvas) {
@@ -221,7 +221,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
                           }
                         }
                       }}
-                      style={{ width: '100%', height: 'auto' }}
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
                     />
                   </div>
                 </div>
