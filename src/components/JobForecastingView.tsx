@@ -160,7 +160,7 @@ export default function JobForecastingView() {
               actual_amount: totalActual,
               committed_amount: totalCommitted,
               calculated_percent: calculatedPercent,
-              estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
+              estimated_percent: existingForecast?.estimated_percent_complete ?? 0,
               notes: existingForecast?.notes || '',
               updated_at: existingForecast?.updated_at,
               updated_by_name: existingForecast?.updated_by_name,
@@ -191,7 +191,7 @@ export default function JobForecastingView() {
                 actual_amount: actual,
                 committed_amount: committed,
                 calculated_percent: calculatedPercent,
-                estimated_percent: existingForecast?.estimated_percent_complete ?? calculatedPercent,
+                estimated_percent: existingForecast?.estimated_percent_complete ?? 0,
                 notes: existingForecast?.notes || '',
                 updated_at: existingForecast?.updated_at,
                 updated_by_name: existingForecast?.updated_by_name,
@@ -420,7 +420,32 @@ export default function JobForecastingView() {
                   <TableHead className="w-[80px] font-semibold">Code</TableHead>
                   <TableHead className="min-w-[180px] font-semibold">Description</TableHead>
                   <TableHead className="text-right w-[110px] font-semibold px-4">Budgeted</TableHead>
-                  <TableHead className="text-right w-[110px] font-semibold px-4 border-l border-border/50">Spent</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-4 border-l border-border/50">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Spent
+                          <Info className="h-3 w-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Actual costs from journal entries</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-4">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-1 ml-auto">
+                          Committed
+                          <Info className="h-3 w-3" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Pending subcontracts & purchase orders</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                   <TableHead className="text-right w-[110px] font-semibold px-4">
                     <TooltipProvider>
                       <Tooltip>
@@ -429,7 +454,7 @@ export default function JobForecastingView() {
                           <Info className="h-3 w-3" />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Budgeted minus spent</p>
+                          <p>Budgeted minus (spent + committed)</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -503,7 +528,10 @@ export default function JobForecastingView() {
                         {formatCurrency(line.budgeted_amount)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums px-4 py-3 border-l border-border/30">
-                        {formatCurrency(spent)}
+                        {formatCurrency(line.actual_amount)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums px-4 py-3">
+                        {formatCurrency(line.committed_amount)}
                       </TableCell>
                       <TableCell className={`text-right font-medium tabular-nums px-4 py-3 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
                         {formatCurrency(remaining)}
