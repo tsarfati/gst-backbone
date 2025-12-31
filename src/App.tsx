@@ -127,6 +127,11 @@ import ProjectCostBudgetStatus from "./pages/reports/ProjectCostBudgetStatus";
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
+import Customers from "./pages/Customers";
+import ARInvoices from "./pages/ARInvoices";
+import ARPayments from "./pages/ARPayments";
+import ReceivablesReports from "./pages/ReceivablesReports";
+import ReceivablesDashboard from "./pages/ReceivablesDashboard";
 import PunchClockLogin from "./pages/PunchClockLogin";
 import PinEmployeeEdit from "./pages/PinEmployeeEdit";
 import PMobileApp from "./pages/PMobileApp";
@@ -387,6 +392,14 @@ function AuthenticatedRoutes() {
                 <Route path="banking/print-checks" element={<PrintChecks />} />
                 <Route path="banking/make-payment" element={<MakePayment />} />
                 <Route path="banking/reconcile" element={<Reconcile />} />
+                
+                {/* Receivables Routes */}
+                <Route path="receivables" element={<ReceivablesDashboard />} />
+                <Route path="receivables/dashboard" element={<ReceivablesDashboard />} />
+                <Route path="receivables/customers" element={<Customers />} />
+                <Route path="receivables/invoices" element={<ARInvoices />} />
+                <Route path="receivables/payments" element={<ARPayments />} />
+                <Route path="receivables/reports" element={<ReceivablesReports />} />
               </Route>
               <Route path="/pm-mobile" element={<Navigate to="/pm-mobile-app" replace />} />
               <Route path="/pm-mobile-app" element={<Navigate to="/pm-mobile-login" replace />} />
