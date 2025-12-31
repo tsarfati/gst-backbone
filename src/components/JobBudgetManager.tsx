@@ -94,16 +94,17 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
       if (budgetError) throw budgetError;
 
-      // Calculate actual amounts from journal entries and invoices
+      // Calculate actual and committed amounts from live data
       const budgetLinesWithActuals = await Promise.all((budgetData || []).map(async (bd: any) => {
         const actualAmount = await calculateActualAmount(jobId, bd.cost_code_id);
+        const committedAmount = await calculateCommittedAmount(jobId, bd.cost_code_id);
         
         return {
           id: bd.id,
           cost_code_id: bd.cost_code_id,
           budgeted_amount: bd.budgeted_amount,
           actual_amount: actualAmount,
-          committed_amount: bd.committed_amount,
+          committed_amount: committedAmount,
           is_dynamic: bd.is_dynamic,
           parent_budget_id: bd.parent_budget_id,
           cost_code: bd.cost_codes
@@ -125,25 +126,34 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
   const calculateActualAmount = async (jobId: string, costCodeId: string): Promise<number> => {
     try {
-      // Get amounts from journal entry lines (posted transactions)
+      // Get amounts from posted journal entry lines (debit amounts for expenses)
       const { data: journalLines, error: jeError } = await supabase
         .from('journal_entry_lines')
-        .select('debit_amount')
+        .select('debit_amount, journal_entries!inner(status)')
         .eq('job_id', jobId)
-        .eq('cost_code_id', costCodeId);
+        .eq('cost_code_id', costCodeId)
+        .eq('journal_entries.status', 'posted');
 
       if (jeError) throw jeError;
 
-      const journalTotal = (journalLines || []).reduce((sum, line) => 
+      return (journalLines || []).reduce((sum, line) => 
         sum + Number(line.debit_amount || 0), 0
       );
+    } catch (error) {
+      console.error('Error calculating actual amount:', error);
+      return 0;
+    }
+  };
 
-      // Get amounts from invoices (may not all be posted yet)
+  const calculateCommittedAmount = async (jobId: string, costCodeId: string): Promise<number> => {
+    try {
+      // Get amounts from unposted invoices
       const { data: invoices, error: invError } = await supabase
         .from('invoices')
-        .select('amount')
+        .select('amount, status')
         .eq('job_id', jobId)
-        .eq('cost_code_id', costCodeId);
+        .eq('cost_code_id', costCodeId)
+        .neq('status', 'posted');
 
       if (invError) throw invError;
 
@@ -151,10 +161,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         sum + Number(inv.amount || 0), 0
       );
 
-      // Use the higher of the two (journal entries should include posted invoices)
-      return Math.max(journalTotal, invoiceTotal);
+      // Get amounts from unposted credit card transaction distributions
+      const { data: ccDists, error: ccError } = await supabase
+        .from('credit_card_transaction_distributions')
+        .select('amount, credit_card_transactions(journal_entry_id)')
+        .eq('job_id', jobId)
+        .eq('cost_code_id', costCodeId);
+
+      if (ccError) throw ccError;
+
+      // Only count CC distributions where transaction is not posted (no journal_entry_id)
+      const ccTotal = (ccDists || [])
+        .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
+        .reduce((sum, d) => sum + Number(d.amount || 0), 0);
+
+      return invoiceTotal + ccTotal;
     } catch (error) {
-      console.error('Error calculating actual amount:', error);
+      console.error('Error calculating committed amount:', error);
       return 0;
     }
   };
