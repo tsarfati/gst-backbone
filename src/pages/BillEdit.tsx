@@ -515,7 +515,7 @@ export default function BillEdit() {
 
   const attachmentRequired = !canBypassAttachment();
 
-  const handleSave = async (overrideStatus?: string) => {
+  const handleSave = async (overrideStatus?: string, processDistribution: boolean = false) => {
     try {
       // Validate attachments if required
       if (attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0) {
@@ -566,8 +566,13 @@ export default function BillEdit() {
       let newStatus = overrideStatus || bill?.status;
       let clearPendingCoding = false;
       
+      // If processing distribution on a pending_coding bill, move to pending_approval
+      if (processDistribution && bill?.status === 'pending_coding') {
+        newStatus = 'pending_approval';
+        clearPendingCoding = true;
+      }
       // If bill is pending_coding and now has job + cost code, move to pending_approval
-      if (!overrideStatus && bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
+      else if (!overrideStatus && bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
         newStatus = 'pending_approval';
         clearPendingCoding = true;
       }
@@ -970,6 +975,8 @@ export default function BillEdit() {
             billAmount={formData.amount}
             onChange={setBillDistribution}
             jobId={formData.job_id}
+            onProcessDistribution={bill?.status === 'pending_coding' ? () => handleSave(undefined, true) : undefined}
+            isProcessing={saving}
           />
         )}
 
@@ -993,11 +1000,14 @@ export default function BillEdit() {
               }
             }}
             disabled={saving}
+            showProcessButton={bill?.status === 'pending_coding'}
+            onProcessDistribution={() => handleSave(undefined, true)}
+            isProcessing={saving}
           />
         )}
 
-        {/* Bill Approval Section */}
-        {bill?.status && ['pending_approval', 'pending_coding'].includes(bill.status) && (
+        {/* Bill Approval Section - Only show when pending_approval, not during coding */}
+        {bill?.status === 'pending_approval' && (
           <Card>
             <CardHeader>
               <CardTitle>Bill Approval</CardTitle>
