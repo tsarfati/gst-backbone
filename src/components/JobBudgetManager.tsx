@@ -420,7 +420,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
     allLines.forEach(line => {
       if (line.is_dynamic) {
         // This is a dynamic parent
-        const children = getChildBudgets(line.id!);
+        const children = getChildBudgets(line.id!).sort((a, b) =>
+          (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
+        );
         const childrenSum = children.reduce((sum, c) => sum + (c.actual_amount + c.committed_amount), 0);
         const remaining = line.budgeted_amount - childrenSum;
         const isOverBudget = remaining < 0;
@@ -433,11 +435,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           childCount: children.length
         });
 
-        // Only add children if count is exactly 2, or if more than 2 and expanded
-        if (children.length === 2) {
-          // Don't show children for exactly 2
-        } else if (children.length > 2 && expandedGroups.has(line.cost_code?.code || '')) {
-          // Show children when expanded
+        // Show children when expanded (for any child count > 0)
+        if (children.length > 0 && expandedGroups.has(line.cost_code?.code || '')) {
           children.forEach(child => {
             unified.push({
               line: child,
@@ -528,7 +527,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                         >
                           <TableCell className={isChild ? "pl-12" : ""}>
                             <div className="flex items-center gap-2">
-                              {line.is_dynamic && childCount && childCount > 2 && (
+                              {line.is_dynamic && childCount !== undefined && childCount > 0 && (
                                 <button
                                   onClick={() => toggleGroup(line.cost_code?.code || '')}
                                   className="hover:bg-primary/10 p-0.5 rounded"
@@ -539,6 +538,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     <ChevronRight className="h-4 w-4" />
                                   )}
                                 </button>
+                              )}
+                              {line.is_dynamic && childCount !== undefined && childCount > 0 && (
+                                <span className="text-xs text-muted-foreground">({childCount})</span>
                               )}
                               <span className="font-mono text-sm">{line.cost_code?.code}</span>
                               {line.is_dynamic && (
