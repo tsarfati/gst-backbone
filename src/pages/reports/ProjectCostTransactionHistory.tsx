@@ -60,7 +60,7 @@ interface JobBudgetSummary {
 // Normalize category names
 const normalizeCategory = (category?: string): string => {
   if (!category) return "Other";
-  const lower = category.toLowerCase().trim();
+  const lower = category.toLowerCase().trim().replace(/_/g, " ");
   
   // Map "one time" and other variations to proper names
   if (lower === "one time" || lower === "onetime" || lower === "one-time") {
@@ -70,8 +70,11 @@ const normalizeCategory = (category?: string): string => {
   if (lower === "material" || lower === "materials") return "Material";
   if (lower === "equipment") return "Equipment";
   if (lower === "sub" || lower === "subcontract" || lower === "subcontracts") return "Subcontract";
-  if (lower === "po" || lower === "purchase_order" || lower === "purchase order") return "Purchase Order";
-  return "Other";
+  if (lower === "po" || lower === "purchase order" || lower === "purchase orders") return "Purchase Order";
+  if (lower === "other") return "Other";
+  
+  // Default to using the cost code type if it's a known category
+  return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
 };
 
 export default function ProjectCostTransactionHistory() {
@@ -326,8 +329,9 @@ export default function ProjectCostTransactionHistory() {
         ...bills
           .filter((bill: any) => bill.status !== 'posted')
           .map((bill: any) => {
-            // Determine category - if linked to subcontract, it's a Subcontract
-            let category = bill.bill_category || bill.cost_codes?.type;
+            // Determine category - prioritize cost code type, then bill_category
+            // Cost code type is more specific and accurate
+            let category = bill.cost_codes?.type || bill.bill_category;
             if (bill.subcontract_id) {
               category = "Subcontract";
             }
