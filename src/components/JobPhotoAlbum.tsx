@@ -34,6 +34,7 @@ interface JobPhoto {
     first_name?: string;
     last_name?: string;
     display_name?: string;
+    avatar_url?: string;
   };
 }
 
@@ -139,7 +140,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .select(`
           *,
           profiles(first_name, last_name, avatar_url),
-          pin_employees(first_name, last_name, display_name)
+          pin_employees(first_name, last_name, display_name, avatar_url)
         `)
         .eq('job_id', jobId);
 
@@ -720,7 +721,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               <CardContent className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={photo.profiles?.avatar_url} />
+                    <AvatarImage src={photo.pin_employee_id && photo.pin_employees?.avatar_url ? photo.pin_employees.avatar_url : photo.profiles?.avatar_url} />
                     <AvatarFallback>
                       {photo.pin_employee_id && photo.pin_employees 
                         ? `${photo.pin_employees.first_name?.[0] || ''}${photo.pin_employees.last_name?.[0] || ''}`
