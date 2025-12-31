@@ -212,6 +212,31 @@ export default function MakePayment() {
         .select('invoice_id, amount_paid')
         .in('invoice_id', invoiceIds);
       
+      // Fetch distributions with job info for invoices that might not have direct job_id
+      const { data: distributions } = await supabase
+        .from('invoice_cost_distributions')
+        .select(`
+          invoice_id,
+          cost_codes(job_id, jobs(id, name))
+        `)
+        .in('invoice_id', invoiceIds);
+
+      // Build a map of invoice_id -> job info from distributions
+      const distributionJobMap = new Map<string, { id: string; name: string }[]>();
+      distributions?.forEach((dist: any) => {
+        const invoiceId = dist.invoice_id;
+        const job = dist.cost_codes?.jobs;
+        if (job?.id && job?.name) {
+          if (!distributionJobMap.has(invoiceId)) {
+            distributionJobMap.set(invoiceId, []);
+          }
+          const existing = distributionJobMap.get(invoiceId)!;
+          if (!existing.find(j => j.id === job.id)) {
+            existing.push({ id: job.id, name: job.name });
+          }
+        }
+      });
+      
       // Calculate amount paid per invoice
       const paidByInvoice: Record<string, number> = {};
       (paymentLinesData || []).forEach(pl => {
@@ -221,9 +246,22 @@ export default function MakePayment() {
       const formattedInvoices = (invoicesData || []).map(invoice => {
         const amountPaid = paidByInvoice[invoice.id] || 0;
         const balanceDue = Number(invoice.amount) - amountPaid;
+        
+        // Use direct job if available, otherwise get from distributions
+        let jobInfo = invoice.jobs;
+        if (!jobInfo) {
+          const distJobs = distributionJobMap.get(invoice.id);
+          if (distJobs && distJobs.length > 0) {
+            jobInfo = distJobs.length === 1 
+              ? distJobs[0] 
+              : { id: distJobs[0].id, name: `${distJobs[0].name} (+${distJobs.length - 1})` };
+          }
+        }
+        
         return {
           ...invoice,
           vendor: invoice.vendors,
+          jobs: jobInfo,
           amount_paid: amountPaid,
           balance_due: balanceDue
         };
@@ -238,7 +276,7 @@ export default function MakePayment() {
       );
       setVendors(uniqueVendors);
 
-      // Extract unique jobs from invoices
+      // Extract unique jobs from invoices (now includes jobs from distributions)
       const uniqueJobs = Array.from(
         new Map(
           formattedInvoices
