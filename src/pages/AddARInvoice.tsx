@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, FileText, Building, Calendar, AlertCircle, Save } from "lucide-react";
+import { ArrowLeft, FileText, Building, AlertCircle, Save, Send, Download } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Job {
   id: string;
@@ -310,7 +312,7 @@ export default function AddARInvoice() {
     try {
       setSaving(true);
 
-      // Create invoice
+      // Create invoice - note: balance_due is a generated column, don't include it
       const { data: invoice, error: invoiceError } = await supabase
         .from("ar_invoices")
         .insert({
@@ -326,7 +328,6 @@ export default function AddARInvoice() {
           contract_date: contractDate || null,
           amount: totals.thisPeriod,
           total_amount: currentPaymentDue,
-          balance_due: currentPaymentDue,
           contract_amount: contractSum,
           change_orders_amount: changeOrders,
           retainage_percent: retainagePercent,
@@ -380,6 +381,268 @@ export default function AddARInvoice() {
     }
   };
 
+  const generateAIAPdf = (forReview: boolean = false) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // --- PAGE 1: G702 Application and Certificate for Payment ---
+    
+    // Header
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("APPLICATION AND CERTIFICATION FOR PAYMENT", pageWidth / 2, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("AIA DOCUMENT G702", pageWidth / 2, 21, { align: "center" });
+    
+    if (forReview) {
+      doc.setTextColor(200, 0, 0);
+      doc.setFontSize(14);
+      doc.text("*** FOR REVIEW ***", pageWidth / 2, 28, { align: "center" });
+      doc.setTextColor(0, 0, 0);
+    }
+    
+    const startY = forReview ? 35 : 30;
+    
+    // Left column - Owner/Contractor info
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    
+    doc.text("TO OWNER:", 14, startY);
+    doc.setFont("helvetica", "bold");
+    doc.text(selectedCustomer?.name || "-", 14, startY + 5);
+    doc.setFont("helvetica", "normal");
+    const customerAddress = [
+      selectedCustomer?.address,
+      [selectedCustomer?.city, selectedCustomer?.state, selectedCustomer?.zip_code].filter(Boolean).join(", ")
+    ].filter(Boolean).join("\n");
+    doc.text(customerAddress, 14, startY + 10);
+    
+    doc.text("FROM CONTRACTOR:", 14, startY + 25);
+    doc.setFont("helvetica", "bold");
+    doc.text(currentCompany?.name || "-", 14, startY + 30);
+    doc.setFont("helvetica", "normal");
+    const companyAddress = [
+      currentCompany?.address,
+      [currentCompany?.city, currentCompany?.state, currentCompany?.zip_code].filter(Boolean).join(", ")
+    ].filter(Boolean).join("\n");
+    doc.text(companyAddress, 14, startY + 35);
+    
+    doc.text("PROJECT:", 14, startY + 50);
+    doc.setFont("helvetica", "bold");
+    doc.text(selectedJob?.name || "-", 14, startY + 55);
+    doc.setFont("helvetica", "normal");
+    doc.text(selectedJob?.address || "", 14, startY + 60);
+    
+    // Right column - Application details
+    doc.text("APPLICATION NO:", 120, startY);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(applicationNumber), 160, startY);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("APPLICATION DATE:", 120, startY + 8);
+    doc.setFont("helvetica", "bold");
+    doc.text(format(new Date(), "MM/dd/yyyy"), 160, startY + 8);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("PERIOD TO:", 120, startY + 16);
+    doc.setFont("helvetica", "bold");
+    doc.text(periodTo ? format(new Date(periodTo), "MM/dd/yyyy") : "-", 160, startY + 16);
+    
+    doc.setFont("helvetica", "normal");
+    doc.text("CONTRACT DATE:", 120, startY + 24);
+    doc.setFont("helvetica", "bold");
+    doc.text(contractDate ? format(new Date(contractDate), "MM/dd/yyyy") : "-", 160, startY + 24);
+    
+    // Contractor's Application for Payment text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("CONTRACTOR'S APPLICATION FOR PAYMENT", 14, startY + 75);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const certText = "The undersigned Contractor certifies that to the best of the Contractor's knowledge, information and belief the Work covered by this Application for Payment has been completed in accordance with the Contract Documents, that all amounts have been paid by the Contractor for Work for which previous Certificates for Payment were issued and payments received from the Owner, and that current payment shown herein is now due.";
+    const splitCertText = doc.splitTextToSize(certText, pageWidth - 28);
+    doc.text(splitCertText, 14, startY + 80);
+    
+    // Contract Summary Table
+    const contractTableY = startY + 100;
+    
+    autoTable(doc, {
+      startY: contractTableY,
+      head: [],
+      body: [
+        ["1. ORIGINAL CONTRACT SUM", `$${formatNumber(contractSum)}`],
+        ["2. Net change by Change Orders", `$${formatNumber(changeOrders)}`],
+        ["3. CONTRACT SUM TO DATE (Line 1 ± 2)", `$${formatNumber(totalContractSum)}`],
+        ["4. TOTAL COMPLETED & STORED TO DATE (Column I on G703)", `$${formatNumber(totalCompletedStored)}`],
+        ["5. RETAINAGE:", ""],
+        [`   a. ${retainagePercent}% of Completed Work (Column I on G703)`, `$${formatNumber(totalRetainage)}`],
+        ["   b. 0% of Stored Material (Column H on G703)", "$0.00"],
+        ["   Total Retainage (Lines 5a + 5b)", `$${formatNumber(totalRetainage)}`],
+        ["6. TOTAL EARNED LESS RETAINAGE (Line 4 Less Line 5 Total)", `$${formatNumber(totalCompletedStored - totalRetainage)}`],
+        ["7. LESS PREVIOUS CERTIFICATES FOR PAYMENT", `$${formatNumber(lessPreviousCertificates)}`],
+        ["8. CURRENT PAYMENT DUE", `$${formatNumber(currentPaymentDue)}`],
+        ["9. BALANCE TO FINISH, INCLUDING RETAINAGE (Line 3 less Line 6)", `$${formatNumber(totals.balanceToFinish + totalRetainage)}`],
+      ],
+      theme: "grid",
+      styles: { fontSize: 9, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 130 },
+        1: { cellWidth: 45, halign: "right", fontStyle: "bold" }
+      },
+      didParseCell: (data) => {
+        if (data.row.index === 2 || data.row.index === 8 || data.row.index === 10) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
+    });
+    
+    // Amount Certified section
+    const afterTableY = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("AMOUNT CERTIFIED . . . . . . . . . . . $ ____________________", 14, afterTableY);
+    
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("(Attach explanation if amount certified differs from the amount applied.)", 14, afterTableY + 6);
+    
+    // Signature lines
+    const sigY = afterTableY + 20;
+    doc.line(14, sigY, 80, sigY);
+    doc.text("CONTRACTOR", 14, sigY + 5);
+    doc.text("By: _______________________  Date: ____________", 14, sigY + 12);
+    
+    doc.line(110, sigY, 196, sigY);
+    doc.text("ARCHITECT", 110, sigY + 5);
+    doc.text("By: _______________________  Date: ____________", 110, sigY + 12);
+    
+    // Footer
+    doc.setFontSize(7);
+    doc.text("AIA DOCUMENT G702 · APPLICATION AND CERTIFICATION FOR PAYMENT · 1992 EDITION · AIA · ©1992", pageWidth / 2, 285, { align: "center" });
+    
+    // --- PAGE 2: G703 Continuation Sheet ---
+    doc.addPage();
+    
+    // Header
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("CONTINUATION SHEET", pageWidth / 2, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("AIA DOCUMENT G703", pageWidth / 2, 21, { align: "center" });
+    
+    if (forReview) {
+      doc.setTextColor(200, 0, 0);
+      doc.setFontSize(14);
+      doc.text("*** FOR REVIEW ***", pageWidth / 2, 28, { align: "center" });
+      doc.setTextColor(0, 0, 0);
+    }
+    
+    const g703StartY = forReview ? 35 : 30;
+    
+    // Application info
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`APPLICATION NO: ${applicationNumber}`, 14, g703StartY);
+    doc.text(`APPLICATION DATE: ${format(new Date(), "MM/dd/yyyy")}`, 14, g703StartY + 6);
+    doc.text(`PERIOD TO: ${periodTo ? format(new Date(periodTo), "MM/dd/yyyy") : "-"}`, 14, g703StartY + 12);
+    
+    doc.text(`PROJECT: ${selectedJob?.name || "-"}`, 110, g703StartY);
+    
+    // G703 Table
+    autoTable(doc, {
+      startY: g703StartY + 20,
+      head: [[
+        "Item\nNo.",
+        "Description of Work",
+        "Scheduled\nValue",
+        "Previous\nApplications",
+        "This\nPeriod",
+        "Materials\nStored",
+        "Total\nCompleted",
+        "%",
+        "Balance\nTo Finish",
+        "Retainage"
+      ]],
+      body: [
+        ...lineItems.map(item => [
+          item.item_number,
+          item.description,
+          `$${formatNumber(item.scheduled_value)}`,
+          `$${formatNumber(item.previous_applications)}`,
+          `$${formatNumber(item.this_period)}`,
+          `$${formatNumber(item.materials_stored)}`,
+          `$${formatNumber(item.total_completed)}`,
+          `${item.percent_complete}%`,
+          `$${formatNumber(item.balance_to_finish)}`,
+          `$${formatNumber(item.retainage)}`
+        ]),
+        // Totals row
+        [
+          "",
+          "GRAND TOTAL",
+          `$${formatNumber(totals.scheduledValue)}`,
+          `$${formatNumber(totals.previousApplications)}`,
+          `$${formatNumber(totals.thisPeriod)}`,
+          `$${formatNumber(totals.materialsStored)}`,
+          `$${formatNumber(totals.totalCompleted)}`,
+          `${overallPercent}%`,
+          `$${formatNumber(totals.balanceToFinish)}`,
+          `$${formatNumber(totals.retainage)}`
+        ]
+      ],
+      theme: "grid",
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [80, 80, 80], textColor: 255, fontSize: 7, halign: "center" },
+      columnStyles: {
+        0: { cellWidth: 12, halign: "center" },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 20, halign: "right" },
+        3: { cellWidth: 20, halign: "right" },
+        4: { cellWidth: 18, halign: "right" },
+        5: { cellWidth: 18, halign: "right" },
+        6: { cellWidth: 20, halign: "right" },
+        7: { cellWidth: 12, halign: "center" },
+        8: { cellWidth: 20, halign: "right" },
+        9: { cellWidth: 18, halign: "right" }
+      },
+      didParseCell: (data) => {
+        // Style the totals row
+        if (data.row.index === lineItems.length && data.section === "body") {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
+    });
+    
+    // Footer
+    doc.setFontSize(7);
+    doc.text("AIA DOCUMENT G703 · CONTINUATION SHEET · 1992 EDITION · AIA · ©1992", pageWidth / 2, 285, { align: "center" });
+    
+    // Save or return
+    const fileName = `AIA_Invoice_${invoiceNumber}_App${applicationNumber}${forReview ? "_REVIEW" : ""}.pdf`;
+    doc.save(fileName);
+    
+    toast({
+      title: forReview ? "PDF for Review Generated" : "PDF Downloaded",
+      description: `${fileName} has been downloaded`,
+    });
+  };
+
+  const handleSendForReview = () => {
+    if (!selectedJobId || !selectedCustomerId) {
+      toast({
+        title: "Error",
+        description: "Please select a job and customer first",
+        variant: "destructive",
+      });
+      return;
+    }
+    generateAIAPdf(true);
+  };
+
   const selectedJob = jobs.find(j => j.id === selectedJobId);
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
@@ -402,10 +665,28 @@ export default function AddARInvoice() {
           <h1 className="text-3xl font-bold">New AIA Invoice</h1>
           <p className="text-muted-foreground">Application for Payment (G702/G703)</p>
         </div>
-        <Button onClick={handleSave} disabled={saving || hasNoSOV}>
-          <Save className="h-4 w-4 mr-2" />
-          {saving ? "Saving..." : "Create Invoice"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => generateAIAPdf(false)} 
+            disabled={hasNoSOV || lineItems.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+          <Button 
+            variant="secondary" 
+            onClick={handleSendForReview} 
+            disabled={hasNoSOV || lineItems.length === 0}
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Send for Review
+          </Button>
+          <Button onClick={handleSave} disabled={saving || hasNoSOV}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? "Saving..." : "Create Invoice"}
+          </Button>
+        </div>
       </div>
 
       {/* Job & Customer Selection */}
