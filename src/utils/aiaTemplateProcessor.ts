@@ -104,6 +104,91 @@ function replacePlaceholders(template: string | number | undefined, placeholders
   return result;
 }
 
+function colLettersToNumber(col: string): number {
+  let n = 0;
+  for (const ch of col.toUpperCase()) {
+    n = n * 26 + (ch.charCodeAt(0) - 64);
+  }
+  return n;
+}
+
+function numberToColLetters(n: number): string {
+  let s = '';
+  let num = n;
+  while (num > 0) {
+    const r = (num - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    num = Math.floor((num - 1) / 26);
+  }
+  return s;
+}
+
+function parseA1Address(addr: string): { col: number; row: number } | null {
+  const m = addr.replace(/\$/g, '').match(/^([A-Z]{1,3})(\d+)$/i);
+  if (!m) return null;
+  return { col: colLettersToNumber(m[1]), row: parseInt(m[2], 10) };
+}
+
+function shiftFormula(formula: string, deltaCol: number, deltaRow: number): string {
+  return formula.replace(
+    /(^|[^A-Z0-9_])(\$?)([A-Z]{1,3})(\$?)(\d+)/g,
+    (match, pre: string, absCol: string, colLetters: string, absRow: string, rowStr: string) => {
+      let col = colLettersToNumber(colLetters);
+      let row = parseInt(rowStr, 10);
+
+      if (!absCol) col += deltaCol;
+      if (!absRow) row += deltaRow;
+
+      // Clamp to valid bounds
+      if (col < 1) col = 1;
+      if (row < 1) row = 1;
+
+      return `${pre}${absCol}${numberToColLetters(col)}${absRow}${row}`;
+    }
+  );
+}
+
+/**
+ * ExcelJS throws on some workbooks that contain shared formulas where the master cell
+ * is not "above and/or left" of the clone. To preserve formatting AND export reliably,
+ * convert shared-formula clones into explicit formulas before writing.
+ */
+function normalizeSharedFormulas(workbook: ExcelJS.Workbook) {
+  workbook.eachSheet((ws) => {
+    ws.eachRow({ includeEmpty: true }, (row) => {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const val: any = cell.value as any;
+        if (!val || typeof val !== 'object') return;
+        if (!('sharedFormula' in val)) return;
+
+        const sharedAddr = String(val.sharedFormula || '');
+        const master = sharedAddr ? ws.getCell(sharedAddr) : null;
+
+        const masterFormula = (master as any)?.formula as string | undefined;
+        const cellFormula = (cell as any).formula as string | undefined;
+
+        const cellAddr = parseA1Address(cell.address);
+        const masterAddr = sharedAddr ? parseA1Address(sharedAddr) : null;
+        const deltaCol = cellAddr && masterAddr ? cellAddr.col - masterAddr.col : 0;
+        const deltaRow = cellAddr && masterAddr ? cellAddr.row - masterAddr.row : 0;
+
+        const baseFormula = cellFormula || masterFormula;
+        if (!baseFormula) {
+          // If we cannot resolve a formula, at least drop sharedFormula to avoid write crash
+          cell.value = (val.result ?? null) as any;
+          return;
+        }
+
+        const adjusted = masterAddr ? shiftFormula(baseFormula, deltaCol, deltaRow) : baseFormula;
+        cell.value = {
+          formula: adjusted,
+          result: val.result ?? (cell as any).result,
+        } as any;
+      });
+    });
+  });
+}
+
 /**
  * Load the default AIA template for a company
  */
@@ -272,6 +357,9 @@ export async function processAIATemplate(
         });
       }
     });
+
+    // Normalize shared-formula clones so ExcelJS can write the file reliably
+    normalizeSharedFormulas(workbook);
 
     // Generate output buffer
     const outputBuffer = await workbook.xlsx.writeBuffer();
