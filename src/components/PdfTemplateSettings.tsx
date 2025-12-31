@@ -913,8 +913,8 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const renderPreview = (html: string) => {
-    return html
+  const renderPreview = (html: string, template?: TemplateSettings) => {
+    let result = html
       .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
       .replace(/{period}/g, 'Jan 1 - Jan 31, 2025')
       .replace(/{date}/g, new Date().toLocaleDateString())
@@ -927,6 +927,14 @@ export default function PdfTemplateSettings() {
       .replace(/{page}/g, '1')
       .replace(/{pages}/g, '1')
       .replace(/{generated_date}/g, new Date().toLocaleDateString());
+    
+    // If use_company_logo is enabled and company has a logo, replace company name with logo
+    if (template?.use_company_logo && currentCompany?.logo_url) {
+      const logoHtml = `<img src="${currentCompany.logo_url}" alt="${currentCompany.name}" style="max-height: 60px; max-width: 200px; object-fit: contain;" />`;
+      result = result.replace(new RegExp(currentCompany.name || 'Company Name', 'g'), logoHtml);
+    }
+    
+    return result;
   };
 
   return (
@@ -1163,7 +1171,7 @@ export default function PdfTemplateSettings() {
                         <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
                         <div 
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html || '') }}
+                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html || '', reconciliationTemplate) }}
                         />
                       </div>
                     </CardContent>
@@ -1187,7 +1195,7 @@ export default function PdfTemplateSettings() {
                         <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
                         <div 
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html || '') }}
+                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html || '', reconciliationTemplate) }}
                         />
                       </div>
                     </CardContent>
@@ -1375,7 +1383,7 @@ export default function PdfTemplateSettings() {
                     {reconciliationTemplate.header_html && (
                       <div 
                         className="mb-6" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html, reconciliationTemplate) }}
                       />
                     )}
                     <div className="space-y-4 py-8">
@@ -1387,7 +1395,7 @@ export default function PdfTemplateSettings() {
                     {reconciliationTemplate.footer_html && (
                       <div 
                         className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html, reconciliationTemplate) }}
                       />
                     )}
                   </div>
@@ -1531,7 +1539,7 @@ export default function PdfTemplateSettings() {
                     {generalLedgerTemplate.header_html && (
                       <div 
                         className="mb-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.header_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.header_html, generalLedgerTemplate) }}
                       />
                     )}
                     <div className="space-y-2">
@@ -1545,7 +1553,7 @@ export default function PdfTemplateSettings() {
                     {generalLedgerTemplate.footer_html && (
                       <div 
                         className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.footer_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.footer_html, generalLedgerTemplate) }}
                       />
                     )}
                   </div>
@@ -1684,7 +1692,7 @@ export default function PdfTemplateSettings() {
                     {creditCardTemplate.header_html && (
                       <div 
                         className="mb-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.header_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.header_html, creditCardTemplate) }}
                       />
                     )}
                     <div className="space-y-2">
@@ -1698,7 +1706,7 @@ export default function PdfTemplateSettings() {
                     {creditCardTemplate.footer_html && (
                       <div 
                         className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.footer_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.footer_html, creditCardTemplate) }}
                       />
                     )}
                   </div>
@@ -1921,7 +1929,7 @@ export default function PdfTemplateSettings() {
                     {commitmentTemplate.header_html && (
                       <div 
                         className="mb-6" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.header_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.header_html, commitmentTemplate) }}
                       />
                     )}
                     <div className="space-y-4 py-8">
@@ -1933,7 +1941,7 @@ export default function PdfTemplateSettings() {
                     {commitmentTemplate.footer_html && (
                       <div 
                         className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.footer_html) }}
+                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.footer_html, commitmentTemplate) }}
                       />
                     )}
                   </div>
@@ -2249,7 +2257,7 @@ export default function PdfTemplateSettings() {
                         <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
                         <div 
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
+                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '', timecardTemplate) }}
                         />
                       </div>
                     </CardContent>
@@ -2273,7 +2281,7 @@ export default function PdfTemplateSettings() {
                         <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
                         <div 
                           className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
+                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '', timecardTemplate) }}
                         />
                       </div>
                     </CardContent>
@@ -2459,7 +2467,7 @@ export default function PdfTemplateSettings() {
                           {/* Header Section */}
                           <div 
                             className="prose prose-sm max-w-none mb-4"
-                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '') }}
+                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '', timecardTemplate) }}
                           />
 
                           {/* Sample Body Content */}
@@ -2507,7 +2515,7 @@ export default function PdfTemplateSettings() {
                           {/* Footer Section */}
                           <div 
                             className="prose prose-sm max-w-none mt-4"
-                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '') }}
+                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '', timecardTemplate) }}
                           />
 
                         </div>
