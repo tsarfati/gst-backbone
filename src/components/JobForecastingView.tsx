@@ -129,7 +129,7 @@ export default function JobForecastingView() {
         return ids && ids.length > 0 ? ids : [fallbackCostCodeId];
       };
 
-      // Helper to get actuals (posted journal entry lines + PAID invoices)
+      // Helper to get actuals (posted journal entry lines + PAID invoices NOT linked to subcontracts)
       const getActualAmount = async (costCodeIds: string[]): Promise<number> => {
         // Posted journal entry lines
         const { data: journalLines } = await supabase
@@ -144,26 +144,28 @@ export default function JobForecastingView() {
           0
         );
 
-        // Paid invoices (direct cost_code_id)
+        // Paid invoices (direct cost_code_id) - EXCLUDE those linked to subcontracts
         const { data: paidInvoices } = await supabase
           .from("invoices")
-          .select("amount")
+          .select("amount, subcontract_id")
           .eq("job_id", id)
           .in("cost_code_id", costCodeIds)
-          .eq("status", "paid");
+          .eq("status", "paid")
+          .is("subcontract_id", null);
 
         const invoiceTotal = (paidInvoices || []).reduce(
           (sum, inv) => sum + Number((inv as any).amount || 0),
           0
         );
 
-        // Paid invoices (distributed)
+        // Paid invoices (distributed) - EXCLUDE those linked to subcontracts
         const { data: paidDistributions } = await supabase
           .from("invoice_cost_distributions")
-          .select("amount, invoices!inner(job_id,status)")
+          .select("amount, invoices!inner(job_id, status, subcontract_id)")
           .in("cost_code_id", costCodeIds)
           .eq("invoices.job_id", id)
-          .eq("invoices.status", "paid");
+          .eq("invoices.status", "paid")
+          .is("invoices.subcontract_id", null);
 
         const distTotal = (paidDistributions || []).reduce(
           (sum, d) => sum + Number((d as any).amount || 0),
@@ -173,35 +175,10 @@ export default function JobForecastingView() {
         return journalTotal + invoiceTotal + distTotal;
       };
 
-      // Helper to get committed amounts (unpaid invoices + distributions + subcontracts + POs)
+      // Helper to get committed amounts (Subcontracts + POs only - total commitment value)
+      // Does NOT include unpaid invoices since those are payments against commitments
       const getCommittedAmount = async (costCodeIds: string[]): Promise<number> => {
         let total = 0;
-
-        // Unpaid invoices (direct cost_code_id)
-        const { data: unpaidInvoices } = await supabase
-          .from("invoices")
-          .select("amount, status")
-          .eq("job_id", id)
-          .in("cost_code_id", costCodeIds)
-          .not("status", "in", '("paid","cancelled")');
-
-        total += (unpaidInvoices || []).reduce(
-          (sum, inv) => sum + Number((inv as any).amount || 0),
-          0
-        );
-
-        // Unpaid invoices (distributed)
-        const { data: unpaidDistributions } = await supabase
-          .from("invoice_cost_distributions")
-          .select("amount, invoices!inner(job_id,status)")
-          .in("cost_code_id", costCodeIds)
-          .eq("invoices.job_id", id)
-          .not("invoices.status", "in", '("paid","cancelled")');
-
-        total += (unpaidDistributions || []).reduce(
-          (sum, d) => sum + Number((d as any).amount || 0),
-          0
-        );
 
         // Subcontracts (cost_distribution)
         const { data: subcontracts } = await supabase
