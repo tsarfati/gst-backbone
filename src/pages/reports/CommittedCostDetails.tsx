@@ -17,7 +17,7 @@ import * as XLSX from "xlsx";
 
 interface CommittedItem {
   id: string;
-  type: "subcontract" | "purchase_order";
+  type: "subcontract";
   name: string;
   vendor_name?: string;
   date: string;
@@ -217,31 +217,7 @@ export default function CommittedCostDetails() {
         }
       });
 
-      // Load purchase orders
-      const poBaseQuery = supabase
-        .from("purchase_orders")
-        .select("id, po_number, po_date, amount, cost_code_id, status, vendors(name), cost_codes(code, description)")
-        .eq("job_id", selectedJobId)
-        .neq("status", "cancelled") as any;
-      
-      const { data: purchaseOrders, error: poError } = actualCostCodeId 
-        ? await poBaseQuery.eq("cost_code_id", actualCostCodeId) 
-        : await poBaseQuery;
-      if (poError) throw poError;
-
-      (purchaseOrders || []).forEach((po: any) => {
-        allItems.push({
-          id: po.id,
-          type: "purchase_order",
-          name: `PO #${po.po_number}`,
-          vendor_name: po.vendors?.name,
-          date: po.po_date,
-          amount: Number(po.amount || 0),
-          status: po.status,
-          cost_code: po.cost_codes?.code,
-          cost_code_description: po.cost_codes?.description,
-        });
-      });
+      // Note: Purchase orders don't have cost_code_id, so they can't be included in cost code-based committed cost reports
 
       allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setItems(allItems);
@@ -285,11 +261,9 @@ export default function CommittedCostDetails() {
   const getTypeBadge = (type: string) => {
     const variants: Record<string, string> = {
       subcontract: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-      purchase_order: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
     };
     const labels: Record<string, string> = {
       subcontract: "Subcontract",
-      purchase_order: "PO",
     };
     return (
       <Badge className={variants[type] || "bg-gray-100 text-gray-800"}>
@@ -301,8 +275,6 @@ export default function CommittedCostDetails() {
   const handleItemClick = (item: CommittedItem) => {
     if (item.type === "subcontract") {
       navigate(`/subcontracts/${item.id}`);
-    } else if (item.type === "purchase_order") {
-      navigate(`/purchase-orders/${item.id}`);
     }
   };
 
@@ -476,19 +448,12 @@ export default function CommittedCostDetails() {
                 </Select>
               </div>
 
-              {/* Type Filter */}
+              {/* Type info - only subcontracts have cost code distribution */}
               <div className="space-y-2">
                 <Label>Commitment Type</Label>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="subcontract">Subcontracts</SelectItem>
-                    <SelectItem value="purchase_order">Purchase Orders</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="text-sm text-muted-foreground p-2 border rounded-md">
+                  Subcontracts only (POs don't have cost codes)
+                </div>
               </div>
 
               {activeFilterCount > 0 && (
