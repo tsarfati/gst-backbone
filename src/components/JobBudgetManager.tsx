@@ -96,37 +96,15 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
       if (budgetError) throw budgetError;
 
-      // Load all job cost codes once so we can aggregate by *code* (handles duplicates)
-      const { data: jobCostCodes, error: jobCostCodesError } = await supabase
-        .from("cost_codes")
-        .select("id, code")
-        .eq("job_id", jobId)
-        .eq("is_active", true);
-
-      if (jobCostCodesError) throw jobCostCodesError;
-
-      const codeToIds = new Map<string, string[]>();
-      (jobCostCodes || []).forEach((cc: any) => {
-        const code = String(cc.code || "").trim();
-        if (!code) return;
-        const arr = codeToIds.get(code) || [];
-        arr.push(cc.id);
-        codeToIds.set(code, arr);
-      });
-
-      const getIdsForCode = (code: string | undefined, fallbackCostCodeId: string): string[] => {
-        const ids = code ? codeToIds.get(code) : undefined;
-        return ids && ids.length > 0 ? ids : [fallbackCostCodeId];
-      };
-
-      const calculateActualAmount = async (costCodeIds: string[]): Promise<number> => {
+      // Calculate actual amount for a SPECIFIC cost code ID only (no aggregation by code string)
+      const calculateActualAmount = async (costCodeId: string): Promise<number> => {
         try {
           // Posted journal entry lines (debit amounts for expenses)
           const { data: journalLines, error: jeError } = await supabase
             .from("journal_entry_lines")
             .select("debit_amount, journal_entries!inner(status)")
             .eq("job_id", jobId)
-            .in("cost_code_id", costCodeIds)
+            .eq("cost_code_id", costCodeId)
             .eq("journal_entries.status", "posted");
 
           if (jeError) throw jeError;
@@ -141,7 +119,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             .from("invoices")
             .select("amount")
             .eq("job_id", jobId)
-            .in("cost_code_id", costCodeIds)
+            .eq("cost_code_id", costCodeId)
             .eq("status", "paid");
 
           const invoiceTotal = (paidInvoices || []).reduce(
@@ -153,7 +131,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           const { data: paidDistributions } = await supabase
             .from("invoice_cost_distributions")
             .select("amount, invoices!inner(job_id,status)")
-            .in("cost_code_id", costCodeIds)
+            .eq("cost_code_id", costCodeId)
             .eq("invoices.job_id", jobId)
             .eq("invoices.status", "paid");
 
@@ -169,7 +147,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         }
       };
 
-      const calculateCommittedAmount = async (costCodeIds: string[]): Promise<number> => {
+      const calculateCommittedAmount = async (costCodeId: string): Promise<number> => {
         try {
           let total = 0;
 
@@ -178,7 +156,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             .from("invoices")
             .select("amount, status")
             .eq("job_id", jobId)
-            .in("cost_code_id", costCodeIds)
+            .eq("cost_code_id", costCodeId)
             .not("status", "in", '("paid","cancelled")');
 
           if (invError) throw invError;
@@ -192,7 +170,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           const { data: unpaidDistributions } = await supabase
             .from("invoice_cost_distributions")
             .select("amount, invoices!inner(job_id,status)")
-            .in("cost_code_id", costCodeIds)
+            .eq("cost_code_id", costCodeId)
             .eq("invoices.job_id", jobId)
             .not("invoices.status", "in", '("paid","cancelled")');
 
@@ -228,7 +206,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                 : [];
 
             items.forEach((dist: any) => {
-              if (dist?.cost_code_id && costCodeIds.includes(dist.cost_code_id)) {
+              if (dist?.cost_code_id && dist.cost_code_id === costCodeId) {
                 total += Number(dist?.amount || 0);
               }
             });
@@ -239,7 +217,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             .from("purchase_orders")
             .select("amount, status, cost_code_id")
             .eq("job_id", jobId)
-            .in("cost_code_id", costCodeIds);
+            .eq("cost_code_id", costCodeId);
 
           if (poError) throw poError;
 
@@ -256,14 +234,11 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         }
       };
 
-      // Calculate actual and committed amounts from live data
+      // Calculate actual and committed amounts from live data - use EXACT cost_code_id, no aggregation
       const budgetLinesWithActuals = await Promise.all(
         (budgetData || []).map(async (bd: any) => {
-          const code = bd.cost_codes?.code as string | undefined;
-          const idsForCode = getIdsForCode(code, bd.cost_code_id);
-
-          const actualAmount = await calculateActualAmount(idsForCode);
-          const committedAmount = await calculateCommittedAmount(idsForCode);
+          const actualAmount = await calculateActualAmount(bd.cost_code_id);
+          const committedAmount = await calculateCommittedAmount(bd.cost_code_id);
 
           return {
             id: bd.id,
