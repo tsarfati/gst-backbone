@@ -406,6 +406,14 @@ export default function ProjectCostBudgetStatus() {
     return "bg-green-500";
   };
 
+  const getDisplayBudget = (line: BudgetLine) => {
+    return line.dynamic_parent_budget_id ? Number(line.dynamic_parent_budget ?? 0) : line.budgeted;
+  };
+
+  const getDisplayRemaining = (line: BudgetLine) => {
+    return line.dynamic_parent_budget_id ? Number(line.dynamic_group_remaining ?? 0) : line.remaining;
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     
@@ -420,16 +428,23 @@ export default function ProjectCostBudgetStatus() {
       doc.text(`Project: ${job?.name || ""}`, 14, 40);
     }
     
-    const tableData = budgetLines.map(line => [
-      line.job_name,
-      line.cost_code,
-      line.cost_code_description.length > 30 ? line.cost_code_description.substring(0, 30) + "..." : line.cost_code_description,
-      `$${formatNumber(line.budgeted)}`,
-      `$${formatNumber(line.actual)}`,
-      `$${formatNumber(line.committed)}`,
-      `$${formatNumber(line.remaining)}`,
-      `${line.percent_used.toFixed(1)}%`,
-    ]);
+    const tableData = budgetLines.map((line) => {
+      const displayBudget = getDisplayBudget(line);
+      const displayRemaining = getDisplayRemaining(line);
+
+      return [
+        line.job_name,
+        line.cost_code,
+        line.cost_code_description.length > 30
+          ? line.cost_code_description.substring(0, 30) + "..."
+          : line.cost_code_description,
+        `$${formatNumber(displayBudget)}`,
+        `$${formatNumber(line.actual)}`,
+        `$${formatNumber(line.committed)}`,
+        `$${formatNumber(displayRemaining)}`,
+        `${line.percent_used.toFixed(1)}%`,
+      ];
+    });
     
     autoTable(doc, {
       startY: selectedJob !== "all" ? 46 : 40,
@@ -449,7 +464,8 @@ export default function ProjectCostBudgetStatus() {
       didParseCell: (data) => {
         // Highlight over-budget rows
         if (data.section === "body" && data.column.index === 6) {
-          const remaining = budgetLines[data.row.index]?.remaining;
+          const line = budgetLines[data.row.index];
+          const remaining = line ? getDisplayRemaining(line) : 0;
           if (remaining < 0) {
             data.cell.styles.textColor = [220, 38, 38];
           }
@@ -468,16 +484,21 @@ export default function ProjectCostBudgetStatus() {
       [`Company: ${currentCompany?.name || ""}`],
       [],
       ["Project", "Cost Code", "Description", "Budget", "Actual", "Committed", "Remaining", "% Used"],
-      ...budgetLines.map(line => [
-        line.job_name,
-        line.cost_code,
-        line.cost_code_description,
-        line.budgeted,
-        line.actual,
-        line.committed,
-        line.remaining,
-        `${line.percent_used.toFixed(1)}%`,
-      ]),
+      ...budgetLines.map((line) => {
+        const displayBudget = getDisplayBudget(line);
+        const displayRemaining = getDisplayRemaining(line);
+
+        return [
+          line.job_name,
+          line.cost_code,
+          line.cost_code_description,
+          displayBudget,
+          line.actual,
+          line.committed,
+          displayRemaining,
+          `${line.percent_used.toFixed(1)}%`,
+        ];
+      }),
       [],
       ["", "", "Totals:", totals.budgeted, totals.actual, totals.committed, totals.remaining, 
         totals.budgeted > 0 ? `${(((totals.actual + totals.committed) / totals.budgeted) * 100).toFixed(1)}%` : "0%"
@@ -633,7 +654,7 @@ export default function ProjectCostBudgetStatus() {
                               <TooltipContent>
                                 <p>Part of dynamic budget group: {line.dynamic_parent_code}</p>
                                 {line.dynamic_parent_budget !== undefined && (
-                                  <p>Group budget: ${formatNumber(line.dynamic_parent_budget)}</p>
+                                  <p>{`Group budget: $${formatNumber(line.dynamic_parent_budget)}`}</p>
                                 )}
                               </TooltipContent>
                             </Tooltip>
@@ -641,22 +662,37 @@ export default function ProjectCostBudgetStatus() {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{line.cost_code_description}</TableCell>
-                      <TableCell className="text-right">${formatNumber(line.budgeted)}</TableCell>
-                      <TableCell className="text-right">${formatNumber(line.actual)}</TableCell>
-                      <TableCell className="text-right text-amber-600">${formatNumber(line.committed)}</TableCell>
-                      <TableCell className={`text-right font-medium ${
-                        line.dynamic_parent_budget_id 
-                          ? getStatusColor(line.dynamic_group_remaining ?? 0, line.dynamic_parent_budget ?? 0)
-                          : getStatusColor(line.remaining, line.budgeted)
-                      }`}>
+                      <TableCell className="text-right">
                         {line.dynamic_parent_budget_id ? (
                           <Tooltip>
-                            <TooltipTrigger>
-                              ${formatNumber(line.dynamic_group_remaining ?? 0)}
+                            <TooltipTrigger asChild>
+                              <span>{`$${formatNumber(getDisplayBudget(line))}`}</span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Group remaining: ${formatNumber(line.dynamic_group_remaining ?? 0)}</p>
-                              <p>This line actual: ${formatNumber(line.actual)}</p>
+                              <p>{`Group budget: $${formatNumber(getDisplayBudget(line))}`}</p>
+                              <p>{`This line actual: $${formatNumber(line.actual)}`}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          `$${formatNumber(line.budgeted)}`
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">${formatNumber(line.actual)}</TableCell>
+                      <TableCell className="text-right text-amber-600">${formatNumber(line.committed)}</TableCell>
+                      <TableCell
+                        className={`text-right font-medium ${getStatusColor(
+                          getDisplayRemaining(line),
+                          getDisplayBudget(line)
+                        )}`}
+                      >
+                        {line.dynamic_parent_budget_id ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>{`$${formatNumber(getDisplayRemaining(line))}`}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{`Group remaining: $${formatNumber(getDisplayRemaining(line))}`}</p>
+                              <p>{`This line actual: $${formatNumber(line.actual)}`}</p>
                             </TooltipContent>
                           </Tooltip>
                         ) : (
