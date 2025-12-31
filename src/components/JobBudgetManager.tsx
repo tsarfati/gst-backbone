@@ -427,6 +427,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       isOverBudget?: boolean;
       remaining?: number;
       childCount?: number;
+      parentBudget?: number;
+      parentRemaining?: number;
+      groupSpent?: number;
     }> = [];
 
     // First, collect all dynamic parents
@@ -455,7 +458,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           isChild: false,
           isOverBudget,
           remaining,
-          childCount: children.length
+          childCount: children.length,
+          groupSpent: childrenSum
         });
 
         // Show children when expanded (for any child count > 0)
@@ -464,7 +468,11 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             unified.push({
               line: child,
               isChild: true,
-              parentId: line.id
+              parentId: line.id,
+              parentBudget: line.budgeted_amount,
+              parentRemaining: remaining,
+              isOverBudget: isOverBudget,
+              groupSpent: childrenSum
             });
           });
         }
@@ -537,8 +545,17 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                   </TableHeader>
                   <TableBody>
                     {buildUnifiedBudgetList().map((item, index) => {
-                      const { line, isChild, parentId, isOverBudget, remaining, childCount } = item;
-                      const variance = line.budgeted_amount - (line.actual_amount + line.committed_amount);
+                      const { line, isChild, parentId, isOverBudget, remaining, childCount, parentBudget, parentRemaining, groupSpent } = item;
+                      
+                      // For children of dynamic budgets, use parent's remaining; for regular lines, use own variance
+                      const variance = isChild && parentBudget !== undefined
+                        ? parentRemaining ?? 0
+                        : line.budgeted_amount - (line.actual_amount + line.committed_amount);
+                      
+                      const displayBudget = isChild && parentBudget !== undefined ? parentBudget : line.budgeted_amount;
+                      const displayVariance = isChild && parentRemaining !== undefined ? parentRemaining : variance;
+                      const isVarianceNegative = isChild ? (isOverBudget ?? false) : variance < 0;
+                      
                       const isExpanded = expandedGroups.has(line.cost_code?.code || '');
                       
                       return (
@@ -577,6 +594,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   )}
                                 </>
                               )}
+                              {isChild && (
+                                <span className="text-xs text-muted-foreground">(shares parent budget)</span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -586,13 +606,19 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                             </div>
                           </TableCell>
                           <TableCell>
-                            <CurrencyInput
-                              value={line.budgeted_amount.toString()}
-                              onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                              className="w-32"
-                              placeholder="0.00"
-                              disabled={!canEditBudget || (isChild && parentId ? isChildDisabled(parentId, line) : false)}
-                            />
+                            {isChild ? (
+                              <span className="font-mono text-muted-foreground text-sm">
+                                {formatCurrency(parentBudget ?? 0)}
+                              </span>
+                            ) : (
+                              <CurrencyInput
+                                value={line.budgeted_amount.toString()}
+                                onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
+                                className="w-32"
+                                placeholder="0.00"
+                                disabled={!canEditBudget}
+                              />
+                            )}
                           </TableCell>
                           <TableCell>
                             {line.is_dynamic ? (
@@ -626,11 +652,11 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                           </TableCell>
                           <TableCell>
                             <span className={`${
-                              (line.is_dynamic ? (remaining ?? 0) < 0 : variance < 0)
+                              isVarianceNegative
                                 ? 'text-destructive font-semibold' 
                                 : 'text-muted-foreground'
                             }`}>
-                              {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(variance)}
+                              {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>
                           </TableCell>
                         </TableRow>
