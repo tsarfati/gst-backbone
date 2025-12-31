@@ -939,13 +939,32 @@ export default function PdfTemplateSettings() {
             </AlertDescription>
           </Alert>
 
+          <div className="mb-6">
+            <Label htmlFor="document-type-select" className="text-sm font-medium mb-2 block">Select Document Type</Label>
+            <Select value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)}>
+              <SelectTrigger id="document-type-select" className="w-full md:w-[320px]">
+                <SelectValue placeholder="Select a document type..." />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="timecard">Timecard Reports</SelectItem>
+                <SelectItem value="commitment">Commitment Status</SelectItem>
+                <SelectItem value="invoice">Invoice Reports</SelectItem>
+                <SelectItem value="receipt">Receipt Reports</SelectItem>
+                <SelectItem value="subcontract">Subcontracts</SelectItem>
+                <SelectItem value="reconciliation">Reconciliation</SelectItem>
+                <SelectItem value="general_ledger">General Ledger</SelectItem>
+                <SelectItem value="credit_card_transaction">Credit Card Transactions</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8">
-              <TabsTrigger value="timecard">Timecard Reports</TabsTrigger>
-              <TabsTrigger value="commitment">Commitment Status</TabsTrigger>
-              <TabsTrigger value="invoice">Invoice Reports</TabsTrigger>
-              <TabsTrigger value="receipt">Receipt Reports</TabsTrigger>
-              <TabsTrigger value="subcontract">Subcontracts</TabsTrigger>
+            <TabsList className="sr-only">
+              <TabsTrigger value="timecard">Timecard</TabsTrigger>
+              <TabsTrigger value="commitment">Commitment</TabsTrigger>
+              <TabsTrigger value="invoice">Invoice</TabsTrigger>
+              <TabsTrigger value="receipt">Receipt</TabsTrigger>
+              <TabsTrigger value="subcontract">Subcontract</TabsTrigger>
               <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
               <TabsTrigger value="general_ledger">General Ledger</TabsTrigger>
               <TabsTrigger value="credit_card_transaction">Credit Card</TabsTrigger>
