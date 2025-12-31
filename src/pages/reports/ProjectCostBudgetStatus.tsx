@@ -112,6 +112,7 @@ export default function ProjectCostBudgetStatus() {
         .gt("debit_amount", 0);
 
       // Subcontracts = committed (cost_distribution is JSONB with cost_code_id and amount)
+      // Note: Purchase orders don't have cost_code_id so they can't be tracked by cost code
       let subcontractsQuery = supabase
         .from("subcontracts")
         .select(
@@ -126,40 +127,21 @@ export default function ProjectCostBudgetStatus() {
         .eq("jobs.company_id", currentCompany!.id)
         .neq("status", "cancelled");
 
-      // Purchase Orders = committed (has cost_code_id and amount)
-      let purchaseOrdersQuery = supabase
-        .from("purchase_orders")
-        .select(
-          `
-          id,
-          job_id,
-          cost_code_id,
-          amount,
-          status,
-          jobs!inner(company_id)
-        `
-        )
-        .eq("jobs.company_id", currentCompany!.id)
-        .neq("status", "cancelled");
-
       if (selectedJob !== "all") {
         budgetsQuery = budgetsQuery.eq("job_id", selectedJob);
         actualsQuery = actualsQuery.eq("job_id", selectedJob);
         subcontractsQuery = subcontractsQuery.eq("job_id", selectedJob);
-        purchaseOrdersQuery = purchaseOrdersQuery.eq("job_id", selectedJob);
       }
 
       const [
         { data: budgetRows, error: budgetsError },
         { data: actualRows, error: actualsError },
         { data: subcontractRows, error: subcontractsError },
-        { data: poRows, error: poError },
-      ] = await Promise.all([budgetsQuery, actualsQuery, subcontractsQuery, purchaseOrdersQuery]);
+      ] = await Promise.all([budgetsQuery, actualsQuery, subcontractsQuery]);
 
       if (budgetsError) throw budgetsError;
       if (actualsError) throw actualsError;
       if (subcontractsError) throw subcontractsError;
-      if (poError) throw poError;
 
       const data = budgetRows || [];
 
@@ -171,7 +153,8 @@ export default function ProjectCostBudgetStatus() {
         actualsMap.set(key, (actualsMap.get(key) || 0) + Number(jl.debit_amount || 0));
       });
 
-      // Build committed map from subcontracts (cost_distribution JSONB) + purchase orders
+      // Build committed map from subcontracts (cost_distribution JSONB)
+      // Note: Purchase orders don't have cost code distribution so they're not included
       const committedMap = new Map<string, number>();
       
       // Process subcontracts with cost_distribution
@@ -185,13 +168,6 @@ export default function ProjectCostBudgetStatus() {
             committedMap.set(key, (committedMap.get(key) || 0) + Number(dist.amount || 0));
           });
         }
-      });
-      
-      // Process purchase orders
-      (poRows || []).forEach((po: any) => {
-        if (!po.job_id || !po.cost_code_id) return;
-        const key = `${po.job_id}:${po.cost_code_id}`;
-        committedMap.set(key, (committedMap.get(key) || 0) + Number(po.amount || 0));
       });
 
       // Dynamic budgets are determined by job_budgets.parent_budget_id
