@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,10 +15,10 @@ serve(async (req) => {
   }
 
   try {
-    if (!openAIApiKey) {
-      console.error('OpenAI API key not found');
+    if (!lovableApiKey) {
+      console.error('Lovable API key not found');
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        JSON.stringify({ error: 'Lovable API key not configured' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -38,7 +38,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Processing receipt OCR with OpenAI GPT-5');
+    console.log('Processing receipt OCR with Lovable AI');
 
     // Prepare the image input
     let imageInput;
@@ -58,14 +58,14 @@ serve(async (req) => {
       };
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-5-2025-08-07',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -92,14 +92,27 @@ serve(async (req) => {
             ]
           }
         ],
-        max_completion_tokens: 500,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('OpenAI API error:', response.status, errorData);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Lovable AI API error:', response.status, errorData);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Rate limit exceeded. Please try again later.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'API credits exhausted. Please add credits to continue.' }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw new Error(`Lovable AI API error: ${response.status}`);
     }
 
     const data = await response.json();
@@ -110,7 +123,14 @@ serve(async (req) => {
     // Try to parse the JSON response
     let extractedData;
     try {
-      extractedData = JSON.parse(extractedText);
+      // Handle markdown code blocks
+      let jsonStr = extractedText;
+      if (jsonStr.includes('```json')) {
+        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (jsonStr.includes('```')) {
+        jsonStr = jsonStr.replace(/```\n?/g, '');
+      }
+      extractedData = JSON.parse(jsonStr.trim());
     } catch (parseError) {
       console.error('Failed to parse JSON response:', parseError);
       // If JSON parsing fails, return a basic structure
