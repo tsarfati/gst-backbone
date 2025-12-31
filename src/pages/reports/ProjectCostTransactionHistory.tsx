@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Download, FileSpreadsheet, Filter, X } from "lucide-react";
+import { CalendarIcon, Download, FileSpreadsheet, Filter, X, ChevronDown, ChevronRight } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
@@ -20,16 +20,18 @@ import * as XLSX from "xlsx";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Transaction {
   id: string;
   date: string;
   description: string;
   amount: number;
-  type: "bill" | "credit_card" | "journal_entry";
+  type: "bill" | "credit_card" | "journal_entry" | "subcontract" | "purchase_order";
   reference_number?: string;
   job_name?: string;
   cost_code?: string;
+  cost_code_id?: string;
   cost_code_description?: string;
   category?: string;
 }
@@ -46,19 +48,43 @@ interface CostCode {
   type?: string;
 }
 
+interface JobBudgetSummary {
+  cost_code_id: string;
+  cost_code: string;
+  description: string;
+  budgeted: number;
+  actual: number;
+  committed: number;
+}
+
+// Normalize category names
+const normalizeCategory = (category?: string): string => {
+  if (!category) return "Other";
+  const lower = category.toLowerCase().trim();
+  
+  // Map "one time" and other variations to proper names
+  if (lower === "one time" || lower === "onetime" || lower === "one-time") {
+    return "Subcontract";
+  }
+  if (lower === "labor") return "Labor";
+  if (lower === "material" || lower === "materials") return "Material";
+  if (lower === "equipment") return "Equipment";
+  if (lower === "sub" || lower === "subcontract" || lower === "subcontracts") return "Subcontract";
+  if (lower === "po" || lower === "purchase_order" || lower === "purchase order") return "Purchase Order";
+  return "Other";
+};
+
 export default function ProjectCostTransactionHistory() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   
-  // URL params (for direct navigation from budget page)
   const urlJobId = searchParams.get("jobId");
   const urlCostCodeId = searchParams.get("costCodeId");
   const urlJobName = searchParams.get("jobName");
   const urlCostCodeDescription = searchParams.get("costCodeDescription");
   
-  // Filter state
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>(urlJobId || "");
@@ -77,47 +103,52 @@ export default function ProjectCostTransactionHistory() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [selectedBill, setSelectedBill] = useState<any>(null);
   const [resolvedCostCodeId, setResolvedCostCodeId] = useState<string | null>(null);
+  const [jobBudgetSummary, setJobBudgetSummary] = useState<JobBudgetSummary[]>([]);
+  const [expandedCostCodes, setExpandedCostCodes] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  // Load jobs and cost codes for filters
   useEffect(() => {
     if (currentCompany?.id) {
       loadFilterData();
     }
   }, [currentCompany?.id]);
 
-  // Load cost codes when job changes
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
       loadCostCodesForJob(selectedJobId);
+      loadJobBudgetSummary(selectedJobId);
     } else {
       setCostCodes([]);
       setSelectedCostCodeId("");
+      setJobBudgetSummary([]);
     }
   }, [selectedJobId, currentCompany?.id]);
 
-  // Resolve cost code ID (might be budget ID)
   useEffect(() => {
-    if (selectedCostCodeId) {
+    if (selectedCostCodeId && selectedCostCodeId !== "all") {
       resolveCostCodeId(selectedCostCodeId);
     } else {
       setResolvedCostCodeId(null);
     }
   }, [selectedCostCodeId]);
 
-  // Load transactions when filters change
   useEffect(() => {
-    if (selectedJobId && resolvedCostCodeId) {
-      loadTransactions();
-    } else if (selectedJobId && !selectedCostCodeId) {
-      // Load all transactions for job (no cost code filter)
+    if (selectedJobId) {
       loadTransactions();
     }
   }, [selectedJobId, resolvedCostCodeId]);
 
-  // Apply client-side filters
   useEffect(() => {
     applyFilters();
   }, [transactions, selectedType, selectedCategory, dateFrom, dateTo]);
+
+  // Expand all cost codes by default when data loads
+  useEffect(() => {
+    if (filteredTransactions.length > 0) {
+      const allCostCodes = new Set(filteredTransactions.map(t => t.cost_code || "uncategorized"));
+      setExpandedCostCodes(allCostCodes);
+    }
+  }, [filteredTransactions]);
 
   const loadFilterData = async () => {
     try {
@@ -140,7 +171,6 @@ export default function ProjectCostTransactionHistory() {
 
   const loadCostCodesForJob = async (jobId: string) => {
     try {
-      // Get cost codes from budgets for this job
       const { data: budgets, error } = await supabase
         .from("job_budgets")
         .select("cost_code_id, cost_codes(id, code, description, type)")
@@ -162,8 +192,39 @@ export default function ProjectCostTransactionHistory() {
     }
   };
 
+  const loadJobBudgetSummary = async (jobId: string) => {
+    try {
+      const { data: budgets, error } = await supabase
+        .from("job_budgets")
+        .select(`
+          id,
+          cost_code_id,
+          budgeted_amount,
+          actual_amount,
+          committed_amount,
+          cost_codes(id, code, description)
+        `)
+        .eq("job_id", jobId)
+        .not("cost_code_id", "is", null);
+
+      if (error) throw error;
+
+      const summary: JobBudgetSummary[] = (budgets || []).map((b: any) => ({
+        cost_code_id: b.cost_code_id,
+        cost_code: b.cost_codes?.code || "",
+        description: b.cost_codes?.description || "",
+        budgeted: Number(b.budgeted_amount) || 0,
+        actual: Number(b.actual_amount) || 0,
+        committed: Number(b.committed_amount) || 0,
+      }));
+
+      setJobBudgetSummary(summary.sort((a, b) => a.cost_code.localeCompare(b.cost_code)));
+    } catch (error) {
+      console.error("Error loading job budget summary:", error);
+    }
+  };
+
   const resolveCostCodeId = async (costCodeId: string) => {
-    // First check if it's a budget ID
     const { data: budget } = await supabase
       .from("job_budgets")
       .select("cost_code_id")
@@ -185,103 +246,14 @@ export default function ProjectCostTransactionHistory() {
       
       const actualCostCodeId = resolvedCostCodeId;
 
-      // Run all queries in parallel for better performance
-      const [journalResult, billsResult, ccResult] = await Promise.all([
-        // Journal entry lines
-        supabase
-          .from("journal_entry_lines")
-          .select(`
-            id,
-            debit_amount,
-            credit_amount,
-            description,
-            journal_entries!inner(id, entry_date, reference, description, status),
-            jobs(name),
-            cost_codes(code, description, type)
-          `)
-          .eq("job_id", selectedJobId)
-          .then(res => {
-            if (actualCostCodeId) {
-              return supabase
-                .from("journal_entry_lines")
-                .select(`
-                  id,
-                  debit_amount,
-                  credit_amount,
-                  description,
-                  journal_entries!inner(id, entry_date, reference, description, status),
-                  jobs(name),
-                  cost_codes(code, description, type)
-                `)
-                .eq("job_id", selectedJobId)
-                .eq("cost_code_id", actualCostCodeId);
-            }
-            return res;
-          }),
-        
-        // Bills
-        supabase
-          .from("invoices")
-          .select(`
-            id, invoice_number, issue_date, amount, description, status, bill_category,
-            jobs(name),
-            cost_codes(code, description, type)
-          `)
-          .eq("job_id", selectedJobId)
-          .then(res => {
-            if (actualCostCodeId) {
-              return supabase
-                .from("invoices")
-                .select(`
-                  id, invoice_number, issue_date, amount, description, status, bill_category,
-                  jobs(name),
-                  cost_codes(code, description, type)
-                `)
-                .eq("job_id", selectedJobId)
-                .eq("cost_code_id", actualCostCodeId);
-            }
-            return res;
-          }),
-        
-        // Credit card distributions
-        supabase
-          .from("credit_card_transaction_distributions")
-          .select(`
-            id, amount, transaction_id,
-            jobs(name),
-            cost_codes(code, description, type),
-            credit_card_transactions(
-              id, transaction_date, amount, description, reference_number, coding_status, category, journal_entry_id
-            )
-          `)
-          .eq("job_id", selectedJobId)
-          .then(res => {
-            if (actualCostCodeId) {
-              return supabase
-                .from("credit_card_transaction_distributions")
-                .select(`
-                  id, amount, transaction_id,
-                  jobs(name),
-                  cost_codes(code, description, type),
-                  credit_card_transactions(
-                    id, transaction_date, amount, description, reference_number, coding_status, category, journal_entry_id
-                  )
-                `)
-                .eq("job_id", selectedJobId)
-                .eq("cost_code_id", actualCostCodeId);
-            }
-            return res;
-          }),
-      ]);
-
-      // Actually run the queries properly
+      // Build queries
       let journalQuery = supabase
         .from("journal_entry_lines")
         .select(`
-          id, debit_amount, credit_amount, description,
+          id, debit_amount, credit_amount, description, cost_code_id,
           journal_entries!inner(id, entry_date, reference, description, status),
           jobs(name),
-          cost_codes(code, description, type)
+          cost_codes(id, code, description, type)
         `)
         .eq("job_id", selectedJobId);
       
@@ -292,9 +264,10 @@ export default function ProjectCostTransactionHistory() {
       let billsQuery = supabase
         .from("invoices")
         .select(`
-          id, invoice_number, issue_date, amount, description, status, bill_category,
+          id, invoice_number, issue_date, amount, description, status, bill_category, cost_code_id, subcontract_id,
           jobs(name),
-          cost_codes(code, description, type)
+          cost_codes(id, code, description, type),
+          subcontracts(id, name)
         `)
         .eq("job_id", selectedJobId);
       
@@ -305,9 +278,9 @@ export default function ProjectCostTransactionHistory() {
       let ccQuery = supabase
         .from("credit_card_transaction_distributions")
         .select(`
-          id, amount, transaction_id,
+          id, amount, transaction_id, cost_code_id,
           jobs(name),
-          cost_codes(code, description, type),
+          cost_codes(id, code, description, type),
           credit_card_transactions(
             id, transaction_date, amount, description, reference_number, coding_status, category, journal_entry_id
           )
@@ -345,24 +318,33 @@ export default function ProjectCostTransactionHistory() {
             reference_number: jl.journal_entries?.reference || undefined,
             job_name: jl.jobs?.name || "",
             cost_code: jl.cost_codes?.code || "",
+            cost_code_id: jl.cost_code_id || "",
             cost_code_description: jl.cost_codes?.description || "",
-            category: jl.cost_codes?.type || undefined,
+            category: normalizeCategory(jl.cost_codes?.type),
           })),
         // Bills not yet posted
         ...bills
           .filter((bill: any) => bill.status !== 'posted')
-          .map((bill: any) => ({
-            id: bill.id,
-            date: bill.issue_date || "",
-            description: bill.description || "Bill",
-            amount: Number(bill.amount) || 0,
-            type: "bill" as const,
-            reference_number: bill.invoice_number || undefined,
-            job_name: bill.jobs?.name || "",
-            cost_code: bill.cost_codes?.code || "",
-            cost_code_description: bill.cost_codes?.description || "",
-            category: bill.bill_category || bill.cost_codes?.type || undefined,
-          })),
+          .map((bill: any) => {
+            // Determine category - if linked to subcontract, it's a Subcontract
+            let category = bill.bill_category || bill.cost_codes?.type;
+            if (bill.subcontract_id) {
+              category = "Subcontract";
+            }
+            return {
+              id: bill.id,
+              date: bill.issue_date || "",
+              description: bill.description || (bill.subcontracts?.name ? `Subcontract: ${bill.subcontracts.name}` : "Bill"),
+              amount: Number(bill.amount) || 0,
+              type: bill.subcontract_id ? "subcontract" as const : "bill" as const,
+              reference_number: bill.invoice_number || undefined,
+              job_name: bill.jobs?.name || "",
+              cost_code: bill.cost_codes?.code || "",
+              cost_code_id: bill.cost_code_id || "",
+              cost_code_description: bill.cost_codes?.description || "",
+              category: normalizeCategory(category),
+            };
+          }),
         // Credit card transactions not yet posted
         ...ccDistributions
           .filter((dist: any) => !dist.credit_card_transactions?.journal_entry_id)
@@ -375,12 +357,21 @@ export default function ProjectCostTransactionHistory() {
             reference_number: dist.credit_card_transactions?.reference_number || undefined,
             job_name: dist.jobs?.name || "",
             cost_code: dist.cost_codes?.code || "",
+            cost_code_id: dist.cost_code_id || "",
             cost_code_description: dist.cost_codes?.description || "",
-            category: dist.credit_card_transactions?.category || dist.cost_codes?.type || undefined,
+            category: normalizeCategory(dist.credit_card_transactions?.category || dist.cost_codes?.type),
           })),
       ];
 
-      allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      allTransactions.sort((a, b) => {
+        // Sort by cost code first, then by category, then by date
+        const codeCompare = (a.cost_code || "").localeCompare(b.cost_code || "");
+        if (codeCompare !== 0) return codeCompare;
+        const catCompare = (a.category || "").localeCompare(b.category || "");
+        if (catCompare !== 0) return catCompare;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      });
+      
       setTransactions(allTransactions);
     } catch (error) {
       console.error("Error loading transactions:", error);
@@ -397,19 +388,16 @@ export default function ProjectCostTransactionHistory() {
   const applyFilters = () => {
     let filtered = [...transactions];
 
-    // Type filter
     if (selectedType !== "all") {
       filtered = filtered.filter(t => t.type === selectedType);
     }
 
-    // Category filter
     if (selectedCategory !== "all") {
       filtered = filtered.filter(t => 
         t.category?.toLowerCase() === selectedCategory.toLowerCase()
       );
     }
 
-    // Date range filter
     if (dateFrom) {
       filtered = filtered.filter(t => new Date(t.date) >= dateFrom);
     }
@@ -421,6 +409,51 @@ export default function ProjectCostTransactionHistory() {
     setTotalAmount(filtered.reduce((sum, t) => sum + t.amount, 0));
   };
 
+  // Group transactions by cost code, then by category
+  const groupedTransactions = useMemo(() => {
+    const groups: Record<string, Record<string, Transaction[]>> = {};
+    
+    filteredTransactions.forEach(t => {
+      const costCodeKey = t.cost_code || "uncategorized";
+      const categoryKey = t.category || "Other";
+      
+      if (!groups[costCodeKey]) {
+        groups[costCodeKey] = {};
+      }
+      if (!groups[costCodeKey][categoryKey]) {
+        groups[costCodeKey][categoryKey] = [];
+      }
+      groups[costCodeKey][categoryKey].push(t);
+    });
+
+    // Sort cost codes
+    const sortedCostCodes = Object.keys(groups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    
+    return sortedCostCodes.map(costCode => {
+      const categories = groups[costCode];
+      const categoryOrder = ["Labor", "Material", "Equipment", "Subcontract", "Purchase Order", "Other"];
+      const sortedCategories = Object.keys(categories).sort((a, b) => {
+        const aIndex = categoryOrder.indexOf(a);
+        const bIndex = categoryOrder.indexOf(b);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      });
+
+      const costCodeTotal = Object.values(categories).flat().reduce((sum, t) => sum + t.amount, 0);
+      const firstTransaction = Object.values(categories).flat()[0];
+      
+      return {
+        costCode,
+        costCodeDescription: firstTransaction?.cost_code_description || "",
+        costCodeTotal,
+        categories: sortedCategories.map(cat => ({
+          category: cat,
+          transactions: categories[cat],
+          total: categories[cat].reduce((sum, t) => sum + t.amount, 0),
+        })),
+      };
+    });
+  }, [filteredTransactions]);
+
   const clearFilters = () => {
     setSelectedType("all");
     setSelectedCategory("all");
@@ -429,7 +462,7 @@ export default function ProjectCostTransactionHistory() {
   };
 
   const handleTransactionClick = async (transaction: Transaction) => {
-    if (transaction.type === "bill") {
+    if (transaction.type === "bill" || transaction.type === "subcontract") {
       const { data: bill, error } = await supabase
         .from("invoices")
         .select("*, vendors(*)")
@@ -451,6 +484,30 @@ export default function ProjectCostTransactionHistory() {
     }
   };
 
+  const toggleCostCode = (costCode: string) => {
+    setExpandedCostCodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(costCode)) {
+        newSet.delete(costCode);
+      } else {
+        newSet.add(costCode);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCategory = (key: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
   const getSelectedJobName = () => {
     const job = jobs.find(j => j.id === selectedJobId);
     return job ? job.name : urlJobName || "";
@@ -461,6 +518,23 @@ export default function ProjectCostTransactionHistory() {
     return cc ? `${cc.code} - ${cc.description}` : urlCostCodeDescription || "";
   };
 
+  const getCategoryBadge = (category?: string) => {
+    if (!category) return <span className="text-muted-foreground">-</span>;
+    const variants: Record<string, string> = {
+      "Labor": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      "Material": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+      "Equipment": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+      "Subcontract": "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+      "Purchase Order": "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300",
+      "Other": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
+    };
+    return (
+      <Badge className={variants[category] || variants.Other}>
+        {category}
+      </Badge>
+    );
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF();
     
@@ -469,94 +543,112 @@ export default function ProjectCostTransactionHistory() {
     
     doc.setFontSize(10);
     doc.text(`Job: ${getSelectedJobName()}`, 14, 25);
-    if (selectedCostCodeId) {
-      doc.text(`Cost Code: ${getSelectedCostCodeDescription()}`, 14, 30);
-    }
-    doc.text(`Total Amount: $${formatNumber(totalAmount)}`, 14, selectedCostCodeId ? 35 : 30);
+    doc.text(`Total Amount: $${formatNumber(totalAmount)}`, 14, 30);
     
-    const tableData = filteredTransactions.map(t => {
-      const costCodeDisplay = t.cost_code 
-        ? `${t.cost_code} - ${t.cost_code_description || ""}`
-        : t.cost_code_description || "-";
-      return [
-        new Date(t.date).toLocaleDateString(),
-        t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
-        t.reference_number || "-",
-        t.description,
-        costCodeDisplay,
-        t.category || "-",
-        `$${formatNumber(t.amount)}`,
-      ];
-    });
+    let yPos = 40;
     
-    autoTable(doc, {
-      startY: selectedCostCodeId ? 40 : 35,
-      head: [["Date", "Type", "Reference", "Description", "Cost Code", "Category", "Amount"]],
-      body: tableData,
-      foot: [["", "", "", "", "", "Total:", `$${formatNumber(totalAmount)}`]],
-      theme: "grid",
-      headStyles: { fillColor: [71, 85, 105] },
-      footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
+    groupedTransactions.forEach(group => {
+      // Cost code header
+      doc.setFontSize(11);
+      doc.setFont(undefined as any, "bold");
+      doc.text(`${group.costCode} - ${group.costCodeDescription}`, 14, yPos);
+      doc.text(`$${formatNumber(group.costCodeTotal)}`, 180, yPos, { align: "right" });
+      yPos += 6;
+      
+      group.categories.forEach(cat => {
+        const tableData = cat.transactions.map(t => [
+          new Date(t.date).toLocaleDateString(),
+          t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
+            t.type === "credit_card" ? "CC" : "Posted",
+          t.reference_number || "-",
+          t.description.substring(0, 40),
+          `$${formatNumber(t.amount)}`,
+        ]);
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [[cat.category, "", "", "", `$${formatNumber(cat.total)}`]],
+          body: tableData,
+          theme: "plain",
+          headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9 },
+          bodyStyles: { fontSize: 8 },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            4: { halign: "right" },
+          },
+          margin: { left: 20 },
+        });
+        
+        yPos = (doc as any).lastAutoTable.finalY + 4;
+      });
+      
+      yPos += 4;
     });
     
     doc.save(`project-cost-transactions-${new Date().toISOString().split("T")[0]}.pdf`);
-    
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
   const exportToExcel = () => {
-    const worksheetData = [
+    const worksheetData: any[][] = [
       ["Project Cost Transaction History"],
       [],
       ["Job:", getSelectedJobName()],
-      ...(selectedCostCodeId ? [["Cost Code:", getSelectedCostCodeDescription()]] : []),
       ["Total Amount:", `$${formatNumber(totalAmount)}`],
       [],
-      ["Date", "Type", "Reference", "Description", "Cost Code", "Category", "Amount"],
-      ...filteredTransactions.map(t => {
-        const costCodeDisplay = t.cost_code 
-          ? `${t.cost_code} - ${t.cost_code_description || ""}`
-          : t.cost_code_description || "-";
-        return [
-          new Date(t.date).toLocaleDateString(),
-          t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
-          t.reference_number || "-",
-          t.description,
-          costCodeDisplay,
-          t.category || "-",
-          t.amount,
-        ];
-      }),
-      [],
-      ["", "", "", "", "", "Total:", totalAmount],
     ];
+
+    groupedTransactions.forEach(group => {
+      worksheetData.push([`${group.costCode} - ${group.costCodeDescription}`, "", "", "", "", `$${formatNumber(group.costCodeTotal)}`]);
+      
+      group.categories.forEach(cat => {
+        worksheetData.push(["", cat.category, "", "", "", `$${formatNumber(cat.total)}`]);
+        worksheetData.push(["", "Date", "Type", "Reference", "Description", "Amount"]);
+        
+        cat.transactions.forEach(t => {
+          worksheetData.push([
+            "",
+            new Date(t.date).toLocaleDateString(),
+            t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
+              t.type === "credit_card" ? "Credit Card" : "Posted",
+            t.reference_number || "-",
+            t.description,
+            t.amount,
+          ]);
+        });
+        worksheetData.push([]);
+      });
+      worksheetData.push([]);
+    });
+
+    // Add summary
+    worksheetData.push(["JOB COST SUMMARY"]);
+    worksheetData.push(["Cost Code", "Description", "Budgeted", "Actual", "Committed", "Variance"]);
+    jobBudgetSummary.forEach(s => {
+      worksheetData.push([
+        s.cost_code,
+        s.description,
+        s.budgeted,
+        s.actual,
+        s.committed,
+        s.budgeted - s.actual - s.committed,
+      ]);
+    });
+    
+    const totals = jobBudgetSummary.reduce((acc, s) => ({
+      budgeted: acc.budgeted + s.budgeted,
+      actual: acc.actual + s.actual,
+      committed: acc.committed + s.committed,
+    }), { budgeted: 0, actual: 0, committed: 0 });
+    
+    worksheetData.push(["TOTAL", "", totals.budgeted, totals.actual, totals.committed, totals.budgeted - totals.actual - totals.committed]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
     
     XLSX.writeFile(workbook, `project-cost-transactions-${new Date().toISOString().split("T")[0]}.xlsx`);
-    
     toast({ title: "Success", description: "Excel file exported successfully" });
-  };
-
-  const getCategoryBadge = (category?: string) => {
-    if (!category) return <span className="text-muted-foreground">-</span>;
-    const label = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
-    const variants: Record<string, string> = {
-      labor: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      material: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-      materials: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-      equipment: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-      sub: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-      subcontract: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
-      other: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
-    };
-    return (
-      <Badge className={variants[category.toLowerCase()] || variants.other}>
-        {label === "Materials" ? "Material" : label === "Subcontract" ? "Sub" : label}
-      </Badge>
-    );
   };
 
   const activeFilterCount = [
@@ -565,6 +657,15 @@ export default function ProjectCostTransactionHistory() {
     !!dateFrom,
     !!dateTo,
   ].filter(Boolean).length;
+
+  // Calculate summary totals
+  const summaryTotals = useMemo(() => {
+    return jobBudgetSummary.reduce((acc, s) => ({
+      budgeted: acc.budgeted + s.budgeted,
+      actual: acc.actual + s.actual,
+      committed: acc.committed + s.committed,
+    }), { budgeted: 0, actual: 0, committed: 0 });
+  }, [jobBudgetSummary]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -575,7 +676,7 @@ export default function ProjectCostTransactionHistory() {
           {selectedJobId && (
             <p className="text-muted-foreground text-sm mt-1">
               {getSelectedJobName()}
-              {selectedCostCodeId && ` - ${getSelectedCostCodeDescription()}`}
+              {selectedCostCodeId && selectedCostCodeId !== "all" && ` - ${getSelectedCostCodeDescription()}`}
             </p>
           )}
         </div>
@@ -618,7 +719,6 @@ export default function ProjectCostTransactionHistory() {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-              {/* Job Select */}
               <div className="space-y-2">
                 <Label>Job</Label>
                 <Select value={selectedJobId} onValueChange={setSelectedJobId}>
@@ -635,7 +735,6 @@ export default function ProjectCostTransactionHistory() {
                 </Select>
               </div>
 
-              {/* Cost Code Select */}
               <div className="space-y-2">
                 <Label>Cost Code</Label>
                 <Select 
@@ -657,7 +756,6 @@ export default function ProjectCostTransactionHistory() {
                 </Select>
               </div>
 
-              {/* Type Filter */}
               <div className="space-y-2">
                 <Label>Transaction Type</Label>
                 <Select value={selectedType} onValueChange={setSelectedType}>
@@ -668,12 +766,12 @@ export default function ProjectCostTransactionHistory() {
                     <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="journal_entry">Posted</SelectItem>
                     <SelectItem value="bill">Bills</SelectItem>
+                    <SelectItem value="subcontract">Subcontracts</SelectItem>
                     <SelectItem value="credit_card">Credit Card</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Category Filter */}
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -691,7 +789,6 @@ export default function ProjectCostTransactionHistory() {
                 </Select>
               </div>
 
-              {/* Date From */}
               <div className="space-y-2">
                 <Label>Date From</Label>
                 <Popover>
@@ -708,17 +805,11 @@ export default function ProjectCostTransactionHistory() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      initialFocus
-                    />
+                    <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
                   </PopoverContent>
                 </Popover>
               </div>
 
-              {/* Date To */}
               <div className="space-y-2">
                 <Label>Date To</Label>
                 <Popover>
@@ -735,12 +826,7 @@ export default function ProjectCostTransactionHistory() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      initialFocus
-                    />
+                    <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -758,7 +844,7 @@ export default function ProjectCostTransactionHistory() {
         </Card>
       )}
 
-      {/* Results */}
+      {/* Results - Grouped by Cost Code then Category */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -787,51 +873,157 @@ export default function ProjectCostTransactionHistory() {
               No transactions found
             </div>
           ) : (
+            <div className="space-y-4">
+              {groupedTransactions.map((group) => (
+                <Collapsible
+                  key={group.costCode}
+                  open={expandedCostCodes.has(group.costCode)}
+                  onOpenChange={() => toggleCostCode(group.costCode)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted transition-colors">
+                      <div className="flex items-center gap-2">
+                        {expandedCostCodes.has(group.costCode) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <span className="font-semibold font-mono">{group.costCode}</span>
+                        <span className="text-muted-foreground">- {group.costCodeDescription}</span>
+                      </div>
+                      <span className="font-semibold">${formatNumber(group.costCodeTotal)}</span>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pl-6 pt-2 space-y-3">
+                      {group.categories.map((cat) => {
+                        const catKey = `${group.costCode}-${cat.category}`;
+                        const isCatExpanded = expandedCategories.has(catKey);
+                        
+                        return (
+                          <div key={cat.category} className="border rounded-lg overflow-hidden">
+                            <div 
+                              className="flex items-center justify-between p-2 bg-background cursor-pointer hover:bg-muted/30 transition-colors"
+                              onClick={() => toggleCategory(catKey)}
+                            >
+                              <div className="flex items-center gap-2">
+                                {isCatExpanded ? (
+                                  <ChevronDown className="h-3 w-3" />
+                                ) : (
+                                  <ChevronRight className="h-3 w-3" />
+                                )}
+                                {getCategoryBadge(cat.category)}
+                                <span className="text-sm text-muted-foreground">
+                                  ({cat.transactions.length} transactions)
+                                </span>
+                              </div>
+                              <span className="font-medium">${formatNumber(cat.total)}</span>
+                            </div>
+                            
+                            {isCatExpanded && (
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-[100px]">Date</TableHead>
+                                    <TableHead className="w-[80px]">Type</TableHead>
+                                    <TableHead className="w-[100px]">Reference</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="text-right w-[100px]">Amount</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {cat.transactions.map((t) => (
+                                    <TableRow
+                                      key={`${t.type}-${t.id}`}
+                                      className="cursor-pointer hover:bg-muted/50"
+                                      onClick={() => handleTransactionClick(t)}
+                                    >
+                                      <TableCell className="text-sm">
+                                        {new Date(t.date).toLocaleDateString()}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant="outline" className="text-xs">
+                                          {t.type === "bill" ? "Bill" : 
+                                           t.type === "subcontract" ? "Sub" :
+                                           t.type === "credit_card" ? "CC" : "Posted"}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell className="text-sm">{t.reference_number || "-"}</TableCell>
+                                      <TableCell className="text-sm max-w-[300px] truncate">{t.description}</TableCell>
+                                      <TableCell className="text-right font-medium">
+                                        ${formatNumber(t.amount)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Job Cost Summary */}
+      {selectedJobId && jobBudgetSummary.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Job Cost Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Description</TableHead>
                   <TableHead>Cost Code</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Budgeted</TableHead>
+                  <TableHead className="text-right">Actual</TableHead>
+                  <TableHead className="text-right">Committed</TableHead>
+                  <TableHead className="text-right">Variance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((transaction) => {
-                  const costCodeDisplay = transaction.cost_code 
-                    ? `${transaction.cost_code} - ${transaction.cost_code_description || ""}`
-                    : transaction.cost_code_description || "-";
-
+                {jobBudgetSummary.map((s) => {
+                  const variance = s.budgeted - s.actual - s.committed;
                   return (
-                    <TableRow
-                      key={`${transaction.type}-${transaction.id}`}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleTransactionClick(transaction)}
-                    >
-                      <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {transaction.type === "bill" ? "Bill" : transaction.type === "credit_card" ? "Credit Card" : "Posted"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{transaction.reference_number || "-"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{transaction.description}</TableCell>
-                      <TableCell>{costCodeDisplay}</TableCell>
-                      <TableCell>{getCategoryBadge(transaction.category)}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${formatNumber(transaction.amount)}
+                    <TableRow key={s.cost_code_id}>
+                      <TableCell className="font-mono">{s.cost_code}</TableCell>
+                      <TableCell>{s.description}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.budgeted)}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.actual)}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.committed)}</TableCell>
+                      <TableCell className={cn(
+                        "text-right font-medium",
+                        variance < 0 ? "text-destructive" : ""
+                      )}>
+                        ${formatNumber(variance)}
                       </TableCell>
                     </TableRow>
                   );
                 })}
+                <TableRow className="bg-muted/50 font-semibold">
+                  <TableCell colSpan={2}>TOTAL</TableCell>
+                  <TableCell className="text-right">${formatNumber(summaryTotals.budgeted)}</TableCell>
+                  <TableCell className="text-right">${formatNumber(summaryTotals.actual)}</TableCell>
+                  <TableCell className="text-right">${formatNumber(summaryTotals.committed)}</TableCell>
+                  <TableCell className={cn(
+                    "text-right",
+                    summaryTotals.budgeted - summaryTotals.actual - summaryTotals.committed < 0 ? "text-destructive" : ""
+                  )}>
+                    ${formatNumber(summaryTotals.budgeted - summaryTotals.actual - summaryTotals.committed)}
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {selectedTransaction && (
         <CreditCardTransactionModal
