@@ -281,6 +281,7 @@ export default function ProjectCostTransactionHistory() {
         billsQuery = billsQuery.eq("cost_code_id", actualCostCodeId);
       }
 
+      // Credit card distributions - get ALL (both posted and not posted)
       let ccQuery = supabase
         .from("credit_card_transaction_distributions")
         .select(`
@@ -313,23 +314,40 @@ export default function ProjectCostTransactionHistory() {
       const bills = billsRes.data || [];
       const ccDistributions = ccRes.data || [];
 
+      // Build a map of journal_entry_id -> credit card info for posted CC transactions
+      const postedCCMap = new Map<string, { credit_card_name?: string; vendor_name?: string }>();
+      ccDistributions.forEach((dist: any) => {
+        if (dist.credit_card_transactions?.journal_entry_id) {
+          postedCCMap.set(dist.credit_card_transactions.journal_entry_id, {
+            credit_card_name: dist.credit_card_transactions?.credit_cards?.card_name,
+            vendor_name: dist.credit_card_transactions?.vendors?.name,
+          });
+        }
+      });
+
       const allTransactions: Transaction[] = [
         // Journal entry lines (debit amounts are expenses)
         ...journalLines
           .filter((jl: any) => jl.debit_amount > 0)
-          .map((jl: any) => ({
-            id: jl.id,
-            date: jl.journal_entries?.entry_date || "",
-            description: jl.description || jl.journal_entries?.description || "Journal Entry",
-            amount: Number(jl.debit_amount) || 0,
-            type: "journal_entry" as const,
-            reference_number: jl.journal_entries?.reference || undefined,
-            job_name: jl.jobs?.name || "",
-            cost_code: jl.cost_codes?.code || "",
-            cost_code_id: jl.cost_code_id || "",
-            cost_code_description: jl.cost_codes?.description || "",
-            category: normalizeCategory(jl.cost_codes?.type),
-          })),
+          .map((jl: any) => {
+            // Check if this journal entry came from a credit card transaction
+            const ccInfo = postedCCMap.get(jl.journal_entries?.id);
+            return {
+              id: jl.id,
+              date: jl.journal_entries?.entry_date || "",
+              description: jl.description || jl.journal_entries?.description || "Journal Entry",
+              amount: Number(jl.debit_amount) || 0,
+              type: "journal_entry" as const,
+              reference_number: jl.journal_entries?.reference || undefined,
+              job_name: jl.jobs?.name || "",
+              cost_code: jl.cost_codes?.code || "",
+              cost_code_id: jl.cost_code_id || "",
+              cost_code_description: jl.cost_codes?.description || "",
+              category: normalizeCategory(jl.cost_codes?.type),
+              vendor_name: ccInfo?.vendor_name || undefined,
+              credit_card_name: ccInfo?.credit_card_name || undefined,
+            };
+          }),
         // Bills not yet posted
         ...bills
           .filter((bill: any) => bill.status !== 'posted')
@@ -621,11 +639,17 @@ export default function ProjectCostTransactionHistory() {
         worksheetData.push(["", "Date", "Type", "Vendor", "Reference", "Description", "Amount"]);
         
         cat.transactions.forEach(t => {
+          // Determine the type label - use credit card name if available
+          let typeLabel = "Posted";
+          if (t.type === "bill") typeLabel = "Bill";
+          else if (t.type === "subcontract") typeLabel = "Subcontract";
+          else if (t.type === "credit_card") typeLabel = t.credit_card_name || "Credit Card";
+          else if (t.credit_card_name) typeLabel = t.credit_card_name; // For posted CC transactions
+
           worksheetData.push([
             "",
             new Date(t.date).toLocaleDateString(),
-            t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
-              t.type === "credit_card" ? (t.credit_card_name || "Credit Card") : "Posted",
+            typeLabel,
             t.vendor_name || "-",
             t.reference_number || "-",
             t.description,
@@ -646,6 +670,19 @@ export default function ProjectCostTransactionHistory() {
     worksheetData.push(["TOTAL", totalAmount]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    
+    // Auto-fit column widths
+    const colWidths: { wch: number }[] = [];
+    worksheetData.forEach(row => {
+      row.forEach((cell, colIdx) => {
+        const cellLength = cell ? String(cell).length : 0;
+        if (!colWidths[colIdx] || cellLength > colWidths[colIdx].wch) {
+          colWidths[colIdx] = { wch: Math.min(Math.max(cellLength + 2, 8), 50) };
+        }
+      });
+    });
+    worksheet['!cols'] = colWidths;
+    
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
     
@@ -958,7 +995,8 @@ export default function ProjectCostTransactionHistory() {
                                         <Badge variant="outline" className="text-xs">
                                           {t.type === "bill" ? "Bill" : 
                                            t.type === "subcontract" ? "Sub" :
-                                           t.type === "credit_card" ? (t.credit_card_name || "CC") : "Posted"}
+                                           t.type === "credit_card" ? (t.credit_card_name || "CC") : 
+                                           t.credit_card_name ? t.credit_card_name : "Posted"}
                                         </Badge>
                                       </TableCell>
                                       <TableCell className="text-sm truncate max-w-[120px]">
