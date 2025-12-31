@@ -3786,6 +3786,7 @@ export type Database = {
           header_html: string | null
           header_images: Json | null
           id: string
+          logo_url: string | null
           notes: string | null
           pages: Json | null
           primary_color: string | null
@@ -3814,6 +3815,7 @@ export type Database = {
           header_html?: string | null
           header_images?: Json | null
           id?: string
+          logo_url?: string | null
           notes?: string | null
           pages?: Json | null
           primary_color?: string | null
@@ -3842,6 +3844,7 @@ export type Database = {
           header_html?: string | null
           header_images?: Json | null
           id?: string
+          logo_url?: string | null
           notes?: string | null
           pages?: Json | null
           primary_color?: string | null
