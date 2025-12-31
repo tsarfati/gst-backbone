@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Trash2, CheckCircle } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Trash2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,9 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+
+type SortColumn = 'vendor_name' | 'job_name' | 'amount' | 'issue_date' | 'due_date' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 interface Bill {
   id: string;
@@ -137,6 +140,8 @@ export default function Bills() {
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('bills');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('due_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
     if (currentCompany) {
@@ -266,6 +271,56 @@ export default function Bills() {
     filteredBills = filteredBills.filter(bill => new Date(bill.issue_date) <= new Date(endDate));
   }
 
+  // Sort bills
+  const sortedBills = useMemo(() => {
+    return [...filteredBills].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortColumn) {
+        case 'vendor_name':
+          comparison = a.vendor_name.localeCompare(b.vendor_name);
+          break;
+        case 'job_name':
+          comparison = a.job_name.localeCompare(b.job_name);
+          break;
+        case 'amount':
+          comparison = a.amount - b.amount;
+          break;
+        case 'issue_date':
+          comparison = new Date(a.issue_date).getTime() - new Date(b.issue_date).getTime();
+          break;
+        case 'due_date':
+          comparison = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredBills, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" /> 
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
   const uniqueJobs = [...new Set(bills.map(bill => bill.job_name))];
   const uniqueVendors = [...new Set(bills.map(bill => bill.vendor_name))];
 
@@ -275,10 +330,10 @@ export default function Bills() {
   const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0);
 
   const handleSelectAll = () => {
-    if (selectedBills.length === filteredBills.length) {
+    if (selectedBills.length === sortedBills.length) {
       setSelectedBills([]);
     } else {
-      setSelectedBills(filteredBills.map(b => b.id));
+      setSelectedBills(sortedBills.map(b => b.id));
     }
   };
 
@@ -467,11 +522,11 @@ export default function Bills() {
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="select-all-bills"
-                checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
+                checked={selectedBills.length === sortedBills.length && sortedBills.length > 0}
                 onCheckedChange={handleSelectAll}
               />
               <Label htmlFor="select-all-bills">
-                Select All ({selectedBills.length} of {filteredBills.length})
+                Select All ({selectedBills.length} of {sortedBills.length})
               </Label>
             </div>
             
@@ -590,20 +645,68 @@ export default function Bills() {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedBills.length === filteredBills.length && filteredBills.length > 0}
+                      checked={selectedBills.length === sortedBills.length && sortedBills.length > 0}
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Issue Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('vendor_name')}
+                  >
+                    <div className="flex items-center">
+                      Vendor
+                      <SortIcon column="vendor_name" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('job_name')}
+                  >
+                    <div className="flex items-center">
+                      Job
+                      <SortIcon column="job_name" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('amount')}
+                  >
+                    <div className="flex items-center">
+                      Amount
+                      <SortIcon column="amount" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('issue_date')}
+                  >
+                    <div className="flex items-center">
+                      Issue Date
+                      <SortIcon column="issue_date" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('due_date')}
+                  >
+                    <div className="flex items-center">
+                      Due Date
+                      <SortIcon column="due_date" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50 select-none"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      <SortIcon column="status" />
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBills.length === 0 ? (
+                {sortedBills.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="text-muted-foreground">
@@ -614,7 +717,7 @@ export default function Bills() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredBills.map((bill) => {
+                  sortedBills.map((bill) => {
                     const billIsOverdue = isOverdue(bill);
                     const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
                     
@@ -669,14 +772,14 @@ export default function Bills() {
           ) : currentView === 'compact' ? (
             // Compact View
             <div className="space-y-2">
-              {filteredBills.length === 0 ? (
+              {sortedBills.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium">No bills found</p>
                   <p className="text-sm">Upload your first bill to get started</p>
                 </div>
               ) : (
-                filteredBills.map((bill) => {
+                sortedBills.map((bill) => {
                   const billIsOverdue = isOverdue(bill);
                   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
                   
@@ -721,14 +824,14 @@ export default function Bills() {
           ) : (
             // Super Compact View
             <div className="space-y-1">
-              {filteredBills.length === 0 ? (
+              {sortedBills.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium">No bills found</p>
                   <p className="text-sm">Upload your first bill to get started</p>
                 </div>
               ) : (
-                filteredBills.map((bill) => {
+                sortedBills.map((bill) => {
                   const billIsOverdue = isOverdue(bill);
                   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
                   
