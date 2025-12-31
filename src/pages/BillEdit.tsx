@@ -638,44 +638,38 @@ export default function BillEdit() {
 
       if (error) throw error;
       
-      // Save distribution if this is a multi-distribution bill (commitment or non-commitment)
-      if ((commitmentDistribution.length > 1 || billDistribution.length > 1) && billDistribution.length > 0) {
+      // Save distribution if there are any distribution entries
+      // This covers: commitment with multi-distribution, or non-commitment bills using cost distribution
+      if (billDistribution.length > 0) {
         // Filter out any distributions without a cost_code_id (required field)
         const validDistributions = billDistribution.filter(dist => dist.cost_code_id);
         
-        if (validDistributions.length === 0) {
-          toast({
-            title: "Validation Error",
-            description: "Each distribution line must have a cost code selected",
-            variant: "destructive",
-          });
-          setSaving(false);
-          return;
-        }
-        
-        // Delete existing distributions
+        // Delete existing distributions first
         await supabase
           .from('invoice_cost_distributions')
           .delete()
           .eq('invoice_id', id);
         
-        // Insert new distributions - only use columns that exist in the table
-        const distributionRecords = validDistributions.map(dist => {
-          const lineAmount = parseFloat(dist.amount) || 0;
+        // Only insert if we have valid distributions
+        if (validDistributions.length > 0) {
+          // Insert new distributions - only use columns that exist in the table
+          const distributionRecords = validDistributions.map(dist => {
+            const lineAmount = parseFloat(dist.amount) || 0;
+            
+            return {
+              invoice_id: id,
+              cost_code_id: dist.cost_code_id,
+              amount: lineAmount,
+              percentage: dist.percentage || 0
+            };
+          });
           
-          return {
-            invoice_id: id,
-            cost_code_id: dist.cost_code_id,
-            amount: lineAmount,
-            percentage: dist.percentage || 0
-          };
-        });
-        
-        const { error: distError } = await supabase
-          .from('invoice_cost_distributions')
-          .insert(distributionRecords);
-        
-        if (distError) throw distError;
+          const { error: distError } = await supabase
+            .from('invoice_cost_distributions')
+            .insert(distributionRecords);
+          
+          if (distError) throw distError;
+        }
       }
 
       const successMessage = newStatus === 'pending_approval' && bill?.status === 'pending_coding'
