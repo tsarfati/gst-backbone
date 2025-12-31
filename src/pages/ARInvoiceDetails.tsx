@@ -7,11 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Edit, FileText, Building, Calendar, DollarSign } from "lucide-react";
+import { ArrowLeft, Download, Edit, FileText, Building, Calendar, DollarSign, Loader2 } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { generateAIAInvoice, AIATemplateData } from "@/utils/aiaTemplateProcessor";
 
 interface Invoice {
   id: string;
@@ -72,6 +71,7 @@ export default function ARInvoiceDetails() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (id && currentCompany?.id) {
@@ -136,81 +136,113 @@ export default function ARInvoiceDetails() {
     );
   };
 
-  const exportToPDF = () => {
-    if (!invoice) return;
+  const exportToPDF = async () => {
+    if (!invoice || !currentCompany?.id) return;
 
-    const doc = new jsPDF({ orientation: "landscape" });
+    setExporting(true);
     
-    // Header
-    doc.setFontSize(16);
-    doc.text("APPLICATION AND CERTIFICATE FOR PAYMENT", 148, 15, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(`AIA DOCUMENT G702`, 148, 22, { align: "center" });
+    try {
+      // Build template data from invoice and line items
+      const templateData: AIATemplateData = {
+        // Company Information
+        company_name: currentCompany.name || '',
+        company_address: currentCompany.address || '',
+        company_city: currentCompany.city || '',
+        company_state: currentCompany.state || '',
+        company_zip: currentCompany.zip_code || '',
+        company_phone: currentCompany.phone || '',
+        company_email: currentCompany.email || '',
+        license_number: (currentCompany as any).license_number || '',
+        
+        // Owner Information
+        owner_name: invoice.customer?.name || '',
+        owner_address: invoice.customer?.address || '',
+        owner_city: invoice.customer?.city || '',
+        owner_state: invoice.customer?.state || '',
+        owner_zip: invoice.customer?.zip_code || '',
+        owner_phone: '',
+        owner_email: '',
+        
+        // Project Information
+        project_name: invoice.job?.name || '',
+        project_number: '',
+        project_address: invoice.job?.address || '',
+        project_city: '',
+        project_state: '',
+        project_zip: '',
+        architect_name: '',
+        architect_project_no: '',
+        
+        // Contract Information
+        contract_date: invoice.contract_date || '',
+        contract_amount: String(invoice.contract_amount || 0),
+        change_orders_amount: String(invoice.change_orders_amount || 0),
+        current_contract_sum: String((invoice.contract_amount || 0) + (invoice.change_orders_amount || 0)),
+        retainage_percent: String(invoice.retainage_percent || 0),
+        
+        // Application Details
+        application_number: String(invoice.application_number || 1),
+        application_date: invoice.issue_date || '',
+        period_from: invoice.period_from || '',
+        period_to: invoice.period_to || '',
+        total_completed: String(invoice.total_amount),
+        total_retainage: String(invoice.total_retainage || 0),
+        total_earned_less_retainage: String(invoice.total_amount - (invoice.total_retainage || 0)),
+        less_previous_certificates: String(invoice.less_previous_certificates || 0),
+        current_payment_due: String(invoice.current_payment_due || 0),
+        balance_to_finish: String((invoice.contract_amount || 0) + (invoice.change_orders_amount || 0) - invoice.total_amount),
+        
+        // Line Items
+        lineItems: lineItems.map(item => ({
+          item_number: item.sov?.item_number || '',
+          description: item.sov?.description || '',
+          scheduled_value: item.scheduled_value,
+          previous_applications: item.previous_applications,
+          this_period: item.this_period,
+          materials_stored: item.materials_stored,
+          total_completed: item.total_completed,
+          percent_complete: item.percent_complete,
+          balance_to_finish: item.balance_to_finish,
+          retainage: item.retainage,
+        })),
+      };
 
-    // Left side info
-    doc.setFontSize(9);
-    let y = 35;
-    doc.text(`TO OWNER: ${invoice.customer?.name || ""}`, 14, y);
-    if (invoice.customer?.address) {
-      y += 5;
-      doc.text(invoice.customer.address, 14, y);
-    }
-    if (invoice.customer?.city || invoice.customer?.state || invoice.customer?.zip_code) {
-      y += 5;
-      doc.text(`${invoice.customer?.city || ""}, ${invoice.customer?.state || ""} ${invoice.customer?.zip_code || ""}`, 14, y);
-    }
-
-    // Right side info
-    doc.text(`APPLICATION NO: ${invoice.application_number || 1}`, 200, 35);
-    doc.text(`PERIOD FROM: ${invoice.period_from ? format(new Date(invoice.period_from), "MM/dd/yyyy") : ""}`, 200, 40);
-    doc.text(`PERIOD TO: ${invoice.period_to ? format(new Date(invoice.period_to), "MM/dd/yyyy") : ""}`, 200, 45);
-    doc.text(`PROJECT: ${invoice.job?.name || ""}`, 200, 55);
-
-    // Contract summary
-    const summaryY = 75;
-    doc.text(`1. ORIGINAL CONTRACT SUM: $${formatNumber(invoice.contract_amount || 0)}`, 14, summaryY);
-    doc.text(`2. CHANGE ORDERS: $${formatNumber(invoice.change_orders_amount || 0)}`, 14, summaryY + 6);
-    doc.text(`3. CONTRACT SUM TO DATE: $${formatNumber((invoice.contract_amount || 0) + (invoice.change_orders_amount || 0))}`, 14, summaryY + 12);
-    doc.text(`4. TOTAL COMPLETED: $${formatNumber(invoice.total_amount)}`, 14, summaryY + 18);
-    doc.text(`5. RETAINAGE: $${formatNumber(invoice.total_retainage || 0)}`, 14, summaryY + 24);
-    doc.text(`6. LESS PREVIOUS CERTIFICATES: $${formatNumber(invoice.less_previous_certificates || 0)}`, 14, summaryY + 30);
-    doc.text(`7. CURRENT PAYMENT DUE: $${formatNumber(invoice.current_payment_due || 0)}`, 14, summaryY + 36);
-
-    // Line items table (G703)
-    if (lineItems.length > 0) {
-      doc.addPage();
-      doc.setFontSize(12);
-      doc.text("CONTINUATION SHEET - AIA DOCUMENT G703", 148, 15, { align: "center" });
-
-      const tableData = lineItems.map((item) => [
-        item.sov?.item_number || "",
-        item.sov?.description || "",
-        `$${formatNumber(item.scheduled_value)}`,
-        `$${formatNumber(item.previous_applications)}`,
-        `$${formatNumber(item.this_period)}`,
-        `$${formatNumber(item.materials_stored)}`,
-        `$${formatNumber(item.total_completed)}`,
-        `${item.percent_complete.toFixed(1)}%`,
-        `$${formatNumber(item.balance_to_finish)}`,
-        `$${formatNumber(item.retainage)}`,
-      ]);
-
-      autoTable(doc, {
-        startY: 25,
-        head: [["Item", "Description", "Scheduled Value", "Previous", "This Period", "Materials", "Total Complete", "%", "Balance", "Retainage"]],
-        body: tableData,
-        theme: "grid",
-        headStyles: { fillColor: [71, 85, 105], fontSize: 7 },
-        bodyStyles: { fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 15 },
-          1: { cellWidth: 50 },
-        },
+      console.log('Exporting AIA invoice with template data:', templateData);
+      
+      const result = await generateAIAInvoice(currentCompany.id, templateData, { outputFormat: 'excel' });
+      
+      if (result) {
+        // Download the file
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast({ 
+          title: "Success", 
+          description: `Exported as ${result.format === 'excel' ? 'Excel' : 'PDF'} using ${result.format === 'excel' ? 'your AIA template' : 'standard format'}` 
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to generate export",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export invoice",
+        variant: "destructive",
       });
+    } finally {
+      setExporting(false);
     }
-
-    doc.save(`invoice-${invoice.invoice_number}.pdf`);
-    toast({ title: "Success", description: "PDF exported successfully" });
   };
 
   if (loading) {
@@ -271,9 +303,13 @@ export default function ARInvoiceDetails() {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportToPDF}>
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
+          <Button variant="outline" onClick={exportToPDF} disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {exporting ? 'Exporting...' : 'Export'}
           </Button>
           {invoice.status === "draft" && (
             <Button onClick={() => navigate(`/receivables/invoices/${id}/edit`)}>
