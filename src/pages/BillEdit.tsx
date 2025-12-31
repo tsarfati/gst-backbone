@@ -1011,6 +1011,7 @@ export default function BillEdit() {
                 currentUserId={user?.id}
                 jobPmUserId={jobData?.project_manager_user_id}
                 onStatusUpdate={loadBillAndOptions}
+                onApproved={() => navigate(`/invoices/${id}`)}
               />
             </CardContent>
           </Card>

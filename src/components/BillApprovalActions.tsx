@@ -13,6 +13,7 @@ interface BillApprovalActionsProps {
   currentUserId?: string;
   jobPmUserId?: string;
   onStatusUpdate: () => void;
+  onApproved?: () => void;
 }
 
 export default function BillApprovalActions({ 
@@ -22,7 +23,8 @@ export default function BillApprovalActions({
   currentUserRole,
   currentUserId,
   jobPmUserId,
-  onStatusUpdate 
+  onStatusUpdate,
+  onApproved
 }: BillApprovalActionsProps) {
   const { toast } = useToast();
 
@@ -122,7 +124,12 @@ export default function BillApprovalActions({
         description: `Bill ${statusText.toLowerCase()} successfully`,
       });
 
-      onStatusUpdate();
+      // If bill was approved, call onApproved callback to navigate to details page
+      if (newStatus === 'pending_payment' && onApproved) {
+        onApproved();
+      } else {
+        onStatusUpdate();
+      }
     } catch (error) {
       console.error('Error updating bill status:', error);
       toast({
