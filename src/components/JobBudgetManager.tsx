@@ -160,18 +160,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
       // Parse cost_distribution JSON to find amounts for this cost code
       (subcontracts || []).forEach((sub: any) => {
-        const distribution = sub.cost_distribution;
-        if (Array.isArray(distribution)) {
-          distribution.forEach((dist: any) => {
-            if (dist.cost_code_id === costCodeId) {
-              total += Number(dist.amount || 0);
-            }
-          });
-        }
+        const raw = sub.cost_distribution;
+        const items = Array.isArray(raw)
+          ? raw
+          : raw && typeof raw === 'object' && Array.isArray((raw as any).items)
+            ? (raw as any).items
+            : [];
+
+        items.forEach((dist: any) => {
+          if (dist?.cost_code_id === costCodeId) {
+            total += Number(dist?.amount || 0);
+          }
+        });
       });
 
       // Purchase Orders - committed costs (full PO amount)
-      const { data: purchaseOrders, error: poError } = await supabase
+      // NOTE: types.ts is read-only and may lag schema changes; cast to any to query newly added columns safely.
+      const { data: purchaseOrders, error: poError } = await (supabase as any)
         .from('purchase_orders')
         .select('amount, status')
         .eq('job_id', jobId)
@@ -180,8 +185,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       if (poError) throw poError;
 
       (purchaseOrders || []).forEach((po: any) => {
-        if (po.status !== 'cancelled') {
-          total += Number(po.amount || 0);
+        if (po?.status !== 'cancelled') {
+          total += Number(po?.amount || 0);
         }
       });
 
@@ -194,84 +199,39 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
 
 
   const populateBudgetLines = async () => {
-    const { data: budgetData, error: budgetError } = await supabase
-      .from('job_budgets')
-      .select(`
-        *,
-        cost_codes (
-          id,
-          code,
-          description,
-          type
-        )
-      `)
-      .eq('job_id', jobId)
-      .order('created_at', { ascending: true });
+    try {
+      const { data: budgetData, error: budgetError } = await supabase
+        .from('job_budgets')
+        .select('id, cost_code_id')
+        .eq('job_id', jobId);
 
-    if (budgetError) {
-      console.error('Error loading budget lines:', budgetError);
-      return;
-    }
+      if (budgetError) throw budgetError;
 
-    const existing: BudgetLine[] = (budgetData || []).map((bd: any) => ({
-      id: bd.id,
-      cost_code_id: bd.cost_code_id,
-      budgeted_amount: bd.budgeted_amount,
-      actual_amount: bd.actual_amount,
-      committed_amount: bd.committed_amount,
-      is_dynamic: bd.is_dynamic,
-      parent_budget_id: bd.parent_budget_id,
-      cost_code: bd.cost_codes,
-    }));
+      const existingIds = new Set((budgetData || []).map((b: any) => b.cost_code_id));
+      const missing = selectedCostCodes.filter((cc) => !existingIds.has(cc.id));
 
-    const byCostCodeId = new Map(existing.map((e) => [e.cost_code_id, e]));
-    const newEntries: BudgetLine[] = [];
-    
-    selectedCostCodes.forEach((cc) => {
-      if (!byCostCodeId.has(cc.id)) {
-        const newLine: BudgetLine = {
+      if (missing.length > 0) {
+        const user = await supabase.auth.getUser();
+        const inserts = missing.map((cc) => ({
+          job_id: jobId,
           cost_code_id: cc.id,
           budgeted_amount: 0,
           actual_amount: 0,
           committed_amount: 0,
           is_dynamic: false,
           parent_budget_id: null,
-          cost_code: cc,
-        };
-        byCostCodeId.set(cc.id, newLine);
-        newEntries.push(newLine);
-      }
-    });
+          created_by: user.data.user?.id,
+        }));
 
-    // Persist new budget entries to database
-    if (newEntries.length > 0) {
-      const user = await supabase.auth.getUser();
-      const inserts = newEntries.map(line => ({
-        job_id: jobId,
-        cost_code_id: line.cost_code_id,
-        budgeted_amount: 0,
-        actual_amount: 0,
-        committed_amount: 0,
-        is_dynamic: false,
-        parent_budget_id: null,
-        created_by: user.data.user?.id
-      }));
-
-      const { error: insertError } = await supabase.from('job_budgets').insert(inserts);
-      if (insertError) {
-        console.error('Error inserting new budget lines:', insertError);
-      } else {
-        // Reload to get IDs
-        await loadData();
-        return;
+        const { error: insertError } = await supabase.from('job_budgets').insert(inserts);
+        if (insertError) throw insertError;
       }
+
+      // Always reload so actual/committed are calculated from live data (don’t overwrite with stored zeros)
+      await loadData();
+    } catch (error) {
+      console.error('Error populating budget lines:', error);
     }
-
-    const merged = Array.from(byCostCodeId.values()).sort((a, b) =>
-      (a.cost_code?.code || '').localeCompare(b.cost_code?.code || '', undefined, { numeric: true, sensitivity: 'base' })
-    );
-
-    setBudgetLines(merged);
   };
 
 
@@ -565,7 +525,14 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                       
                       const displayBudget = isChild && parentBudget !== undefined ? parentBudget : line.budgeted_amount;
                       const displayVariance = isChild && parentRemaining !== undefined ? parentRemaining : variance;
-                      const isVarianceNegative = isChild ? (isOverBudget ?? false) : variance < 0;
+
+                      const isRowOverBudget = line.is_dynamic
+                        ? (isOverBudget ?? false)
+                        : isChild
+                          ? (isOverBudget ?? false)
+                          : variance < 0;
+
+                      const toneClass = isRowOverBudget ? 'text-destructive' : 'text-success';
                       
                       const isExpanded = expandedGroups.has(line.cost_code?.code || '');
                       
@@ -645,8 +612,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   });
                                   navigate(`/construction/reports/cost-history?${params.toString()}`);
                                 }}
-                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
-                                type="button"
+                                className={cn(
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  toneClass
+                                )}
                               >
                                 {formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.actual_amount, 0))}
                               </button>
@@ -663,7 +632,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   });
                                   navigate(`/construction/reports/cost-history?${params.toString()}`);
                                 }}
-                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                className={cn(
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  toneClass
+                                )}
                                 type="button"
                               >
                                 {formatCurrency(line.actual_amount)}
@@ -684,7 +656,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   });
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
-                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                className={cn(
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  toneClass
+                                )}
                                 type="button"
                               >
                                 {formatCurrency(getChildBudgets(line.id!).reduce((s, c) => s + c.committed_amount, 0))}
@@ -702,7 +677,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   });
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
-                                className="font-mono text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left"
+                                className={cn(
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  toneClass
+                                )}
                                 type="button"
                               >
                                 {formatCurrency(line.committed_amount)}
@@ -710,11 +688,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                             )}
                           </TableCell>
                           <TableCell>
-                            <span className={`font-mono ${
-                              isVarianceNegative
-                                ? 'text-destructive font-semibold' 
-                                : 'text-green-600 dark:text-green-500'
-                            }`}>
+                            <span className={cn("font-mono font-semibold", toneClass)}>
                               {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>
                           </TableCell>
