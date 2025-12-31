@@ -175,20 +175,61 @@ export default function Bills() {
 
       if (error) throw error;
 
-      const formattedBills: Bill[] = data?.map(bill => ({
-        id: bill.id,
-        invoice_number: bill.invoice_number,
-        vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
-        vendor_logo_url: (bill.vendors as any)?.logo_url || null,
-        amount: bill.amount,
-        status: bill.status,
-        issue_date: bill.issue_date,
-        due_date: bill.due_date,
-        job_name: (bill.jobs as any)?.name || 'No Job',
-        cost_code_description: (bill.cost_codes as any)?.description || 'No Cost Code',
-        description: bill.description || '',
-        payment_terms: bill.payment_terms
-      })) || [];
+      // Get all invoice IDs to fetch distributions for bills without direct job assignment
+      const invoiceIds = data?.map(b => b.id) || [];
+      
+      // Fetch distributions with job info for bills that might not have direct job_id
+      const { data: distributions } = await supabase
+        .from('invoice_cost_distributions')
+        .select(`
+          invoice_id,
+          cost_codes(job_id, jobs(name))
+        `)
+        .in('invoice_id', invoiceIds);
+
+      // Build a map of invoice_id -> job names from distributions
+      const distributionJobMap = new Map<string, string[]>();
+      distributions?.forEach((dist: any) => {
+        const invoiceId = dist.invoice_id;
+        const jobName = dist.cost_codes?.jobs?.name;
+        if (jobName) {
+          if (!distributionJobMap.has(invoiceId)) {
+            distributionJobMap.set(invoiceId, []);
+          }
+          const existing = distributionJobMap.get(invoiceId)!;
+          if (!existing.includes(jobName)) {
+            existing.push(jobName);
+          }
+        }
+      });
+
+      const formattedBills: Bill[] = data?.map(bill => {
+        // Use direct job name if available, otherwise get from distributions
+        let jobName = (bill.jobs as any)?.name;
+        if (!jobName) {
+          const distJobs = distributionJobMap.get(bill.id);
+          if (distJobs && distJobs.length > 0) {
+            jobName = distJobs.length === 1 ? distJobs[0] : `${distJobs[0]} (+${distJobs.length - 1})`;
+          } else {
+            jobName = 'No Job';
+          }
+        }
+        
+        return {
+          id: bill.id,
+          invoice_number: bill.invoice_number,
+          vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
+          vendor_logo_url: (bill.vendors as any)?.logo_url || null,
+          amount: bill.amount,
+          status: bill.status,
+          issue_date: bill.issue_date,
+          due_date: bill.due_date,
+          job_name: jobName,
+          cost_code_description: (bill.cost_codes as any)?.description || 'No Cost Code',
+          description: bill.description || '',
+          payment_terms: bill.payment_terms
+        };
+      }) || [];
 
       // Sync invoices that were paid via posted credit card transactions
       let finalBills = formattedBills;
