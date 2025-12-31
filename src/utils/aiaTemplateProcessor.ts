@@ -83,6 +83,8 @@ interface AIATemplate {
  */
 export async function loadDefaultAIATemplate(companyId: string): Promise<AIATemplate | null> {
   try {
+    console.log('Loading default AIA template for company:', companyId);
+    
     const { data, error } = await (supabase
       .from('aia_invoice_templates' as any)
       .select('*')
@@ -95,6 +97,7 @@ export async function loadDefaultAIATemplate(companyId: string): Promise<AIATemp
       return null;
     }
 
+    console.log('Found default AIA template:', data);
     return data as AIATemplate;
   } catch (error) {
     console.error('Error loading default AIA template:', error);
@@ -136,14 +139,22 @@ export async function processAIATemplate(
   data: AIATemplateData
 ): Promise<Blob | null> {
   try {
+    console.log('Processing AIA template:', template.file_url);
+    
     // Fetch the template file
     const response = await fetch(template.file_url);
+    console.log('Template fetch response status:', response.status);
+    
     if (!response.ok) {
+      console.error('Failed to fetch template file, status:', response.status);
       throw new Error('Failed to fetch template file');
     }
 
     const arrayBuffer = await response.arrayBuffer();
+    console.log('Template file size:', arrayBuffer.byteLength, 'bytes');
+    
     const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    console.log('Workbook sheets:', workbook.SheetNames);
 
     // Create placeholder mappings
     const placeholders: Record<string, string> = {
@@ -322,15 +333,21 @@ export async function generateAIAInvoice(
 ): Promise<{ blob: Blob; fileName: string; format: 'excel' | 'pdf' } | null> {
   const { forReview = false, outputFormat = 'excel' } = options;
 
+  console.log('generateAIAInvoice called for company:', companyId);
+
   // Try to load the default template
   const template = await loadDefaultAIATemplate(companyId);
+  console.log('Template loaded:', template ? 'yes' : 'no');
 
   if (template) {
     // Process the template with the data
+    console.log('Processing template...');
     const processedBlob = await processAIATemplate(template, data);
+    console.log('Template processed:', processedBlob ? 'success' : 'failed');
     
     if (processedBlob) {
       const fileName = `AIA_Invoice_${data.application_number}${forReview ? '_REVIEW' : ''}.xlsx`;
+      console.log('Returning processed blob with filename:', fileName);
       return {
         blob: processedBlob,
         fileName,
