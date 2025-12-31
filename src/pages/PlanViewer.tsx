@@ -743,11 +743,17 @@ export default function PlanViewer() {
           {/* PDF Viewer with Markup Canvas */}
           <div className="flex-1 relative overflow-auto bg-muted/30" ref={pdfContainerRef}>
             {/* Spacer to enable scroll area when zoomed */}
-            <div aria-hidden="true" style={{ width: `${Math.max(1, contentSize.width * zoomLevel)}px`, height: `${Math.max(1, contentSize.height * zoomLevel)}px` }} />
+            <div
+              aria-hidden="true"
+              style={{
+                width: `${Math.max(1, contentSize.width * zoomLevel)}px`,
+                height: `${Math.max(1, contentSize.height * zoomLevel)}px`,
+              }}
+            />
 
             {/* Canvas overlay for markups and interactions */}
-            <div 
-              className="absolute top-0 left-0 z-10"
+            <div
+              className="absolute inset-0 z-10"
               style={{
                 pointerEvents: activeTool === "select" && !panMode ? "none" : "auto",
                 transform: `scale(${zoomLevel})`,
@@ -759,7 +765,7 @@ export default function PlanViewer() {
 
             {/* PDF viewer */}
             <div
-              className="absolute top-0 left-0"
+              className="absolute inset-0"
               style={{
                 transform: `scale(${zoomLevel})`,
                 transformOrigin: "top left",
