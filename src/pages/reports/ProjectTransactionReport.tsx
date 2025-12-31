@@ -12,6 +12,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { autoFitColumns } from "@/utils/excelAutoFit";
 import { format } from "date-fns";
 
 interface Transaction {
@@ -236,6 +237,7 @@ export default function ProjectTransactionReport() {
     ];
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    autoFitColumns(worksheet, worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
     XLSX.writeFile(workbook, `project-transactions-${format(new Date(), "yyyy-MM-dd")}.xlsx`);

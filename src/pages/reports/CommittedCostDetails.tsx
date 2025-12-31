@@ -14,6 +14,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { autoFitColumns } from "@/utils/excelAutoFit";
 
 interface CommittedItem {
   id: string;
@@ -348,6 +349,7 @@ export default function CommittedCostDetails() {
     ];
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    autoFitColumns(worksheet, worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Committed Costs");
     

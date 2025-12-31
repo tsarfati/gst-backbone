@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { autoFitColumns } from "@/utils/excelAutoFit";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -255,10 +256,11 @@ export default function ProjectCostTransactionHistory() {
       let journalQuery = supabase
         .from("journal_entry_lines")
         .select(`
-          id, debit_amount, credit_amount, description, cost_code_id,
+          id, debit_amount, credit_amount, description, cost_code_id, account_id,
           journal_entries!inner(id, entry_date, reference, description, status),
           jobs(name),
-          cost_codes(id, code, description, type)
+          cost_codes(id, code, description, type),
+          chart_of_accounts(id, account_name, account_number)
         `)
         .eq("job_id", selectedJobId);
       
@@ -300,10 +302,17 @@ export default function ProjectCostTransactionHistory() {
         ccQuery = ccQuery.eq("cost_code_id", actualCostCodeId);
       }
 
-      const [journalRes, billsRes, ccRes] = await Promise.all([
+      // Also fetch credit cards with their liability accounts for detection
+      const ccCardsQuery = supabase
+        .from("credit_cards")
+        .select("id, card_name, liability_account_id")
+        .eq("company_id", currentCompany!.id);
+
+      const [journalRes, billsRes, ccRes, ccCardsRes] = await Promise.all([
         journalQuery,
         billsQuery,
         ccQuery,
+        ccCardsQuery,
       ]);
 
       if (journalRes.error) throw journalRes.error;
@@ -313,6 +322,15 @@ export default function ProjectCostTransactionHistory() {
       const journalLines = journalRes.data || [];
       const bills = billsRes.data || [];
       const ccDistributions = ccRes.data || [];
+      const creditCards = ccCardsRes.data || [];
+
+      // Build a map of liability_account_id -> credit card name for detecting CC transactions
+      const liabilityAccountToCardMap = new Map<string, string>();
+      creditCards.forEach((card: any) => {
+        if (card.liability_account_id) {
+          liabilityAccountToCardMap.set(card.liability_account_id, card.card_name);
+        }
+      });
 
       // Build a map of journal_entry_id -> credit card info for posted CC transactions
       const postedCCMap = new Map<string, { credit_card_name?: string; vendor_name?: string }>();
@@ -325,6 +343,18 @@ export default function ProjectCostTransactionHistory() {
         }
       });
 
+      // Group journal lines by journal_entry_id to check for credit lines to CC liability accounts
+      const journalEntryToCCMap = new Map<string, string>();
+      journalLines.forEach((jl: any) => {
+        // Check if this is a credit line to a CC liability account
+        if (jl.credit_amount > 0 && jl.account_id) {
+          const cardName = liabilityAccountToCardMap.get(jl.account_id);
+          if (cardName) {
+            journalEntryToCCMap.set(jl.journal_entries?.id, cardName);
+          }
+        }
+      });
+
       const allTransactions: Transaction[] = [
         // Journal entry lines (debit amounts are expenses)
         ...journalLines
@@ -332,6 +362,11 @@ export default function ProjectCostTransactionHistory() {
           .map((jl: any) => {
             // Check if this journal entry came from a credit card transaction
             const ccInfo = postedCCMap.get(jl.journal_entries?.id);
+            // Also check if the journal entry credits a CC liability account (fallback detection)
+            const ccCardName = ccInfo?.credit_card_name || journalEntryToCCMap.get(jl.journal_entries?.id);
+            // For vendor, use CC info if available, otherwise fall back to description for merchant text
+            const vendorName = ccInfo?.vendor_name || (ccCardName ? (jl.description || undefined) : undefined);
+            
             return {
               id: jl.id,
               date: jl.journal_entries?.entry_date || "",
@@ -344,8 +379,8 @@ export default function ProjectCostTransactionHistory() {
               cost_code_id: jl.cost_code_id || "",
               cost_code_description: jl.cost_codes?.description || "",
               category: normalizeCategory(jl.cost_codes?.type),
-              vendor_name: ccInfo?.vendor_name || undefined,
-              credit_card_name: ccInfo?.credit_card_name || undefined,
+              vendor_name: vendorName,
+              credit_card_name: ccCardName,
             };
           }),
         // Bills not yet posted
@@ -413,7 +448,7 @@ export default function ProjectCostTransactionHistory() {
     } finally {
       setLoading(false);
     }
-  }, [selectedJobId, resolvedCostCodeId, toast]);
+  }, [selectedJobId, resolvedCostCodeId, currentCompany?.id, toast]);
 
   const applyFilters = () => {
     let filtered = [...transactions];
@@ -586,15 +621,23 @@ export default function ProjectCostTransactionHistory() {
       yPos += 6;
       
       group.categories.forEach(cat => {
-        const tableData = cat.transactions.map(t => [
-          new Date(t.date).toLocaleDateString(),
-          t.type === "bill" ? "Bill" : t.type === "subcontract" ? "Subcontract" : 
-            t.type === "credit_card" ? (t.credit_card_name || "CC") : "Posted",
-          t.vendor_name || "-",
-          t.reference_number || "-",
-          t.description.substring(0, 35),
-          `$${formatNumber(t.amount)}`,
-        ]);
+        const tableData = cat.transactions.map(t => {
+          // Determine the type label - use credit card name if available
+          let typeLabel = "Posted";
+          if (t.type === "bill") typeLabel = "Bill";
+          else if (t.type === "subcontract") typeLabel = "Subcontract";
+          else if (t.type === "credit_card") typeLabel = t.credit_card_name || "CC";
+          else if (t.credit_card_name) typeLabel = t.credit_card_name; // For posted CC transactions
+          
+          return [
+            new Date(t.date).toLocaleDateString(),
+            typeLabel,
+            t.vendor_name || "-",
+            t.reference_number || "-",
+            t.description.substring(0, 35),
+            `$${formatNumber(t.amount)}`,
+          ];
+        });
         
         autoTable(doc, {
           startY: yPos,
@@ -670,18 +713,7 @@ export default function ProjectCostTransactionHistory() {
     worksheetData.push(["TOTAL", totalAmount]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    
-    // Auto-fit column widths
-    const colWidths: { wch: number }[] = [];
-    worksheetData.forEach(row => {
-      row.forEach((cell, colIdx) => {
-        const cellLength = cell ? String(cell).length : 0;
-        if (!colWidths[colIdx] || cellLength > colWidths[colIdx].wch) {
-          colWidths[colIdx] = { wch: Math.min(Math.max(cellLength + 2, 8), 50) };
-        }
-      });
-    });
-    worksheet['!cols'] = colWidths;
+    autoFitColumns(worksheet, worksheetData);
     
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");

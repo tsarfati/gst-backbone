@@ -13,6 +13,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { autoFitColumns } from "@/utils/excelAutoFit";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -476,6 +477,7 @@ export default function ProjectCostBudgetStatus() {
     ];
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    autoFitColumns(worksheet, worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Budget Status");
     XLSX.writeFile(workbook, `project-budget-status-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
