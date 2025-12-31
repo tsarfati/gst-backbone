@@ -1,180 +1,76 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Info, Eye, Upload, X, Save, Layout, Code, Image as ImageIcon, Move, Loader2 } from 'lucide-react';
+import { FileText, Info, Eye, Upload, X, Save, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
-import TemplateFileUploader from '@/components/TemplateFileUploader';
-import { Canvas as FabricCanvas, Image as FabricImage, Textbox as FabricTextbox } from 'fabric';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface TemplateSettings {
   id?: string;
   company_id: string;
   template_type: string;
+  template_name?: string;
   header_html?: string;
   footer_html?: string;
   font_family: string;
   primary_color?: string;
-  secondary_color?: string;
   table_header_bg?: string;
   table_border_color?: string;
-  table_stripe_color?: string;
-  auto_size_columns?: boolean;
   use_company_logo?: boolean;
-  header_images?: Array<{
-    url: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }>;
-  header_texts?: Array<{
-    text: string;
-    x: number;
-    y: number;
-    width?: number;
-    fontSize?: number;
-    color?: string;
-    fontFamily?: string;
-  }>;
-  notes?: string;
-  template_file_url?: string;
-  template_file_name?: string;
-  template_file_type?: string;
-  template_format?: string;
+  logo_url?: string;
 }
 
 const TEMPLATE_PRESETS = {
   professional: {
     name: 'Professional Blue',
-    header_html: '<div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 25px;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #64748b; font-weight: 600;">Report</div>\n  <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Report Period: {period}</div>\n</div>',
+    header_html: '<div style="border-bottom: 2px solid #1e40af; padding-bottom: 20px; margin-bottom: 25px;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 15px; color: #64748b; font-weight: 600;">{report_title}</div>\n  <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Report Period: {period}</div>\n</div>',
     footer_html: '<div style="text-align: center; font-size: 10px; color: #64748b; padding-top: 20px; border-top: 1px solid #e2e8f0;">\n  <div style="font-weight: 600;">Confidential - For Internal Use Only</div>\n  <div style="margin-top: 5px;">Generated on {generated_date} | Page {page} of {pages}</div>\n</div>',
     primary_color: '#1e40af',
     table_header_bg: '#dbeafe',
   },
   corporate: {
     name: 'Corporate Gray',
-    header_html: '<div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); padding: 25px 0; margin-bottom: 25px; border-bottom: 3px solid #334155;">\n  <div style="font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Report</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">{period}</div>\n</div>',
+    header_html: '<div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); padding: 25px 0; margin-bottom: 25px; border-bottom: 3px solid #334155;">\n  <div style="font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; color: #475569; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">{report_title}</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">{period}</div>\n</div>',
     footer_html: '<div style="background: #f1f5f9; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 2px solid #cbd5e1; font-size: 10px; color: #475569; display: flex; justify-content: space-between; align-items: center;">\n  <div style="font-weight: 600;">© {company_name} - Confidential</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | {generated_date}</div>\n</div>',
     primary_color: '#334155',
     table_header_bg: '#f1f5f9',
   },
   executive: {
     name: 'Executive Black',
-    header_html: '<div style="background: #0f172a; color: white; padding: 30px; margin: -20px -20px 25px -20px; border-bottom: 4px solid #334155;">\n  <div style="font-size: 34px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">Report</div>\n  <div style="font-size: 13px; opacity: 0.8; margin-top: 8px;">{period}</div>\n</div>',
+    header_html: '<div style="background: #0f172a; color: white; padding: 30px; margin: -20px -20px 25px -20px; border-bottom: 4px solid #334155;">\n  <div style="font-size: 34px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 14px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 1.5px;">{report_title}</div>\n  <div style="font-size: 13px; opacity: 0.8; margin-top: 8px;">{period}</div>\n</div>',
     footer_html: '<div style="background: #0f172a; color: white; padding: 15px 20px; margin: 25px -20px -20px -20px; border-top: 3px solid #334155; font-size: 10px; text-align: center;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 4px;">CONFIDENTIAL DOCUMENT</div>\n  <div style="opacity: 0.85; font-weight: 500;">Page {page} of {pages} • Generated {generated_date}</div>\n</div>',
     primary_color: '#0f172a',
     table_header_bg: '#f8fafc',
   },
   modern: {
     name: 'Modern Indigo',
-    header_html: '<div style="padding-bottom: 20px; margin-bottom: 25px; border-bottom: 3px solid #4f46e5;">\n  <div style="font-size: 32px; font-weight: 700; color: #312e81; margin-bottom: 10px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: center;">\n    <div style="font-size: 15px; color: #6366f1; font-weight: 600;">Report</div>\n    <div style="font-size: 12px; color: #6b7280; font-weight: 500;">{period}</div>\n  </div>\n</div>',
+    header_html: '<div style="padding-bottom: 20px; margin-bottom: 25px; border-bottom: 3px solid #4f46e5;">\n  <div style="font-size: 32px; font-weight: 700; color: #312e81; margin-bottom: 10px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: center;">\n    <div style="font-size: 15px; color: #6366f1; font-weight: 600;">{report_title}</div>\n    <div style="font-size: 12px; color: #6b7280; font-weight: 500;">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="padding-top: 15px; border-top: 2px solid #e0e7ff; font-size: 10px; color: #6b7280;">\n  <table width="100%" style="border-collapse: collapse;"><tr>\n    <td style="font-weight: 600; text-align: left;">Confidential</td>\n    <td style="font-weight: 500; text-align: right;">Page {page} of {pages} • {generated_date}</td>\n  </tr></table>\n</div>',
     primary_color: '#4f46e5',
     table_header_bg: '#eef2ff',
   },
-  financial: {
-    name: 'Financial Green',
-    header_html: '<div style="border-left: 5px solid #059669; padding-left: 20px; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 700; color: #064e3b; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; color: #047857; font-weight: 600; margin-bottom: 6px;">REPORT</div>\n  <div style="font-size: 12px; color: #6b7280;">Period: {period}</div>\n</div>',
-    footer_html: '<div style="border-top: 2px solid #d1fae5; padding-top: 15px; font-size: 10px; color: #6b7280;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">This document is confidential</td>\n    <td style="text-align: right; font-weight: 500;">{generated_date} | Page {page}/{pages}</td>\n  </tr></table>\n</div>',
-    primary_color: '#059669',
-    table_header_bg: '#d1fae5',
-  },
-  legal: {
-    name: 'Legal Navy',
-    header_html: '<div style="text-align: center; padding: 25px 0; margin-bottom: 25px; border-bottom: 3px double #1e3a8a;">\n  <div style="font-size: 30px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; letter-spacing: 0.5px;">{company_name}</div>\n  <div style="width: 100px; height: 2px; background: #3b82f6; margin: 0 auto 15px;"></div>\n  <div style="font-size: 14px; color: #1e40af; font-weight: 600; letter-spacing: 1px;">REPORT</div>\n  <div style="font-size: 12px; color: #64748b; margin-top: 8px;">For Period: {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; padding-top: 20px; margin-top: 25px; border-top: 3px double #1e3a8a; font-size: 10px; color: #64748b;">\n  <div style="font-weight: 700; color: #1e40af; margin-bottom: 5px;">CONFIDENTIAL & PRIVILEGED</div>\n  <div style="font-weight: 500;">Page {page} of {pages} | Generated: {generated_date}</div>\n</div>',
-    primary_color: '#1e40af',
-    table_header_bg: '#dbeafe',
-  },
-  tech: {
-    name: 'Tech Slate',
-    header_html: '<div style="font-family: system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #334155 0%, #475569 100%); color: white; padding: 25px; margin: -20px -20px 25px -20px; border-radius: 8px;">\n  <div style="font-size: 30px; font-weight: 600; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.9; font-weight: 500; letter-spacing: 0.5px;">REPORT • {period}</div>\n</div>',
-    footer_html: '<div style="font-family: system-ui, -apple-system, sans-serif; padding-top: 15px; border-top: 1px solid #cbd5e1; font-size: 10px; color: #64748b;">\n  <table width="100%"><tr>\n    <td style="font-weight: 600;">Confidential</td>\n    <td style="text-align: right; font-weight: 500;">Page {page}/{pages} • {generated_date}</td>\n  </tr></table>\n</div>',
-    primary_color: '#334155',
-    table_header_bg: '#f1f5f9',
-  },
   minimal: {
     name: 'Minimal Clean',
-    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: baseline;">\n    <div style="font-size: 14px; color: #6b7280; font-weight: 500;">Report</div>\n    <div style="font-size: 12px; color: #9ca3af;">{period}</div>\n  </div>\n</div>',
+    header_html: '<div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">\n  <div style="font-size: 32px; font-weight: 300; color: #111827; margin-bottom: 10px; letter-spacing: -0.5px;">{company_name}</div>\n  <div style="display: flex; justify-content: space-between; align-items: baseline;">\n    <div style="font-size: 14px; color: #6b7280; font-weight: 500;">{report_title}</div>\n    <div style="font-size: 12px; color: #9ca3af;">{period}</div>\n  </div>\n</div>',
     footer_html: '<div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af;">\n  <table width="100%"><tr>\n    <td style="font-weight: 500;">{generated_date}</td>\n    <td style="text-align: right; font-weight: 500;">Page {page} of {pages}</td>\n  </tr></table>\n</div>',
     primary_color: '#111827',
     table_header_bg: '#f9fafb',
   },
   construction: {
     name: 'Construction Orange',
-    header_html: '<div style="border-top: 6px solid #ea580c; border-bottom: 2px solid #ea580c; padding: 20px 0; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 800; color: #9a3412; margin-bottom: 8px; text-transform: uppercase;">{company_name}</div>\n  <div style="font-size: 14px; color: #c2410c; font-weight: 700; letter-spacing: 1px;">REPORT</div>\n  <div style="font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 600;">{period}</div>\n</div>',
+    header_html: '<div style="border-top: 6px solid #ea580c; border-bottom: 2px solid #ea580c; padding: 20px 0; margin-bottom: 25px;">\n  <div style="font-size: 32px; font-weight: 800; color: #9a3412; margin-bottom: 8px; text-transform: uppercase;">{company_name}</div>\n  <div style="font-size: 14px; color: #c2410c; font-weight: 700; letter-spacing: 1px;">{report_title}</div>\n  <div style="font-size: 12px; color: #78716c; margin-top: 6px; font-weight: 600;">{period}</div>\n</div>',
     footer_html: '<div style="border-top: 2px solid #ea580c; padding-top: 15px; font-size: 10px; color: #78716c;">\n  <table width="100%"><tr>\n    <td style="font-weight: 700; color: #9a3412;">CONFIDENTIAL REPORT</td>\n    <td style="text-align: right; font-weight: 600;">Page {page} of {pages} | {generated_date}</td>\n  </tr></table>\n</div>',
     primary_color: '#ea580c',
     table_header_bg: '#fed7aa',
-  },
-  healthcare: {
-    name: 'Healthcare Teal',
-    header_html: '<div style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: white; padding: 28px; margin: -20px -20px 25px -20px; border-radius: 10px;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px;">{company_name}</div>\n  <div style="font-size: 14px; opacity: 0.95; font-weight: 600; letter-spacing: 0.5px;">Report • {period}</div>\n</div>',
-    footer_html: '<div style="padding-top: 15px; border-top: 2px solid #5eead4; font-size: 10px; color: #0f766e; text-align: center;">\n  <div style="font-weight: 600; margin-bottom: 3px;">Confidential Medical Records</div>\n  <div style="font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
-    primary_color: '#0d9488',
-    table_header_bg: '#ccfbf1',
-  },
-  luxury: {
-    name: 'Luxury Gold',
-    header_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 28px; margin: -20px -20px 25px -20px; border-top: 3px solid #fbbf24; border-bottom: 3px solid #fbbf24;">\n  <div style="font-size: 32px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px;">{company_name}</div>\n  <div style="font-size: 13px; opacity: 0.95; font-weight: 600; letter-spacing: 2px; text-transform: uppercase;">Report</div>\n  <div style="font-size: 12px; opacity: 0.9; margin-top: 8px;">{period}</div>\n</div>',
-    footer_html: '<div style="background: linear-gradient(135deg, #78350f 0%, #92400e 100%); color: #fef3c7; padding: 15px; margin: 25px -20px -20px -20px; border-top: 3px solid #fbbf24; text-align: center; font-size: 10px;">\n  <div style="font-weight: 700; letter-spacing: 1px; margin-bottom: 3px;">PRIVATE & CONFIDENTIAL</div>\n  <div style="opacity: 0.9; font-weight: 500;">Page {page} of {pages} • {generated_date}</div>\n</div>',
-    primary_color: '#92400e',
-    table_header_bg: '#fef3c7',
-  },
-  creative: {
-    name: 'Creative Purple',
-    header_html: '<div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%); color: white; padding: 30px; margin: -20px -20px 25px -20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(124,58,237,0.3);">\n  <div style="font-size: 34px; font-weight: 800; margin-bottom: 10px; text-shadow: 0 2px 15px rgba(0,0,0,0.2);">{company_name}</div>\n  <div style="font-size: 15px; opacity: 0.95; font-weight: 600;">Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align: center; font-size: 10px; padding-top: 15px; border-top: 2px solid #e9d5ff; color: #6b21a8;">\n  <div style="font-weight: 600;">Page {page} of {pages} • {generated_date}</div>\n</div>',
-    primary_color: '#7c3aed',
-    table_header_bg: '#f3e8ff',
-  },
-  split_header: {
-    name: 'Split Header (Logo Left)',
-    header_html: '<div style="display:flex; align-items:center; gap:20px; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb;">\n  <div style="flex:1">\n    <div style="font-size:28px; font-weight:700; color:#111827; letter-spacing:-0.4px">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:6px">{period}</div>\n  </div>\n  <div style="width:2px; height:48px; background:#e5e7eb"></div>\n  <div style="text-align:right; min-width:220px">\n    <div style="font-size:12px; color:#374151; font-weight:600">Report</div>\n    <div style="font-size:11px; color:#6b7280; margin-top:4px">Page {page} of {pages}</div>\n  </div>\n</div>',
-    footer_html: '<div style="text-align:right; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">Generated: {generated_date}</div>',
-    primary_color: '#111827',
-    table_header_bg: '#f3f4f6',
-  },
-  centered_logo: {
-    name: 'Centered Title (Logo Center)',
-    header_html: '<div style="text-align:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="font-size:30px; font-weight:800; color:#111827">{company_name}</div>\n  <div style="margin-top:4px; font-size:12px; color:#6b7280">Report • {period}</div>\n</div>',
-    footer_html: '<div style="text-align:center; font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb">{generated_date} • Page {page}/{pages}</div>',
-    primary_color: '#111827',
-    table_header_bg: '#eef2f7',
-  },
-  right_aligned: {
-    name: 'Right-Aligned (Logo Right)',
-    header_html: '<div style="padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="display:flex; justify-content:space-between; align-items:flex-end">\n    <div>\n      <div style="font-size:28px; font-weight:700; color:#111827">{company_name}</div>\n      <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n    </div>\n    <div style="font-size:13px; color:#374151; font-weight:600">Report</div>\n  </div>\n</div>',
-    footer_html: '<div style="font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb; display:flex; justify-content:space-between">\n  <span>Confidential</span><span>Page {page} of {pages}</span>\n</div>',
-    primary_color: '#111827',
-    table_header_bg: '#f3f4f6',
-  },
-  banner_top: {
-    name: 'Banner Top',
-    header_html: '<div style="background:#111827; color:white; padding:18px 24px; margin:-20px -20px 20px -20px">\n  <div style="display:flex; justify-content:space-between; align-items:center">\n    <div style="font-size:18px; opacity:.9; font-weight:600; letter-spacing:1px">REPORT</div>\n    <div style="font-size:11px; opacity:.85">{period}</div>\n  </div>\n</div>',
-    footer_html: '<div style="background:#111827; color:white; padding:10px 16px; margin:20px -20px -20px -20px; font-size:10px; text-align:center">Page {page}/{pages} • {generated_date}</div>',
-    primary_color: '#111827',
-    table_header_bg: '#e5e7eb',
-  },
-  sidebar_accent: {
-    name: 'Sidebar Accent',
-    header_html: '<div style="display:grid; grid-template-columns: 8px 1fr; gap:16px; align-items:center; padding-bottom:16px; margin-bottom:20px; border-bottom:2px solid #e5e7eb">\n  <div style="background:#3b82f6; height:48px; border-radius:4px"></div>\n  <div>\n    <div style="font-size:28px; font-weight:800; color:#111827">{company_name}</div>\n    <div style="font-size:12px; color:#6b7280; margin-top:4px">{period}</div>\n  </div>\n</div>',
-    footer_html: '<div style="font-size:10px; color:#6b7280; padding-top:12px; border-top:1px solid #e5e7eb; text-align:right">Page {page}/{pages}</div>',
-    primary_color: '#3b82f6',
-    table_header_bg: '#eff6ff',
   },
 };
 
@@ -182,395 +78,29 @@ export default function PdfTemplateSettings() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('');
-  const [editMode, setEditMode] = useState<'visual' | 'code'>('visual');
-  const [activeReportTab, setActiveReportTab] = useState<'timecard' | 'commitment' | 'invoice' | 'receipt' | 'reconciliation' | 'general_ledger' | 'credit_card_transaction'>('timecard');
-  const [reconciliationTemplate, setReconciliationTemplate] = useState<TemplateSettings>({
+  const [template, setTemplate] = useState<TemplateSettings>({
     company_id: currentCompany?.id || '',
-    template_type: 'reconciliation',
+    template_type: 'global',
+    template_name: 'default',
     font_family: 'helvetica',
     header_html: TEMPLATE_PRESETS.professional.header_html,
     footer_html: TEMPLATE_PRESETS.professional.footer_html,
     primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
+    table_header_bg: '#dbeafe',
     table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
+    use_company_logo: false,
+    logo_url: ''
   });
-  const [timecardTemplate, setTimecardTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'timecard',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [commitmentTemplate, setCommitmentTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'commitment',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [invoiceTemplate, setInvoiceTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'invoice',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [receiptTemplate, setReceiptTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'receipt',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [generalLedgerTemplate, setGeneralLedgerTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'general_ledger',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [creditCardTemplate, setCreditCardTemplate] = useState<TemplateSettings>({
-    company_id: currentCompany?.id || '',
-    template_type: 'credit_card_transaction',
-    font_family: 'helvetica',
-    header_html: TEMPLATE_PRESETS.professional.header_html,
-    footer_html: TEMPLATE_PRESETS.professional.footer_html,
-    primary_color: '#1e40af',
-    secondary_color: '#3b82f6',
-    table_header_bg: '#f1f5f9',
-    table_border_color: '#e2e8f0',
-    table_stripe_color: '#f8fafc',
-    auto_size_columns: true,
-    header_images: [],
-    header_texts: []
-  });
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<FabricCanvas | null>(null);
-  const fabricImagesRef = useRef<FabricImage[]>([]);
-  const fabricTextsRef = useRef<FabricTextbox[]>([]);
-  const [canvasReady, setCanvasReady] = useState(false);
-  const [saveAsPresetDialogOpen, setSaveAsPresetDialogOpen] = useState(false);
-  const [presetName, setPresetName] = useState('');
 
-  // Resolve storage or relative URLs to loadable image URLs (uses signed URLs if needed)
-  const resolveStorageUrl = async (rawUrl: string): Promise<string> => {
-    try {
-      if (/^https?:\/\//i.test(rawUrl)) {
-        const sep = rawUrl.includes('?') ? '&' : '?';
-        return `${rawUrl}${sep}t=${Date.now()}`;
-      }
-      if (rawUrl.startsWith('/')) {
-        return window.location.origin + rawUrl;
-      }
-      const [bucket, ...rest] = rawUrl.split('/');
-      const objectPath = rest.join('/');
-      if (bucket && objectPath) {
-        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(objectPath);
-        let url = pub?.publicUrl;
-        if (!url) {
-          const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(objectPath, 60 * 60 * 24);
-          url = signed?.signedUrl;
-        }
-        if (url) {
-          const sep = url.includes('?') ? '&' : '?';
-          return `${url}${sep}t=${Date.now()}`;
-        }
-      }
-    } catch (e) {
-      console.error('resolveStorageUrl error:', e);
-    }
-    return rawUrl;
-  };
-
-  const getCompanyLogoPublicUrl = async (): Promise<string | undefined> => {
-    const raw = (currentCompany as any)?.logo_url as string | undefined;
-    if (!raw) return undefined;
-    try {
-      // Use the same resolver that supports public and signed URLs
-      const resolved = await resolveStorageUrl(raw);
-      return resolved;
-    } catch (e) {
-      console.error('getCompanyLogoPublicUrl error:', e);
-    }
-    return undefined;
-  };
   useEffect(() => {
     if (currentCompany?.id) {
-      loadTemplate('timecard');
-      loadTemplate('reconciliation');
-      loadTemplate('credit_card_transaction');
+      loadTemplate();
     }
   }, [currentCompany?.id]);
 
-  // Auto-add company logo to header images if none present - only on initial load
-  useEffect(() => {
-    const maybeAddLogo = async () => {
-      if (!currentCompany?.logo_url || !canvasReady) return;
-      const hasImages = (timecardTemplate.header_images || []).length > 0;
-      if (hasImages) return;
-      
-      // Only add logo if we have a canvas but no images yet
-      const url = await getCompanyLogoPublicUrl();
-      if (!url) return;
-      
-      setTimecardTemplate(prev => {
-        // Double-check we still don't have images
-        if (prev.header_images && prev.header_images.length > 0) return prev;
-        return {
-          ...prev,
-          header_images: [{ url, x: 36, y: 28, width: 140, height: 56 }]
-        };
-      });
-    };
-    maybeAddLogo();
-  }, [currentCompany?.logo_url, canvasReady]);
-
-  // Initialize fabric canvas with proper sizing
-  useEffect(() => {
-    if (!canvasRef.current || fabricCanvasRef.current) return;
-
-    // Get the container size to match the preview
-    const container = canvasRef.current.parentElement;
-    if (!container) return;
-
-    const width = 842; // A4 landscape in points
-    const height = 595;
-
-    const canvas = new FabricCanvas(canvasRef.current, {
-      width,
-      height,
-      backgroundColor: 'transparent',
-      selection: true,
-      preserveObjectStacking: true,
-    });
-
-    fabricCanvasRef.current = canvas;
-    setCanvasReady(true);
-
-    return () => {
-      canvas.dispose();
-      fabricCanvasRef.current = null;
-    };
-  }, []);
-
-  // Update canvas with logos without clearing to prevent flicker/disappear
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    const imgs = timecardTemplate.header_images || [];
-    if (!canvas || !canvasReady) return;
-
-    // Ensure canvas stays transparent
-    canvas.backgroundColor = 'transparent';
-    canvas.requestRenderAll();
-
-    // Sync fabric objects with state (by index)
-    imgs.forEach((img, idx) => {
-      const existing = fabricImagesRef.current[idx];
-      if (existing && (existing as any)._originalUrl === img.url) {
-        existing.set({
-          left: img.x,
-          top: img.y,
-          scaleX: img.width / ((existing.width as number) || 1),
-          scaleY: img.height / ((existing.height as number) || 1),
-          selectable: true,
-          evented: true,
-          hasControls: true,
-          hasBorders: true,
-          hoverCursor: 'move',
-        });
-        existing.setCoords?.();
-        canvas.setActiveObject(existing as any);
-        canvas.requestRenderAll();
-        } else {
-          // Remove mismatched existing
-          if (existing) {
-            canvas.remove(existing as any);
-          }
-          (async () => {
-            try {
-              let resolvedUrl: string | undefined;
-              try {
-                resolvedUrl = await resolveStorageUrl(img.url);
-              } catch (e) {
-                console.warn('[PdfTemplateSettings] resolveStorageUrl failed, using raw url:', img.url, e);
-              }
-              const urlToUse = resolvedUrl || img.url;
-              console.log('[PdfTemplateSettings] Loading header image URL:', urlToUse);
-              const fabricImg = await FabricImage.fromURL(urlToUse, { crossOrigin: 'anonymous' });
-              (fabricImg as any)._originalUrl = img.url;
-              fabricImg.set({
-                left: img.x,
-                top: img.y,
-                scaleX: img.width / ((fabricImg.width as number) || 1),
-                scaleY: img.height / ((fabricImg.height as number) || 1),
-                selectable: true,
-                evented: true,
-                hasControls: true,
-                hasBorders: true,
-                hoverCursor: 'move',
-                lockRotation: false,
-              });
-
-              // Styling of controls (fallback to a solid color for canvas rendering)
-              fabricImg.set({
-                borderColor: '#3b82f6',
-                cornerColor: '#3b82f6',
-                cornerSize: 8,
-                transparentCorners: false,
-              });
-
-              // Persist changes when moved/resized
-              fabricImg.on('modified', () => {
-                const updated = [...imgs];
-                const w = (fabricImg.width as number) || 0;
-                const h = (fabricImg.height as number) || 0;
-                updated[idx] = {
-                  url: img.url,
-                  x: Math.round(fabricImg.left || 0),
-                  y: Math.round(fabricImg.top || 0),
-                  width: Math.round(w * ((fabricImg.scaleX as number) || 1)),
-                  height: Math.round(h * ((fabricImg.scaleY as number) || 1)),
-                };
-                setTimecardTemplate((prev) => ({ ...prev, header_images: updated }));
-                canvas.setActiveObject(fabricImg);
-                canvas.requestRenderAll();
-              });
-
-              fabricImagesRef.current[idx] = fabricImg;
-              canvas.add(fabricImg);
-              (fabricImg as any).moveTo?.(999);
-              canvas.setActiveObject(fabricImg);
-              canvas.requestRenderAll();
-            } catch (err) {
-              console.error('Failed to load header image onto canvas:', err, img.url);
-            }
-          })();
-        }
-    });
-
-    // Remove extra fabric objects if images were removed
-    for (let i = imgs.length; i < fabricImagesRef.current.length; i++) {
-      const obj = fabricImagesRef.current[i];
-      if (obj) {
-        canvas.remove(obj as any);
-      }
-    }
-    fabricImagesRef.current.length = imgs.length;
-
-    canvas.requestRenderAll();
-  }, [timecardTemplate.header_images, canvasReady]);
-
-  // Update canvas with text boxes
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    const texts = timecardTemplate.header_texts || [];
-    if (!canvas || !canvasReady) return;
-
-    texts.forEach((t, idx) => {
-      const existing = fabricTextsRef.current[idx];
-      if (existing) {
-        existing.set({ 
-          left: t.x, 
-          top: t.y, 
-          width: t.width || (existing.width as number), 
-          fontSize: t.fontSize || (existing.fontSize as number), 
-          fill: (t.color as any) || existing.fill, 
-          fontFamily: t.fontFamily || timecardTemplate.font_family 
-        });
-        existing.setCoords?.();
-      } else {
-        const tb = new FabricTextbox(t.text || 'Text', {
-          left: t.x ?? 40,
-          top: t.y ?? 40,
-          width: t.width ?? 220,
-          fontSize: t.fontSize ?? 16,
-          fill: (t.color as any) ?? '#111827',
-          fontFamily: t.fontFamily || timecardTemplate.font_family || 'helvetica',
-          selectable: true,
-          hasControls: true,
-          hasBorders: true,
-        });
-        tb.on('modified', () => {
-          const updated = [...(timecardTemplate.header_texts || [])];
-          updated[idx] = {
-            text: tb.text || 'Text',
-            x: Math.round(tb.left || 0),
-            y: Math.round(tb.top || 0),
-            width: Math.round((tb.width as number) || 220),
-            fontSize: Math.round(((tb.fontSize as number) || 16)),
-            color: (tb.fill as string) || '#111827',
-            fontFamily: tb.fontFamily,
-          };
-          setTimecardTemplate(prev => ({ ...prev, header_texts: updated }));
-          canvas.setActiveObject(tb as any);
-          canvas.requestRenderAll();
-        });
-        fabricTextsRef.current[idx] = tb as any;
-        canvas.add(tb as any);
-        canvas.setActiveObject(tb as any);
-      }
-    });
-
-    // Remove extra text objects if removed from state
-    for (let i = texts.length; i < fabricTextsRef.current.length; i++) {
-      const obj = fabricTextsRef.current[i];
-      if (obj) {
-        canvas.remove(obj as any);
-      }
-    }
-    fabricTextsRef.current.length = texts.length;
-
-    canvas.requestRenderAll();
-  }, [timecardTemplate.header_texts, canvasReady, timecardTemplate.font_family]);
-
-  const loadTemplate = async (templateType: string) => {
+  const loadTemplate = async () => {
     if (!currentCompany?.id) return;
     
     setLoading(true);
@@ -579,63 +109,24 @@ export default function PdfTemplateSettings() {
         .from('pdf_templates')
         .select('*')
         .eq('company_id', currentCompany.id)
-        .eq('template_type', templateType)
+        .eq('template_type', 'global')
         .eq('template_name', 'default')
         .maybeSingle();
 
       if (error) throw error;
       
       if (data) {
-        // Parse header_images properly
-        let headerImages: any[] = [];
-        try {
-          headerImages = typeof (data as any).header_images === 'string' 
-            ? JSON.parse((data as any).header_images) 
-            : ((data as any).header_images || []);
-        } catch (e) {
-          console.error('Error parsing header_images:', e);
-          headerImages = [];
-        }
-
-        // If no images saved, try default company logo
-        let finalHeaderImages = headerImages;
-        if ((!finalHeaderImages || finalHeaderImages.length === 0) && currentCompany?.logo_url) {
-          const logoUrl = await getCompanyLogoPublicUrl();
-          if (logoUrl) {
-            finalHeaderImages = [{ url: logoUrl, x: 36, y: 28, width: 140, height: 56 }];
-          }
-        }
-
-        const templateData = {
-          ...(data as any),
-          header_images: finalHeaderImages
-        };
-
-        // Update the appropriate template state based on type
-        if (templateType === 'timecard') {
-          setTimecardTemplate(templateData);
-        } else if (templateType === 'commitment') {
-          setCommitmentTemplate(templateData);
-        } else if (templateType === 'reconciliation') {
-          setReconciliationTemplate(templateData);
-        } else if (templateType === 'invoice') {
-          setInvoiceTemplate(templateData);
-        } else if (templateType === 'receipt') {
-          setReceiptTemplate(templateData);
-        } else if (templateType === 'general_ledger') {
-          setGeneralLedgerTemplate(templateData);
-        } else if (templateType === 'credit_card_transaction') {
-          setCreditCardTemplate(templateData);
-        }
+        setTemplate({
+          ...data,
+          logo_url: (data as any).logo_url || currentCompany.logo_url || ''
+        });
       } else {
-        // If no saved template, try to add company logo as default
-        const logoUrl = await getCompanyLogoPublicUrl();
-        if (logoUrl && templateType === 'timecard') {
-          setTimecardTemplate(prev => ({
-            ...prev,
-            header_images: [{ url: logoUrl, x: 36, y: 28, width: 140, height: 56 }]
-          }));
-        }
+        // Use company logo if available
+        setTemplate(prev => ({
+          ...prev,
+          company_id: currentCompany.id,
+          logo_url: currentCompany.logo_url || ''
+        }));
       }
     } catch (error: any) {
       console.error('Error loading template:', error);
@@ -644,7 +135,7 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const saveTemplate = async (template: TemplateSettings) => {
+  const saveTemplate = async () => {
     if (!currentCompany?.id) return;
 
     setLoading(true);
@@ -652,28 +143,26 @@ export default function PdfTemplateSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { header_texts: _header_texts, id: _id, ...templateForDb } = template as any;
-      const templateName = templateForDb.template_name || 'default';
       const templateData = {
-        ...templateForDb,
+        ...template,
         company_id: currentCompany.id,
         created_by: user.id,
-        template_name: templateName,
+        template_type: 'global',
+        template_name: 'default',
         updated_at: new Date().toISOString()
       };
 
-      // Check if template already exists for this company, type, and name
+      // Check if template exists
       const { data: existingTemplate } = await supabase
         .from('pdf_templates')
         .select('id')
         .eq('company_id', currentCompany.id)
-        .eq('template_type', template.template_type)
-        .eq('template_name', templateName)
+        .eq('template_type', 'global')
+        .eq('template_name', 'default')
         .maybeSingle();
 
       if (existingTemplate?.id) {
-        // Remove created_by from update to avoid overwriting original creator
-        const { created_by: _created_by, ...updateData } = templateData;
+        const { created_by: _created_by, id: _id, ...updateData } = templateData;
         const { error } = await supabase
           .from('pdf_templates')
           .update(updateData)
@@ -690,10 +179,10 @@ export default function PdfTemplateSettings() {
 
       toast({
         title: "Template saved",
-        description: "PDF template settings have been updated successfully.",
+        description: "PDF template settings have been saved and will apply to all reports.",
       });
       
-      await loadTemplate(template.template_type);
+      await loadTemplate();
     } catch (error: any) {
       console.error('Error saving template:', error);
       toast({
@@ -706,16 +195,16 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement> | null, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
-    const file = e?.target.files?.[0];
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file || !currentCompany?.id) return;
 
-    setUploadingImage(true);
+    setUploadingLogo(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${currentCompany.id}/header-images/${Date.now()}.${fileExt}`;
+      const fileName = `${currentCompany.id}/pdf-logo/${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('company-files')
         .upload(fileName, file);
 
@@ -725,88 +214,40 @@ export default function PdfTemplateSettings() {
         .from('company-files')
         .getPublicUrl(fileName);
 
-      const newImage = {
-        url: publicUrl,
-        x: 50,
-        y: 50,
-        width: 100,
-        height: 100
-      };
-
-      if (templateType === 'timecard') {
-        const newImages = [...(timecardTemplate.header_images || []), newImage];
-        setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
-      } else if (templateType === 'reconciliation') {
-        const newImages = [...(reconciliationTemplate.header_images || []), newImage];
-        setReconciliationTemplate({ ...reconciliationTemplate, header_images: newImages });
-      }
+      setTemplate(prev => ({
+        ...prev,
+        logo_url: publicUrl,
+        use_company_logo: true
+      }));
 
       toast({
-        title: "Image uploaded",
-        description: "You can now position this image in your header.",
+        title: "Logo uploaded",
+        description: "Your PDF header logo has been uploaded successfully.",
       });
     } catch (error: any) {
-      console.error('Error uploading image:', error);
+      console.error('Error uploading logo:', error);
       toast({
-        title: "Upload failed",
-        description: error.message,
+        title: "Error",
+        description: error.message || "Failed to upload logo.",
         variant: "destructive"
       });
     } finally {
-      setUploadingImage(false);
+      setUploadingLogo(false);
     }
   };
 
-  const removeHeaderImage = (index: number, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
-    if (templateType === 'timecard') {
-      const newImages = timecardTemplate.header_images?.filter((_, i) => i !== index);
-      setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
-    } else if (templateType === 'reconciliation') {
-      const newImages = reconciliationTemplate.header_images?.filter((_, i) => i !== index);
-      setReconciliationTemplate({ ...reconciliationTemplate, header_images: newImages });
-    }
-  };
-
-  const updateImagePosition = (index: number, field: 'x' | 'y' | 'width' | 'height', value: number) => {
-    const newImages = [...(timecardTemplate.header_images || [])];
-    newImages[index] = { ...newImages[index], [field]: value };
-    setTimecardTemplate({ ...timecardTemplate, header_images: newImages });
-  };
-
-  const addTextBox = (templateType: 'timecard' | 'reconciliation' = 'timecard') => {
-    if (templateType === 'timecard') {
-      setTimecardTemplate(prev => ({
-        ...prev,
-        header_texts: [
-          ...(prev.header_texts || []),
-          { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
-        ]
-      }));
-    } else if (templateType === 'reconciliation') {
-      setReconciliationTemplate(prev => ({
-        ...prev,
-        header_texts: [
-          ...(prev.header_texts || []),
-          { text: 'New Text', x: 40, y: 40, width: 220, fontSize: 16, color: '#111827', fontFamily: prev.font_family }
-        ]
-      }));
-    }
-  };
-
-  const removeTextBox = (index: number, templateType: 'timecard' | 'reconciliation' = 'timecard') => {
-    if (templateType === 'timecard') {
-      const arr = (timecardTemplate.header_texts || []).filter((_, i) => i !== index);
-      setTimecardTemplate({ ...timecardTemplate, header_texts: arr });
-    } else if (templateType === 'reconciliation') {
-      const arr = (reconciliationTemplate.header_texts || []).filter((_, i) => i !== index);
-      setReconciliationTemplate({ ...reconciliationTemplate, header_texts: arr });
-    }
+  const removeLogo = () => {
+    setTemplate(prev => ({
+      ...prev,
+      logo_url: '',
+      use_company_logo: false
+    }));
   };
 
   const applyPreset = (presetKey: string) => {
     const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
     if (preset) {
-      setTimecardTemplate(prev => ({
+      setTemplate(prev => ({
         ...prev,
         header_html: preset.header_html,
         footer_html: preset.footer_html,
@@ -814,126 +255,27 @@ export default function PdfTemplateSettings() {
         table_header_bg: preset.table_header_bg,
       }));
       setSelectedPreset(presetKey);
-
-      // Auto-place/resize primary logo for every preset
-      // Positioned to avoid text overlap - logos on left stay small and clear of text zones
-      const placements: Record<string, { x: number; y: number; width: number; height: number }> = {
-        // Left-aligned logos: positioned with space for text to flow right
-        professional: { x: 36, y: 40, width: 80, height: 32 },
-        corporate: { x: 36, y: 40, width: 85, height: 34 },
-        modern: { x: 36, y: 45, width: 80, height: 32 },
-        financial: { x: 36, y: 42, width: 80, height: 32 },
-        construction: { x: 36, y: 38, width: 90, height: 36 },
-        healthcare: { x: 36, y: 45, width: 75, height: 30 },
-        luxury: { x: 36, y: 45, width: 80, height: 32 },
-        split_header: { x: 36, y: 35, width: 80, height: 32 },
-        minimal: { x: 36, y: 40, width: 70, height: 28 },
-        sidebar_accent: { x: 60, y: 38, width: 70, height: 28 },
-        
-        // Right-aligned logos: positioned far right to avoid center text
-        executive: { x: 842 - 36 - 100, y: 50, width: 100, height: 40 },
-        tech: { x: 842 - 36 - 95, y: 52, width: 95, height: 38 },
-        right_aligned: { x: 842 - 36 - 100, y: 40, width: 100, height: 40 },
-        
-        // Center-aligned logos: positioned above text
-        legal: { x: (842 - 100) / 2, y: 32, width: 100, height: 40 },
-        centered_logo: { x: (842 - 100) / 2, y: 32, width: 100, height: 40 },
-        creative: { x: (842 - 110) / 2, y: 40, width: 110, height: 44 },
-        
-        // Banner logos: smaller to fit in banner space
-        banner_top: { x: 50, y: 35, width: 70, height: 28 },
-      };
-      const fallback = { x: 36, y: 28, width: 140, height: 56 };
-      const pos = placements[presetKey] || fallback;
-
-      getCompanyLogoPublicUrl().then((logoUrl) => {
-        setTimecardTemplate(prev => {
-          const imgs = [...(prev.header_images || [])];
-          if (imgs.length > 0) {
-            // Reposition and resize the first logo to match the template
-            imgs[0] = { ...imgs[0], ...pos };
-            return { ...prev, header_images: imgs };
-          }
-          // No logos yet: add company logo if available
-          if (logoUrl) {
-            return { ...prev, header_images: [{ url: logoUrl, ...pos }] };
-          }
-          return prev;
-        });
-      });
-
       toast({
-        title: "Template applied",
-        description: `${preset.name} template has been applied. Logo positioned for this layout.`,
+        title: "Preset applied",
+        description: `${preset.name} template has been applied.`,
       });
     }
   };
 
-  const saveTemplateAsPreset = async () => {
-    setSaveAsPresetDialogOpen(true);
-  };
-
-  const confirmSaveAsPreset = async () => {
-    if (!presetName.trim() || !currentCompany?.id) return;
-
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      // Save as a new template with template_name
-      const templateData = {
-        ...timecardTemplate,
-        template_name: presetName,
-        company_id: currentCompany.id,
-        created_by: user.id,
-        id: undefined // Remove id to create new record
-      };
-
-      const { error } = await supabase
-        .from('pdf_templates')
-        .insert([templateData]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Preset saved",
-        description: `Template preset "${presetName}" has been saved successfully.`,
-      });
-
-      setSaveAsPresetDialogOpen(false);
-      setPresetName('');
-    } catch (error: any) {
-      console.error('Error saving preset:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save preset.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderPreview = (html: string, template?: TemplateSettings) => {
+  const renderPreview = (html: string) => {
     let result = html
       .replace(/{company_name}/g, currentCompany?.name || 'Company Name')
+      .replace(/{report_title}/g, 'Sample Report')
       .replace(/{period}/g, 'Jan 1 - Jan 31, 2025')
       .replace(/{date}/g, new Date().toLocaleDateString())
-      .replace(/{employee_name}/g, 'John Doe')
-      .replace(/{job_name}/g, 'Sample Project')
-      .replace(/{bank_account}/g, 'Operating Account - First National Bank')
-      .replace(/{statement_balance}/g, '$50,000.00')
-      .replace(/{book_balance}/g, '$49,850.00')
-      .replace(/{difference}/g, '$150.00')
       .replace(/{page}/g, '1')
       .replace(/{pages}/g, '1')
       .replace(/{generated_date}/g, new Date().toLocaleDateString());
     
-    // If use_company_logo is enabled and company has a logo, replace company name with logo
-    if (template?.use_company_logo && currentCompany?.logo_url) {
-      const logoHtml = `<img src="${currentCompany.logo_url}" alt="${currentCompany.name}" style="max-height: 60px; max-width: 200px; object-fit: contain;" />`;
-      result = result.replace(new RegExp(currentCompany.name || 'Company Name', 'g'), logoHtml);
+    // If use_company_logo is enabled and we have a logo, replace company name with logo
+    if (template.use_company_logo && template.logo_url) {
+      const logoHtml = `<img src="${template.logo_url}" alt="${currentCompany?.name}" style="max-height: 60px; max-width: 200px; object-fit: contain;" />`;
+      result = result.replace(new RegExp(currentCompany?.name || 'Company Name', 'g'), logoHtml);
     }
     
     return result;
@@ -948,1223 +290,120 @@ export default function PdfTemplateSettings() {
             PDF Document Templates
           </CardTitle>
           <CardDescription>
-            Design your PDF reports with HTML templates and live preview
+            Customize the header and footer for all PDF reports generated by the system
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Alert className="mb-6">
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Use HTML to design your headers and footers. Available variables: <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{period}'}</code>, <code className="text-xs">{'{date}'}</code>, <code className="text-xs">{'{employee_name}'}</code>, <code className="text-xs">{'{job_name}'}</code>, <code className="text-xs">{'{page}'}</code>, <code className="text-xs">{'{pages}'}</code>
+              These settings apply to all PDF reports including timecards, invoices, reconciliation reports, and more. 
+              Available variables: <code className="text-xs bg-muted px-1 rounded">{'{company_name}'}</code>, <code className="text-xs bg-muted px-1 rounded">{'{report_title}'}</code>, <code className="text-xs bg-muted px-1 rounded">{'{period}'}</code>, <code className="text-xs bg-muted px-1 rounded">{'{page}'}</code>, <code className="text-xs bg-muted px-1 rounded">{'{pages}'}</code>, <code className="text-xs bg-muted px-1 rounded">{'{generated_date}'}</code>
             </AlertDescription>
           </Alert>
 
-          <div className="mb-6">
-            <Label htmlFor="document-type-select" className="text-sm font-medium mb-2 block">Select Document Type</Label>
-            <Select value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)}>
-              <SelectTrigger id="document-type-select" className="w-full md:w-[320px]">
-                <SelectValue placeholder="Select a document type..." />
-              </SelectTrigger>
-              <SelectContent className="bg-background z-50">
-                <SelectItem value="timecard">Timecard Reports</SelectItem>
-                <SelectItem value="commitment">Commitment Status</SelectItem>
-                <SelectItem value="invoice">Invoice Reports</SelectItem>
-                <SelectItem value="receipt">Receipt Reports</SelectItem>
-                <SelectItem value="subcontract">Subcontracts</SelectItem>
-                <SelectItem value="reconciliation">Reconciliation</SelectItem>
-                <SelectItem value="general_ledger">General Ledger</SelectItem>
-                <SelectItem value="credit_card_transaction">Credit Card Transactions</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Tabs value={activeReportTab} onValueChange={(v) => setActiveReportTab(v as any)} className="space-y-6">
-            <TabsList className="sr-only">
-              <TabsTrigger value="timecard">Timecard</TabsTrigger>
-              <TabsTrigger value="commitment">Commitment</TabsTrigger>
-              <TabsTrigger value="invoice">Invoice</TabsTrigger>
-              <TabsTrigger value="receipt">Receipt</TabsTrigger>
-              <TabsTrigger value="subcontract">Subcontract</TabsTrigger>
-              <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-              <TabsTrigger value="general_ledger">General Ledger</TabsTrigger>
-              <TabsTrigger value="credit_card_transaction">Credit Card</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="subcontract" className="space-y-6">
-              <SubcontractTemplateSettings onSave={() => loadTemplate('subcontract')} />
-            </TabsContent>
-
-            <TabsContent value="reconciliation" className="space-y-6">
-              <TemplateFileUploader
-                templateType="reconciliation"
-                displayName="Reconciliation Report"
-                availableVariables={[
-                  'company_name',
-                  'bank_account',
-                  'period',
-                  'statement_balance',
-                  'book_balance',
-                  'difference',
-                  'reconcile_date',
-                  'date',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: reconciliationTemplate.template_file_url,
-                  file_name: reconciliationTemplate.template_file_name,
-                  file_type: reconciliationTemplate.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('reconciliation')}
-              />
-
-              <Alert className="mb-6">
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
-                </AlertDescription>
-              </Alert>
-
-              {/* Template Presets */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Left Column - Settings */}
+            <div className="space-y-6">
+              {/* Logo Upload Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Layout className="h-4 w-4" />
-                    Choose a Template Preset
-                  </CardTitle>
-                  <CardDescription>Start with a professionally designed template for reconciliation reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Select 
-                    value={selectedPreset} 
-                    onValueChange={(presetKey) => {
-                      const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
-                      if (preset) {
-                        setReconciliationTemplate(prev => ({
-                          ...prev,
-                          header_html: preset.header_html,
-                          footer_html: preset.footer_html,
-                          primary_color: preset.primary_color,
-                          secondary_color: '#f8fafc',
-                          table_header_bg: preset.table_header_bg,
-                          table_border_color: '#e2e8f0',
-                          table_stripe_color: '#f8fafc',
-                          font_family: 'helvetica',
-                        }));
-                        setSelectedPreset(presetKey);
-                        
-                        // Auto-save after applying preset
-                        setTimeout(async () => {
-                          await saveTemplate({
-                            ...reconciliationTemplate,
-                            header_html: preset.header_html,
-                            footer_html: preset.footer_html,
-                            primary_color: preset.primary_color,
-                            secondary_color: '#f8fafc',
-                            table_header_bg: preset.table_header_bg,
-                            table_border_color: '#e2e8f0',
-                            table_stripe_color: '#f8fafc',
-                            font_family: 'helvetica',
-                          });
-                        }, 100);
-                        
-                        toast({
-                          title: "Template applied",
-                          description: `${preset.name} template has been applied and saved.`,
-                        });
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a preset template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
-                        <SelectItem key={key} value={key}>
-                          {preset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
+                    Header Logo
                   </CardTitle>
                   <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
+                    Upload a logo to display in the PDF header instead of text
                   </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-reconciliation">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-reconciliation"
-                      checked={reconciliationTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setReconciliationTemplate({ ...reconciliationTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Edit Mode Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Edit Mode</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RadioGroup value={editMode} onValueChange={(value) => setEditMode(value as 'visual' | 'code')}>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="visual" id="reconciliation-visual" />
-                      <Label htmlFor="reconciliation-visual" className="flex items-center gap-2 cursor-pointer">
-                        <Layout className="h-4 w-4" />
-                        Visual Editor
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="code" id="reconciliation-code" />
-                      <Label htmlFor="reconciliation-code" className="flex items-center gap-2 cursor-pointer">
-                        <Code className="h-4 w-4" />
-                        HTML Code
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </CardContent>
-              </Card>
-
-              {editMode === 'code' ? (
-                <>
-                  {/* Header HTML Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Header HTML</CardTitle>
-                      <CardDescription>Design the header section with HTML</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Textarea
-                        value={reconciliationTemplate.header_html || ''}
-                        onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, header_html: e.target.value })}
-                        rows={10}
-                        className="font-mono text-xs"
-                        placeholder="Enter HTML for header..."
-                      />
-                      <div className="p-4 border rounded-lg bg-muted/30">
-                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
-                        <div 
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html || '', reconciliationTemplate) }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Footer HTML Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Footer HTML</CardTitle>
-                      <CardDescription>Design the footer section with HTML</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Textarea
-                        value={reconciliationTemplate.footer_html || ''}
-                        onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, footer_html: e.target.value })}
-                        rows={8}
-                        className="font-mono text-xs"
-                        placeholder="Enter HTML for footer..."
-                      />
-                      <div className="p-4 border rounded-lg bg-muted/30">
-                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
-                        <div 
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html || '', reconciliationTemplate) }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              ) : (
-                <>
-                  {/* Visual Style Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Colors & Styling</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Primary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={reconciliationTemplate.primary_color}
-                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, primary_color: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={reconciliationTemplate.primary_color}
-                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, primary_color: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Table Header Background</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={reconciliationTemplate.table_header_bg}
-                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, table_header_bg: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={reconciliationTemplate.table_header_bg}
-                              onChange={(e) => setReconciliationTemplate({ ...reconciliationTemplate, table_header_bg: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Font Family</Label>
-                        <Select 
-                          value={reconciliationTemplate.font_family} 
-                          onValueChange={(value) => setReconciliationTemplate({ ...reconciliationTemplate, font_family: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="helvetica">Helvetica</SelectItem>
-                            <SelectItem value="times">Times New Roman</SelectItem>
-                            <SelectItem value="courier">Courier</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Header Images */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <ImageIcon className="h-4 w-4" />
-                        Header Images
-                      </CardTitle>
-                      <CardDescription>Add and position images in the header</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleImageUpload(e, 'reconciliation')}
-                          className="flex-1"
-                        />
-                        <Button onClick={() => handleImageUpload(null, 'reconciliation')} variant="outline">
-                          <Upload className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="border rounded-lg bg-white" style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <p className="text-sm text-muted-foreground">Canvas for visual editor will appear here</p>
-                      </div>
-
-                      {reconciliationTemplate.header_images && reconciliationTemplate.header_images.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Uploaded Images</Label>
-                          <div className="space-y-2">
-                            {reconciliationTemplate.header_images.map((img, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 border rounded">
-                                <img src={img.url} alt={`Header ${idx + 1}`} className="w-12 h-12 object-contain" />
-                                <div className="flex-1 text-xs">
-                                  <div>Position: ({img.x.toFixed(0)}, {img.y.toFixed(0)})</div>
-                                  <div>Size: {img.width.toFixed(0)} × {img.height.toFixed(0)}</div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeHeaderImage(idx, 'reconciliation')}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Header Text Boxes */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Header Text Boxes
-                      </CardTitle>
-                      <CardDescription>Add text elements to the header</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Button onClick={() => addTextBox('reconciliation')} variant="outline" className="w-full">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Add Text Box
-                      </Button>
-
-                      {reconciliationTemplate.header_texts && reconciliationTemplate.header_texts.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Text Boxes</Label>
-                          <div className="space-y-2">
-                            {reconciliationTemplate.header_texts.map((txt, idx) => (
-                              <div key={idx} className="flex items-center gap-2 p-2 border rounded">
-                                <div className="flex-1 text-xs">
-                                  <div className="font-medium">{txt.text}</div>
-                                  <div className="text-muted-foreground">Position: ({txt.x.toFixed(0)}, {txt.y.toFixed(0)})</div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeTextBox(idx, 'reconciliation')}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-
-              {/* Save Button */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex gap-2">
-                    <Button onClick={() => saveTemplate(reconciliationTemplate)} disabled={loading} className="flex-1">
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? 'Saving...' : 'Save Reconciliation Template'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Live Preview
-                  </CardTitle>
-                  <CardDescription>See how your template will look in PDF reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-8 bg-white shadow-sm" style={{ maxWidth: '800px', margin: '0 auto' }}>
-                    {reconciliationTemplate.header_html && (
-                      <div 
-                        className="mb-6" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.header_html, reconciliationTemplate) }}
-                      />
-                    )}
-                    <div className="space-y-4 py-8">
-                      <h3 className="text-lg font-semibold text-center">Sample Reconciliation Report Content</h3>
-                      <p className="text-sm text-muted-foreground text-center">
-                        This is where your reconciliation data will appear...
-                      </p>
-                    </div>
-                    {reconciliationTemplate.footer_html && (
-                      <div 
-                        className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(reconciliationTemplate.footer_html, reconciliationTemplate) }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="general_ledger" className="space-y-6">
-              <TemplateFileUploader
-                templateType="general_ledger"
-                displayName="General Ledger Report"
-                availableVariables={[
-                  'company_name',
-                  'period',
-                  'start_date',
-                  'end_date',
-                  'date',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: generalLedgerTemplate.template_file_url,
-                  file_name: generalLedgerTemplate.template_file_name,
-                  file_type: generalLedgerTemplate.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('general_ledger')}
-              />
-
-              <Alert className="mb-6">
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
-                </AlertDescription>
-              </Alert>
-
-              {/* Template Presets */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Layout className="h-4 w-4" />
-                    Choose a Template Preset
-                  </CardTitle>
-                  <CardDescription>Start with a professionally designed template for general ledger reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Select 
-                    value={selectedPreset} 
-                    onValueChange={(presetKey) => {
-                      const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
-                      if (preset) {
-                        setGeneralLedgerTemplate(prev => ({
-                          ...prev,
-                          header_html: preset.header_html,
-                          footer_html: preset.footer_html,
-                          primary_color: preset.primary_color,
-                          table_header_bg: preset.table_header_bg,
-                        }));
-                        setSelectedPreset(presetKey);
-                        toast({
-                          title: "Template applied",
-                          description: `${preset.name} template has been applied.`,
-                        });
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a preset template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
-                        <SelectItem key={key} value={key}>
-                          {preset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
-                  <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-gl">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-gl"
-                      checked={generalLedgerTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setGeneralLedgerTemplate({ ...generalLedgerTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => saveTemplate(generalLedgerTemplate)}
-                  disabled={loading}
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save General Ledger Template
-                </Button>
-              </div>
-
-              {/* Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Template Preview
-                  </CardTitle>
-                  <CardDescription>Preview how your general ledger report will look</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-6 bg-white" style={{ fontFamily: generalLedgerTemplate.font_family }}>
-                    {generalLedgerTemplate.header_html && (
-                      <div 
-                        className="mb-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.header_html, generalLedgerTemplate) }}
-                      />
-                    )}
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold" style={{ color: generalLedgerTemplate.primary_color }}>
-                        General Ledger Report Sample
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Period: January 1, 2025 - December 31, 2025
-                      </p>
-                    </div>
-                    {generalLedgerTemplate.footer_html && (
-                      <div 
-                        className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(generalLedgerTemplate.footer_html, generalLedgerTemplate) }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="credit_card_transaction" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Credit Card Transaction Report Template
-                  </CardTitle>
-                  <CardDescription>Customize the template for credit card transaction reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Alert className="mb-4">
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      Configure the PDF template for credit card transaction reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{card_name}'}</code>, <code className="text-xs">{'{date_range}'}</code>
-                    </AlertDescription>
-                  </Alert>
-
-                  {/* Template Presets */}
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Choose a Template Preset</Label>
-                      <Select 
-                        value={selectedPreset} 
-                        onValueChange={(presetKey) => {
-                          const preset = TEMPLATE_PRESETS[presetKey as keyof typeof TEMPLATE_PRESETS];
-                          if (preset) {
-                            setCreditCardTemplate(prev => ({
-                              ...prev,
-                              header_html: preset.header_html,
-                              footer_html: preset.footer_html,
-                              primary_color: preset.primary_color,
-                              table_header_bg: preset.table_header_bg,
-                            }));
-                            setSelectedPreset(presetKey);
-                            toast({
-                              title: "Template applied",
-                              description: `${preset.name} template has been applied.`,
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a preset template" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
-                            <SelectItem key={key} value={key}>
-                              {preset.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Font Family</Label>
-                      <Select
-                        value={creditCardTemplate.font_family}
-                        onValueChange={(value) => setCreditCardTemplate({ ...creditCardTemplate, font_family: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="helvetica">Helvetica</SelectItem>
-                          <SelectItem value="times">Times New Roman</SelectItem>
-                          <SelectItem value="courier">Courier</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Primary Color</Label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={creditCardTemplate.primary_color}
-                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, primary_color: e.target.value })}
-                          className="h-10 w-16 rounded border cursor-pointer"
-                        />
-                        <Input
-                          type="text"
-                          value={creditCardTemplate.primary_color}
-                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, primary_color: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Table Header Background</Label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={creditCardTemplate.table_header_bg}
-                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, table_header_bg: e.target.value })}
-                          className="h-10 w-16 rounded border cursor-pointer"
-                        />
-                        <Input
-                          type="text"
-                          value={creditCardTemplate.table_header_bg}
-                          onChange={(e) => setCreditCardTemplate({ ...creditCardTemplate, table_header_bg: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button 
-                    onClick={() => saveTemplate(creditCardTemplate)} 
-                    disabled={loading}
-                    className="mt-4"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Saving...' : 'Save Credit Card Template'}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Template Preview
-                  </CardTitle>
-                  <CardDescription>Preview how your credit card transaction report will look</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-6 bg-white" style={{ fontFamily: creditCardTemplate.font_family }}>
-                    {creditCardTemplate.header_html && (
-                      <div 
-                        className="mb-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.header_html, creditCardTemplate) }}
-                      />
-                    )}
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold" style={{ color: creditCardTemplate.primary_color }}>
-                        Credit Card Transaction Report Sample
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        Period: January 1, 2025 - January 31, 2025
-                      </p>
-                    </div>
-                    {creditCardTemplate.footer_html && (
-                      <div 
-                        className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(creditCardTemplate.footer_html, creditCardTemplate) }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
-                  <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-cc">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-cc"
-                      checked={creditCardTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setCreditCardTemplate({ ...creditCardTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="commitment" className="space-y-6">
-              <TemplateFileUploader
-                templateType="commitment"
-                displayName="Commitment Status Report"
-                availableVariables={[
-                  'company_name',
-                  'job_name',
-                  'contract_number',
-                  'vendor_name',
-                  'total_commit',
-                  'contract_balance',
-                  'period',
-                  'date',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: commitmentTemplate.template_file_url,
-                  file_name: commitmentTemplate.template_file_name,
-                  file_type: commitmentTemplate.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('commitment')}
-              />
-
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
-                </AlertDescription>
-              </Alert>
-
-              {/* Template Presets */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Layout className="h-4 w-4" />
-                    Choose a Template Preset
-                  </CardTitle>
-                  <CardDescription>Start with a professionally designed template for commitment status reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Select value={selectedPreset} onValueChange={applyPreset}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a preset template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
-                        <SelectItem key={key} value={key}>
-                          {preset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
-                  <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-commitment">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-commitment"
-                      checked={commitmentTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setCommitmentTemplate({ ...commitmentTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  Configure the PDF template for commitment status reports. Available variables: <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{job_name}'}</code>, <code className="text-xs">{'{contract_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>, <code className="text-xs">{'{total_commit}'}</code>, <code className="text-xs">{'{contract_balance}'}</code>
-                </AlertDescription>
-              </Alert>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Template Configuration</CardTitle>
-                  <CardDescription>Customize how commitment status reports are generated</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="commitment-font">Font Family</Label>
-                      <Select value={commitmentTemplate.font_family} onValueChange={(value) => setCommitmentTemplate({ ...commitmentTemplate, font_family: value })}>
-                        <SelectTrigger id="commitment-font">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="helvetica">Helvetica</SelectItem>
-                          <SelectItem value="times">Times New Roman</SelectItem>
-                          <SelectItem value="courier">Courier</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="use-logo"
+                      checked={template.use_company_logo}
+                      onCheckedChange={(checked) => setTemplate(prev => ({ ...prev, use_company_logo: checked }))}
+                      disabled={!template.logo_url}
+                    />
+                    <Label htmlFor="use-logo">Use logo in header</Label>
+                  </div>
+
+                  {template.logo_url ? (
+                    <div className="flex items-center gap-4">
+                      <div className="relative border rounded-lg p-2 bg-white">
+                        <img 
+                          src={template.logo_url} 
+                          alt="PDF Logo" 
+                          className="max-h-16 max-w-[200px] object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6"
+                          onClick={removeLogo}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Current logo
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="commitment-primary-color">Primary Color</Label>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-lg p-6 text-center">
                       <Input
-                        id="commitment-primary-color"
-                        type="color"
-                        value={commitmentTemplate.primary_color || '#1e40af'}
-                        onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, primary_color: e.target.value })}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id="logo-upload"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
                       />
+                      <Label htmlFor="logo-upload" className="cursor-pointer">
+                        <div className="flex flex-col items-center gap-2">
+                          {uploadingLogo ? (
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          ) : (
+                            <Upload className="h-8 w-8 text-muted-foreground" />
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            {uploadingLogo ? 'Uploading...' : 'Click to upload logo'}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            PNG, JPG up to 2MB
+                          </span>
+                        </div>
+                      </Label>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="commitment-header">Header HTML</Label>
-                    <Textarea
-                      id="commitment-header"
-                      value={commitmentTemplate.header_html || ''}
-                      onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, header_html: e.target.value })}
-                      rows={6}
-                      placeholder="Enter HTML for header..."
-                      className="font-mono text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="commitment-footer">Footer HTML</Label>
-                    <Textarea
-                      id="commitment-footer"
-                      value={commitmentTemplate.footer_html || ''}
-                      onChange={(e) => setCommitmentTemplate({ ...commitmentTemplate, footer_html: e.target.value })}
-                      rows={6}
-                      placeholder="Enter HTML for footer..."
-                      className="font-mono text-xs"
-                    />
-                  </div>
-
-                  <Button onClick={() => saveTemplate(commitmentTemplate)} disabled={loading}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {loading ? 'Saving...' : 'Save Commitment Template'}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Preview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    Live Preview
-                  </CardTitle>
-                  <CardDescription>See how your commitment status reports will look</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-8 bg-white shadow-sm" style={{ maxWidth: '800px', margin: '0 auto' }}>
-                    {commitmentTemplate.header_html && (
-                      <div 
-                        className="mb-6" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.header_html, commitmentTemplate) }}
-                      />
-                    )}
-                    <div className="space-y-4 py-8">
-                      <h3 className="text-lg font-semibold text-center">Sample Commitment Status Content</h3>
-                      <p className="text-sm text-muted-foreground text-center">
-                        This is where your commitment status data will appear...
-                      </p>
-                    </div>
-                    {commitmentTemplate.footer_html && (
-                      <div 
-                        className="mt-4" 
-                        dangerouslySetInnerHTML={{ __html: renderPreview(commitmentTemplate.footer_html, commitmentTemplate) }}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="invoice" className="space-y-6">
-              <TemplateFileUploader
-                templateType="invoice"
-                displayName="Invoice Report"
-                availableVariables={[
-                  'company_name',
-                  'invoice_number',
-                  'vendor_name',
-                  'amount',
-                  'due_date',
-                  'issue_date',
-                  'period',
-                  'date',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: invoiceTemplate?.template_file_url,
-                  file_name: invoiceTemplate?.template_file_name,
-                  file_type: invoiceTemplate?.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('invoice')}
-              />
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
-                  <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-invoice">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-invoice"
-                      checked={invoiceTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setInvoiceTemplate({ ...invoiceTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
+                  {!template.logo_url && currentCompany?.logo_url && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setTemplate(prev => ({ 
+                        ...prev, 
+                        logo_url: currentCompany.logo_url || '',
+                        use_company_logo: true 
+                      }))}
+                    >
+                      Use Company Logo
+                    </Button>
                   )}
                 </CardContent>
               </Card>
 
+              {/* Style Presets */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Invoice Report Template
-                  </CardTitle>
-                  <CardDescription>Customize the template for invoice reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Configure the PDF template for invoice reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{invoice_number}'}</code>, <code className="text-xs">{'{vendor_name}'}</code>
-                      </AlertDescription>
-                    </Alert>
-                    <p className="text-sm text-muted-foreground">Template settings for invoice reports coming soon...</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="receipt" className="space-y-6">
-              <TemplateFileUploader
-                templateType="receipt"
-                displayName="Receipt Report"
-                availableVariables={[
-                  'company_name',
-                  'date_range',
-                  'total_amount',
-                  'vendor_name',
-                  'receipt_count',
-                  'period',
-                  'date',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: receiptTemplate?.template_file_url,
-                  file_name: receiptTemplate?.template_file_name,
-                  file_type: receiptTemplate?.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('receipt')}
-              />
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Receipt Report Template
-                  </CardTitle>
-                  <CardDescription>Customize the template for receipt reports</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Configure the PDF template for receipt reports. Use HTML for headers/footers with variables like <code className="text-xs">{'{company_name}'}</code>, <code className="text-xs">{'{date_range}'}</code>, <code className="text-xs">{'{total_amount}'}</code>
-                      </AlertDescription>
-                    </Alert>
-                    <p className="text-sm text-muted-foreground">Template settings for receipt reports coming soon...</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Use Company Logo Toggle */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Style Presets</CardTitle>
                   <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
+                    Choose a pre-designed template style
                   </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-receipt">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-receipt"
-                      checked={receiptTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setReceiptTemplate({ ...receiptTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="timecard" className="space-y-6">
-              <TemplateFileUploader
-                templateType="timecard"
-                displayName="Timecard Report"
-                availableVariables={[
-                  'company_name',
-                  'employee_name',
-                  'job_name',
-                  'period',
-                  'date',
-                  'total_hours',
-                  'overtime_hours',
-                  'page',
-                  'pages',
-                  'generated_date',
-                  'report_data'
-                ]}
-                currentTemplate={{
-                  file_url: timecardTemplate.template_file_url,
-                  file_name: timecardTemplate.template_file_name,
-                  file_type: timecardTemplate.template_file_type,
-                }}
-                onTemplateUpdate={() => loadTemplate('timecard')}
-              />
-
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  You can upload a custom Word/Excel template or use the HTML editor below. The uploaded template will take precedence when generating reports.
-                </AlertDescription>
-              </Alert>
-
-              {/* Template Presets */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Layout className="h-4 w-4" />
-                    Choose a Template Preset
-                  </CardTitle>
-                  <CardDescription>Start with a professionally designed template</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Select value={selectedPreset} onValueChange={applyPreset}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a preset template" />
+                      <SelectValue placeholder="Select a preset style..." />
                     </SelectTrigger>
                     <SelectContent>
                       {Object.entries(TEMPLATE_PRESETS).map(([key, preset]) => (
@@ -2177,435 +416,97 @@ export default function PdfTemplateSettings() {
                 </CardContent>
               </Card>
 
-              {/* Use Company Logo Toggle */}
+              {/* Header HTML */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Company Logo in Header
-                  </CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Header HTML</CardTitle>
                   <CardDescription>
-                    Use your company logo instead of text company name in the PDF header
+                    Customize the header that appears on every page
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <Label htmlFor="use-logo-timecard">Use Company Logo</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {currentCompany?.logo_url ? 'Your company logo will appear in the header' : 'No company logo uploaded yet'}
-                      </p>
-                    </div>
-                    <Switch
-                      id="use-logo-timecard"
-                      checked={timecardTemplate.use_company_logo || false}
-                      onCheckedChange={(checked) => setTimecardTemplate({ ...timecardTemplate, use_company_logo: checked })}
-                      disabled={!currentCompany?.logo_url}
-                    />
-                  </div>
-                  {!currentCompany?.logo_url && (
-                    <Alert className="mt-4">
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Upload a company logo in Company Settings to enable this feature.
-                      </AlertDescription>
-                    </Alert>
-                  )}
+                  <Textarea
+                    value={template.header_html || ''}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, header_html: e.target.value }))}
+                    className="font-mono text-sm min-h-[150px]"
+                    placeholder="Enter header HTML..."
+                  />
                 </CardContent>
               </Card>
 
-              {/* Edit Mode Toggle */}
+              {/* Footer HTML */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Edit Mode</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Footer HTML</CardTitle>
+                  <CardDescription>
+                    Customize the footer that appears on every page
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <RadioGroup value={editMode} onValueChange={(value) => setEditMode(value as 'visual' | 'code')}>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="visual" id="visual" />
-                      <Label htmlFor="visual" className="flex items-center gap-2 cursor-pointer">
-                        <Layout className="h-4 w-4" />
-                        Visual Editor
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="code" id="code" />
-                      <Label htmlFor="code" className="flex items-center gap-2 cursor-pointer">
-                        <Code className="h-4 w-4" />
-                        HTML Code
-                      </Label>
-                    </div>
-                  </RadioGroup>
+                  <Textarea
+                    value={template.footer_html || ''}
+                    onChange={(e) => setTemplate(prev => ({ ...prev, footer_html: e.target.value }))}
+                    className="font-mono text-sm min-h-[120px]"
+                    placeholder="Enter footer HTML..."
+                  />
                 </CardContent>
               </Card>
 
-              {editMode === 'code' ? (
-                <>
-                  {/* Header HTML Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Header HTML</CardTitle>
-                      <CardDescription>Design the header section with HTML</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Textarea
-                        value={timecardTemplate.header_html || ''}
-                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, header_html: e.target.value })}
-                        rows={10}
-                        className="font-mono text-xs"
-                        placeholder="Enter HTML for header..."
-                      />
-                      <div className="p-4 border rounded-lg bg-muted/30">
-                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
-                        <div 
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '', timecardTemplate) }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+              <Button onClick={saveTemplate} disabled={loading} className="w-full">
+                <Save className="h-4 w-4 mr-2" />
+                {loading ? 'Saving...' : 'Save Template Settings'}
+              </Button>
+            </div>
 
-                  {/* Footer HTML Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Footer HTML</CardTitle>
-                      <CardDescription>Design the footer section with HTML</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Textarea
-                        value={timecardTemplate.footer_html || ''}
-                        onChange={(e) => setTimecardTemplate({ ...timecardTemplate, footer_html: e.target.value })}
-                        rows={8}
-                        className="font-mono text-xs"
-                        placeholder="Enter HTML for footer..."
-                      />
-                      <div className="p-4 border rounded-lg bg-muted/30">
-                        <Label className="text-xs text-muted-foreground mb-2 block">Preview:</Label>
-                        <div 
-                          className="prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '', timecardTemplate) }}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
-              ) : (
-                <>
-                  {/* Visual Style Editor */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Colors & Styling</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Primary Color</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={timecardTemplate.primary_color}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={timecardTemplate.primary_color}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, primary_color: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Table Header Background</Label>
-                          <div className="flex gap-2">
-                            <input
-                              type="color"
-                              value={timecardTemplate.table_header_bg}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
-                              className="h-10 w-16 rounded border cursor-pointer"
-                            />
-                            <Input
-                              type="text"
-                              value={timecardTemplate.table_header_bg}
-                              onChange={(e) => setTimecardTemplate({ ...timecardTemplate, table_header_bg: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Font Family</Label>
-                        <Select 
-                          value={timecardTemplate.font_family} 
-                          onValueChange={(value) => setTimecardTemplate({ ...timecardTemplate, font_family: value })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="helvetica">Helvetica</SelectItem>
-                            <SelectItem value="times">Times New Roman</SelectItem>
-                            <SelectItem value="courier">Courier</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Header Images */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <ImageIcon className="h-4 w-4" />
-                        Header Images
-                      </CardTitle>
-                      <CardDescription>Upload and position images in your header</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label htmlFor="image-upload" className="cursor-pointer">
-                          <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
-                            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                            <p className="text-sm text-muted-foreground">
-                              {uploadingImage ? 'Uploading...' : 'Click to upload image'}
-                            </p>
-                          </div>
-                          <Input
-                            id="image-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleImageUpload}
-                            disabled={uploadingImage}
-                          />
-                        </Label>
-                      </div>
-
-                      {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
-                        <div className="space-y-3">
-                          {timecardTemplate.header_images.map((img, index) => (
-                            <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/20 transition-colors">
-                              <img src={img.url} alt={`Logo ${index + 1}`} className="w-16 h-16 object-contain border rounded bg-white" />
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">Logo {index + 1}</p>
-                                <p className="text-xs text-muted-foreground">Drag on preview to position and resize</p>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeHeaderImage(index)}
-                                className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </>
-              )}
-
-              {/* Save Buttons */}
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => saveTemplateAsPreset()} 
-                  disabled={loading}
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Save as Preset
-                </Button>
-                <Button onClick={() => saveTemplate(timecardTemplate)} disabled={loading}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {loading ? 'Saving...' : 'Save Template'}
-                </Button>
-              </div>
-
-              {/* Full Template Preview with Interactive Logo Placement */}
-              <Card className="mt-6">
-                <CardHeader>
+            {/* Right Column - Preview */}
+            <div className="space-y-4">
+              <Card className="sticky top-4">
+                <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Eye className="h-4 w-4" />
-                    <Move className="h-4 w-4" />
-                    Interactive Template Preview
+                    Live Preview
                   </CardTitle>
                   <CardDescription>
-                    Preview your template and drag logos to position them
+                    See how your PDF reports will look
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription className="text-xs">
-                        {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 
-                          ? <span><strong>Click and drag</strong> logos to reposition. <strong>Drag corners</strong> to resize. Changes save automatically.</span>
-                          : 'Preview shows how your template will look. Upload logo images above to position them here.'}
-                      </AlertDescription>
-                    </Alert>
-
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">Drag logos and text boxes on the canvas.</div>
-                      <Button variant="outline" size="sm" onClick={() => addTextBox('reconciliation')}>Add Text Box</Button>
-                    </div>
-
-                    <div className="relative w-full bg-gradient-to-br from-muted/10 to-muted/5 rounded-lg p-4 shadow-xl">
-                      {/* Static HTML Preview */}
-                      <div className="relative w-full bg-white rounded shadow-lg overflow-hidden" style={{ aspectRatio: '842/595' }}>
-                        {/* Grid background */}
-                        <div className="absolute inset-0 pointer-events-none z-0" style={{
-                          backgroundImage: 'linear-gradient(to right, rgba(0,0,0,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)',
-                          backgroundSize: '50px 50px'
-                        }} />
-                        
-                        {/* Reference dimensions */}
-                        <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-background/90 px-2 py-1 rounded shadow-sm z-[100]">
-                          842pt × 595pt
-                        </div>
-
-                        {/* Template Content - lower z-index so canvas is on top */}
-                        <div className="relative w-full h-full flex flex-col p-6 pointer-events-none z-10">
-                          {/* Header Section */}
-                          <div 
-                            className="prose prose-sm max-w-none mb-4"
-                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.header_html || '', timecardTemplate) }}
-                          />
-
-                          {/* Sample Body Content */}
-                          <div className="flex-1 overflow-hidden">
-                            <table className="w-full text-xs border-collapse">
-                              <thead>
-                                <tr style={{ backgroundColor: timecardTemplate.table_header_bg }}>
-                                  <th className="border p-2 text-left">Employee</th>
-                                  <th className="border p-2 text-left">Date</th>
-                                  <th className="border p-2 text-left">Job</th>
-                                  <th className="border p-2 text-center">Hours</th>
-                                  <th className="border p-2 text-right">Rate</th>
-                                  <th className="border p-2 text-right">Total</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="bg-muted/20">
-                                  <td className="border p-2">John Doe</td>
-                                  <td className="border p-2">01/15/2025</td>
-                                  <td className="border p-2">Main Street Project</td>
-                                  <td className="border p-2 text-center">8.0</td>
-                                  <td className="border p-2 text-right">$45.00</td>
-                                  <td className="border p-2 text-right">$360.00</td>
-                                </tr>
-                                <tr>
-                                  <td className="border p-2">Jane Smith</td>
-                                  <td className="border p-2">01/15/2025</td>
-                                  <td className="border p-2">Downtown Building</td>
-                                  <td className="border p-2 text-center">7.5</td>
-                                  <td className="border p-2 text-right">$50.00</td>
-                                  <td className="border p-2 text-right">$375.00</td>
-                                </tr>
-                                <tr className="bg-muted/20">
-                                  <td className="border p-2">Mike Johnson</td>
-                                  <td className="border p-2">01/15/2025</td>
-                                  <td className="border p-2">Bridge Repair</td>
-                                  <td className="border p-2 text-center">9.0</td>
-                                  <td className="border p-2 text-right">$55.00</td>
-                                  <td className="border p-2 text-right">$495.00</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-
-                          {/* Footer Section */}
-                          <div 
-                            className="prose prose-sm max-w-none mt-4"
-                            dangerouslySetInnerHTML={{ __html: renderPreview(timecardTemplate.footer_html || '', timecardTemplate) }}
-                          />
-
-                        </div>
-                        {/* Canvas on top for logo manipulation */}
-                        <canvas
-                          ref={canvasRef}
-                          width={842}
-                          height={595}
-                          className="absolute inset-0 w-full h-full"
-                          style={{ 
-                            zIndex: 999, 
-                            background: 'transparent', 
-                            cursor: 'move',
-                            pointerEvents: 'auto'
-                          }}
-                        />
-
-
+                  <div className="border rounded-lg p-6 bg-white shadow-sm min-h-[400px] flex flex-col">
+                    {/* Header Preview */}
+                    {template.header_html && (
+                      <div 
+                        className="mb-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(template.header_html) }}
+                      />
+                    )}
+                    
+                    {/* Sample Content */}
+                    <div className="flex-1 flex items-center justify-center py-8">
+                      <div className="text-center text-muted-foreground">
+                        <p className="text-sm font-medium">Sample Report Content</p>
+                        <p className="text-xs mt-1">Your report data will appear here...</p>
                       </div>
                     </div>
-
-                    {/* Logo List */}
-                    {timecardTemplate.header_images && timecardTemplate.header_images.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Positioned Logos</Label>
-                        <div className="grid gap-2">
-                          {timecardTemplate.header_images.map((img, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors">
-                              <div className="flex items-center gap-3">
-                                <img src={img.url} alt={`Logo ${index + 1}`} className="w-12 h-12 object-contain border rounded bg-white p-1" />
-                                <div className="text-xs space-y-0.5">
-                                  <div className="font-semibold">Logo {index + 1}</div>
-                                  <div className="text-muted-foreground font-mono">
-                                    ({Math.round(img.x)}, {Math.round(img.y)}) • {Math.round(img.width)}×{Math.round(img.height)}pt
-                                  </div>
-                                </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeHeaderImage(index)}
-                                className="shrink-0 hover:bg-destructive/10 hover:text-destructive"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                    
+                    {/* Footer Preview */}
+                    {template.footer_html && (
+                      <div 
+                        className="mt-4" 
+                        dangerouslySetInnerHTML={{ __html: renderPreview(template.footer_html) }}
+                      />
                     )}
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Save as Preset Dialog */}
-      <Dialog open={saveAsPresetDialogOpen} onOpenChange={setSaveAsPresetDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save as Template Preset</DialogTitle>
-            <DialogDescription>
-              Save your current template settings as a reusable preset
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="preset-name">Preset Name</Label>
-              <Input
-                id="preset-name"
-                placeholder="e.g., My Custom Template"
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveAsPresetDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmSaveAsPreset} disabled={!presetName.trim() || loading}>
-              {loading ? 'Saving...' : 'Save Preset'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Separator className="my-8" />
+
+      {/* Subcontract Template Settings - Keep separate as it has different requirements */}
+      <SubcontractTemplateSettings />
     </div>
   );
 }
