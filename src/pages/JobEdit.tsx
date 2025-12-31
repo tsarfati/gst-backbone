@@ -29,6 +29,7 @@ export default function JobEdit() {
   const [loading, setLoading] = useState(true);
   const [projectManagers, setProjectManagers] = useState<any[]>([]);
   const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string; display_name: string | null }[]>([]);
   const permissions = useActionPermissions();
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export default function JobEdit() {
     state: "",
     zip: "",
     client: "",
+    customer_id: "",
     job_type: "residential" as any,
     project_manager_user_id: ""
   });
@@ -89,6 +91,19 @@ export default function JobEdit() {
       } catch (err) {
         console.error('Error:', err);
       }
+    };
+
+    const fetchCustomers = async () => {
+      if (!currentCompany?.id) return;
+      
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, display_name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('name');
+        
+      if (!error && data) setCustomers(data);
     };
 
     const fetchJob = async () => {
@@ -133,6 +148,7 @@ export default function JobEdit() {
             state: state || "",
             zip: zip || "",
             client: data.client || "",
+            customer_id: data.customer_id || "",
             job_type: data.job_type || "residential" as any,
             project_manager_user_id: data.project_manager_user_id || ""
           });
@@ -169,6 +185,7 @@ export default function JobEdit() {
     };
 
     fetchProjectManagers();
+    fetchCustomers();
     fetchJob();
   }, [id, toast, currentCompany?.id]);
 
@@ -260,6 +277,7 @@ export default function JobEdit() {
           latitude,
           longitude,
           client: formData.client,
+          customer_id: formData.customer_id || null,
           job_type: formData.job_type,
           project_manager_user_id: formData.project_manager_user_id || null
         })
@@ -591,14 +609,31 @@ export default function JobEdit() {
             <CardTitle>Location & Client</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="client">Client</Label>
-              <Input
-                id="client"
-                value={formData.client}
-                onChange={(e) => handleInputChange("client", e.target.value)}
-                placeholder="Enter client name"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer">Customer</Label>
+                <Select value={formData.customer_id} onValueChange={(value) => handleInputChange("customer_id", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.display_name || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client">Client Contact</Label>
+                <Input
+                  id="client"
+                  value={formData.client}
+                  onChange={(e) => handleInputChange("client", e.target.value)}
+                  placeholder="Enter client contact name"
+                />
+              </div>
             </div>
             
             <div className="space-y-4">

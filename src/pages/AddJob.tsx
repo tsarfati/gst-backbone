@@ -21,11 +21,14 @@ export default function AddJob() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const [managers, setManagers] = useState<{ user_id: string; display_name: string | null; first_name: string | null; last_name: string | null; role: string }[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string; display_name: string | null }[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   
   const [formData, setFormData] = useState({
     jobName: "",
     client: "",
+    customerId: "",
     address: "",
     jobType: "residential",
     startDate: "",
@@ -73,7 +76,25 @@ export default function AddJob() {
       if (!error && data) setManagers(data as any);
       setLoadingManagers(false);
     };
+
+    const fetchCustomers = async () => {
+      if (!currentCompany?.id) return;
+      
+      setLoadingCustomers(true);
+      
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, display_name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('name');
+        
+      if (!error && data) setCustomers(data);
+      setLoadingCustomers(false);
+    };
+
     fetchManagers();
+    fetchCustomers();
   }, [currentCompany?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -106,6 +127,7 @@ export default function AddJob() {
     const { data: jobData, error: jobError } = await supabase.from('jobs').insert({
       name: formData.jobName,
       client: formData.client,
+      customer_id: formData.customerId || null,
       address: formData.address,
       latitude,
       longitude,
@@ -201,13 +223,27 @@ export default function AddJob() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="client">Client *</Label>
+                <Label htmlFor="customer">Customer *</Label>
+                <Select value={formData.customerId} onValueChange={(value) => handleInputChange("customerId", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingCustomers ? "Loading..." : "Select a customer"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.display_name || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client">Client Contact (Optional)</Label>
                 <Input
                   id="client"
                   value={formData.client}
                   onChange={(e) => handleInputChange("client", e.target.value)}
-                  placeholder="Enter client name"
-                  required
+                  placeholder="Enter client contact name"
                 />
               </div>
             </div>

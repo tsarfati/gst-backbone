@@ -3333,6 +3333,7 @@ export type Database = {
           count_late_punch_out: boolean | null
           created_at: string
           created_by: string
+          customer_id: string | null
           description: string | null
           early_punch_in_grace_minutes: number | null
           end_date: string | null
@@ -3364,6 +3365,7 @@ export type Database = {
           count_late_punch_out?: boolean | null
           created_at?: string
           created_by: string
+          customer_id?: string | null
           description?: string | null
           early_punch_in_grace_minutes?: number | null
           end_date?: string | null
@@ -3395,6 +3397,7 @@ export type Database = {
           count_late_punch_out?: boolean | null
           created_at?: string
           created_by?: string
+          customer_id?: string | null
           description?: string | null
           early_punch_in_grace_minutes?: number | null
           end_date?: string | null
@@ -3429,6 +3432,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "jobs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "jobs_project_manager_user_id_fkey"
