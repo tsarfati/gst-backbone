@@ -79,8 +79,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
   const loadData = async () => {
     try {
       const { data: budgetData, error: budgetError } = await supabase
-        .from('job_budgets')
-        .select(`
+        .from("job_budgets")
+        .select(
+          `
           *,
           cost_codes (
             id,
@@ -88,32 +89,198 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             description,
             type
           )
-        `)
-        .eq('job_id', jobId)
-        .order('created_at', { ascending: true });
+        `
+        )
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: true });
 
       if (budgetError) throw budgetError;
 
+      // Load all job cost codes once so we can aggregate by *code* (handles duplicates)
+      const { data: jobCostCodes, error: jobCostCodesError } = await supabase
+        .from("cost_codes")
+        .select("id, code")
+        .eq("job_id", jobId)
+        .eq("is_active", true);
+
+      if (jobCostCodesError) throw jobCostCodesError;
+
+      const codeToIds = new Map<string, string[]>();
+      (jobCostCodes || []).forEach((cc: any) => {
+        const code = String(cc.code || "").trim();
+        if (!code) return;
+        const arr = codeToIds.get(code) || [];
+        arr.push(cc.id);
+        codeToIds.set(code, arr);
+      });
+
+      const getIdsForCode = (code: string | undefined, fallbackCostCodeId: string): string[] => {
+        const ids = code ? codeToIds.get(code) : undefined;
+        return ids && ids.length > 0 ? ids : [fallbackCostCodeId];
+      };
+
+      const calculateActualAmount = async (costCodeIds: string[]): Promise<number> => {
+        try {
+          // Posted journal entry lines (debit amounts for expenses)
+          const { data: journalLines, error: jeError } = await supabase
+            .from("journal_entry_lines")
+            .select("debit_amount, journal_entries!inner(status)")
+            .eq("job_id", jobId)
+            .in("cost_code_id", costCodeIds)
+            .eq("journal_entries.status", "posted");
+
+          if (jeError) throw jeError;
+
+          const journalTotal = (journalLines || []).reduce(
+            (sum, line) => sum + Number((line as any).debit_amount || 0),
+            0
+          );
+
+          // Paid invoices (direct)
+          const { data: paidInvoices } = await supabase
+            .from("invoices")
+            .select("amount")
+            .eq("job_id", jobId)
+            .in("cost_code_id", costCodeIds)
+            .eq("status", "paid");
+
+          const invoiceTotal = (paidInvoices || []).reduce(
+            (sum, inv) => sum + Number((inv as any).amount || 0),
+            0
+          );
+
+          // Paid invoices (distributed)
+          const { data: paidDistributions } = await supabase
+            .from("invoice_cost_distributions")
+            .select("amount, invoices!inner(job_id,status)")
+            .in("cost_code_id", costCodeIds)
+            .eq("invoices.job_id", jobId)
+            .eq("invoices.status", "paid");
+
+          const distTotal = (paidDistributions || []).reduce(
+            (sum, d) => sum + Number((d as any).amount || 0),
+            0
+          );
+
+          return journalTotal + invoiceTotal + distTotal;
+        } catch (error) {
+          console.error("Error calculating actual amount:", error);
+          return 0;
+        }
+      };
+
+      const calculateCommittedAmount = async (costCodeIds: string[]): Promise<number> => {
+        try {
+          let total = 0;
+
+          // Unpaid invoices (direct)
+          const { data: unpaidInvoices, error: invError } = await supabase
+            .from("invoices")
+            .select("amount, status")
+            .eq("job_id", jobId)
+            .in("cost_code_id", costCodeIds)
+            .not("status", "in", '("paid","cancelled")');
+
+          if (invError) throw invError;
+
+          total += (unpaidInvoices || []).reduce(
+            (sum, inv) => sum + Number((inv as any).amount || 0),
+            0
+          );
+
+          // Unpaid invoices (distributed)
+          const { data: unpaidDistributions } = await supabase
+            .from("invoice_cost_distributions")
+            .select("amount, invoices!inner(job_id,status)")
+            .in("cost_code_id", costCodeIds)
+            .eq("invoices.job_id", jobId)
+            .not("invoices.status", "in", '("paid","cancelled")');
+
+          total += (unpaidDistributions || []).reduce(
+            (sum, d) => sum + Number((d as any).amount || 0),
+            0
+          );
+
+          // Subcontracts
+          const { data: subcontracts, error: subError } = await supabase
+            .from("subcontracts")
+            .select("cost_distribution")
+            .eq("job_id", jobId)
+            .not("status", "eq", "cancelled");
+
+          if (subError) throw subError;
+
+          (subcontracts || []).forEach((sub: any) => {
+            const raw = sub.cost_distribution;
+            let parsed: any = raw;
+            if (typeof raw === "string") {
+              try {
+                parsed = JSON.parse(raw);
+              } catch {
+                parsed = null;
+              }
+            }
+
+            const items = Array.isArray(parsed)
+              ? parsed
+              : parsed && typeof parsed === "object" && Array.isArray((parsed as any).items)
+                ? (parsed as any).items
+                : [];
+
+            items.forEach((dist: any) => {
+              if (dist?.cost_code_id && costCodeIds.includes(dist.cost_code_id)) {
+                total += Number(dist?.amount || 0);
+              }
+            });
+          });
+
+          // Purchase Orders
+          const { data: purchaseOrders, error: poError } = await (supabase as any)
+            .from("purchase_orders")
+            .select("amount, status, cost_code_id")
+            .eq("job_id", jobId)
+            .in("cost_code_id", costCodeIds);
+
+          if (poError) throw poError;
+
+          (purchaseOrders || []).forEach((po: any) => {
+            if (po?.status !== "cancelled") {
+              total += Number(po?.amount || 0);
+            }
+          });
+
+          return total;
+        } catch (error) {
+          console.error("Error calculating committed amount:", error);
+          return 0;
+        }
+      };
+
       // Calculate actual and committed amounts from live data
-      const budgetLinesWithActuals = await Promise.all((budgetData || []).map(async (bd: any) => {
-        const actualAmount = await calculateActualAmount(jobId, bd.cost_code_id);
-        const committedAmount = await calculateCommittedAmount(jobId, bd.cost_code_id);
-        
-        return {
-          id: bd.id,
-          cost_code_id: bd.cost_code_id,
-          budgeted_amount: bd.budgeted_amount,
-          actual_amount: actualAmount,
-          committed_amount: committedAmount,
-          is_dynamic: bd.is_dynamic,
-          parent_budget_id: bd.parent_budget_id,
-          cost_code: bd.cost_codes
-        };
-      }));
+      const budgetLinesWithActuals = await Promise.all(
+        (budgetData || []).map(async (bd: any) => {
+          const code = bd.cost_codes?.code as string | undefined;
+          const idsForCode = getIdsForCode(code, bd.cost_code_id);
+
+          const actualAmount = await calculateActualAmount(idsForCode);
+          const committedAmount = await calculateCommittedAmount(idsForCode);
+
+          return {
+            id: bd.id,
+            cost_code_id: bd.cost_code_id,
+            budgeted_amount: bd.budgeted_amount,
+            actual_amount: actualAmount,
+            committed_amount: committedAmount,
+            is_dynamic: bd.is_dynamic,
+            parent_budget_id: bd.parent_budget_id,
+            cost_code: bd.cost_codes,
+          };
+        })
+      );
 
       setBudgetLines(budgetLinesWithActuals);
     } catch (error) {
-      console.error('Error loading budget data:', error);
+      console.error("Error loading budget data:", error);
       toast({
         title: "Error",
         description: "Failed to load budget data",
@@ -121,90 +288,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const calculateActualAmount = async (jobId: string, costCodeId: string): Promise<number> => {
-    try {
-      // Get amounts from posted journal entry lines (debit amounts for expenses)
-      const { data: journalLines, error: jeError } = await supabase
-        .from('journal_entry_lines')
-        .select('debit_amount, journal_entries!inner(status)')
-        .eq('job_id', jobId)
-        .eq('cost_code_id', costCodeId)
-        .eq('journal_entries.status', 'posted');
-
-      if (jeError) throw jeError;
-
-      return (journalLines || []).reduce((sum, line) => 
-        sum + Number(line.debit_amount || 0), 0
-      );
-    } catch (error) {
-      console.error('Error calculating actual amount:', error);
-      return 0;
-    }
-  };
-
-  const calculateCommittedAmount = async (jobId: string, costCodeId: string): Promise<number> => {
-    try {
-      let total = 0;
-
-      // Subcontracts - committed costs (full contract amount)
-      const { data: subcontracts, error: subError } = await supabase
-        .from('subcontracts')
-        .select('contract_amount, cost_distribution')
-        .eq('job_id', jobId)
-        .not('status', 'eq', 'cancelled');
-
-      if (subError) throw subError;
-
-      // Parse cost_distribution JSON to find amounts for this cost code
-      (subcontracts || []).forEach((sub: any) => {
-        const raw = sub.cost_distribution;
-
-        // cost_distribution is jsonb, but older writes stored it as a JSON string
-        let parsed: any = raw;
-        if (typeof raw === 'string') {
-          try {
-            parsed = JSON.parse(raw);
-          } catch {
-            parsed = null;
-          }
-        }
-
-        const items = Array.isArray(parsed)
-          ? parsed
-          : parsed && typeof parsed === 'object' && Array.isArray((parsed as any).items)
-            ? (parsed as any).items
-            : [];
-
-        items.forEach((dist: any) => {
-          if (dist?.cost_code_id === costCodeId) {
-            total += Number(dist?.amount || 0);
-          }
-        });
-      });
-
-      // Purchase Orders - committed costs (full PO amount)
-      // NOTE: types.ts is read-only and may lag schema changes; cast to any to query newly added columns safely.
-      const { data: purchaseOrders, error: poError } = await (supabase as any)
-        .from('purchase_orders')
-        .select('amount, status')
-        .eq('job_id', jobId)
-        .eq('cost_code_id', costCodeId);
-
-      if (poError) throw poError;
-
-      (purchaseOrders || []).forEach((po: any) => {
-        if (po?.status !== 'cancelled') {
-          total += Number(po?.amount || 0);
-        }
-      });
-
-      return total;
-    } catch (error) {
-      console.error('Error calculating committed amount:', error);
-      return 0;
     }
   };
 
