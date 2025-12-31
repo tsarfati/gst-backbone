@@ -111,9 +111,24 @@ export default function ProjectCostBudgetStatus() {
         .eq("journal_entries.status", "posted")
         .gt("debit_amount", 0);
 
-      // Unposted bills (invoices) = committed
-      let committedBillsQuery = supabase
-        .from("invoices")
+      // Subcontracts = committed (cost_distribution is JSONB with cost_code_id and amount)
+      let subcontractsQuery = supabase
+        .from("subcontracts")
+        .select(
+          `
+          id,
+          job_id,
+          cost_distribution,
+          status,
+          jobs!inner(company_id)
+        `
+        )
+        .eq("jobs.company_id", currentCompany!.id)
+        .neq("status", "cancelled");
+
+      // Purchase Orders = committed (has cost_code_id and amount)
+      let purchaseOrdersQuery = supabase
+        .from("purchase_orders")
         .select(
           `
           id,
@@ -125,41 +140,26 @@ export default function ProjectCostBudgetStatus() {
         `
         )
         .eq("jobs.company_id", currentCompany!.id)
-        .neq("status", "posted");
-
-      // Unposted credit card transactions (no journal_entry_id) = committed
-      let committedCcQuery = supabase
-        .from("credit_card_transaction_distributions")
-        .select(
-          `
-          id,
-          job_id,
-          cost_code_id,
-          amount,
-          company_id,
-          credit_card_transactions(journal_entry_id)
-        `
-        )
-        .eq("company_id", currentCompany!.id);
+        .neq("status", "cancelled");
 
       if (selectedJob !== "all") {
         budgetsQuery = budgetsQuery.eq("job_id", selectedJob);
         actualsQuery = actualsQuery.eq("job_id", selectedJob);
-        committedBillsQuery = committedBillsQuery.eq("job_id", selectedJob);
-        committedCcQuery = committedCcQuery.eq("job_id", selectedJob);
+        subcontractsQuery = subcontractsQuery.eq("job_id", selectedJob);
+        purchaseOrdersQuery = purchaseOrdersQuery.eq("job_id", selectedJob);
       }
 
       const [
         { data: budgetRows, error: budgetsError },
         { data: actualRows, error: actualsError },
-        { data: billRows, error: billsError },
-        { data: ccRows, error: ccError },
-      ] = await Promise.all([budgetsQuery, actualsQuery, committedBillsQuery, committedCcQuery]);
+        { data: subcontractRows, error: subcontractsError },
+        { data: poRows, error: poError },
+      ] = await Promise.all([budgetsQuery, actualsQuery, subcontractsQuery, purchaseOrdersQuery]);
 
       if (budgetsError) throw budgetsError;
       if (actualsError) throw actualsError;
-      if (billsError) throw billsError;
-      if (ccError) throw ccError;
+      if (subcontractsError) throw subcontractsError;
+      if (poError) throw poError;
 
       const data = budgetRows || [];
 
@@ -171,20 +171,28 @@ export default function ProjectCostBudgetStatus() {
         actualsMap.set(key, (actualsMap.get(key) || 0) + Number(jl.debit_amount || 0));
       });
 
-      // Build committed map from unposted invoices + unposted CC distributions
+      // Build committed map from subcontracts (cost_distribution JSONB) + purchase orders
       const committedMap = new Map<string, number>();
-      (billRows || []).forEach((b: any) => {
-        if (!b.job_id || !b.cost_code_id) return;
-        const key = `${b.job_id}:${b.cost_code_id}`;
-        committedMap.set(key, (committedMap.get(key) || 0) + Number(b.amount || 0));
+      
+      // Process subcontracts with cost_distribution
+      (subcontractRows || []).forEach((sub: any) => {
+        if (!sub.job_id || !sub.cost_distribution) return;
+        const distribution = sub.cost_distribution;
+        if (Array.isArray(distribution)) {
+          distribution.forEach((dist: any) => {
+            if (!dist.cost_code_id) return;
+            const key = `${sub.job_id}:${dist.cost_code_id}`;
+            committedMap.set(key, (committedMap.get(key) || 0) + Number(dist.amount || 0));
+          });
+        }
       });
-      (ccRows || [])
-        .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
-        .forEach((d: any) => {
-          if (!d.job_id || !d.cost_code_id) return;
-          const key = `${d.job_id}:${d.cost_code_id}`;
-          committedMap.set(key, (committedMap.get(key) || 0) + Number(d.amount || 0));
-        });
+      
+      // Process purchase orders
+      (poRows || []).forEach((po: any) => {
+        if (!po.job_id || !po.cost_code_id) return;
+        const key = `${po.job_id}:${po.cost_code_id}`;
+        committedMap.set(key, (committedMap.get(key) || 0) + Number(po.amount || 0));
+      });
 
       // Dynamic budgets are determined by job_budgets.parent_budget_id
       // Build a map of parent budget id -> parent budget info

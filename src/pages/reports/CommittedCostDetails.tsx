@@ -17,7 +17,7 @@ import * as XLSX from "xlsx";
 
 interface CommittedItem {
   id: string;
-  type: "subcontract" | "purchase_order" | "bill" | "credit_card";
+  type: "subcontract" | "purchase_order";
   name: string;
   vendor_name?: string;
   date: string;
@@ -217,71 +217,31 @@ export default function CommittedCostDetails() {
         }
       });
 
-      // Load unposted bills (invoices)
-      let billsQuery = supabase
-        .from("invoices")
-        .select(`
-          id, invoice_number, issue_date, amount, status,
-          vendors(name),
-          cost_codes(code, description)
-        `)
+      // Load purchase orders
+      const poBaseQuery = supabase
+        .from("purchase_orders")
+        .select("id, po_number, po_date, amount, cost_code_id, status, vendors(name), cost_codes(code, description)")
         .eq("job_id", selectedJobId)
-        .neq("status", "posted");
+        .neq("status", "cancelled") as any;
+      
+      const { data: purchaseOrders, error: poError } = actualCostCodeId 
+        ? await poBaseQuery.eq("cost_code_id", actualCostCodeId) 
+        : await poBaseQuery;
+      if (poError) throw poError;
 
-      if (actualCostCodeId) {
-        billsQuery = billsQuery.eq("cost_code_id", actualCostCodeId);
-      }
-
-      const { data: bills, error: billsError } = await billsQuery;
-      if (billsError) throw billsError;
-
-      (bills || []).forEach((bill: any) => {
+      (purchaseOrders || []).forEach((po: any) => {
         allItems.push({
-          id: bill.id,
-          type: "bill",
-          name: `Bill #${bill.invoice_number}`,
-          vendor_name: bill.vendors?.name,
-          date: bill.issue_date,
-          amount: Number(bill.amount || 0),
-          status: bill.status,
-          cost_code: bill.cost_codes?.code,
-          cost_code_description: bill.cost_codes?.description,
+          id: po.id,
+          type: "purchase_order",
+          name: `PO #${po.po_number}`,
+          vendor_name: po.vendors?.name,
+          date: po.po_date,
+          amount: Number(po.amount || 0),
+          status: po.status,
+          cost_code: po.cost_codes?.code,
+          cost_code_description: po.cost_codes?.description,
         });
       });
-
-      // Load unposted credit card transactions
-      let ccQuery = supabase
-        .from("credit_card_transaction_distributions")
-        .select(`
-          id, amount,
-          cost_codes(code, description),
-          credit_card_transactions(
-            id, description, transaction_date, journal_entry_id, coding_status
-          )
-        `)
-        .eq("job_id", selectedJobId);
-
-      if (actualCostCodeId) {
-        ccQuery = ccQuery.eq("cost_code_id", actualCostCodeId);
-      }
-
-      const { data: ccDists, error: ccError } = await ccQuery;
-      if (ccError) throw ccError;
-
-      (ccDists || [])
-        .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
-        .forEach((dist: any) => {
-          allItems.push({
-            id: dist.credit_card_transactions?.id || dist.id,
-            type: "credit_card",
-            name: dist.credit_card_transactions?.description || "Credit Card",
-            date: dist.credit_card_transactions?.transaction_date || "",
-            amount: Number(dist.amount || 0),
-            status: dist.credit_card_transactions?.coding_status || "pending",
-            cost_code: dist.cost_codes?.code,
-            cost_code_description: dist.cost_codes?.description,
-          });
-        });
 
       allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setItems(allItems);
@@ -326,14 +286,10 @@ export default function CommittedCostDetails() {
     const variants: Record<string, string> = {
       subcontract: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
       purchase_order: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      bill: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-      credit_card: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
     };
     const labels: Record<string, string> = {
       subcontract: "Subcontract",
       purchase_order: "PO",
-      bill: "Bill",
-      credit_card: "Credit Card",
     };
     return (
       <Badge className={variants[type] || "bg-gray-100 text-gray-800"}>
@@ -345,8 +301,8 @@ export default function CommittedCostDetails() {
   const handleItemClick = (item: CommittedItem) => {
     if (item.type === "subcontract") {
       navigate(`/subcontracts/${item.id}`);
-    } else if (item.type === "bill") {
-      navigate(`/bills/${item.id}`);
+    } else if (item.type === "purchase_order") {
+      navigate(`/purchase-orders/${item.id}`);
     }
   };
 
@@ -369,9 +325,7 @@ export default function CommittedCostDetails() {
         : "-";
       return [
         new Date(item.date).toLocaleDateString(),
-        item.type === "subcontract" ? "Subcontract" : 
-          item.type === "purchase_order" ? "PO" : 
-          item.type === "bill" ? "Bill" : "Credit Card",
+        item.type === "subcontract" ? "Subcontract" : "PO",
         item.name,
         item.vendor_name || "-",
         costCodeDisplay,
@@ -409,9 +363,7 @@ export default function CommittedCostDetails() {
           : "-";
         return [
           new Date(item.date).toLocaleDateString(),
-          item.type === "subcontract" ? "Subcontract" : 
-            item.type === "purchase_order" ? "PO" : 
-            item.type === "bill" ? "Bill" : "Credit Card",
+          item.type === "subcontract" ? "Subcontract" : "PO",
           item.name,
           item.vendor_name || "-",
           costCodeDisplay,
@@ -534,8 +486,7 @@ export default function CommittedCostDetails() {
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
                     <SelectItem value="subcontract">Subcontracts</SelectItem>
-                    <SelectItem value="bill">Bills</SelectItem>
-                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="purchase_order">Purchase Orders</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
