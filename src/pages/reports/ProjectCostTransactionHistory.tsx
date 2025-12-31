@@ -544,8 +544,26 @@ export default function ProjectCostTransactionHistory() {
       }
       
       setSelectedBill(bill);
-    } else {
+    } else if (transaction.type === "credit_card") {
+      // Unposted credit card transaction
       setSelectedTransaction(transaction);
+    } else if (transaction.type === "journal_entry" && transaction.credit_card_name) {
+      // Posted credit card transaction - find the original CC transaction
+      const { data: ccTxn } = await supabase
+        .from("credit_card_transactions")
+        .select("id")
+        .eq("description", transaction.description)
+        .maybeSingle();
+      
+      if (ccTxn) {
+        setSelectedTransaction({ ...transaction, id: ccTxn.id });
+      } else {
+        // Fallback - navigate to journal entries
+        navigate(`/accounting/journal-entries`);
+      }
+    } else {
+      // Regular journal entry - navigate to journal entries page
+      navigate(`/accounting/journal-entries`);
     }
   };
 
@@ -644,8 +662,9 @@ export default function ProjectCostTransactionHistory() {
           head: [[cat.category, "", "", "", "", `$${formatNumber(cat.total)}`]],
           body: tableData,
           theme: "plain",
-          headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold", fontSize: 9 },
+          headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
           bodyStyles: { fontSize: 8 },
+          alternateRowStyles: { fillColor: [239, 246, 255] }, // Light blue for alternating rows
           columnStyles: {
             0: { cellWidth: 22 },
             1: { cellWidth: 25 },
@@ -704,13 +723,37 @@ export default function ProjectCostTransactionHistory() {
       worksheetData.push([]);
     });
 
-    // Add category summary
-    worksheetData.push(["TOTAL COST BY CATEGORY"]);
-    worksheetData.push(["Category", "Total"]);
+    // Add category summary with new columns
+    worksheetData.push(["COST SUMMARY BY CATEGORY"]);
+    worksheetData.push(["Category", "Previous Cost", "Current Cost", "Cost to Date", "Budget", "Difference", "% Used"]);
     categorySummary.forEach(s => {
-      worksheetData.push([s.category, s.total]);
+      worksheetData.push([
+        s.category,
+        s.previousCost,
+        s.currentCost,
+        s.costToDate,
+        s.budget,
+        s.difference,
+        `${s.percent.toFixed(1)}%`,
+      ]);
     });
-    worksheetData.push(["TOTAL", totalAmount]);
+    const summaryTotals = categorySummary.reduce((acc, s) => ({
+      previousCost: acc.previousCost + s.previousCost,
+      currentCost: acc.currentCost + s.currentCost,
+      costToDate: acc.costToDate + s.costToDate,
+      budget: acc.budget + s.budget,
+      difference: acc.difference + s.difference,
+    }), { previousCost: 0, currentCost: 0, costToDate: 0, budget: 0, difference: 0 });
+    const totalPercent = summaryTotals.budget > 0 ? (summaryTotals.costToDate / summaryTotals.budget) * 100 : 0;
+    worksheetData.push([
+      "TOTAL",
+      summaryTotals.previousCost,
+      summaryTotals.currentCost,
+      summaryTotals.costToDate,
+      summaryTotals.budget,
+      summaryTotals.difference,
+      `${totalPercent.toFixed(1)}%`,
+    ]);
     
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     autoFitColumns(worksheet, worksheetData);
@@ -729,13 +772,33 @@ export default function ProjectCostTransactionHistory() {
     !!dateTo,
   ].filter(Boolean).length;
 
-  // Calculate summary totals by category
+  // Calculate summary totals by category with budget info
   const categorySummary = useMemo(() => {
-    const categoryTotals: Record<string, number> = {};
+    const categoryTotals: Record<string, { previousCost: number; currentCost: number; budget: number }> = {};
+    
+    // Calculate budgets by category from jobBudgetSummary
+    jobBudgetSummary.forEach(budget => {
+      // Get the cost code to determine category
+      const costCode = costCodes.find(cc => cc.id === budget.cost_code_id);
+      const category = normalizeCategory(costCode?.type);
+      if (!categoryTotals[category]) {
+        categoryTotals[category] = { previousCost: 0, currentCost: 0, budget: 0 };
+      }
+      categoryTotals[category].budget += budget.budgeted;
+    });
+    
+    // Calculate current costs from transactions (filtered by date if applicable)
     filteredTransactions.forEach(t => {
       const cat = t.category || "Other";
-      categoryTotals[cat] = (categoryTotals[cat] || 0) + t.amount;
+      if (!categoryTotals[cat]) {
+        categoryTotals[cat] = { previousCost: 0, currentCost: 0, budget: 0 };
+      }
+      categoryTotals[cat].currentCost += t.amount;
     });
+    
+    // Calculate previous costs (all transactions minus filtered transactions)
+    // For now, previous = 0 and current = cost to date since we don't have period filtering
+    // If date filters are applied, we could calculate previous as costs before the filter period
     
     // Sort by predefined order
     const categoryOrder = ["Labor", "Material", "Equipment", "Subcontract", "Purchase Order", "Other"];
@@ -745,8 +808,21 @@ export default function ProjectCostTransactionHistory() {
         const bIndex = categoryOrder.indexOf(b[0]);
         return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
       })
-      .map(([category, total]) => ({ category, total }));
-  }, [filteredTransactions]);
+      .map(([category, data]) => {
+        const costToDate = data.previousCost + data.currentCost;
+        const difference = data.budget - costToDate;
+        const percent = data.budget > 0 ? (costToDate / data.budget) * 100 : 0;
+        return {
+          category,
+          previousCost: data.previousCost,
+          currentCost: data.currentCost,
+          costToDate,
+          budget: data.budget,
+          difference,
+          percent,
+        };
+      });
+  }, [filteredTransactions, jobBudgetSummary, costCodes]);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -1060,29 +1136,66 @@ export default function ProjectCostTransactionHistory() {
       {selectedJobId && categorySummary.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Total Cost by Category</CardTitle>
+            <CardTitle>Cost Summary by Category</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {categorySummary.map((s) => (
-                  <TableRow key={s.category}>
-                    <TableCell>{getCategoryBadge(s.category)}</TableCell>
-                    <TableCell className="text-right font-medium">${formatNumber(s.total)}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Previous Cost</TableHead>
+                    <TableHead className="text-right">Current Cost</TableHead>
+                    <TableHead className="text-right">Cost to Date</TableHead>
+                    <TableHead className="text-right">Budget</TableHead>
+                    <TableHead className="text-right">Difference</TableHead>
+                    <TableHead className="text-right">% Used</TableHead>
                   </TableRow>
-                ))}
-                <TableRow className="bg-muted/50 font-semibold">
-                  <TableCell>TOTAL</TableCell>
-                  <TableCell className="text-right">${formatNumber(totalAmount)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {categorySummary.map((s, idx) => (
+                    <TableRow key={s.category} className={idx % 2 === 1 ? "bg-primary/5" : ""}>
+                      <TableCell>{getCategoryBadge(s.category)}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.previousCost)}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.currentCost)}</TableCell>
+                      <TableCell className="text-right font-medium">${formatNumber(s.costToDate)}</TableCell>
+                      <TableCell className="text-right">${formatNumber(s.budget)}</TableCell>
+                      <TableCell className={`text-right ${s.difference < 0 ? "text-destructive" : "text-green-600"}`}>
+                        ${formatNumber(s.difference)}
+                      </TableCell>
+                      <TableCell className={`text-right ${s.percent > 100 ? "text-destructive font-semibold" : ""}`}>
+                        {s.percent.toFixed(1)}%
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(() => {
+                    const totals = categorySummary.reduce((acc, s) => ({
+                      previousCost: acc.previousCost + s.previousCost,
+                      currentCost: acc.currentCost + s.currentCost,
+                      costToDate: acc.costToDate + s.costToDate,
+                      budget: acc.budget + s.budget,
+                      difference: acc.difference + s.difference,
+                    }), { previousCost: 0, currentCost: 0, costToDate: 0, budget: 0, difference: 0 });
+                    const totalPercent = totals.budget > 0 ? (totals.costToDate / totals.budget) * 100 : 0;
+                    return (
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell>TOTAL</TableCell>
+                        <TableCell className="text-right">${formatNumber(totals.previousCost)}</TableCell>
+                        <TableCell className="text-right">${formatNumber(totals.currentCost)}</TableCell>
+                        <TableCell className="text-right">${formatNumber(totals.costToDate)}</TableCell>
+                        <TableCell className="text-right">${formatNumber(totals.budget)}</TableCell>
+                        <TableCell className={`text-right ${totals.difference < 0 ? "text-destructive" : "text-green-600"}`}>
+                          ${formatNumber(totals.difference)}
+                        </TableCell>
+                        <TableCell className={`text-right ${totalPercent > 100 ? "text-destructive" : ""}`}>
+                          {totalPercent.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })()}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
