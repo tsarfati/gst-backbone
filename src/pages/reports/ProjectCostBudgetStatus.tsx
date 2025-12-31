@@ -24,15 +24,17 @@ interface BudgetLine {
   cost_code: string;
   cost_code_id: string;
   cost_code_description: string;
+  cost_code_type?: string | null;
   budgeted: number;
   actual: number;
   committed: number;
   remaining: number;
   percent_used: number;
-  is_dynamic_group: boolean;
-  parent_cost_code_id: string | null;
+  // Dynamic budget metadata (when this line is a child of a dynamic group)
+  dynamic_parent_budget_id?: string;
   dynamic_parent_code?: string;
   dynamic_parent_budget?: number;
+  dynamic_group_spent?: number;
 }
 
 interface Job {
@@ -78,9 +80,16 @@ export default function ProjectCostBudgetStatus() {
       let query = supabase
         .from("job_budgets")
         .select(`
-          id, job_id, cost_code_id, budgeted_amount, actual_amount, committed_amount, is_dynamic, parent_budget_id,
+          id,
+          job_id,
+          cost_code_id,
+          budgeted_amount,
+          actual_amount,
+          committed_amount,
+          is_dynamic,
+          parent_budget_id,
           jobs!inner(id, name, company_id),
-          cost_codes!inner(id, code, description)
+          cost_codes!inner(id, code, description, type)
         `)
         .eq("jobs.company_id", currentCompany!.id);
 
@@ -91,32 +100,57 @@ export default function ProjectCostBudgetStatus() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Create a map of budget IDs to their data for parent lookups
       const budgetMap = new Map((data || []).map((item: any) => [item.id, item]));
 
-      // Filter out dynamic budget parents (is_dynamic = true), only show regular lines and children
-      const lines: BudgetLine[] = (data || [])
-        .filter((item: any) => {
-          // Exclude dynamic budget parents - these are aggregate entries
-          if (item.is_dynamic === true) return false;
-          return true;
-        })
-        .map((item: any) => {
-          const budgeted = item.budgeted_amount || 0;
-          const actual = item.actual_amount || 0;
-          const committed = item.committed_amount || 0;
-          const remaining = budgeted - actual - committed;
-          const percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
+      // Dynamic parents live in job_budgets (is_dynamic = true)
+      const dynamicParents = new Map<string, { code: string; budget: number }>();
+      (data || []).forEach((item: any) => {
+        if (item.is_dynamic === true) {
+          dynamicParents.set(item.id, {
+            code: item.cost_codes?.code || "",
+            budget: Number(item.budgeted_amount || 0),
+          });
+        }
+      });
 
-          // Check if this line has a dynamic parent budget
+      // Sum child spend by dynamic parent budget id
+      const groupSpentMap = new Map<string, number>();
+      (data || []).forEach((item: any) => {
+        if (!item.parent_budget_id) return;
+        const spent = Number(item.actual_amount || 0) + Number(item.committed_amount || 0);
+        groupSpentMap.set(item.parent_budget_id, (groupSpentMap.get(item.parent_budget_id) || 0) + spent);
+      });
+
+      // Filter out dynamic parents from the list - show children (and regular codes)
+      const lines: BudgetLine[] = (data || [])
+        .filter((item: any) => item.is_dynamic !== true)
+        .map((item: any) => {
+          const actual = Number(item.actual_amount || 0);
+          const committed = Number(item.committed_amount || 0);
+
+          // Default: regular (non-dynamic) behavior
+          let budgeted = Number(item.budgeted_amount || 0);
+          let remaining = budgeted - actual - committed;
+          let percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
+
           let dynamicParentCode: string | undefined;
           let dynamicParentBudget: number | undefined;
-          if (item.parent_budget_id) {
-            const parentBudget = budgetMap.get(item.parent_budget_id);
-            if (parentBudget && parentBudget.is_dynamic) {
-              dynamicParentCode = parentBudget.cost_codes?.code;
-              dynamicParentBudget = parentBudget.budgeted_amount || 0;
-            }
+          let dynamicParentBudgetId: string | undefined;
+          let dynamicGroupSpent: number | undefined;
+
+          // If this is a child of a dynamic budget, use the dynamic parent budget for comparisons
+          if (item.parent_budget_id && dynamicParents.has(item.parent_budget_id)) {
+            const parent = dynamicParents.get(item.parent_budget_id)!;
+            const groupSpent = groupSpentMap.get(item.parent_budget_id) || 0;
+
+            budgeted = parent.budget;
+            remaining = parent.budget - groupSpent;
+            percentUsed = parent.budget > 0 ? (groupSpent / parent.budget) * 100 : 0;
+
+            dynamicParentCode = parent.code;
+            dynamicParentBudget = parent.budget;
+            dynamicParentBudgetId = item.parent_budget_id;
+            dynamicGroupSpent = groupSpent;
           }
 
           return {
@@ -126,15 +160,16 @@ export default function ProjectCostBudgetStatus() {
             cost_code: item.cost_codes?.code || "-",
             cost_code_id: item.cost_codes?.id || "",
             cost_code_description: item.cost_codes?.description || "-",
+            cost_code_type: item.cost_codes?.type ?? null,
             budgeted,
             actual,
             committed,
             remaining,
             percent_used: percentUsed,
-            is_dynamic_group: item.is_dynamic || false,
-            parent_cost_code_id: item.parent_budget_id,
+            dynamic_parent_budget_id: dynamicParentBudgetId,
             dynamic_parent_code: dynamicParentCode,
             dynamic_parent_budget: dynamicParentBudget,
+            dynamic_group_spent: dynamicGroupSpent,
           };
         });
 
@@ -158,17 +193,62 @@ export default function ProjectCostBudgetStatus() {
     }
   };
 
-  const totals = budgetLines.reduce(
-    (acc, line) => ({
-      budgeted: acc.budgeted + line.budgeted,
-      actual: acc.actual + line.actual,
-      committed: acc.committed + line.committed,
-      remaining: acc.remaining + line.remaining,
-    }),
-    { budgeted: 0, actual: 0, committed: 0, remaining: 0 }
-  );
+  const formatTypeLabel = (type?: string | null) => {
+    if (!type) return null;
+    const map: Record<string, string> = {
+      labor: "Labor",
+      material: "Material",
+      materials: "Material",
+      sub: "Sub",
+      subcontract: "Sub",
+      other: "Other",
+    };
+    return map[type] || (type.charAt(0).toUpperCase() + type.slice(1));
+  };
 
-  const overBudgetCount = budgetLines.filter(l => l.remaining < 0).length;
+  const totals = (() => {
+    const seenDynamic = new Set<string>();
+
+    return budgetLines.reduce(
+      (acc, line) => {
+        acc.actual += line.actual;
+        acc.committed += line.committed;
+
+        if (line.dynamic_parent_budget_id) {
+          if (!seenDynamic.has(line.dynamic_parent_budget_id)) {
+            seenDynamic.add(line.dynamic_parent_budget_id);
+            const groupBudget = Number(line.dynamic_parent_budget ?? line.budgeted);
+            const groupSpent = Number(line.dynamic_group_spent ?? 0);
+            acc.budgeted += groupBudget;
+            acc.remaining += groupBudget - groupSpent;
+          }
+        } else {
+          acc.budgeted += line.budgeted;
+          acc.remaining += line.remaining;
+        }
+
+        return acc;
+      },
+      { budgeted: 0, actual: 0, committed: 0, remaining: 0 }
+    );
+  })();
+
+  const overBudgetCount = (() => {
+    const seenDynamic = new Set<string>();
+
+    return budgetLines.reduce((count, line) => {
+      if (line.dynamic_parent_budget_id) {
+        if (seenDynamic.has(line.dynamic_parent_budget_id)) return count;
+        seenDynamic.add(line.dynamic_parent_budget_id);
+
+        const groupBudget = Number(line.dynamic_parent_budget ?? line.budgeted);
+        const groupSpent = Number(line.dynamic_group_spent ?? 0);
+        return groupBudget - groupSpent < 0 ? count + 1 : count;
+      }
+
+      return line.remaining < 0 ? count + 1 : count;
+    }, 0);
+  })();
 
   const getStatusColor = (remaining: number, budgeted: number) => {
     if (remaining < 0) return "text-red-600";
@@ -389,12 +469,19 @@ export default function ProjectCostBudgetStatus() {
                     >
                       <TableCell>{line.job_name}</TableCell>
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {line.cost_code}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{line.cost_code}</span>
+
+                          {line.cost_code_type && (
+                            <Badge variant="outline" className="text-xs">
+                              {formatTypeLabel(line.cost_code_type)}
+                            </Badge>
+                          )}
+
                           {line.dynamic_parent_code && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                <Badge variant="secondary" className="text-xs">
                                   Dynamic
                                 </Badge>
                               </TooltipTrigger>
