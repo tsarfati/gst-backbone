@@ -149,7 +149,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
     try {
       let total = 0;
 
-      // Get committed amounts from subcontracts (via cost_distribution JSON)
+      // ONLY subcontracts should be counted as committed costs
+      // Bills and credit card transactions are actual costs, not committed
       const { data: subcontracts, error: subError } = await supabase
         .from('subcontracts')
         .select('contract_amount, cost_distribution')
@@ -169,38 +170,6 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           });
         }
       });
-
-      // Get committed amounts from purchase orders
-      // POs don't have cost_code_id directly, so we check invoice_cost_distributions
-      // for bills against POs that match this cost code
-      const { data: poDistributions, error: poDistError } = await supabase
-        .from('invoice_cost_distributions')
-        .select('amount, invoices!inner(job_id, status)')
-        .eq('cost_code_id', costCodeId)
-        .eq('invoices.job_id', jobId)
-        .neq('invoices.status', 'posted');
-
-      if (poDistError) throw poDistError;
-
-      total += (poDistributions || []).reduce((sum, dist) => 
-        sum + Number(dist.amount || 0), 0
-      );
-
-      // Also include unposted credit card transaction distributions
-      const { data: ccDists, error: ccError } = await supabase
-        .from('credit_card_transaction_distributions')
-        .select('amount, credit_card_transactions(journal_entry_id)')
-        .eq('job_id', jobId)
-        .eq('cost_code_id', costCodeId);
-
-      if (ccError) throw ccError;
-
-      // Only count CC distributions where transaction is not posted (no journal_entry_id)
-      const ccTotal = (ccDists || [])
-        .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
-        .reduce((sum, d) => sum + Number(d.amount || 0), 0);
-
-      total += ccTotal;
 
       return total;
     } catch (error) {
