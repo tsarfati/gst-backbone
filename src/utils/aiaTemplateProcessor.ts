@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx-js-style';
+import ExcelJS from 'exceljs';
 import { supabase } from '@/integrations/supabase/client';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -79,6 +79,32 @@ interface AIATemplate {
 }
 
 /**
+ * Format a number as currency
+ */
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value);
+}
+
+/**
+ * Replace placeholders in a string with actual values
+ */
+function replacePlaceholders(template: string | number | undefined, placeholders: Record<string, string>): string {
+  if (template === undefined || template === null) return '';
+  
+  let result = String(template);
+  
+  for (const [key, value] of Object.entries(placeholders)) {
+    const placeholder = new RegExp(`\\{${key}\\}`, 'gi');
+    result = result.replace(placeholder, value || '');
+  }
+  
+  return result;
+}
+
+/**
  * Load the default AIA template for a company
  */
 export async function loadDefaultAIATemplate(companyId: string): Promise<AIATemplate | null> {
@@ -90,10 +116,10 @@ export async function loadDefaultAIATemplate(companyId: string): Promise<AIATemp
       .select('*')
       .eq('company_id', companyId)
       .eq('is_default', true)
-      .single() as any);
+      .maybeSingle()) as { data: AIATemplate | null; error: any };
 
     if (error) {
-      console.error('Error loading default AIA template:', error);
+      console.error('Error loading AIA template:', error);
       return null;
     }
 
@@ -106,33 +132,8 @@ export async function loadDefaultAIATemplate(companyId: string): Promise<AIATemp
 }
 
 /**
- * Replace placeholders in a cell value
- */
-function replacePlaceholders(value: any, data: Record<string, string>): any {
-  if (typeof value !== 'string') return value;
-  
-  let result = value;
-  for (const [key, replacement] of Object.entries(data)) {
-    const placeholder = `{${key}}`;
-    result = result.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), replacement || '');
-  }
-  return result;
-}
-
-/**
- * Format a number as currency
- */
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-/**
- * Process an Excel template with AIA invoice data
+ * Process an Excel template with AIA invoice data using ExcelJS
+ * This preserves all formatting including fonts, borders, colors, column widths
  */
 export async function processAIATemplate(
   template: AIATemplate,
@@ -153,14 +154,10 @@ export async function processAIATemplate(
     const arrayBuffer = await response.arrayBuffer();
     console.log('Template file size:', arrayBuffer.byteLength, 'bytes');
     
-    // Read with cellStyles to preserve formatting
-    const workbook = XLSX.read(arrayBuffer, { 
-      type: 'array',
-      cellStyles: true,
-      cellNF: true,
-      cellDates: true,
-    });
-    console.log('Workbook sheets:', workbook.SheetNames);
+    // Load workbook with ExcelJS - preserves all formatting
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(arrayBuffer);
+    console.log('Workbook sheets:', workbook.worksheets.map(ws => ws.name));
 
     // Create placeholder mappings
     const placeholders: Record<string, string> = {
@@ -213,88 +210,63 @@ export async function processAIATemplate(
       balance_to_finish: data.balance_to_finish,
     };
 
-    // Process each sheet
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      if (!sheet) continue;
+    // Process each worksheet
+    workbook.eachSheet((worksheet) => {
+      let sovTemplateRow: number | null = null;
+      let sovTemplateRowData: { col: number; value: any; style: Partial<ExcelJS.Style> }[] = [];
 
-      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
-
-      // First pass: Replace simple placeholders while preserving cell formatting
-      for (let row = range.s.r; row <= range.e.r; row++) {
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-          const cell = sheet[cellAddress];
+      // First pass: Find SOV template row and replace simple placeholders
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+          const cellValue = cell.value;
           
-          if (cell && cell.v !== undefined) {
-            const originalValue = cell.v;
-            const newValue = replacePlaceholders(originalValue, placeholders);
+          if (cellValue !== null && cellValue !== undefined) {
+            const stringValue = String(cellValue);
             
-            if (newValue !== originalValue) {
-              // Preserve the cell's style + number format
-              const cellStyle = (cell as any).s;
-              const cellFormat = (cell as any).z;
-              const cellType = cell.t;
-
-              cell.v = newValue;
-              cell.w = String(newValue);
-              if (cellStyle) (cell as any).s = cellStyle;
-              if (cellFormat) (cell as any).z = cellFormat;
-              if (cellType) cell.t = cellType;
-
-              // If the result looks like a number, convert it BUT keep number format
-              if (typeof newValue === 'string' && /^\$?[\d,]+\.?\d*$/.test(newValue.replace(/[$,]/g, ''))) {
-                const numValue = parseFloat(newValue.replace(/[$,]/g, ''));
-                if (!isNaN(numValue)) {
-                  cell.t = 'n';
-                  cell.v = numValue;
-                  if (cellStyle) (cell as any).s = cellStyle;
-                  if (cellFormat) (cell as any).z = cellFormat;
-                }
+            // Check for SOV placeholder row
+            if (stringValue.includes('{sov_') && sovTemplateRow === null) {
+              sovTemplateRow = rowNumber;
+              // Capture the entire row as template
+              row.eachCell({ includeEmpty: true }, (templateCell, templateCol) => {
+                sovTemplateRowData.push({
+                  col: templateCol,
+                  value: templateCell.value,
+                  style: {
+                    font: templateCell.font ? { ...templateCell.font } : undefined,
+                    fill: templateCell.fill ? { ...templateCell.fill } : undefined,
+                    border: templateCell.border ? { ...templateCell.border } : undefined,
+                    alignment: templateCell.alignment ? { ...templateCell.alignment } : undefined,
+                    numFmt: templateCell.numFmt,
+                  },
+                });
+              });
+            }
+            
+            // Replace placeholders (but not SOV placeholders yet)
+            if (!stringValue.includes('{sov_')) {
+              const newValue = replacePlaceholders(stringValue, placeholders);
+              if (newValue !== stringValue) {
+                // Set value while preserving all formatting
+                cell.value = newValue;
               }
             }
           }
-        }
-      }
+        });
+      });
 
-      // Second pass: Find and populate SOV table rows
-      // Look for rows containing SOV placeholders and expand them with line items
-      let sovStartRow = -1;
-      let sovRowTemplate: Record<string, any> = {};
-
-      for (let row = range.s.r; row <= range.e.r; row++) {
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
-          const cell = sheet[cellAddress];
-          
-          if (cell && typeof cell.v === 'string' && cell.v.includes('{sov_')) {
-            sovStartRow = row;
-            // Capture the template row
-            for (let c = range.s.c; c <= range.e.c; c++) {
-              const addr = XLSX.utils.encode_cell({ r: row, c });
-              if (sheet[addr]) {
-                sovRowTemplate[c] = { ...sheet[addr] };
-              }
-            }
-            break;
-          }
-        }
-        if (sovStartRow >= 0) break;
-      }
-
-      // If we found an SOV template row, expand it with line items
-      if (sovStartRow >= 0 && data.lineItems.length > 0) {
-        // Remove the template row placeholder values
-        for (let col = range.s.c; col <= range.e.c; col++) {
-          const cellAddress = XLSX.utils.encode_cell({ r: sovStartRow, c: col });
-          if (sheet[cellAddress]) {
-            delete sheet[cellAddress];
-          }
+      // Second pass: Handle SOV line items
+      if (sovTemplateRow !== null && data.lineItems.length > 0) {
+        // Insert rows for additional line items (minus 1 since template row exists)
+        if (data.lineItems.length > 1) {
+          const emptyRows = new Array(data.lineItems.length - 1).fill([]);
+          worksheet.insertRows(sovTemplateRow + 1, emptyRows);
         }
 
-        // Insert line items starting at the template row
+        // Populate line items
         data.lineItems.forEach((item, index) => {
-          const rowIndex = sovStartRow + index;
+          const targetRowNumber = sovTemplateRow! + index;
+          const targetRow = worksheet.getRow(targetRowNumber);
+
           const itemPlaceholders: Record<string, string> = {
             sov_item_no: item.item_number,
             sov_description: item.description,
@@ -303,41 +275,36 @@ export async function processAIATemplate(
             sov_this_period: formatCurrency(item.this_period),
             sov_materials_stored: formatCurrency(item.materials_stored),
             sov_total_completed: formatCurrency(item.total_completed),
-            sov_percent_complete: `${item.percent_complete}%`,
+            sov_percent_complete: `${item.percent_complete.toFixed(1)}%`,
             sov_balance_to_finish: formatCurrency(item.balance_to_finish),
             sov_retainage: formatCurrency(item.retainage),
           };
 
-          for (let col = range.s.c; col <= range.e.c; col++) {
-            const templateCell = sovRowTemplate[col];
-            if (templateCell) {
-              const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: col });
-              const newValue = replacePlaceholders(templateCell.v, itemPlaceholders);
-              // Copy cell including style
-              sheet[cellAddress] = {
-                ...templateCell,
-                v: newValue,
-                w: String(newValue),
-                s: templateCell.s, // Preserve cell style
-              };
-            }
-          }
+          // Apply template to each cell
+          sovTemplateRowData.forEach(({ col, value, style }) => {
+            const cell = targetRow.getCell(col);
+            
+            // Replace placeholders in value
+            const newValue = replacePlaceholders(String(value || ''), { ...placeholders, ...itemPlaceholders });
+            cell.value = newValue;
+            
+            // Apply preserved style
+            if (style.font) cell.font = style.font;
+            if (style.fill) cell.fill = style.fill as ExcelJS.Fill;
+            if (style.border) cell.border = style.border;
+            if (style.alignment) cell.alignment = style.alignment;
+            if (style.numFmt) cell.numFmt = style.numFmt;
+          });
+
+          targetRow.commit();
         });
-
-        // Update the sheet range
-        const newRange = { ...range };
-        newRange.e.r = Math.max(range.e.r, sovStartRow + data.lineItems.length - 1);
-        sheet['!ref'] = XLSX.utils.encode_range(newRange);
       }
-    }
-
-    // Generate the processed workbook as a blob, preserving styles
-    const outputBuffer = XLSX.write(workbook, { 
-      bookType: 'xlsx', 
-      type: 'array',
-      cellStyles: true,
-      bookSST: true,
     });
+
+    // Generate output buffer
+    const outputBuffer = await workbook.xlsx.writeBuffer();
+    console.log('Generated output buffer size:', outputBuffer.byteLength);
+    
     return new Blob([outputBuffer], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
@@ -382,7 +349,7 @@ export async function generateAIAInvoice(
 
   // Fallback: generate standard PDF if no template or processing failed
   console.log('No template found or processing failed, generating standard PDF');
-  return null; // Return null to signal fallback to standard PDF generation
+  return null;
 }
 
 /**
