@@ -17,6 +17,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { generateAIAInvoice, downloadBlob, type AIATemplateData } from "@/utils/aiaTemplateProcessor";
 
 interface Job {
   id: string;
@@ -381,7 +382,86 @@ export default function AddARInvoice() {
     }
   };
 
-  const generateAIAPdf = (forReview: boolean = false) => {
+  const generateAIAPdf = async (forReview: boolean = false) => {
+    // First, try to use the uploaded Excel template
+    if (currentCompany?.id) {
+      const templateData: AIATemplateData = {
+        // Company Information
+        company_name: currentCompany.name || '',
+        company_address: currentCompany.address || '',
+        company_city: currentCompany.city || '',
+        company_state: currentCompany.state || '',
+        company_zip: currentCompany.zip_code || '',
+        company_phone: currentCompany.phone || '',
+        company_email: currentCompany.email || '',
+        license_number: (currentCompany as any).license_number || '',
+
+        // Customer/Owner Information
+        owner_name: selectedCustomer?.name || '',
+        owner_address: selectedCustomer?.address || '',
+        owner_city: selectedCustomer?.city || '',
+        owner_state: selectedCustomer?.state || '',
+        owner_zip: selectedCustomer?.zip_code || '',
+        owner_phone: '',
+        owner_email: '',
+
+        // Project/Job Information
+        project_name: selectedJob?.name || '',
+        project_number: selectedJobId || '',
+        project_address: selectedJob?.address || '',
+        project_city: '',
+        project_state: '',
+        project_zip: '',
+        architect_name: '',
+        architect_project_no: '',
+
+        // Contract Information
+        contract_date: contractDate ? format(new Date(contractDate), 'MM/dd/yyyy') : '',
+        contract_amount: `$${formatNumber(contractSum)}`,
+        change_orders_amount: `$${formatNumber(changeOrders)}`,
+        current_contract_sum: `$${formatNumber(totalContractSum)}`,
+        retainage_percent: `${retainagePercent}%`,
+
+        // Application/Invoice Details
+        application_number: String(applicationNumber),
+        application_date: format(new Date(), 'MM/dd/yyyy'),
+        period_from: periodFrom ? format(new Date(periodFrom), 'MM/dd/yyyy') : '',
+        period_to: periodTo ? format(new Date(periodTo), 'MM/dd/yyyy') : '',
+        total_completed: `$${formatNumber(totalCompletedStored)}`,
+        total_retainage: `$${formatNumber(totalRetainage)}`,
+        total_earned_less_retainage: `$${formatNumber(totalCompletedStored - totalRetainage)}`,
+        less_previous_certificates: `$${formatNumber(lessPreviousCertificates)}`,
+        current_payment_due: `$${formatNumber(currentPaymentDue)}`,
+        balance_to_finish: `$${formatNumber(totals.balanceToFinish + totalRetainage)}`,
+
+        // Line Items
+        lineItems: lineItems.map(item => ({
+          item_number: item.item_number,
+          description: item.description,
+          scheduled_value: item.scheduled_value,
+          previous_applications: item.previous_applications,
+          this_period: item.this_period,
+          materials_stored: item.materials_stored,
+          total_completed: item.total_completed,
+          percent_complete: item.percent_complete,
+          balance_to_finish: item.balance_to_finish,
+          retainage: item.retainage,
+        })),
+      };
+
+      const result = await generateAIAInvoice(currentCompany.id, templateData, { forReview });
+      
+      if (result) {
+        downloadBlob(result.blob, result.fileName);
+        toast({
+          title: forReview ? "Template Export for Review" : "Template Export Downloaded",
+          description: `${result.fileName} has been downloaded using your custom template`,
+        });
+        return;
+      }
+    }
+
+    // Fallback to standard PDF generation if no template found
     // Use landscape orientation for better table layout
     const doc = new jsPDF({ orientation: "landscape" });
     const pageWidth = doc.internal.pageSize.getWidth();
