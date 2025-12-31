@@ -580,21 +580,18 @@ export default function PdfTemplateSettings() {
         .select('*')
         .eq('company_id', currentCompany.id)
         .eq('template_type', templateType)
-        .order('updated_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .eq('template_name', 'default')
+        .maybeSingle();
 
       if (error) throw error;
       
-      const row = Array.isArray(data) ? data[0] : undefined;
-      
-      if (row) {
+      if (data) {
         // Parse header_images properly
         let headerImages: any[] = [];
         try {
-          headerImages = typeof (row as any).header_images === 'string' 
-            ? JSON.parse((row as any).header_images) 
-            : ((row as any).header_images || []);
+          headerImages = typeof (data as any).header_images === 'string' 
+            ? JSON.parse((data as any).header_images) 
+            : ((data as any).header_images || []);
         } catch (e) {
           console.error('Error parsing header_images:', e);
           headerImages = [];
@@ -610,7 +607,7 @@ export default function PdfTemplateSettings() {
         }
 
         const templateData = {
-          ...(row as any),
+          ...(data as any),
           header_images: finalHeaderImages
         };
 
@@ -655,33 +652,38 @@ export default function PdfTemplateSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { header_texts: _header_texts, ...templateForDb } = template as any;
+      const { header_texts: _header_texts, id: _id, ...templateForDb } = template as any;
+      const templateName = templateForDb.template_name || 'default';
       const templateData = {
         ...templateForDb,
         company_id: currentCompany.id,
-        created_by: user.id
+        created_by: user.id,
+        template_name: templateName,
+        updated_at: new Date().toISOString()
       };
 
-      // Check if template already exists for this company and type
+      // Check if template already exists for this company, type, and name
       const { data: existingTemplate } = await supabase
         .from('pdf_templates')
         .select('id')
         .eq('company_id', currentCompany.id)
         .eq('template_type', template.template_type)
-        .eq('template_name', template.template_type === 'timecard' ? 'default' : (templateData.template_name || 'default'))
+        .eq('template_name', templateName)
         .maybeSingle();
 
-      if (template.id || existingTemplate?.id) {
+      if (existingTemplate?.id) {
+        // Remove created_by from update to avoid overwriting original creator
+        const { created_by: _created_by, ...updateData } = templateData;
         const { error } = await supabase
           .from('pdf_templates')
-          .update(templateData)
-          .eq('id', template.id || existingTemplate?.id);
+          .update(updateData)
+          .eq('id', existingTemplate.id);
         
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('pdf_templates')
-          .insert([{ ...templateData, template_name: templateData.template_name || 'default' }]);
+          .insert([templateData]);
         
         if (error) throw error;
       }
