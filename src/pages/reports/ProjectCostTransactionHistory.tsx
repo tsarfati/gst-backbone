@@ -247,7 +247,7 @@ export default function ProjectCostTransactionHistory() {
   };
 
   const loadTransactions = useCallback(async () => {
-    if (!selectedJobId) return;
+    if (!selectedJobId || !currentCompany?.id) return;
     
     try {
       setLoading(true);
@@ -308,7 +308,7 @@ export default function ProjectCostTransactionHistory() {
       const ccCardsQuery = supabase
         .from("credit_cards")
         .select("id, card_name, liability_account_id")
-        .eq("company_id", currentCompany!.id);
+        .eq("company_id", currentCompany.id);
 
       const [journalRes, billsRes, ccRes, ccCardsRes] = await Promise.all([
         journalQuery,
