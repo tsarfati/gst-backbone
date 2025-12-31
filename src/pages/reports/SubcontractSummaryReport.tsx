@@ -52,7 +52,7 @@ export default function SubcontractSummaryReport() {
         .select(`
           id, name, contract_amount, status, start_date, end_date,
           retainage_percentage, apply_retainage,
-          vendors(name),
+          vendors(id, name),
           jobs!inner(id, name, company_id)
         `)
         .eq("jobs.company_id", currentCompany!.id)
@@ -60,29 +60,50 @@ export default function SubcontractSummaryReport() {
 
       if (error) throw error;
 
-      // For each subcontract, get invoiced and paid amounts
-      const summaries: SubcontractSummary[] = [];
-      
-      for (const sub of subs || []) {
-        // Get invoices for this subcontract
-        const { data: invoices } = await supabase
-          .from("invoices")
-          .select("amount, retainage_amount, status")
-          .eq("subcontract_id", sub.id);
+      // Get all subcontract IDs for batch queries
+      const subIds = (subs || []).map((s) => s.id);
 
-        const invoicedAmount = (invoices || []).reduce((sum, inv) => sum + (inv.amount || 0), 0);
-        const retainageHeld = (invoices || []).reduce((sum, inv) => sum + (inv.retainage_amount || 0), 0);
+      // Get all invoices for these subcontracts
+      const { data: allInvoices } = await supabase
+        .from("invoices")
+        .select("id, subcontract_id, amount, retainage_amount, status")
+        .in("subcontract_id", subIds.length > 0 ? subIds : ["no-match"]);
 
-        // Get payments for this vendor and job
-        const { data: payments } = await supabase
-          .from("payments")
-          .select("amount")
-          .eq("vendor_id", (sub as any).vendors?.id);
+      // Get all invoice IDs that belong to subcontracts
+      const invoiceIds = (allInvoices || []).map((inv) => inv.id);
 
-        // Approximate paid amount from payments (could be refined with invoice-payment linkage)
-        const paidAmount = (payments || []).reduce((sum, pmt) => sum + (pmt.amount || 0), 0);
+      // Get payment_invoice_lines for these invoices to calculate paid amounts
+      const { data: paymentLines } = await supabase
+        .from("payment_invoice_lines")
+        .select("invoice_id, amount_paid")
+        .in("invoice_id", invoiceIds.length > 0 ? invoiceIds : ["no-match"]);
 
-        summaries.push({
+      // Build maps for quick lookup
+      const invoicesBySubcontract = new Map<string, typeof allInvoices>();
+      (allInvoices || []).forEach((inv) => {
+        const existing = invoicesBySubcontract.get(inv.subcontract_id!) || [];
+        existing.push(inv);
+        invoicesBySubcontract.set(inv.subcontract_id!, existing);
+      });
+
+      const paidByInvoice = new Map<string, number>();
+      (paymentLines || []).forEach((pl) => {
+        paidByInvoice.set(pl.invoice_id, (paidByInvoice.get(pl.invoice_id) || 0) + Number(pl.amount_paid || 0));
+      });
+
+      // Build summaries
+      const summaries: SubcontractSummary[] = (subs || []).map((sub) => {
+        const invoices = invoicesBySubcontract.get(sub.id) || [];
+        const invoicedAmount = invoices.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+        const retainageHeld = invoices.reduce((sum, inv) => sum + Number(inv.retainage_amount || 0), 0);
+
+        // Sum paid amounts from payment_invoice_lines for this subcontract's invoices
+        let paidAmount = 0;
+        invoices.forEach((inv) => {
+          paidAmount += paidByInvoice.get(inv.id) || 0;
+        });
+
+        return {
           id: sub.id,
           name: sub.name,
           vendor_name: (sub as any).vendors?.name || "-",
@@ -92,10 +113,10 @@ export default function SubcontractSummaryReport() {
           start_date: sub.start_date,
           end_date: sub.end_date,
           invoiced_amount: invoicedAmount,
-          paid_amount: Math.min(paidAmount, invoicedAmount), // Cap at invoiced amount
+          paid_amount: paidAmount,
           retainage_held: retainageHeld,
-        });
-      }
+        };
+      });
 
       setSubcontracts(summaries);
     } catch (error) {
