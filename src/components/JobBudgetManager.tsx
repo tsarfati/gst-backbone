@@ -97,7 +97,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       if (budgetError) throw budgetError;
 
       // Calculate actual amount for a SPECIFIC cost code ID only
-      // EXCLUDES invoices linked to subcontracts (those are payments against commitments, not separate actuals)
+      // EXCLUDES invoices linked to subcontracts or purchase orders (those are payments against commitments)
       const calculateActualAmount = async (costCodeId: string): Promise<number> => {
         try {
           // Posted journal entry lines (debit amounts for expenses)
@@ -115,28 +115,30 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
             0
           );
 
-          // Paid invoices (direct) - EXCLUDE those linked to subcontracts
+          // Paid invoices (direct) - EXCLUDE those linked to subcontracts or purchase orders
           const { data: paidInvoices } = await supabase
             .from("invoices")
-            .select("amount, subcontract_id")
+            .select("amount, subcontract_id, purchase_order_id")
             .eq("job_id", jobId)
             .eq("cost_code_id", costCodeId)
             .eq("status", "paid")
-            .is("subcontract_id", null);
+            .is("subcontract_id", null)
+            .is("purchase_order_id", null);
 
           const invoiceTotal = (paidInvoices || []).reduce(
             (sum, inv) => sum + Number((inv as any).amount || 0),
             0
           );
 
-          // Paid invoices (distributed) - EXCLUDE those linked to subcontracts
+          // Paid invoices (distributed) - EXCLUDE those linked to subcontracts or purchase orders
           const { data: paidDistributions } = await supabase
             .from("invoice_cost_distributions")
-            .select("amount, invoices!inner(job_id, status, subcontract_id)")
+            .select("amount, invoices!inner(job_id, status, subcontract_id, purchase_order_id)")
             .eq("cost_code_id", costCodeId)
             .eq("invoices.job_id", jobId)
             .eq("invoices.status", "paid")
-            .is("invoices.subcontract_id", null);
+            .is("invoices.subcontract_id", null)
+            .is("invoices.purchase_order_id", null);
 
           const distTotal = (paidDistributions || []).reduce(
             (sum, d) => sum + Number((d as any).amount || 0),
