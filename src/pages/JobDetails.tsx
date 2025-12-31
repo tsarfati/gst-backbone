@@ -168,18 +168,12 @@ export default function JobDetails() {
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
           <p className="text-muted-foreground">Job Details</p>
         </div>
-        {permissions.canEditJobs() && (
-          <Button variant="outline" onClick={() => navigate(`/jobs/${id}/edit`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Job
-          </Button>
-        )}
       </div>
 
       {/* Tabbed Content */}
       <Card>
         <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); if (val === 'details') { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.delete('tab'); return sp; }); } else { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.set('tab', val); return sp; }); } }} className="w-full">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsList className="w-full flex-wrap h-auto justify-start rounded-none border-b bg-transparent p-0 gap-0">
             <TabsTrigger 
               value="details" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
@@ -264,8 +258,14 @@ export default function JobDetails() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Job Information</CardTitle>
+                  {permissions.canEditJobs() && (
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${id}/edit`)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {job.client && (
