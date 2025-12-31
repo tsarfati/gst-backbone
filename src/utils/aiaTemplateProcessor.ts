@@ -157,18 +157,22 @@ function normalizeSharedFormulas(workbook: ExcelJS.Workbook) {
   workbook.eachSheet((ws) => {
     ws.eachRow({ includeEmpty: true }, (row) => {
       row.eachCell({ includeEmpty: true }, (cell) => {
-        const val: any = cell.value as any;
-        if (!val || typeof val !== 'object') return;
-        if (!('sharedFormula' in val)) return;
+        const model: any = (cell as any).model;
+        const valRaw: any = cell.value as any;
+        const val: any = valRaw && typeof valRaw === 'object' ? valRaw : {};
 
-        const sharedAddr = String(val.sharedFormula || '');
-        const master = sharedAddr ? ws.getCell(sharedAddr) : null;
+        const sharedAddr = String(val.sharedFormula || model?.sharedFormula || '');
+        if (!sharedAddr) return;
 
-        const masterFormula = (master as any)?.formula as string | undefined;
-        const cellFormula = (cell as any).formula as string | undefined;
+        const master = ws.getCell(sharedAddr);
+        const masterVal: any = master?.value as any;
+
+        // IMPORTANT: do NOT access cell.formula/master.formula getters; they can throw on broken shared formulas.
+        const masterFormula = masterVal && typeof masterVal === 'object' ? (masterVal.formula as string | undefined) : undefined;
+        const cellFormula = (val.formula as string | undefined) || (model?.formula as string | undefined);
 
         const cellAddr = parseA1Address(cell.address);
-        const masterAddr = sharedAddr ? parseA1Address(sharedAddr) : null;
+        const masterAddr = parseA1Address(sharedAddr);
         const deltaCol = cellAddr && masterAddr ? cellAddr.col - masterAddr.col : 0;
         const deltaRow = cellAddr && masterAddr ? cellAddr.row - masterAddr.row : 0;
 
@@ -182,7 +186,11 @@ function normalizeSharedFormulas(workbook: ExcelJS.Workbook) {
         const adjusted = masterAddr ? shiftFormula(baseFormula, deltaCol, deltaRow) : baseFormula;
         cell.value = {
           formula: adjusted,
-          result: val.result ?? (cell as any).result,
+          result:
+            val.result ??
+            model?.result ??
+            (masterVal && typeof masterVal === 'object' ? masterVal.result : undefined) ??
+            null,
         } as any;
       });
     });
