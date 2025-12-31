@@ -88,7 +88,7 @@ export default function ProjectCostTransactionHistory() {
           journal_entries!inner(
             id,
             entry_date,
-            entry_number,
+            reference,
             description,
             status
           ),
@@ -148,19 +148,19 @@ export default function ProjectCostTransactionHistory() {
 
       const allTransactions: Transaction[] = [
         // Journal entry lines (debit amounts are expenses)
-        ...(journalLines || [])
-          .filter((jl: any) => jl.debit_amount > 0)
-          .map((jl: any) => ({
-            id: jl.id,
-            date: jl.journal_entries?.entry_date || "",
-            description: jl.description || jl.journal_entries?.description || "Journal Entry",
-            amount: Number(jl.debit_amount) || 0,
-            type: "journal_entry" as const,
-            reference_number: jl.journal_entries?.entry_number || undefined,
-            job_name: jl.jobs?.name || "",
-            cost_code_description: jl.cost_codes?.description || "",
-            category: undefined,
-          })),
+         ...(journalLines || [])
+           .filter((jl: any) => jl.debit_amount > 0)
+           .map((jl: any) => ({
+             id: jl.id,
+             date: jl.journal_entries?.entry_date || "",
+             description: jl.description || jl.journal_entries?.description || "Journal Entry",
+             amount: Number(jl.debit_amount) || 0,
+             type: "journal_entry" as const,
+             reference_number: jl.journal_entries?.reference || undefined,
+             job_name: jl.jobs?.name || "",
+             cost_code_description: jl.cost_codes?.description || "",
+             category: undefined,
+           })),
         // Bills not yet posted (no journal entry)
         ...(bills || [])
           .filter((bill: any) => bill.status !== 'posted')
@@ -246,7 +246,7 @@ export default function ProjectCostTransactionHistory() {
     
     const tableData = transactions.map(t => [
       new Date(t.date).toLocaleDateString(),
-      t.type === "bill" ? "Bill" : "Credit Card",
+      t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
       t.reference_number || "-",
       t.description,
       t.job_name || "-",
@@ -284,7 +284,7 @@ export default function ProjectCostTransactionHistory() {
       ["Date", "Type", "Reference", "Description", "Job", "Cost Code", "Category", "Amount"],
       ...transactions.map(t => [
         new Date(t.date).toLocaleDateString(),
-        t.type === "bill" ? "Bill" : "Credit Card",
+        t.type === "bill" ? "Bill" : t.type === "credit_card" ? "Credit Card" : "Posted",
         t.reference_number || "-",
         t.description,
         t.job_name || "-",
