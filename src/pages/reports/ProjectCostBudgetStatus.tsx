@@ -35,6 +35,7 @@ interface BudgetLine {
   dynamic_parent_code?: string;
   dynamic_parent_budget?: number;
   dynamic_group_spent?: number;
+  dynamic_group_remaining?: number;
 }
 
 interface Job {
@@ -127,9 +128,10 @@ export default function ProjectCostBudgetStatus() {
         .map((item: any) => {
           const actual = Number(item.actual_amount || 0);
           const committed = Number(item.committed_amount || 0);
+          const individualBudgeted = Number(item.budgeted_amount || 0);
 
           // Default: regular (non-dynamic) behavior
-          let budgeted = Number(item.budgeted_amount || 0);
+          let budgeted = individualBudgeted;
           let remaining = budgeted - actual - committed;
           let percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
 
@@ -137,20 +139,25 @@ export default function ProjectCostBudgetStatus() {
           let dynamicParentBudget: number | undefined;
           let dynamicParentBudgetId: string | undefined;
           let dynamicGroupSpent: number | undefined;
+          let dynamicGroupRemaining: number | undefined;
 
-          // If this is a child of a dynamic budget, use the dynamic parent budget for comparisons
+          // If this is a child of a dynamic budget, track group info but keep individual amounts
           if (item.parent_budget_id && dynamicParents.has(item.parent_budget_id)) {
             const parent = dynamicParents.get(item.parent_budget_id)!;
             const groupSpent = groupSpentMap.get(item.parent_budget_id) || 0;
 
-            budgeted = parent.budget;
-            remaining = parent.budget - groupSpent;
-            percentUsed = parent.budget > 0 ? (groupSpent / parent.budget) * 100 : 0;
-
+            // For display: show individual budgeted (usually 0 for dynamic children)
+            // but use group metrics for over-budget status
             dynamicParentCode = parent.code;
             dynamicParentBudget = parent.budget;
             dynamicParentBudgetId = item.parent_budget_id;
             dynamicGroupSpent = groupSpent;
+            dynamicGroupRemaining = parent.budget - groupSpent;
+
+            // For individual line: use their own budget/remaining
+            // remaining stays as individualBudgeted - actual - committed
+            // percentUsed for the group
+            percentUsed = parent.budget > 0 ? (groupSpent / parent.budget) * 100 : 0;
           }
 
           return {
@@ -170,6 +177,7 @@ export default function ProjectCostBudgetStatus() {
             dynamic_parent_code: dynamicParentCode,
             dynamic_parent_budget: dynamicParentBudget,
             dynamic_group_spent: dynamicGroupSpent,
+            dynamic_group_remaining: dynamicGroupRemaining,
           };
         });
 
@@ -215,13 +223,15 @@ export default function ProjectCostBudgetStatus() {
         acc.committed += line.committed;
 
         if (line.dynamic_parent_budget_id) {
+          // Only count dynamic group budget/remaining once per group
           if (!seenDynamic.has(line.dynamic_parent_budget_id)) {
             seenDynamic.add(line.dynamic_parent_budget_id);
-            const groupBudget = Number(line.dynamic_parent_budget ?? line.budgeted);
-            const groupSpent = Number(line.dynamic_group_spent ?? 0);
+            const groupBudget = Number(line.dynamic_parent_budget ?? 0);
+            const groupRemaining = Number(line.dynamic_group_remaining ?? 0);
             acc.budgeted += groupBudget;
-            acc.remaining += groupBudget - groupSpent;
+            acc.remaining += groupRemaining;
           }
+          // Don't add individual budgeted/remaining for dynamic children
         } else {
           acc.budgeted += line.budgeted;
           acc.remaining += line.remaining;
@@ -238,12 +248,12 @@ export default function ProjectCostBudgetStatus() {
 
     return budgetLines.reduce((count, line) => {
       if (line.dynamic_parent_budget_id) {
+        // Only count each dynamic group once for over-budget
         if (seenDynamic.has(line.dynamic_parent_budget_id)) return count;
         seenDynamic.add(line.dynamic_parent_budget_id);
 
-        const groupBudget = Number(line.dynamic_parent_budget ?? line.budgeted);
-        const groupSpent = Number(line.dynamic_group_spent ?? 0);
-        return groupBudget - groupSpent < 0 ? count + 1 : count;
+        const groupRemaining = Number(line.dynamic_group_remaining ?? 0);
+        return groupRemaining < 0 ? count + 1 : count;
       }
 
       return line.remaining < 0 ? count + 1 : count;
@@ -499,8 +509,24 @@ export default function ProjectCostBudgetStatus() {
                       <TableCell className="text-right">${formatNumber(line.budgeted)}</TableCell>
                       <TableCell className="text-right">${formatNumber(line.actual)}</TableCell>
                       <TableCell className="text-right text-amber-600">${formatNumber(line.committed)}</TableCell>
-                      <TableCell className={`text-right font-medium ${getStatusColor(line.remaining, line.budgeted)}`}>
-                        ${formatNumber(line.remaining)}
+                      <TableCell className={`text-right font-medium ${
+                        line.dynamic_parent_budget_id 
+                          ? getStatusColor(line.dynamic_group_remaining ?? 0, line.dynamic_parent_budget ?? 0)
+                          : getStatusColor(line.remaining, line.budgeted)
+                      }`}>
+                        {line.dynamic_parent_budget_id ? (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              ${formatNumber(line.dynamic_group_remaining ?? 0)}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Group remaining: ${formatNumber(line.dynamic_group_remaining ?? 0)}</p>
+                              <p>This line actual: ${formatNumber(line.actual)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          `$${formatNumber(line.remaining)}`
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
