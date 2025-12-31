@@ -188,7 +188,15 @@ export default function ProjectCostBudgetStatus() {
       // Process subcontracts with cost_distribution
       (subcontractRows || []).forEach((sub: any) => {
         if (!sub.job_id || !sub.cost_distribution) return;
-        const distribution = sub.cost_distribution;
+        // cost_distribution can be a JSON string or already parsed array
+        let distribution = sub.cost_distribution;
+        if (typeof distribution === 'string') {
+          try {
+            distribution = JSON.parse(distribution);
+          } catch {
+            return;
+          }
+        }
         if (Array.isArray(distribution)) {
           distribution.forEach((dist: any) => {
             if (!dist.cost_code_id) return;
