@@ -3800,6 +3800,7 @@ export type Database = {
           template_name: string | null
           template_type: string
           updated_at: string
+          use_company_logo: boolean | null
         }
         Insert: {
           auto_size_columns?: boolean | null
@@ -3827,6 +3828,7 @@ export type Database = {
           template_name?: string | null
           template_type: string
           updated_at?: string
+          use_company_logo?: boolean | null
         }
         Update: {
           auto_size_columns?: boolean | null
@@ -3854,6 +3856,7 @@ export type Database = {
           template_name?: string | null
           template_type?: string
           updated_at?: string
+          use_company_logo?: boolean | null
         }
         Relationships: [
           {
