@@ -2,28 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatNumber } from './formatNumber';
 import { format } from 'date-fns';
-
-// Helper to load image and convert to data URL for jsPDF
-const loadImageAsDataUrl = async (url: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
-    img.src = url;
-  });
-};
+import { loadPdfTemplate, loadImageAsDataUrl, hexToRgb, replacePlaceholders } from './pdfTemplateLoader';
 
 interface SubcontractData {
   name: string;
@@ -73,40 +52,32 @@ export const generateCommitmentStatusReport = async (
 ) => {
   const pdf = new jsPDF();
   const pageWidth = pdf.internal.pageSize.width;
+  const pageHeight = pdf.internal.pageSize.height;
   const margin = 20;
   let yPosition = margin;
 
-  // Load and add header images/logos from template if available
-  if (company.id) {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      const { data: template } = await supabase
-        .from('pdf_templates')
-        .select('header_images')
-        .eq('company_id', company.id)
-        .eq('template_type', 'commitment')
-        .maybeSingle();
+  // Load template settings
+  const template = company.id ? await loadPdfTemplate(company.id) : null;
+  const primaryColor = template?.primary_color ? hexToRgb(template.primary_color) : [30, 64, 175];
+  const tableHeaderBg = template?.table_header_bg ? hexToRgb(template.table_header_bg) : [219, 234, 254];
 
-      if (template?.header_images && Array.isArray(template.header_images) && template.header_images.length > 0) {
-        for (const img of template.header_images) {
-          try {
-            const imgData = img as any;
-            const dataUrl = await loadImageAsDataUrl(imgData.url);
-            pdf.addImage(dataUrl, 'PNG', imgData.x, imgData.y, imgData.width, imgData.height);
-          } catch (e) {
-            console.error('Failed to load header image:', e);
-          }
-        }
-      }
+  // Add logo if configured
+  if (template?.use_company_logo && template.logo_url) {
+    try {
+      const logoDataUrl = await loadImageAsDataUrl(template.logo_url);
+      pdf.addImage(logoDataUrl, 'PNG', margin, yPosition, 40, 20);
+      yPosition += 25;
     } catch (e) {
-      console.warn('Could not load template header images:', e);
+      console.warn('Failed to load logo:', e);
     }
   }
 
   // Header
   pdf.setFontSize(18);
   pdf.setFont(undefined, 'bold');
+  pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.text('Commitment Status Report', margin, yPosition);
+  pdf.setTextColor(0, 0, 0);
   yPosition += 10;
 
   // Company and Job Info
@@ -126,7 +97,9 @@ export const generateCommitmentStatusReport = async (
   // Subcontract Details
   pdf.setFontSize(14);
   pdf.setFont(undefined, 'bold');
+  pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.text('Subcontract Information', margin, yPosition);
+  pdf.setTextColor(0, 0, 0);
   yPosition += 10;
 
   pdf.setFontSize(10);
@@ -154,11 +127,13 @@ export const generateCommitmentStatusReport = async (
 
   pdf.setFontSize(12);
   pdf.setFont(undefined, 'bold');
+  pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.text('Financial Summary', margin, yPosition);
+  pdf.setTextColor(0, 0, 0);
   yPosition += 10;
 
   // Summary Box
-  pdf.setFillColor(240, 240, 240);
+  pdf.setFillColor(tableHeaderBg[0], tableHeaderBg[1], tableHeaderBg[2]);
   pdf.rect(margin, yPosition, pageWidth - 2 * margin, 50, 'F');
   
   pdf.setFontSize(10);
@@ -180,7 +155,7 @@ export const generateCommitmentStatusReport = async (
 
   // Contract Balance highlighted
   pdf.setFont(undefined, 'bold');
-  pdf.setFillColor(40, 40, 40);
+  pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.rect(margin, yPosition, pageWidth - 2 * margin, 10, 'F');
   pdf.setTextColor(255, 255, 255);
   pdf.text('Contract Balance:', margin + 5, yPosition + 7);
@@ -192,7 +167,9 @@ export const generateCommitmentStatusReport = async (
   if (invoices.length > 0) {
     pdf.setFontSize(12);
     pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     pdf.text('Invoices', margin, yPosition);
+    pdf.setTextColor(0, 0, 0);
     yPosition += 10;
 
     const tableData = invoices.map(inv => [
@@ -208,7 +185,10 @@ export const generateCommitmentStatusReport = async (
       head: [['Invoice #', 'Date', 'Amount', 'Status', 'Due Date']],
       body: tableData,
       theme: 'grid',
-      headStyles: { fillColor: [100, 100, 100] },
+      headStyles: { 
+        fillColor: primaryColor as [number, number, number],
+        textColor: [255, 255, 255]
+      },
       styles: { fontSize: 9 },
       margin: { left: margin, right: margin },
     });
@@ -219,14 +199,16 @@ export const generateCommitmentStatusReport = async (
   // Payments Table
   if (payments.length > 0) {
     // Check if we need a new page
-    if (yPosition > pdf.internal.pageSize.height - 80) {
+    if (yPosition > pageHeight - 80) {
       pdf.addPage();
       yPosition = margin;
     }
 
     pdf.setFontSize(12);
     pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     pdf.text('Payments', margin, yPosition);
+    pdf.setTextColor(0, 0, 0);
     yPosition += 10;
 
     const paymentTableData = payments.map(pmt => [
@@ -243,7 +225,10 @@ export const generateCommitmentStatusReport = async (
       head: [['Payment #', 'Date', 'Amount', 'Method', 'Check #', 'Memo']],
       body: paymentTableData,
       theme: 'grid',
-      headStyles: { fillColor: [100, 100, 100] },
+      headStyles: { 
+        fillColor: primaryColor as [number, number, number],
+        textColor: [255, 255, 255]
+      },
       styles: { fontSize: 9 },
       margin: { left: margin, right: margin },
     });
@@ -252,14 +237,29 @@ export const generateCommitmentStatusReport = async (
   }
 
   // Footer
-  const pageHeight = pdf.internal.pageSize.height;
   pdf.setFontSize(8);
   pdf.setFont(undefined, 'normal');
+  pdf.setTextColor(100, 100, 100);
   pdf.text(
     `Generated on ${format(new Date(), 'MM/dd/yyyy \'at\' h:mm a')}`,
     margin,
     pageHeight - 15
   );
+
+  // Add custom footer if configured
+  if (template?.footer_html) {
+    const footerText = replacePlaceholders(template.footer_html, {
+      company_name: company.name,
+      generated_date: format(new Date(), 'MM/dd/yyyy'),
+      page: '1',
+      pages: '1'
+    });
+    // Strip HTML tags for plain text footer
+    const plainFooter = footerText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (plainFooter) {
+      pdf.text(plainFooter.substring(0, 100), pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+  }
 
   // Download
   try {

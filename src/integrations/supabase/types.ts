@@ -86,6 +86,196 @@ export type Database = {
           },
         ]
       }
+      ar_invoices: {
+        Row: {
+          amount: number
+          balance_due: number | null
+          company_id: string
+          created_at: string
+          created_by: string
+          customer_id: string
+          description: string | null
+          due_date: string | null
+          file_url: string | null
+          id: string
+          invoice_number: string
+          issue_date: string
+          job_id: string | null
+          notes: string | null
+          paid_amount: number | null
+          status: string
+          tax_amount: number | null
+          terms: string | null
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          balance_due?: number | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          customer_id: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          invoice_number: string
+          issue_date?: string
+          job_id?: string | null
+          notes?: string | null
+          paid_amount?: number | null
+          status?: string
+          tax_amount?: number | null
+          terms?: string | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          balance_due?: number | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          invoice_number?: string
+          issue_date?: string
+          job_id?: string | null
+          notes?: string | null
+          paid_amount?: number | null
+          status?: string
+          tax_amount?: number | null
+          terms?: string | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "ar_invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ar_payments: {
+        Row: {
+          amount: number
+          ar_invoice_id: string | null
+          bank_account_id: string | null
+          check_number: string | null
+          company_id: string
+          created_at: string
+          created_by: string
+          customer_id: string
+          deposit_date: string | null
+          id: string
+          memo: string | null
+          notes: string | null
+          payment_date: string
+          payment_method: string | null
+          payment_number: string | null
+          reference_number: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          ar_invoice_id?: string | null
+          bank_account_id?: string | null
+          check_number?: string | null
+          company_id: string
+          created_at?: string
+          created_by: string
+          customer_id: string
+          deposit_date?: string | null
+          id?: string
+          memo?: string | null
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          payment_number?: string | null
+          reference_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          ar_invoice_id?: string | null
+          bank_account_id?: string | null
+          check_number?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          customer_id?: string
+          deposit_date?: string | null
+          id?: string
+          memo?: string | null
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          payment_number?: string | null
+          reference_number?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_payments_ar_invoice_id_fkey"
+            columns: ["ar_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "ar_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_payments_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_name: string
@@ -1579,6 +1769,86 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "custom_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_id: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string
+          credit_limit: number | null
+          current_balance: number | null
+          display_name: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          payment_terms: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_id: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by: string
+          credit_limit?: number | null
+          current_balance?: number | null
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          payment_terms?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_id?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string
+          credit_limit?: number | null
+          current_balance?: number | null
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          payment_terms?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
