@@ -78,9 +78,11 @@ export default function ProjectCostBudgetStatus() {
     try {
       setLoading(true);
 
-      let query = supabase
+      // Base budgets
+      let budgetsQuery = supabase
         .from("job_budgets")
-        .select(`
+        .select(
+          `
           id,
           job_id,
           cost_code_id,
@@ -90,49 +92,128 @@ export default function ProjectCostBudgetStatus() {
           is_dynamic,
           parent_budget_id,
           jobs!inner(id, name, company_id),
-          cost_codes!inner(id, code, description, type)
-        `)
+          cost_codes!inner(id, code, description, type, parent_cost_code_id)
+        `
+        )
         .eq("jobs.company_id", currentCompany!.id);
 
+      // Unposted bills (invoices) = committed
+      let committedBillsQuery = supabase
+        .from("invoices")
+        .select(
+          `
+          id,
+          job_id,
+          cost_code_id,
+          amount,
+          status,
+          jobs!inner(company_id)
+        `
+        )
+        .eq("jobs.company_id", currentCompany!.id)
+        .neq("status", "posted");
+
+      // Unposted credit card transactions (no journal_entry_id) = committed
+      let committedCcQuery = supabase
+        .from("credit_card_transaction_distributions")
+        .select(
+          `
+          id,
+          job_id,
+          cost_code_id,
+          amount,
+          company_id,
+          credit_card_transactions(journal_entry_id)
+        `
+        )
+        .eq("company_id", currentCompany!.id);
+
       if (selectedJob !== "all") {
-        query = query.eq("job_id", selectedJob);
+        budgetsQuery = budgetsQuery.eq("job_id", selectedJob);
+        committedBillsQuery = committedBillsQuery.eq("job_id", selectedJob);
+        committedCcQuery = committedCcQuery.eq("job_id", selectedJob);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const [{ data: budgetRows, error: budgetsError }, { data: billRows, error: billsError }, { data: ccRows, error: ccError }] =
+        await Promise.all([budgetsQuery, committedBillsQuery, committedCcQuery]);
 
-      const budgetMap = new Map((data || []).map((item: any) => [item.id, item]));
+      if (budgetsError) throw budgetsError;
+      if (billsError) throw billsError;
+      if (ccError) throw ccError;
 
-      // Dynamic parents live in job_budgets (is_dynamic = true)
-      const dynamicParents = new Map<string, { code: string; budget: number }>();
-      (data || []).forEach((item: any) => {
-        if (item.is_dynamic === true) {
-          dynamicParents.set(item.id, {
+      const data = budgetRows || [];
+
+      // Build committed map from unposted invoices + unposted CC distributions
+      const committedMap = new Map<string, number>();
+      (billRows || []).forEach((b: any) => {
+        const key = `${b.job_id}:${b.cost_code_id}`;
+        committedMap.set(key, (committedMap.get(key) || 0) + Number(b.amount || 0));
+      });
+      (ccRows || [])
+        .filter((d: any) => !d.credit_card_transactions?.journal_entry_id)
+        .forEach((d: any) => {
+          const key = `${d.job_id}:${d.cost_code_id}`;
+          committedMap.set(key, (committedMap.get(key) || 0) + Number(d.amount || 0));
+        });
+
+      // Dynamic budgets are determined by cost code parent/child relationship
+      // (not by job_budgets.parent_budget_id).
+      const dynamicGroups = new Map<
+        string,
+        {
+          parentCostCodeId: string;
+          code: string;
+          budget: number;
+        }
+      >();
+
+      // Keyed by `${job_id}:${parent_cost_code_id}`
+      data.forEach((item: any) => {
+        if (item.is_dynamic !== true) return;
+        const parentCostCodeId = item.cost_code_id as string;
+        const key = `${item.job_id}:${parentCostCodeId}`;
+        const budget = Number(item.budgeted_amount || 0);
+        const existing = dynamicGroups.get(key);
+
+        // If duplicates exist, keep the largest budget (prevents inflated totals)
+        if (!existing || budget > existing.budget) {
+          dynamicGroups.set(key, {
+            parentCostCodeId,
             code: item.cost_codes?.code || "",
-            budget: Number(item.budgeted_amount || 0),
+            budget,
           });
         }
       });
 
-      // Sum child spend by dynamic parent budget id
+      // Sum spend (actual + committed) of children per dynamic group
       const groupSpentMap = new Map<string, number>();
-      (data || []).forEach((item: any) => {
-        if (!item.parent_budget_id) return;
-        const spent = Number(item.actual_amount || 0) + Number(item.committed_amount || 0);
-        groupSpentMap.set(item.parent_budget_id, (groupSpentMap.get(item.parent_budget_id) || 0) + spent);
-      });
+      data
+        .filter((item: any) => item.is_dynamic !== true)
+        .forEach((item: any) => {
+          const parentCostCodeId = item.cost_codes?.parent_cost_code_id as string | null | undefined;
+          if (!parentCostCodeId) return;
+
+          const groupKey = `${item.job_id}:${parentCostCodeId}`;
+          const group = dynamicGroups.get(groupKey);
+          if (!group) return;
+
+          const actual = Number(item.actual_amount || 0);
+          const committed = Number(committedMap.get(`${item.job_id}:${item.cost_code_id}`) || 0);
+          const spent = actual + committed;
+
+          groupSpentMap.set(groupKey, (groupSpentMap.get(groupKey) || 0) + spent);
+        });
 
       // Filter out dynamic parents from the list - show children (and regular codes)
-      const lines: BudgetLine[] = (data || [])
+      const lines: BudgetLine[] = data
         .filter((item: any) => item.is_dynamic !== true)
         .map((item: any) => {
           const actual = Number(item.actual_amount || 0);
-          const committed = Number(item.committed_amount || 0);
-          const individualBudgeted = Number(item.budgeted_amount || 0);
+          const committed = Number(committedMap.get(`${item.job_id}:${item.cost_code_id}`) || 0);
+          const budgeted = Number(item.budgeted_amount || 0);
+          const remaining = budgeted - actual - committed;
 
-          // Default: regular (non-dynamic) behavior
-          let budgeted = individualBudgeted;
-          let remaining = budgeted - actual - committed;
+          // Default percent used: line-based
           let percentUsed = budgeted > 0 ? ((actual + committed) / budgeted) * 100 : 0;
 
           let dynamicParentCode: string | undefined;
@@ -141,23 +222,23 @@ export default function ProjectCostBudgetStatus() {
           let dynamicGroupSpent: number | undefined;
           let dynamicGroupRemaining: number | undefined;
 
-          // If this is a child of a dynamic budget, track group info but keep individual amounts
-          if (item.parent_budget_id && dynamicParents.has(item.parent_budget_id)) {
-            const parent = dynamicParents.get(item.parent_budget_id)!;
-            const groupSpent = groupSpentMap.get(item.parent_budget_id) || 0;
+          // If this cost code rolls up to a dynamic parent cost code, treat it as dynamic child
+          const parentCostCodeId = item.cost_codes?.parent_cost_code_id as string | null | undefined;
+          if (parentCostCodeId) {
+            const groupKey = `${item.job_id}:${parentCostCodeId}`;
+            const group = dynamicGroups.get(groupKey);
+            if (group) {
+              const groupSpent = groupSpentMap.get(groupKey) || 0;
 
-            // For display: show individual budgeted (usually 0 for dynamic children)
-            // but use group metrics for over-budget status
-            dynamicParentCode = parent.code;
-            dynamicParentBudget = parent.budget;
-            dynamicParentBudgetId = item.parent_budget_id;
-            dynamicGroupSpent = groupSpent;
-            dynamicGroupRemaining = parent.budget - groupSpent;
+              dynamicParentBudgetId = groupKey; // used for grouping totals; stable across children
+              dynamicParentCode = group.code;
+              dynamicParentBudget = group.budget;
+              dynamicGroupSpent = groupSpent;
+              dynamicGroupRemaining = group.budget - groupSpent;
 
-            // For individual line: use their own budget/remaining
-            // remaining stays as individualBudgeted - actual - committed
-            // percentUsed for the group
-            percentUsed = parent.budget > 0 ? (groupSpent / parent.budget) * 100 : 0;
+              // For dynamic children: % used is group-based
+              percentUsed = group.budget > 0 ? (groupSpent / group.budget) * 100 : 0;
+            }
           }
 
           return {
