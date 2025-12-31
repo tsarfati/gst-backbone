@@ -25,7 +25,11 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -65,7 +69,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
           setPhotoPreview(URL.createObjectURL(blob));
           stopCamera();
         }
-      }, 'image/jpeg', 0.95);
+      }, 'image/jpeg', 1.0);
     }
   };
 
