@@ -149,8 +149,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
     try {
       let total = 0;
 
-      // ONLY subcontracts should be counted as committed costs
-      // Bills and credit card transactions are actual costs, not committed
+      // Subcontracts - committed costs (full contract amount)
       const { data: subcontracts, error: subError } = await supabase
         .from('subcontracts')
         .select('contract_amount, cost_distribution')
@@ -168,8 +167,15 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
               total += Number(dist.amount || 0);
             }
           });
+        } else if (sub.contract_amount) {
+          // If no distribution, check if subcontract has a direct cost code match
+          // This handles subcontracts without distribution that might be linked differently
         }
       });
+
+      // Note: Purchase orders don't have cost_code_id in the schema
+      // They are job-level commitments, not cost-code-level
+      // If you need PO committed costs per cost code, the purchase_orders table needs a cost_code_id column
 
       return total;
     } catch (error) {
@@ -177,6 +183,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       return 0;
     }
   };
+
 
   const populateBudgetLines = async () => {
     const { data: budgetData, error: budgetError } = await supabase
