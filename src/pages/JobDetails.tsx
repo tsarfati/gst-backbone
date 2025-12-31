@@ -18,6 +18,7 @@ import JobForecastingView from "@/components/JobForecastingView";
 import JobPhotoAlbum from "@/components/JobPhotoAlbum";
 import BillsNeedingCoding from "@/components/BillsNeedingCoding";
 import JobPlans from "@/components/JobPlans";
+import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 
 
@@ -221,6 +222,13 @@ export default function JobDetails() {
               <ClipboardList className="h-4 w-4 mr-2" />
               RFIs
             </TabsTrigger>
+            <TabsTrigger 
+              value="billing"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <DollarSign className="h-4 w-4 mr-2" />
+              Billing
+            </TabsTrigger>
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
                 value="filing-cabinet"
@@ -352,6 +360,10 @@ export default function JobDetails() {
 
           <TabsContent value="rfis" className="p-6">
             <JobRFIs jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="billing" className="p-6">
+            <JobBillingSetup jobId={id!} />
           </TabsContent>
 
           <TabsContent value="filing-cabinet" className="p-6">

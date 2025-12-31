@@ -86,13 +86,91 @@ export type Database = {
           },
         ]
       }
+      ar_invoice_line_items: {
+        Row: {
+          ar_invoice_id: string
+          balance_to_finish: number
+          company_id: string
+          created_at: string
+          id: string
+          materials_stored: number
+          percent_complete: number
+          previous_applications: number
+          retainage: number
+          scheduled_value: number
+          sov_id: string
+          this_period: number
+          total_completed: number
+          updated_at: string
+        }
+        Insert: {
+          ar_invoice_id: string
+          balance_to_finish?: number
+          company_id: string
+          created_at?: string
+          id?: string
+          materials_stored?: number
+          percent_complete?: number
+          previous_applications?: number
+          retainage?: number
+          scheduled_value?: number
+          sov_id: string
+          this_period?: number
+          total_completed?: number
+          updated_at?: string
+        }
+        Update: {
+          ar_invoice_id?: string
+          balance_to_finish?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          materials_stored?: number
+          percent_complete?: number
+          previous_applications?: number
+          retainage?: number
+          scheduled_value?: number
+          sov_id?: string
+          this_period?: number
+          total_completed?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_invoice_line_items_ar_invoice_id_fkey"
+            columns: ["ar_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "ar_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_invoice_line_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ar_invoice_line_items_sov_id_fkey"
+            columns: ["sov_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_of_values"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ar_invoices: {
         Row: {
           amount: number
+          application_number: number | null
           balance_due: number | null
+          change_orders_amount: number | null
           company_id: string
+          contract_amount: number | null
+          contract_date: string | null
           created_at: string
           created_by: string
+          current_payment_due: number | null
           customer_id: string
           description: string | null
           due_date: string | null
@@ -101,20 +179,30 @@ export type Database = {
           invoice_number: string
           issue_date: string
           job_id: string | null
+          less_previous_certificates: number | null
           notes: string | null
           paid_amount: number | null
+          period_from: string | null
+          period_to: string | null
+          retainage_percent: number | null
           status: string
           tax_amount: number | null
           terms: string | null
           total_amount: number
+          total_retainage: number | null
           updated_at: string
         }
         Insert: {
           amount?: number
+          application_number?: number | null
           balance_due?: number | null
+          change_orders_amount?: number | null
           company_id: string
+          contract_amount?: number | null
+          contract_date?: string | null
           created_at?: string
           created_by: string
+          current_payment_due?: number | null
           customer_id: string
           description?: string | null
           due_date?: string | null
@@ -123,20 +211,30 @@ export type Database = {
           invoice_number: string
           issue_date?: string
           job_id?: string | null
+          less_previous_certificates?: number | null
           notes?: string | null
           paid_amount?: number | null
+          period_from?: string | null
+          period_to?: string | null
+          retainage_percent?: number | null
           status?: string
           tax_amount?: number | null
           terms?: string | null
           total_amount?: number
+          total_retainage?: number | null
           updated_at?: string
         }
         Update: {
           amount?: number
+          application_number?: number | null
           balance_due?: number | null
+          change_orders_amount?: number | null
           company_id?: string
+          contract_amount?: number | null
+          contract_date?: string | null
           created_at?: string
           created_by?: string
+          current_payment_due?: number | null
           customer_id?: string
           description?: string | null
           due_date?: string | null
@@ -145,12 +243,17 @@ export type Database = {
           invoice_number?: string
           issue_date?: string
           job_id?: string | null
+          less_previous_certificates?: number | null
           notes?: string | null
           paid_amount?: number | null
+          period_from?: string | null
+          period_to?: string | null
+          retainage_percent?: number | null
           status?: string
           tax_amount?: number | null
           terms?: string | null
           total_amount?: number
+          total_retainage?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -5421,6 +5524,87 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      schedule_of_values: {
+        Row: {
+          company_id: string
+          cost_code_id: string | null
+          created_at: string
+          created_by: string
+          description: string
+          id: string
+          is_active: boolean
+          item_number: string
+          job_id: string
+          scheduled_value: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by: string
+          description: string
+          id?: string
+          is_active?: boolean
+          item_number: string
+          job_id: string
+          scheduled_value?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string
+          id?: string
+          is_active?: boolean
+          item_number?: string
+          job_id?: string
+          scheduled_value?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_of_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_of_values_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_of_values_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "schedule_of_values_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "schedule_of_values_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subcontracts: {
         Row: {
