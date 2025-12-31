@@ -106,69 +106,129 @@ export default function JobForecastingView() {
       const dynamicBudgets = (budgets || []).filter((b: any) => b.is_dynamic);
       const hasDynamicBudgets = dynamicBudgets.length > 0;
 
-      // Helper to get actuals from journal entries AND paid invoices
-      const getActualAmount = async (costCodeId: string): Promise<number> => {
-        // Get from posted journal entry lines
-        const { data: journalLines } = await supabase
-          .from('journal_entry_lines')
-          .select('debit_amount, journal_entries!inner(status)')
-          .eq('job_id', id)
-          .eq('cost_code_id', costCodeId)
-          .eq('journal_entries.status', 'posted');
+      // Load all job cost codes once so we can aggregate by *code* (handles duplicate cost_code_id records)
+      const { data: jobCostCodes, error: jobCostCodesError } = await supabase
+        .from("cost_codes")
+        .select("id, code")
+        .eq("job_id", id)
+        .eq("is_active", true);
 
-        const journalTotal = (journalLines || []).reduce(
-          (sum, line) => sum + Number(line.debit_amount || 0), 0
-        );
+      if (jobCostCodesError) throw jobCostCodesError;
 
-        // Get from paid invoices (these are actual costs)
-        const { data: paidInvoices } = await supabase
-          .from('invoices')
-          .select('amount')
-          .eq('job_id', id)
-          .eq('cost_code_id', costCodeId)
-          .eq('status', 'paid');
+      const codeToIds = new Map<string, string[]>();
+      (jobCostCodes || []).forEach((cc: any) => {
+        const code = String(cc.code || "").trim();
+        if (!code) return;
+        const arr = codeToIds.get(code) || [];
+        arr.push(cc.id);
+        codeToIds.set(code, arr);
+      });
 
-        const invoiceTotal = (paidInvoices || []).reduce(
-          (sum, inv) => sum + Number(inv.amount || 0), 0
-        );
-
-        return journalTotal + invoiceTotal;
+      const getIdsForCode = (code: string, fallbackCostCodeId: string): string[] => {
+        const ids = codeToIds.get(code);
+        return ids && ids.length > 0 ? ids : [fallbackCostCodeId];
       };
 
-      // Helper to get committed amounts from unpaid invoices, subcontracts, and POs
-      const getCommittedAmount = async (costCodeId: string): Promise<number> => {
-        let total = 0;
+      // Helper to get actuals (posted journal entry lines + PAID invoices)
+      const getActualAmount = async (costCodeIds: string[]): Promise<number> => {
+        // Posted journal entry lines
+        const { data: journalLines } = await supabase
+          .from("journal_entry_lines")
+          .select("debit_amount, journal_entries!inner(status)")
+          .eq("job_id", id)
+          .in("cost_code_id", costCodeIds)
+          .eq("journal_entries.status", "posted");
 
-        // Unpaid invoices (pending, approved, pending_payment, etc.) - not paid, not cancelled
-        const { data: unpaidInvoices } = await supabase
-          .from('invoices')
-          .select('amount, status')
-          .eq('job_id', id)
-          .eq('cost_code_id', costCodeId)
-          .not('status', 'in', '("paid","cancelled")');
-
-        total += (unpaidInvoices || []).reduce(
-          (sum, inv) => sum + Number(inv.amount || 0), 0
+        const journalTotal = (journalLines || []).reduce(
+          (sum, line) => sum + Number((line as any).debit_amount || 0),
+          0
         );
 
-        // Subcontracts - check cost_distribution
+        // Paid invoices (direct cost_code_id)
+        const { data: paidInvoices } = await supabase
+          .from("invoices")
+          .select("amount")
+          .eq("job_id", id)
+          .in("cost_code_id", costCodeIds)
+          .eq("status", "paid");
+
+        const invoiceTotal = (paidInvoices || []).reduce(
+          (sum, inv) => sum + Number((inv as any).amount || 0),
+          0
+        );
+
+        // Paid invoices (distributed)
+        const { data: paidDistributions } = await supabase
+          .from("invoice_cost_distributions")
+          .select("amount, invoices!inner(job_id,status)")
+          .in("cost_code_id", costCodeIds)
+          .eq("invoices.job_id", id)
+          .eq("invoices.status", "paid");
+
+        const distTotal = (paidDistributions || []).reduce(
+          (sum, d) => sum + Number((d as any).amount || 0),
+          0
+        );
+
+        return journalTotal + invoiceTotal + distTotal;
+      };
+
+      // Helper to get committed amounts (unpaid invoices + distributions + subcontracts + POs)
+      const getCommittedAmount = async (costCodeIds: string[]): Promise<number> => {
+        let total = 0;
+
+        // Unpaid invoices (direct cost_code_id)
+        const { data: unpaidInvoices } = await supabase
+          .from("invoices")
+          .select("amount, status")
+          .eq("job_id", id)
+          .in("cost_code_id", costCodeIds)
+          .not("status", "in", '("paid","cancelled")');
+
+        total += (unpaidInvoices || []).reduce(
+          (sum, inv) => sum + Number((inv as any).amount || 0),
+          0
+        );
+
+        // Unpaid invoices (distributed)
+        const { data: unpaidDistributions } = await supabase
+          .from("invoice_cost_distributions")
+          .select("amount, invoices!inner(job_id,status)")
+          .in("cost_code_id", costCodeIds)
+          .eq("invoices.job_id", id)
+          .not("invoices.status", "in", '("paid","cancelled")');
+
+        total += (unpaidDistributions || []).reduce(
+          (sum, d) => sum + Number((d as any).amount || 0),
+          0
+        );
+
+        // Subcontracts (cost_distribution)
         const { data: subcontracts } = await supabase
-          .from('subcontracts')
-          .select('contract_amount, cost_distribution')
-          .eq('job_id', id)
-          .not('status', 'eq', 'cancelled');
+          .from("subcontracts")
+          .select("cost_distribution")
+          .eq("job_id", id)
+          .not("status", "eq", "cancelled");
 
         (subcontracts || []).forEach((sub: any) => {
           const raw = sub.cost_distribution;
           let parsed: any = raw;
-          if (typeof raw === 'string') {
-            try { parsed = JSON.parse(raw); } catch { parsed = null; }
+          if (typeof raw === "string") {
+            try {
+              parsed = JSON.parse(raw);
+            } catch {
+              parsed = null;
+            }
           }
-          const items = Array.isArray(parsed) ? parsed : 
-            (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) ? parsed.items : [];
-          
+
+          const items = Array.isArray(parsed)
+            ? parsed
+            : parsed && typeof parsed === "object" && Array.isArray((parsed as any).items)
+              ? (parsed as any).items
+              : [];
+
           items.forEach((dist: any) => {
-            if (dist?.cost_code_id === costCodeId) {
+            if (dist?.cost_code_id && costCodeIds.includes(dist.cost_code_id)) {
               total += Number(dist?.amount || 0);
             }
           });
@@ -176,13 +236,13 @@ export default function JobForecastingView() {
 
         // Purchase orders
         const { data: purchaseOrders } = await (supabase as any)
-          .from('purchase_orders')
-          .select('amount, status')
-          .eq('job_id', id)
-          .eq('cost_code_id', costCodeId);
+          .from("purchase_orders")
+          .select("amount, status, cost_code_id")
+          .eq("job_id", id)
+          .in("cost_code_id", costCodeIds);
 
         (purchaseOrders || []).forEach((po: any) => {
-          if (po?.status !== 'cancelled') {
+          if (po?.status !== "cancelled") {
             total += Number(po?.amount || 0);
           }
         });
@@ -192,83 +252,94 @@ export default function JobForecastingView() {
 
       let lines: BudgetForecastLine[] = [];
 
-      if (hasDynamicBudgets) {
-        // Show dynamic budget parents with aggregated child data
-        lines = await Promise.all(
-          dynamicBudgets.map(async (parent: any) => {
-            // Find all children of this dynamic budget
-            const children = (budgets || []).filter((b: any) => b.parent_budget_id === parent.id);
-            
-            // Aggregate child actuals and committed from live queries
-            let totalActual = 0;
-            let totalCommitted = 0;
-            
-            for (const child of children) {
-              const childActual = await getActualAmount(child.cost_code_id);
-              const childCommitted = await getCommittedAmount(child.cost_code_id);
-              totalActual += childActual;
-              totalCommitted += childCommitted;
-            }
+      const dynamicParents = (budgets || []).filter((b: any) => b.is_dynamic);
+      const dynamicParentIds = new Set(dynamicParents.map((p: any) => p.id));
 
-            // If no children, use parent's own values from live queries
-            if (children.length === 0) {
-              totalActual = await getActualAmount(parent.cost_code_id);
-              totalCommitted = await getCommittedAmount(parent.cost_code_id);
-            }
+      // Dynamic parents, aggregated from children
+      const dynamicLines: BudgetForecastLine[] = await Promise.all(
+        dynamicParents.map(async (parent: any) => {
+          const children = (budgets || []).filter((b: any) => b.parent_budget_id === parent.id);
 
-            const budgeted = Number(parent.budgeted_amount || 0);
-            const spent = totalActual + totalCommitted;
+          let totalActual = 0;
+          let totalCommitted = 0;
+
+          for (const child of children) {
+            const code = child.cost_codes?.code || "";
+            const idsForCode = getIdsForCode(code, child.cost_code_id);
+            totalActual += await getActualAmount(idsForCode);
+            totalCommitted += await getCommittedAmount(idsForCode);
+          }
+
+          if (children.length === 0) {
+            const code = parent.cost_codes?.code || "";
+            const idsForCode = getIdsForCode(code, parent.cost_code_id);
+            totalActual = await getActualAmount(idsForCode);
+            totalCommitted = await getCommittedAmount(idsForCode);
+          }
+
+          const budgeted = Number(parent.budgeted_amount || 0);
+          const spent = totalActual + totalCommitted;
+          const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
+
+          const existingForecast = forecastMap.get(parent.cost_code_id);
+
+          return {
+            id: existingForecast?.id,
+            cost_code_id: parent.cost_code_id,
+            code: parent.cost_codes?.code || "",
+            description: parent.cost_codes?.description || "",
+            budgeted_amount: budgeted,
+            actual_amount: totalActual,
+            committed_amount: totalCommitted,
+            calculated_percent: calculatedPercent,
+            estimated_percent: existingForecast?.estimated_percent_complete ?? 0,
+            notes: existingForecast?.notes || "",
+            updated_at: existingForecast?.updated_at,
+            updated_by_name: existingForecast?.updated_by_name,
+          };
+        })
+      );
+
+      // Regular (non-dynamic) budget lines should still appear even if dynamic budgets exist
+      const regularLines: BudgetForecastLine[] = await Promise.all(
+        (budgets || [])
+          .filter(
+            (b: any) =>
+              !b.is_dynamic &&
+              !b.parent_budget_id &&
+              b.cost_codes &&
+              !b.cost_codes.code?.endsWith(".0") &&
+              !dynamicParentIds.has(b.id)
+          )
+          .map(async (b: any) => {
+            const code = b.cost_codes?.code || "";
+            const idsForCode = getIdsForCode(code, b.cost_code_id);
+            const actual = await getActualAmount(idsForCode);
+            const committed = await getCommittedAmount(idsForCode);
+
+            const budgeted = Number(b.budgeted_amount || 0);
+            const spent = actual + committed;
             const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
-            
-            const existingForecast = forecastMap.get(parent.cost_code_id);
-            
+            const existingForecast = forecastMap.get(b.cost_code_id);
+
             return {
               id: existingForecast?.id,
-              cost_code_id: parent.cost_code_id,
-              code: parent.cost_codes?.code || '',
-              description: parent.cost_codes?.description || '',
+              cost_code_id: b.cost_code_id,
+              code,
+              description: b.cost_codes?.description || "",
               budgeted_amount: budgeted,
-              actual_amount: totalActual,
-              committed_amount: totalCommitted,
+              actual_amount: actual,
+              committed_amount: committed,
               calculated_percent: calculatedPercent,
               estimated_percent: existingForecast?.estimated_percent_complete ?? 0,
-              notes: existingForecast?.notes || '',
+              notes: existingForecast?.notes || "",
               updated_at: existingForecast?.updated_at,
               updated_by_name: existingForecast?.updated_by_name,
             };
           })
-        );
-      } else {
-        // No dynamic budgets - show individual cost codes (excluding .0 suffix codes)
-        lines = await Promise.all(
-          (budgets || [])
-            .filter((b: any) => b.cost_codes && !b.cost_codes.code?.endsWith('.0'))
-            .map(async (b: any) => {
-              const actual = await getActualAmount(b.cost_code_id);
-              const committed = await getCommittedAmount(b.cost_code_id);
-              const budgeted = Number(b.budgeted_amount || 0);
-              const spent = actual + committed;
-              
-              const calculatedPercent = budgeted > 0 ? Math.min((spent / budgeted) * 100, 100) : 0;
-              const existingForecast = forecastMap.get(b.cost_code_id);
-              
-              return {
-                id: existingForecast?.id,
-                cost_code_id: b.cost_code_id,
-                code: b.cost_codes?.code || '',
-                description: b.cost_codes?.description || '',
-                budgeted_amount: budgeted,
-                actual_amount: actual,
-                committed_amount: committed,
-                calculated_percent: calculatedPercent,
-                estimated_percent: existingForecast?.estimated_percent_complete ?? 0,
-                notes: existingForecast?.notes || '',
-                updated_at: existingForecast?.updated_at,
-                updated_by_name: existingForecast?.updated_by_name,
-              };
-            })
-        );
-      }
+      );
+
+      lines = [...dynamicLines, ...regularLines];
 
       // Sort by cost code
       lines.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
