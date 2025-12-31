@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building, Plus } from "lucide-react";
+import { Building, Plus, X } from "lucide-react";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference } from "@/hooks/useUnifiedViewPreference";
 import JobCard from "@/components/JobCard";
@@ -10,9 +10,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { Badge } from "@/components/ui/badge";
 
 export default function Jobs() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -20,12 +22,22 @@ export default function Jobs() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('jobs-view', 'list');
+  
+  const customerId = searchParams.get("customerId");
+  const [customerName, setCustomerName] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && currentCompany) {
       // Clear previous company's jobs to avoid cross-company bleed
       setJobs([]);
       loadJobs();
+      
+      // Load customer name if filtering
+      if (customerId) {
+        loadCustomerName(customerId);
+      } else {
+        setCustomerName(null);
+      }
 
       // Live updates for job budget changes
       const channel = supabase
@@ -44,7 +56,16 @@ export default function Jobs() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user, currentCompany]);
+  }, [user, currentCompany, customerId]);
+
+  const loadCustomerName = async (custId: string) => {
+    const { data } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("id", custId)
+      .single();
+    setCustomerName(data?.name || null);
+  };
 
   const loadJobs = async () => {
     const companyId = currentCompany?.id;
@@ -61,12 +82,18 @@ export default function Jobs() {
       // Clear any existing jobs first to prevent cross-company contamination
       setJobs([]);
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('jobs')
         .select('*')
         .eq('company_id', companyId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .eq('is_active', true);
+      
+      // Filter by customer if specified
+      if (customerId) {
+        query = query.eq('customer_id', customerId);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Supabase error:', error);
@@ -206,6 +233,10 @@ export default function Jobs() {
     }
   };
 
+  const clearCustomerFilter = () => {
+    setSearchParams({});
+  };
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -214,6 +245,17 @@ export default function Jobs() {
           <p className="text-muted-foreground">
             Manage projects and view associated receipts
           </p>
+          {customerId && customerName && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm text-muted-foreground">Filtered by customer:</span>
+              <Badge variant="secondary" className="gap-1">
+                {customerName}
+                <button onClick={clearCustomerFilter} className="ml-1 hover:text-foreground">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <UnifiedViewSelector 
