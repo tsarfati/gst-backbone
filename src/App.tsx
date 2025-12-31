@@ -129,6 +129,7 @@ import ManualTimeEntry from "./pages/ManualTimeEntry";
 import PunchClockApp from "./pages/PunchClockApp";
 import Customers from "./pages/Customers";
 import CustomerDetails from "./pages/CustomerDetails";
+import CustomerEdit from "./pages/CustomerEdit";
 import ARInvoices from "./pages/ARInvoices";
 import ARPayments from "./pages/ARPayments";
 import ReceivablesReports from "./pages/ReceivablesReports";
@@ -400,6 +401,8 @@ function AuthenticatedRoutes() {
                 <Route path="receivables/dashboard" element={<ReceivablesDashboard />} />
                 <Route path="receivables/customers" element={<Customers />} />
                 <Route path="receivables/customers/:id" element={<CustomerDetails />} />
+                <Route path="receivables/customers/:id/edit" element={<CustomerEdit />} />
+                <Route path="receivables/customers/add" element={<CustomerEdit />} />
                 <Route path="receivables/invoices" element={<ARInvoices />} />
                 <Route path="receivables/invoices/add" element={<AddARInvoice />} />
                 <Route path="receivables/payments" element={<ARPayments />} />

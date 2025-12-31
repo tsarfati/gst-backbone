@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, Mail, Phone } from "lucide-react";
+import { Plus, Search, Building2, Mail, Phone, Briefcase } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 
 interface Customer {
@@ -21,6 +21,7 @@ interface Customer {
   state: string | null;
   current_balance: number;
   is_active: boolean;
+  job_count: number;
 }
 
 export default function Customers() {
@@ -41,14 +42,40 @@ export default function Customers() {
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Load customers
+      const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("id, name, display_name, email, phone, city, state, current_balance, is_active")
         .eq("company_id", currentCompany!.id)
         .order("name");
 
-      if (error) throw error;
-      setCustomers(data || []);
+      if (customerError) throw customerError;
+
+      // Load job counts per customer
+      const { data: jobCounts, error: jobError } = await supabase
+        .from("jobs")
+        .select("customer_id")
+        .eq("company_id", currentCompany!.id)
+        .not("customer_id", "is", null);
+
+      if (jobError) throw jobError;
+
+      // Count jobs per customer
+      const countMap = new Map<string, number>();
+      jobCounts?.forEach(job => {
+        if (job.customer_id) {
+          countMap.set(job.customer_id, (countMap.get(job.customer_id) || 0) + 1);
+        }
+      });
+
+      // Merge counts into customer data
+      const customersWithCounts = (customerData || []).map(c => ({
+        ...c,
+        job_count: countMap.get(c.id) || 0
+      }));
+
+      setCustomers(customersWithCounts);
     } catch (error: any) {
       console.error("Error loading customers:", error);
       toast({
@@ -69,6 +96,11 @@ export default function Customers() {
   );
 
   const totalBalance = filteredCustomers.reduce((sum, c) => sum + (c.current_balance || 0), 0);
+
+  const handleJobsClick = (e: React.MouseEvent, customerId: string) => {
+    e.stopPropagation();
+    navigate(`/jobs?customerId=${customerId}`);
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -140,6 +172,7 @@ export default function Customers() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead className="text-center">Jobs</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
@@ -184,6 +217,21 @@ export default function Customers() {
                       {customer.city && customer.state
                         ? `${customer.city}, ${customer.state}`
                         : customer.city || customer.state || "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {customer.job_count > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleJobsClick(e, customer.id)}
+                          className="h-8 gap-1"
+                        >
+                          <Briefcase className="h-3 w-3" />
+                          {customer.job_count}
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={customer.is_active ? "default" : "secondary"}>
