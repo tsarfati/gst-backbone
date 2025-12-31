@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
 
 interface BillDistributionItem {
@@ -19,13 +20,17 @@ interface BillDistributionSectionProps {
   billAmount: string;
   onChange: (distribution: BillDistributionItem[]) => void;
   jobId?: string;
+  onProcessDistribution?: () => void;
+  isProcessing?: boolean;
 }
 
 export default function BillDistributionSection({
   subcontractDistribution,
   billAmount,
   onChange,
-  jobId
+  jobId,
+  onProcessDistribution,
+  isProcessing
 }: BillDistributionSectionProps) {
   const [distributionItems, setDistributionItems] = useState<BillDistributionItem[]>([]);
 
@@ -85,6 +90,7 @@ export default function BillDistributionSection({
   const remaining = billAmountNum - totalDistributed;
   const isOverAllocated = totalDistributed > billAmountNum;
   const isUnderAllocated = Math.abs(remaining) > 0.01;
+  const isFullyDistributed = Math.abs(totalPercentage - 100) < 0.01 && !isOverAllocated;
 
   return (
     <Card>
@@ -175,6 +181,31 @@ export default function BillDistributionSection({
             <p className="text-sm text-warning">
               ${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining to be distributed
             </p>
+          </div>
+        )}
+
+        {/* Process Distribution Button */}
+        {onProcessDistribution && (
+          <div className="pt-4 border-t">
+            <Button
+              onClick={onProcessDistribution}
+              disabled={!isFullyDistributed || isProcessing}
+              className="w-full"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : isFullyDistributed ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Process Cost Distribution
+                </>
+              ) : (
+                'Complete Distribution to Process'
+              )}
+            </Button>
           </div>
         )}
       </CardContent>

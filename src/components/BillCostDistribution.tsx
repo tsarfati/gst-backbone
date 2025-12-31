@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Calculator, Check, ChevronsUpDown, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Calculator, Check, ChevronsUpDown, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,9 @@ interface BillCostDistributionProps {
   initialDistribution?: CostDistribution[];
   onChange: (distribution: CostDistribution[]) => void;
   disabled?: boolean;
+  onProcessDistribution?: () => void;
+  isProcessing?: boolean;
+  showProcessButton?: boolean;
 }
 
 interface Job {
@@ -52,7 +55,10 @@ export default function BillCostDistribution({
   companyId,
   initialDistribution = [], 
   onChange, 
-  disabled = false
+  disabled = false,
+  onProcessDistribution,
+  isProcessing,
+  showProcessButton = false
 }: BillCostDistributionProps) {
   const [distribution, setDistribution] = useState<CostDistribution[]>(
     initialDistribution.length > 0 
@@ -183,6 +189,7 @@ export default function BillCostDistribution({
   const remaining = totalAmount - totalDistributed;
   const isOverAllocated = totalDistributed > totalAmount + 0.01;
   const isUnderAllocated = remaining > 0.01;
+  const isFullyDistributed = Math.abs(totalPercentage - 100) < 0.01 && !isOverAllocated;
 
   if (loading) {
     return (
@@ -478,6 +485,31 @@ export default function BillCostDistribution({
             <p className="text-sm text-warning">
               ${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2 })} remaining to be distributed
             </p>
+          </div>
+        )}
+
+        {/* Process Distribution Button */}
+        {showProcessButton && onProcessDistribution && (
+          <div className="pt-4 border-t">
+            <Button
+              onClick={onProcessDistribution}
+              disabled={!isFullyDistributed || isProcessing}
+              className="w-full"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : isFullyDistributed ? (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Process Cost Distribution
+                </>
+              ) : (
+                'Complete Distribution to Process'
+              )}
+            </Button>
           </div>
         )}
       </CardContent>
