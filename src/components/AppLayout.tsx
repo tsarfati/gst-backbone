@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Shield, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,6 +102,18 @@ const navigationCategories = [
       { name: "All Tasks", href: "/tasks", menuKey: "jobs" },
       { name: "Project Tasks", href: "/tasks/projects", menuKey: "jobs" },
       { name: "Deadlines", href: "/tasks/deadlines", menuKey: "jobs" },
+    ],
+    collapsible: true,
+  },
+  {
+    title: "Receivables",
+    icon: HandCoins,
+    items: [
+      { name: "Dashboard", href: "/receivables", menuKey: "receivables" },
+      { name: "Customers", href: "/receivables/customers", menuKey: "receivables" },
+      { name: "Invoices", href: "/receivables/invoices", menuKey: "receivables" },
+      { name: "Payments", href: "/receivables/payments", menuKey: "receivables" },
+      { name: "Reports", href: "/receivables/reports", menuKey: "reports" },
     ],
     collapsible: true,
   },
