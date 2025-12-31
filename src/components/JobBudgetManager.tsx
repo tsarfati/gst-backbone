@@ -167,15 +167,23 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
               total += Number(dist.amount || 0);
             }
           });
-        } else if (sub.contract_amount) {
-          // If no distribution, check if subcontract has a direct cost code match
-          // This handles subcontracts without distribution that might be linked differently
         }
       });
 
-      // Note: Purchase orders don't have cost_code_id in the schema
-      // They are job-level commitments, not cost-code-level
-      // If you need PO committed costs per cost code, the purchase_orders table needs a cost_code_id column
+      // Purchase Orders - committed costs (full PO amount)
+      const { data: purchaseOrders, error: poError } = await supabase
+        .from('purchase_orders')
+        .select('amount, status')
+        .eq('job_id', jobId)
+        .eq('cost_code_id', costCodeId);
+
+      if (poError) throw poError;
+
+      (purchaseOrders || []).forEach((po: any) => {
+        if (po.status !== 'cancelled') {
+          total += Number(po.amount || 0);
+        }
+      });
 
       return total;
     } catch (error) {
@@ -702,10 +710,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                             )}
                           </TableCell>
                           <TableCell>
-                            <span className={`${
+                            <span className={`font-mono ${
                               isVarianceNegative
                                 ? 'text-destructive font-semibold' 
-                                : 'text-muted-foreground'
+                                : 'text-green-600 dark:text-green-500'
                             }`}>
                               {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>
