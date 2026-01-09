@@ -255,14 +255,23 @@ export default function TimecardReportFilters({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => updateFilters({ groups: groups.map(g => g.id) })}
+                  onClick={() => {
+                    const allGroupIds = groups.map(g => g.id);
+                    const allGroupEmployees = groupMemberships
+                      .filter(m => allGroupIds.includes(m.group_id))
+                      .map(m => m.user_id);
+                    updateFilters({ 
+                      groups: allGroupIds,
+                      employees: [...new Set([...filters.employees, ...allGroupEmployees])]
+                    });
+                  }}
                 >
                   Select All
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => updateFilters({ groups: [] })}
+                  onClick={() => updateFilters({ groups: [], employees: [] })}
                 >
                   Clear All
                 </Button>
