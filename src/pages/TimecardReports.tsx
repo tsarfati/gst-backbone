@@ -317,15 +317,38 @@ export default function TimecardReports() {
 
       setGroups(result || []);
 
-      // Load group memberships
+      // Load group memberships from both employee_group_members table and pin_employees.group_id
       if (result && result.length > 0) {
         const groupIds = result.map(g => g.id);
-        const { data: memberships } = await supabase
+        
+        // Get memberships from employee_group_members table
+        const { data: tableMemberships } = await supabase
           .from('employee_group_members')
           .select('group_id, user_id')
           .in('group_id', groupIds);
         
-        setGroupMemberships(memberships || []);
+        // Also get memberships from pin_employees.group_id column
+        const { data: pinEmployees } = await supabase
+          .from('pin_employees')
+          .select('id, group_id')
+          .in('group_id', groupIds);
+        
+        // Combine both sources of memberships
+        const allMemberships: GroupMembership[] = [];
+        
+        // Add from employee_group_members table
+        (tableMemberships || []).forEach(m => {
+          allMemberships.push({ group_id: m.group_id, user_id: m.user_id });
+        });
+        
+        // Add from pin_employees.group_id (use pin employee id as user_id)
+        (pinEmployees || []).forEach(p => {
+          if (p.group_id) {
+            allMemberships.push({ group_id: p.group_id, user_id: p.id });
+          }
+        });
+        
+        setGroupMemberships(allMemberships);
       } else {
         setGroupMemberships([]);
       }
