@@ -136,72 +136,26 @@ export default function TimecardReports() {
       
       const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
 
-      // Date range (use current filters)
-      const startISO = filters.startDate ? new Date(Date.UTC(
-        filters.startDate.getFullYear(),
-        filters.startDate.getMonth(),
-        filters.startDate.getDate(),
-        0, 0, 0, 0
-      )).toISOString() : undefined;
-      const endISO = filters.endDate ? new Date(Date.UTC(
-        filters.endDate.getFullYear(),
-        filters.endDate.getMonth(),
-        filters.endDate.getDate(),
-        23, 59, 59, 999
-      )).toISOString() : undefined;
-
-      // Build candidate PIN employee IDs based on settings and activity within date range for THIS company
-      const pinSettingsRes = await supabase
-        .from('pin_employee_timecard_settings')
-        .select('pin_employee_id')
-        .eq('company_id', currentCompany.id);
-
-      let tcQuery = supabase
-        .from('time_cards')
-        .select('user_id')
-        .eq('company_id', currentCompany.id);
-      if (startISO) tcQuery = tcQuery.gte('punch_in_time', startISO);
-      if (endISO) tcQuery = tcQuery.lte('punch_in_time', endISO);
-      const tcUsersRes = await tcQuery;
-
-      let punchQuery = supabase
-        .from('punch_records')
-        .select('pin_employee_id')
-        .eq('company_id', currentCompany.id);
-      if (startISO) punchQuery = punchQuery.gte('punch_time', startISO);
-      if (endISO) punchQuery = punchQuery.lte('punch_time', endISO);
-      const punchPinsRes = await punchQuery;
-
-      const pinFromSettings: string[] = (pinSettingsRes.data || []).map((r: any) => r.pin_employee_id);
-      const pinFromTimeCards: string[] = (tcUsersRes.data || []).map((r: any) => r.user_id);
-      const pinFromPunches: string[] = (punchPinsRes.data || []).map((r: any) => r.pin_employee_id).filter(Boolean);
-      const candidatePinIds = Array.from(new Set([...pinFromSettings, ...pinFromTimeCards, ...pinFromPunches]));
-
-      if (companyUserIds.length === 0 && candidatePinIds.length === 0) {
-        setEmployees([]);
-        return;
-      }
-
       // Load regular users
-      const profilesRes: any = await (supabase as any)
-        .from('profiles')
-        .select('user_id, display_name, first_name, last_name')
-        .in('user_id', companyUserIds.length > 0 ? companyUserIds : ['00000000-0000-0000-0000-000000000000']);
+      const profilesRes: any = companyUserIds.length > 0 
+        ? await (supabase as any)
+            .from('profiles')
+            .select('user_id, display_name, first_name, last_name')
+            .in('user_id', companyUserIds)
+        : { data: [] };
 
-      // Load PIN employees that actually appear for this company within the date range
+      // Load ALL active PIN employees for this company (not filtered by date range)
       const pinRes: any = await (supabase as any)
         .from('pin_employees')
         .select('id, display_name, first_name, last_name')
+        .eq('company_id', currentCompany.id)
         .eq('is_active', true)
-        .in('id', candidatePinIds.length > 0 ? candidatePinIds : ['00000000-0000-0000-0000-000000000000']);
+        .order('display_name');
 
       const list: Employee[] = [];
 
-      // Sort profiles and PIN employees before adding to list
+      // Sort profiles before adding to list
       const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) => 
-        (a.display_name || '').localeCompare(b.display_name || '')
-      );
-      const sortedPins = (pinRes.data || []).sort((a: any, b: any) => 
         (a.display_name || '').localeCompare(b.display_name || '')
       );
 
@@ -215,7 +169,7 @@ export default function TimecardReports() {
         });
       });
 
-      sortedPins.forEach((p: any) => {
+      (pinRes.data || []).forEach((p: any) => {
         // Avoid duplicates if a user exists as a regular profile too
         if (!list.find((e) => e.user_id === p.id)) {
           list.push({
