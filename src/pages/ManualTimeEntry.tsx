@@ -81,23 +81,50 @@ export default function ManualTimeEntry() {
     if (!currentCompany?.id || !formData.user_id) return;
     
     try {
-      // Check if the selected employee has assigned jobs
-      const { data: settings } = await supabase
-        .from('employee_timecard_settings')
-        .select('assigned_jobs')
-        .eq('user_id', formData.user_id)
+      // First check if this is a PIN employee
+      const { data: pinEmployee } = await supabase
+        .from('pin_employees')
+        .select('id')
+        .eq('id', formData.user_id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       
-      // Get the selected employee's profile to check global access
-      const { data: employeeProfile } = await supabase
-        .from('profiles')
-        .select('has_global_job_access')
-        .eq('user_id', formData.user_id)
-        .single();
+      const isPinEmployee = !!pinEmployee;
       
-      const assignedJobs = settings?.assigned_jobs || [];
-      const hasGlobal = employeeProfile?.has_global_job_access ?? true;
+      let assignedJobs: string[] = [];
+      let hasGlobal = true;
+
+      if (isPinEmployee) {
+        // Get PIN employee settings
+        const { data: pinSettings } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('pin_employee_id', formData.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        
+        assignedJobs = pinSettings?.assigned_jobs || [];
+        // PIN employees don't have global access flag - if they have assignments, use them
+        hasGlobal = assignedJobs.length === 0;
+      } else {
+        // Get regular employee settings
+        const { data: settings } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('user_id', formData.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        
+        // Get the selected employee's profile to check global access
+        const { data: employeeProfile } = await supabase
+          .from('profiles')
+          .select('has_global_job_access')
+          .eq('user_id', formData.user_id)
+          .single();
+        
+        assignedJobs = settings?.assigned_jobs || [];
+        hasGlobal = employeeProfile?.has_global_job_access ?? true;
+      }
 
       let jobsQuery = supabase
         .from('jobs')
@@ -133,23 +160,50 @@ export default function ManualTimeEntry() {
     if (!currentCompany?.id || !formData.user_id) return;
     
     try {
-      // Check if the selected employee has assigned cost codes
-      const { data: settings } = await supabase
-        .from('employee_timecard_settings')
-        .select('assigned_cost_codes')
-        .eq('user_id', formData.user_id)
+      // First check if this is a PIN employee
+      const { data: pinEmployee } = await supabase
+        .from('pin_employees')
+        .select('id')
+        .eq('id', formData.user_id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       
-      // Get the selected employee's profile to check global access
-      const { data: employeeProfile } = await supabase
-        .from('profiles')
-        .select('has_global_job_access')
-        .eq('user_id', formData.user_id)
-        .single();
+      const isPinEmployee = !!pinEmployee;
       
-      const assignedCostCodes = settings?.assigned_cost_codes || [];
-      const hasGlobal = employeeProfile?.has_global_job_access ?? true;
+      let assignedCostCodes: string[] = [];
+      let hasGlobal = true;
+
+      if (isPinEmployee) {
+        // Get PIN employee settings
+        const { data: pinSettings } = await supabase
+          .from('pin_employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('pin_employee_id', formData.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        
+        assignedCostCodes = pinSettings?.assigned_cost_codes || [];
+        // PIN employees don't have global access flag - if they have assignments, use them
+        hasGlobal = assignedCostCodes.length === 0;
+      } else {
+        // Get regular employee settings
+        const { data: settings } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('user_id', formData.user_id)
+          .eq('company_id', currentCompany.id)
+          .maybeSingle();
+        
+        // Get the selected employee's profile to check global access
+        const { data: employeeProfile } = await supabase
+          .from('profiles')
+          .select('has_global_job_access')
+          .eq('user_id', formData.user_id)
+          .single();
+        
+        assignedCostCodes = settings?.assigned_cost_codes || [];
+        hasGlobal = employeeProfile?.has_global_job_access ?? true;
+      }
 
       let costCodesQuery = supabase
         .from('cost_codes')
