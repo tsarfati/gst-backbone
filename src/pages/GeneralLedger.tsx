@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CalendarIcon, ChevronDown, Loader2, Download, FileDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { CalendarIcon, ChevronDown, Loader2, Download, FileDown, X } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -35,11 +37,14 @@ interface LedgerLine {
   debit_amount: number | null;
   credit_amount: number | null;
   is_reversed?: boolean;
+  job_id?: string | null;
+  cost_code_id?: string | null;
 }
 
 export default function GeneralLedger() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
@@ -49,6 +54,12 @@ export default function GeneralLedger() {
   const [lines, setLines] = useState<LedgerLine[]>([]);
   const [periodFilter, setPeriodFilter] = useState("custom");
   const [showReversed, setShowReversed] = useState(true);
+  
+  // URL-based filters for job/cost code drill-down
+  const filterJobId = searchParams.get("jobId");
+  const filterCostCodeId = searchParams.get("costCodeId");
+  const filterJobName = searchParams.get("jobName");
+  const filterCostCodeDescription = searchParams.get("costCodeDescription");
 
   // Load accounts
   useEffect(() => {
@@ -121,18 +132,32 @@ export default function GeneralLedger() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Build query with optional job/cost code filters
+      let query = supabase
         .from("journal_entry_lines")
         .select(
-          `id, description, debit_amount, credit_amount, account_id,
+          `id, description, debit_amount, credit_amount, account_id, job_id, cost_code_id,
            journal_entries!inner(entry_date, reference, status, company_id, is_reversed)`
         )
         .in("account_id", accountIds)
         .eq("journal_entries.company_id", currentCompany.id)
         .eq("journal_entries.status", "posted")
         .gte("journal_entries.entry_date", format(dateStart, "yyyy-MM-dd"))
-        .lte("journal_entries.entry_date", format(dateEnd, "yyyy-MM-dd"))
-        .order("journal_entries(entry_date)", { ascending: true });
+        .lte("journal_entries.entry_date", format(dateEnd, "yyyy-MM-dd"));
+      
+      // Apply job filter if provided via URL
+      if (filterJobId) {
+        query = query.eq("job_id", filterJobId);
+      }
+      
+      // Apply cost code filter if provided via URL
+      if (filterCostCodeId) {
+        query = query.eq("cost_code_id", filterCostCodeId);
+      }
+      
+      query = query.order("journal_entries(entry_date)", { ascending: true });
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -145,6 +170,8 @@ export default function GeneralLedger() {
         entry_date: row.journal_entries.entry_date,
         reference: row.journal_entries.reference,
         is_reversed: row.journal_entries.is_reversed || false,
+        job_id: row.job_id,
+        cost_code_id: row.cost_code_id,
       }));
 
       // Filter out reversed transactions if toggle is off
@@ -178,7 +205,11 @@ export default function GeneralLedger() {
   useEffect(() => {
     if (accounts.length) loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts.length, showReversed]);
+  }, [accounts.length, showReversed, filterJobId, filterCostCodeId]);
+
+  const clearJobCostCodeFilter = () => {
+    setSearchParams({});
+  };
 
   const accountMap = useMemo(() => {
     const m = new Map<string, Account>();
@@ -332,6 +363,31 @@ const formatCurrency = (n: number | null | undefined) =>
       <header className="mb-6">
         <h1 className="text-2xl font-bold">General Ledger</h1>
         <p className="text-muted-foreground">Filter by date and accounts, then view detailed ledger lines.</p>
+        
+        {/* Show active job/cost code filter badge */}
+        {(filterJobId || filterCostCodeId) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {filterJobName && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                Job: {filterJobName}
+              </Badge>
+            )}
+            {filterCostCodeDescription && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                Cost Code: {filterCostCodeDescription}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearJobCostCodeFilter}
+              className="h-6 px-2 text-xs"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear Filter
+            </Button>
+          </div>
+        )}
       </header>
 
       <Card className="mb-6">

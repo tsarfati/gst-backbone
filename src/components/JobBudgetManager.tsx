@@ -656,9 +656,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     costCodeId: line.cost_code_id,
                                     jobName: jobName || "",
                                     costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
-                                    type: "actual",
                                   });
-                                  navigate(`/construction/reports/cost-history?${params.toString()}`);
+                                  navigate(`/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
                                   "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
@@ -676,9 +675,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     costCodeId: line.cost_code_id,
                                     jobName: jobName || "",
                                     costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
-                                    type: "actual",
                                   });
-                                  navigate(`/construction/reports/cost-history?${params.toString()}`);
+                                  navigate(`/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
                                   "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
