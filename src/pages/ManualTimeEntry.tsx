@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,13 @@ interface Employee {
   display_name: string;
 }
 
+interface EmployeeTimecardAccess {
+  is_pin: boolean;
+  assigned_jobs: string[];
+  assigned_cost_codes: string[];
+  has_global_job_access: boolean;
+}
+
 export default function ManualTimeEntry() {
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
@@ -37,6 +44,8 @@ export default function ManualTimeEntry() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+
+  const accessCacheRef = useRef<Map<string, EmployeeTimecardAccess>>(new Map());
 
   const [formData, setFormData] = useState({
     user_id: '',
@@ -53,6 +62,9 @@ export default function ManualTimeEntry() {
 
   useEffect(() => {
     if (currentCompany?.id) {
+      // Company context changed -> clear access cache
+      accessCacheRef.current = new Map();
+
       loadEmployees();
       // Set current user as default if not a manager
       if (!isManager && user?.id) {
@@ -77,54 +89,42 @@ export default function ManualTimeEntry() {
     }
   }, [formData.job_id, currentCompany?.id]);
 
+  const getEmployeeTimecardAccess = async (employeeUserId: string): Promise<EmployeeTimecardAccess | null> => {
+    if (!currentCompany?.id || !employeeUserId) return null;
+
+    // Small cache to avoid re-fetching while the user is filling the form
+    const cached = accessCacheRef.current.get(employeeUserId);
+    if (cached) return cached;
+
+    const { data, error } = await supabase.functions.invoke('get-employee-timecard-access', {
+      body: {
+        company_id: currentCompany.id,
+        employee_user_id: employeeUserId,
+      },
+    });
+
+    if (error) throw error;
+
+    const access: EmployeeTimecardAccess | undefined = data?.access;
+    if (!access) return null;
+
+    accessCacheRef.current.set(employeeUserId, access);
+    return access;
+  };
+
   const loadJobs = async () => {
     if (!currentCompany?.id || !formData.user_id) return;
-    
-    try {
-      // First check if this is a PIN employee
-      const { data: pinEmployee } = await supabase
-        .from('pin_employees')
-        .select('id')
-        .eq('id', formData.user_id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
-      
-      const isPinEmployee = !!pinEmployee;
-      
-      let assignedJobs: string[] = [];
-      let hasGlobal = true;
 
-      if (isPinEmployee) {
-        // Get PIN employee settings
-        const { data: pinSettings } = await supabase
-          .from('pin_employee_timecard_settings')
-          .select('assigned_jobs')
-          .eq('pin_employee_id', formData.user_id)
-          .eq('company_id', currentCompany.id)
-          .maybeSingle();
-        
-        assignedJobs = pinSettings?.assigned_jobs || [];
-        // PIN employees don't have global access flag - if they have assignments, use them
-        hasGlobal = assignedJobs.length === 0;
-      } else {
-        // Get regular employee settings
-        const { data: settings } = await supabase
-          .from('employee_timecard_settings')
-          .select('assigned_jobs')
-          .eq('user_id', formData.user_id)
-          .eq('company_id', currentCompany.id)
-          .maybeSingle();
-        
-        // Get the selected employee's profile to check global access
-        const { data: employeeProfile } = await supabase
-          .from('profiles')
-          .select('has_global_job_access')
-          .eq('user_id', formData.user_id)
-          .single();
-        
-        assignedJobs = settings?.assigned_jobs || [];
-        hasGlobal = employeeProfile?.has_global_job_access ?? true;
+    try {
+      const access = await getEmployeeTimecardAccess(formData.user_id);
+      if (!access) {
+        setJobs([]);
+        return;
       }
+
+      const hasGlobalJobs = access.is_pin
+        ? (access.assigned_jobs?.length ?? 0) === 0
+        : access.has_global_job_access;
 
       let jobsQuery = supabase
         .from('jobs')
@@ -132,26 +132,25 @@ export default function ManualTimeEntry() {
         .eq('company_id', currentCompany.id)
         .in('status', ['active', 'planning'])
         .order('name');
-      
-      // Filter by assigned jobs if user has specific assignments and no global access
-      if (!hasGlobal && assignedJobs.length > 0) {
+
+      if (!hasGlobalJobs) {
+        const assignedJobs = access.assigned_jobs ?? [];
+        if (assignedJobs.length === 0) {
+          setJobs([]);
+          return;
+        }
         jobsQuery = jobsQuery.in('id', assignedJobs);
-      } else if (!hasGlobal && assignedJobs.length === 0) {
-        // No jobs available for this user
-        setJobs([]);
-        return;
       }
-      
+
       const { data, error } = await jobsQuery;
-      
       if (error) throw error;
       setJobs(data || []);
     } catch (error) {
       console.error('Error loading jobs:', error);
       toast({
-        title: "Error",
-        description: "Failed to load jobs.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load jobs.',
+        variant: 'destructive',
       });
     }
   };
@@ -160,50 +159,12 @@ export default function ManualTimeEntry() {
     if (!currentCompany?.id || !formData.user_id) return;
 
     try {
-      // First check if this is a PIN employee
-      const { data: pinEmployee } = await supabase
-        .from('pin_employees')
-        .select('id')
-        .eq('id', formData.user_id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
-
-      const isPinEmployee = !!pinEmployee;
-
-      let assignedCostCodes: string[] = [];
-      let hasGlobalJobAccess = true;
-
-      if (isPinEmployee) {
-        // Get PIN employee settings
-        const { data: pinSettings } = await supabase
-          .from('pin_employee_timecard_settings')
-          .select('assigned_cost_codes')
-          .eq('pin_employee_id', formData.user_id)
-          .eq('company_id', currentCompany.id)
-          .maybeSingle();
-
-        assignedCostCodes = pinSettings?.assigned_cost_codes || [];
-      } else {
-        // Get regular employee settings
-        const { data: settings } = await supabase
-          .from('employee_timecard_settings')
-          .select('assigned_cost_codes')
-          .eq('user_id', formData.user_id)
-          .eq('company_id', currentCompany.id)
-          .maybeSingle();
-
-        // Determine job access (used only when there are no explicit cost code assignments)
-        const { data: employeeProfile } = await supabase
-          .from('profiles')
-          .select('has_global_job_access')
-          .eq('user_id', formData.user_id)
-          .maybeSingle();
-
-        assignedCostCodes = settings?.assigned_cost_codes || [];
-        hasGlobalJobAccess = employeeProfile?.has_global_job_access ?? true;
+      const access = await getEmployeeTimecardAccess(formData.user_id);
+      if (!access) {
+        setCostCodes([]);
+        return;
       }
 
-      // Timecards should only use job-specific LABOR codes
       const baseQuery = supabase
         .from('cost_codes')
         .select('id, code, description')
@@ -213,32 +174,35 @@ export default function ManualTimeEntry() {
         .eq('type', 'labor')
         .order('code');
 
-      const hasExplicitAssignments = assignedCostCodes.length > 0;
+      // Determine whether this employee can see all codes for the job
+      const hasGlobalCodes = access.is_pin
+        ? (access.assigned_cost_codes?.length ?? 0) === 0
+        : access.has_global_job_access;
 
-      if (hasExplicitAssignments) {
-        // Explicit assignments always win (even if the user has global job access)
-        const { data, error } = await baseQuery.in('id', assignedCostCodes);
+      const assignedCodes = access.assigned_cost_codes ?? [];
+
+      if (!hasGlobalCodes) {
+        // Not global: must have explicit code assignments
+        if (assignedCodes.length === 0) {
+          setCostCodes([]);
+          return;
+        }
+
+        const { data, error } = await baseQuery.in('id', assignedCodes);
         if (error) throw error;
         setCostCodes(data || []);
         return;
       }
 
-      if (isPinEmployee || hasGlobalJobAccess) {
-        // No explicit assignments -> allow all labor codes for the job
-        const { data, error } = await baseQuery;
-        if (error) throw error;
-        setCostCodes(data || []);
-        return;
-      }
-
-      // No global access + no explicit assignments -> none available
-      setCostCodes([]);
+      const { data, error } = await baseQuery;
+      if (error) throw error;
+      setCostCodes(data || []);
     } catch (error) {
       console.error('Error loading cost codes:', error);
       toast({
-        title: "Error",
-        description: "Failed to load cost codes.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load cost codes.',
+        variant: 'destructive',
       });
     }
   };
