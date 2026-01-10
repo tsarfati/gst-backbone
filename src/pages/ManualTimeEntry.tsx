@@ -158,7 +158,7 @@ export default function ManualTimeEntry() {
 
   const loadCostCodes = async (jobId: string) => {
     if (!currentCompany?.id || !formData.user_id) return;
-    
+
     try {
       // First check if this is a PIN employee
       const { data: pinEmployee } = await supabase
@@ -167,11 +167,11 @@ export default function ManualTimeEntry() {
         .eq('id', formData.user_id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
-      
+
       const isPinEmployee = !!pinEmployee;
-      
+
       let assignedCostCodes: string[] = [];
-      let hasGlobal = true;
+      let hasGlobalJobAccess = true;
 
       if (isPinEmployee) {
         // Get PIN employee settings
@@ -181,10 +181,8 @@ export default function ManualTimeEntry() {
           .eq('pin_employee_id', formData.user_id)
           .eq('company_id', currentCompany.id)
           .maybeSingle();
-        
+
         assignedCostCodes = pinSettings?.assigned_cost_codes || [];
-        // PIN employees don't have global access flag - if they have assignments, use them
-        hasGlobal = assignedCostCodes.length === 0;
       } else {
         // Get regular employee settings
         const { data: settings } = await supabase
@@ -193,48 +191,48 @@ export default function ManualTimeEntry() {
           .eq('user_id', formData.user_id)
           .eq('company_id', currentCompany.id)
           .maybeSingle();
-        
-        // Get the selected employee's profile to check global access
+
+        // Determine job access (used only when there are no explicit cost code assignments)
         const { data: employeeProfile } = await supabase
           .from('profiles')
           .select('has_global_job_access')
           .eq('user_id', formData.user_id)
-          .single();
-        
+          .maybeSingle();
+
         assignedCostCodes = settings?.assigned_cost_codes || [];
-        hasGlobal = employeeProfile?.has_global_job_access ?? true;
+        hasGlobalJobAccess = employeeProfile?.has_global_job_access ?? true;
       }
 
-      // If user has specific cost code assignments, filter to only those assigned to this job
-      if (!hasGlobal && assignedCostCodes.length > 0) {
-        // Get only cost codes that are BOTH assigned to the user AND belong to this job
-        const { data, error } = await supabase
-          .from('cost_codes')
-          .select('id, code, description')
-          .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
-          .eq('job_id', jobId)
-          .in('id', assignedCostCodes)
-          .order('code');
-        
+      // Timecards should only use job-specific LABOR codes
+      const baseQuery = supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .eq('job_id', jobId)
+        .eq('type', 'labor')
+        .order('code');
+
+      const hasExplicitAssignments = assignedCostCodes.length > 0;
+
+      if (hasExplicitAssignments) {
+        // Explicit assignments always win (even if the user has global job access)
+        const { data, error } = await baseQuery.in('id', assignedCostCodes);
         if (error) throw error;
         setCostCodes(data || []);
-      } else if (!hasGlobal && assignedCostCodes.length === 0) {
-        // No cost codes available for this user
-        setCostCodes([]);
-      } else {
-        // User has global access - show all cost codes for this job
-        const { data, error } = await supabase
-          .from('cost_codes')
-          .select('id, code, description')
-          .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
-          .eq('job_id', jobId)
-          .order('code');
-        
-        if (error) throw error;
-        setCostCodes(data || []);
+        return;
       }
+
+      if (isPinEmployee || hasGlobalJobAccess) {
+        // No explicit assignments -> allow all labor codes for the job
+        const { data, error } = await baseQuery;
+        if (error) throw error;
+        setCostCodes(data || []);
+        return;
+      }
+
+      // No global access + no explicit assignments -> none available
+      setCostCodes([]);
     } catch (error) {
       console.error('Error loading cost codes:', error);
       toast({
