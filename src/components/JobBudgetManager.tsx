@@ -657,7 +657,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     jobName: jobName || "",
                                     costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
                                   });
-                                  navigate(`/general-ledger?${params.toString()}`);
+                                  navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
                                   "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
@@ -676,7 +676,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                     jobName: jobName || "",
                                     costCodeDescription: `${line.cost_code?.code} - ${line.cost_code?.description}`,
                                   });
-                                  navigate(`/general-ledger?${params.toString()}`);
+                                  navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
                                   "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
