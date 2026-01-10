@@ -41,6 +41,16 @@ interface LedgerLine {
   cost_code_id?: string | null;
 }
 
+interface InvoiceCostLine {
+  id: string;
+  invoice_id: string;
+  issue_date: string;
+  invoice_number: string | null;
+  vendor_name: string | null;
+  description: string | null;
+  amount: number;
+}
+
 export default function GeneralLedger() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -52,14 +62,44 @@ export default function GeneralLedger() {
   const [dateStart, setDateStart] = useState<Date>(() => new Date(new Date().getFullYear(), 0, 1));
   const [dateEnd, setDateEnd] = useState<Date>(() => new Date());
   const [lines, setLines] = useState<LedgerLine[]>([]);
+  const [invoiceCostLines, setInvoiceCostLines] = useState<InvoiceCostLine[]>([]);
   const [periodFilter, setPeriodFilter] = useState("custom");
   const [showReversed, setShowReversed] = useState(true);
+  const [needsAutoReload, setNeedsAutoReload] = useState(false);
   
   // URL-based filters for job/cost code drill-down
   const filterJobId = searchParams.get("jobId");
   const filterCostCodeId = searchParams.get("costCodeId");
   const filterJobName = searchParams.get("jobName");
   const filterCostCodeDescription = searchParams.get("costCodeDescription");
+
+  // Auto-set date range to the job start date when drilling in from a job/cost code
+  useEffect(() => {
+    const maybeSetStartDate = async () => {
+      if (!currentCompany?.id || !filterJobId) return;
+
+      const { data: jobRow, error } = await supabase
+        .from("jobs")
+        .select("start_date")
+        .eq("id", filterJobId)
+        .eq("company_id", currentCompany.id)
+        .maybeSingle();
+
+      if (error || !jobRow?.start_date) return;
+
+      const jobStart = new Date(jobRow.start_date);
+
+      // Only auto-adjust if the current start date would hide job history (typical when coming from a prior-year job)
+      if (dateStart.getTime() > jobStart.getTime()) {
+        setDateStart(jobStart);
+        setPeriodFilter("custom");
+        setNeedsAutoReload(true);
+      }
+    };
+
+    maybeSetStartDate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCompany?.id, filterJobId]);
 
   // Load accounts
   useEffect(() => {
@@ -183,12 +223,87 @@ export default function GeneralLedger() {
       mapped.sort((a, b) => new Date(a.entry_date).getTime() - new Date(b.entry_date).getTime());
 
       setLines(mapped);
-      
-      if (mapped.length === 0) {
-        toast({
-          title: "No transactions found",
-          description: "No journal entries match the selected criteria",
-        });
+
+      // In drill-down mode, also show paid invoices / invoice distributions that contribute to job-cost actuals
+      if (filterJobId && filterCostCodeId) {
+        try {
+          const { data: dists, error: distError } = await supabase
+            .from("invoice_cost_distributions")
+            .select(
+              `id, amount, invoice_id,
+               invoices!inner(id, invoice_number, issue_date, description, vendor_id, status, job_id, subcontract_id, purchase_order_id)`
+            )
+            .eq("cost_code_id", filterCostCodeId)
+            .eq("invoices.job_id", filterJobId)
+            .eq("invoices.status", "paid")
+            .is("invoices.subcontract_id", null)
+            .is("invoices.purchase_order_id", null)
+            .gte("invoices.issue_date", format(dateStart, "yyyy-MM-dd"))
+            .lte("invoices.issue_date", format(dateEnd, "yyyy-MM-dd"));
+
+          if (distError) throw distError;
+
+          const rows = (dists || []) as any[];
+          const vendorIds = Array.from(
+            new Set(rows.map((r) => r?.invoices?.vendor_id).filter(Boolean) as string[])
+          );
+
+          const vendorNameById = new Map<string, string>();
+          if (vendorIds.length) {
+            const { data: vendors } = await supabase
+              .from("vendors")
+              .select("id, name, display_name")
+              .in("id", vendorIds);
+
+            (vendors || []).forEach((v: any) => {
+              vendorNameById.set(v.id, v.display_name || v.name || "Vendor");
+            });
+          }
+
+          const invLines: InvoiceCostLine[] = rows
+            .map((r) => {
+              const inv = r.invoices;
+              return {
+                id: r.id,
+                invoice_id: r.invoice_id,
+                issue_date: inv?.issue_date,
+                invoice_number: inv?.invoice_number || null,
+                vendor_name: inv?.vendor_id ? vendorNameById.get(inv.vendor_id) || null : null,
+                description: inv?.description || null,
+                amount: Number(r.amount || 0),
+              } as InvoiceCostLine;
+            })
+            .filter((x) => Boolean(x.issue_date))
+            .sort((a, b) => new Date(a.issue_date).getTime() - new Date(b.issue_date).getTime());
+
+          setInvoiceCostLines(invLines);
+
+          if (mapped.length === 0 && invLines.length === 0) {
+            toast({
+              title: "No transactions found",
+              description: "No journal entries or paid invoices match the selected criteria",
+            });
+          }
+        } catch (invErr) {
+          console.error("Failed to load invoice distributions:", invErr);
+          setInvoiceCostLines([]);
+
+          if (mapped.length === 0) {
+            toast({
+              title: "No transactions found",
+              description: "No journal entries match the selected criteria",
+            });
+          }
+        }
+      } else {
+        setInvoiceCostLines([]);
+
+        if (mapped.length === 0) {
+          toast({
+            title: "No transactions found",
+            description: "No journal entries match the selected criteria",
+          });
+        }
       }
     } catch (e) {
       console.error("Failed to load ledger:", e);
@@ -206,6 +321,14 @@ export default function GeneralLedger() {
     if (accounts.length) loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts.length, showReversed, filterJobId, filterCostCodeId]);
+
+  useEffect(() => {
+    if (!needsAutoReload) return;
+    if (!accounts.length) return;
+    loadReport();
+    setNeedsAutoReload(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAutoReload, accounts.length]);
 
   const clearJobCostCodeFilter = () => {
     setSearchParams({});
@@ -564,6 +687,49 @@ const formatCurrency = (n: number | null | undefined) =>
           </div>
         </CardContent>
       </Card>
+
+      {(filterJobId && filterCostCodeId) && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Paid Invoices (Cost Code Activity)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              These invoice distributions contribute to job-cost actuals even when no posted journal entries exist for the cost code.
+            </p>
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoiceCostLines.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">No paid invoices in this date range</TableCell>
+                    </TableRow>
+                  ) : (
+                    invoiceCostLines.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="whitespace-nowrap">{format(new Date(l.issue_date), "MM/dd/yyyy")}</TableCell>
+                        <TableCell className="whitespace-nowrap">{l.vendor_name || ""}</TableCell>
+                        <TableCell className="whitespace-nowrap">{l.invoice_number || ""}</TableCell>
+                        <TableCell className="whitespace-nowrap">{l.description || ""}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(l.amount)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
