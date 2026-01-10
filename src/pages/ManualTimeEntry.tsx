@@ -205,27 +205,36 @@ export default function ManualTimeEntry() {
         hasGlobal = employeeProfile?.has_global_job_access ?? true;
       }
 
-      let costCodesQuery = supabase
-        .from('cost_codes')
-        .select('id, code, description, job_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .eq('job_id', jobId)
-        .order('code');
-      
-      // Filter by assigned cost codes if user has specific assignments and no global access
+      // If user has specific cost code assignments, filter to only those assigned to this job
       if (!hasGlobal && assignedCostCodes.length > 0) {
-        costCodesQuery = costCodesQuery.in('id', assignedCostCodes);
+        // Get only cost codes that are BOTH assigned to the user AND belong to this job
+        const { data, error } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true)
+          .eq('job_id', jobId)
+          .in('id', assignedCostCodes)
+          .order('code');
+        
+        if (error) throw error;
+        setCostCodes(data || []);
       } else if (!hasGlobal && assignedCostCodes.length === 0) {
         // No cost codes available for this user
         setCostCodes([]);
-        return;
+      } else {
+        // User has global access - show all cost codes for this job
+        const { data, error } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true)
+          .eq('job_id', jobId)
+          .order('code');
+        
+        if (error) throw error;
+        setCostCodes(data || []);
       }
-      
-      const { data, error } = await costCodesQuery;
-      
-      if (error) throw error;
-      setCostCodes(data || []);
     } catch (error) {
       console.error('Error loading cost codes:', error);
       toast({
