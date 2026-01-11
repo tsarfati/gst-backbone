@@ -16,6 +16,7 @@ import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
 import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import LandingPage from "@/pages/LandingPage";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { AppRouter } from "./AppRouter";
 
@@ -177,6 +178,7 @@ function PublicRoutes() {
         <CompanyProvider>
           <ReceiptProvider>
             <Routes>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/punch-clock-login" element={<PunchClockLogin />} />
               <Route path="/punch-clock" element={<PunchClockLogin />} />
