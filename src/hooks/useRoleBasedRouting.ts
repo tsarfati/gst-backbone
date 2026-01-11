@@ -14,7 +14,7 @@ export function useRoleBasedRouting() {
 
   useEffect(() => {
     // Super admins should land on the super admin dashboard from initial pages
-    const initialPaths = ['/', '/auth'];
+    const initialPaths = ['/', '/auth', '/dashboard'];
     if (isSuperAdmin) {
       if (initialPaths.includes(location.pathname)) {
         navigate('/super-admin', { replace: true });
