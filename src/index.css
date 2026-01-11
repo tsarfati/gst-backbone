@@ -21,44 +21,48 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 17% 98%;
-    --foreground: 215 25% 27%;
+    /* BuilderLYNK Brand Colors - Navy & Orange */
+    --background: 210 20% 98%;
+    --foreground: 210 52% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 210 52% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 210 52% 20%;
 
-    --primary: 210 100% 45%;
-    --primary-glow: 210 100% 55%;
-    --button-hover: var(--buttonHover, 210 100% 40%);
+    /* Primary: Navy Blue from logo */
+    --primary: 210 52% 28%;
+    --primary-glow: 210 52% 35%;
+    --button-hover: var(--buttonHover, 210 52% 22%);
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 17% 95%;
-    --secondary-foreground: 215 25% 27%;
+    --secondary: 210 20% 95%;
+    --secondary-foreground: 210 52% 20%;
 
-    --muted: 210 17% 95%;
-    --muted-foreground: 215 10% 55%;
+    --muted: 210 20% 95%;
+    --muted-foreground: 210 15% 50%;
 
-    --accent: 210 17% 93%;
-    --accent-foreground: 215 25% 27%;
+    /* Accent: Orange from logo */
+    --accent: 28 85% 52%;
+    --accent-foreground: 0 0% 100%;
 
-    --success: 120 60% 45%;
+    --success: 120 60% 40%;
     --success-foreground: 0 0% 98%;
 
-    --warning: 38 100% 55%;
-    --warning-foreground: 0 0% 98%;
+    /* Warning uses the brand orange */
+    --warning: 28 85% 52%;
+    --warning-foreground: 0 0% 100%;
 
-    --info: 200 100% 45%;
+    --info: 200 80% 45%;
     --info-foreground: 0 0% 98%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 17% 89%;
-    --input: 210 17% 89%;
-    --ring: 210 100% 45%;
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 210 52% 28%;
 
     --radius: 0.5rem;
 
@@ -74,21 +78,14 @@ All colors MUST be HSL.
     /* Menu Hover Effects */
     --menu-hover-subtle: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 210 52% 20%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 28 85% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 52% 25%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 210 52% 30%;
+    --sidebar-ring: 28 85% 52%;
   }
 
   .dark {
