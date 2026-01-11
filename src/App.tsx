@@ -450,7 +450,8 @@ function AuthenticatedRoutes() {
 function AppRoutes() {
   const location = useLocation();
   
-  const publicExactPaths = ['/auth', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
+  // Landing page and auth are public
+  const publicExactPaths = ['/', '/auth', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
