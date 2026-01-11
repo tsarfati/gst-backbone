@@ -1,15 +1,48 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 
 interface MenuPermissions {
   [key: string]: boolean;
 }
 
+type AppRole =
+  | "admin"
+  | "company_admin"
+  | "controller"
+  | "employee"
+  | "project_manager"
+  | "vendor"
+  | "view_only";
+
+const APP_ROLES: AppRole[] = [
+  "admin",
+  "company_admin",
+  "controller",
+  "employee",
+  "project_manager",
+  "vendor",
+  "view_only",
+];
+
+const isAppRole = (value: unknown): value is AppRole => {
+  return APP_ROLES.includes(value as AppRole);
+};
+
 export function useMenuPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
+  const { loading: companyLoading } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
+
+  const effectiveRole = useMemo<AppRole | null>(() => {
+    const role = activeCompanyRole ?? profile?.role ?? null;
+    return role && isAppRole(role) ? role : null;
+  }, [activeCompanyRole, profile?.role]);
+
   const [permissions, setPermissions] = useState<MenuPermissions>({});
   const [loading, setLoading] = useState(true);
 
@@ -21,22 +54,26 @@ export function useMenuPermissions() {
       return;
     }
 
-    if (profile?.role) {
-      fetchMenuPermissions();
+    // Wait until company context has loaded so we can resolve the company role.
+    if (companyLoading) {
+      setLoading(true);
+      return;
+    }
+
+    if (effectiveRole) {
+      fetchMenuPermissions(effectiveRole);
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.role, isSuperAdmin]);
+  }, [effectiveRole, isSuperAdmin, companyLoading]);
 
-  const fetchMenuPermissions = async () => {
-    if (!profile?.role) return;
-
+  const fetchMenuPermissions = async (role: AppRole) => {
     try {
       const { data, error } = await supabase
         .from('role_permissions')
         .select('menu_item, can_access')
-        .eq('role', profile.role);
+        .eq('role', role);
 
       if (error) throw error;
 
@@ -55,6 +92,7 @@ export function useMenuPermissions() {
     }
   };
 
+
   const hasAccess = (menuItem: string): boolean => {
     if (loading) return false;
 
@@ -62,12 +100,12 @@ export function useMenuPermissions() {
     if (isSuperAdmin) return true;
 
     // Admin users have access to everything
-    if (profile?.role === 'admin') {
+    if (effectiveRole === 'admin') {
       return true;
     }
 
     // Always allow managers access to punch clock features
-    const isManager = profile?.role === 'controller' || profile?.role === 'project_manager';
+    const isManager = effectiveRole === 'controller' || effectiveRole === 'project_manager';
     const punchClockItems = ['punch-clock-dashboard', 'timecard-reports', 'punch-clock-settings'];
     if (isManager && punchClockItems.includes(menuItem)) {
       return true;
@@ -87,7 +125,7 @@ export function useMenuPermissions() {
     if (profile?.has_global_job_access) return true;
 
     // Admin always has access
-    if (profile?.role === 'admin') return true;
+    if (effectiveRole === 'admin') return true;
 
     // If no specific jobs provided, check if user has any job access
     if (!jobIds) return true; // Let the component handle the specific checks
