@@ -38,7 +38,7 @@ interface TimeCardDetail {
   break_minutes: number;
   break_duration_minutes?: number;
   notes?: string;
-  review_notes?: string;
+  
   distance_warning: boolean;
   distance_from_job_meters?: number;
   requires_approval: boolean;
@@ -767,7 +767,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           status: 'approved',
           approved_by: user.id,
           approved_at: new Date().toISOString(),
-          review_notes: comments || null
+          requires_approval: false
         })
         .eq('id', timeCard!.id);
 
@@ -1058,12 +1058,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       </div>
                     </div>
                     
-                    {timeCard.review_notes && (
-                      <div className="p-2 bg-muted rounded-md">
-                        <p className="text-sm text-muted-foreground">Review Notes:</p>
-                        <p className="text-sm">{timeCard.review_notes}</p>
-                      </div>
-                    )}
                     
                     {/* Show if time card was edited after approval */}
                     {timeCard.status === 'approved-edited' && (

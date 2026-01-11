@@ -326,12 +326,7 @@ export default function ManualTimeEntry() {
       const punchOutDateTime = new Date(`${formData.date}T${formData.punch_out_time}`);
       const overtimeHours = calculateOvertime(totalHours);
 
-      // Check if timecard exceeds 12 or 24 hours
-      const over12h = totalHours > 12;
-      const over24h = totalHours > 24;
-      const requiresApproval = over12h || over24h;
-      const status = requiresApproval ? 'pending' : 'submitted';
-
+      // Admin-created time entries are auto-approved and don't require approval
       const { error } = await supabase
         .from('time_cards')
         .insert({
@@ -345,8 +340,10 @@ export default function ManualTimeEntry() {
           overtime_hours: overtimeHours,
           break_minutes: formData.break_minutes,
           notes: formData.notes || null,
-          status: status,
-          requires_approval: requiresApproval,
+          status: 'approved',
+          requires_approval: false,
+          approved_by: user?.id,
+          approved_at: new Date().toISOString(),
           created_via_punch_clock: false
         });
 
