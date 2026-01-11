@@ -1,0 +1,1 @@
+UPDATE cost_codes SET description = 'SHEETROCK' WHERE code LIKE '%9.01%';
