@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PunchClockAuthProvider } from "@/contexts/PunchClockAuthContext";
 import { AccessControl } from "@/components/AccessControl";
@@ -13,6 +14,8 @@ import { RoleGuard } from "@/components/RoleGuard";
 import Layout from "@/components/AppLayout";
 import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
+import TenantRequest from "@/pages/TenantRequest";
+import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { AppRouter } from "./AppRouter";
 
@@ -196,22 +199,33 @@ function AuthenticatedRoutes() {
   return (
     <AuthProvider>
       <PunchClockAuthProvider>
-        <CompanyProvider>
-          <SettingsProvider>
-            <ReceiptProvider>
-              <Routes>
-              <Route path="/profile-completion" element={
-                <ProtectedRoute>
-                  <ProfileCompletion />
-                </ProtectedRoute>
-              } />
-              <Route path="/company-request" element={
-                <ProtectedRoute>
-                  <AccessControl>
-                    <CompanyRequest />
-                  </AccessControl>
-                </ProtectedRoute>
-              } />
+        <TenantProvider>
+          <CompanyProvider>
+            <SettingsProvider>
+              <ReceiptProvider>
+                <Routes>
+                <Route path="/profile-completion" element={
+                  <ProtectedRoute>
+                    <ProfileCompletion />
+                  </ProtectedRoute>
+                } />
+                <Route path="/tenant-request" element={
+                  <ProtectedRoute>
+                    <TenantRequest />
+                  </ProtectedRoute>
+                } />
+                <Route path="/super-admin" element={
+                  <ProtectedRoute>
+                    <SuperAdminDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/company-request" element={
+                  <ProtectedRoute>
+                    <AccessControl>
+                      <CompanyRequest />
+                    </AccessControl>
+                  </ProtectedRoute>
+                } />
               <Route path="/" element={
                 <ProtectedRoute>
                   <AccessControl>
@@ -422,9 +436,10 @@ function AuthenticatedRoutes() {
               } />
               <Route path="*" element={<NotFound />} />
               </Routes>
-            </ReceiptProvider>
-          </SettingsProvider>
-        </CompanyProvider>
+              </ReceiptProvider>
+            </SettingsProvider>
+          </CompanyProvider>
+        </TenantProvider>
       </PunchClockAuthProvider>
     </AuthProvider>
   );
