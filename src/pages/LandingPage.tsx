@@ -122,7 +122,7 @@ export default function LandingPage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
               <Building2 className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">Builder Backbone</span>
+              <span className="text-xl font-bold text-foreground">Builder<span className="text-primary">LYNK</span></span>
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -140,7 +140,7 @@ export default function LandingPage() {
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            The Backbone of Your
+            Connect Every Link in Your
             <span className="text-primary block mt-2">Construction Business</span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
@@ -195,9 +195,9 @@ export default function LandingPage() {
                 Built for Builders, By Builders
               </h2>
               <p className="text-lg text-muted-foreground mb-6">
-                Builder Backbone was created by construction professionals who understand 
+                BuilderLYNK was created by construction professionals who understand 
                 the unique challenges of managing construction projects. We've built a platform 
-                that simplifies the complex workflows of construction management.
+                that links every piece of your construction workflow together.
               </p>
               <p className="text-lg text-muted-foreground mb-8">
                 From small contractors to large construction firms, our platform scales with 
@@ -264,7 +264,7 @@ export default function LandingPage() {
             Ready to Transform Your Business?
           </h2>
           <p className="text-xl text-primary-foreground/80 mb-8">
-            Join construction companies already using Builder Backbone to streamline their operations.
+            Join construction companies already using BuilderLYNK to streamline their operations.
           </p>
           <Button 
             size="lg" 
@@ -295,7 +295,7 @@ export default function LandingPage() {
                 <Mail className="h-6 w-6 text-primary" />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Email Us</h3>
-              <p className="text-muted-foreground">support@builderbackbone.com</p>
+              <p className="text-muted-foreground">support@builderlynk.com</p>
             </div>
             <div className="text-center p-6">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
@@ -315,7 +315,7 @@ export default function LandingPage() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Building2 className="h-6 w-6 text-primary" />
-                <span className="font-bold text-foreground">Builder Backbone</span>
+                <span className="font-bold text-foreground">Builder<span className="text-primary">LYNK</span></span>
               </div>
               <p className="text-muted-foreground text-sm">
                 The complete construction management platform for modern builders.
@@ -346,7 +346,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Builder Backbone. All rights reserved.
+            © {new Date().getFullYear()} BuilderLYNK. All rights reserved.
           </div>
         </div>
       </footer>
