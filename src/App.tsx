@@ -16,6 +16,7 @@ import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
 import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { AppRouter } from "./AppRouter";
@@ -221,6 +222,11 @@ function AuthenticatedRoutes() {
                 <Route path="/super-admin" element={
                   <ProtectedRoute>
                     <SuperAdminDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/super-admin/tenant/:tenantId" element={
+                  <ProtectedRoute>
+                    <TenantDetails />
                   </ProtectedRoute>
                 } />
                 <Route path="/company-request" element={

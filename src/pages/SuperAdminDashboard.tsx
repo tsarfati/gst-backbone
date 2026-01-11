@@ -453,7 +453,11 @@ export default function SuperAdminDashboard() {
                     </TableHeader>
                     <TableBody>
                       {filteredTenants.map((tenant) => (
-                        <TableRow key={tenant.id}>
+                        <TableRow 
+                          key={tenant.id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/super-admin/tenant/${tenant.id}`)}
+                        >
                           <TableCell className="font-medium">{tenant.name}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="capitalize">
