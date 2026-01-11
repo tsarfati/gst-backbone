@@ -3,10 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Loader2, CheckCircle, User, ArrowRight } from 'lucide-react';
+import { Building2, Loader2, CheckCircle, User, ArrowRight, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +33,7 @@ interface AccessRequest {
 export default function CompanyRequest() {
   const { user, profile, signOut } = useAuth();
   const { switchCompany } = useCompany();
-  const { currentTenant } = useTenant();
+  const { currentTenant, tenantMember } = useTenant();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -38,6 +41,21 @@ export default function CompanyRequest() {
   const [loading, setLoading] = useState(true);
   const [requestingAccess, setRequestingAccess] = useState<string | null>(null);
   const [selectingCompany, setSelectingCompany] = useState<string | null>(null);
+  const [showCreateCompanyDialog, setShowCreateCompanyDialog] = useState(false);
+  const [creatingCompany, setCreatingCompany] = useState(false);
+  const [newCompanyForm, setNewCompanyForm] = useState({
+    name: '',
+    display_name: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    phone: '',
+    email: ''
+  });
+
+  // Check if user can create companies (tenant owner or admin)
+  const canCreateCompany = tenantMember?.role === 'owner' || tenantMember?.role === 'admin';
 
   // Resolve storage paths to public URLs using Supabase Storage API
   const resolveLogoUrl = (logo?: string) => {
@@ -205,6 +223,63 @@ export default function CompanyRequest() {
     }
   };
 
+  const handleCreateCompany = async () => {
+    if (!user || !currentTenant || !newCompanyForm.name.trim()) return;
+
+    setCreatingCompany(true);
+    try {
+      // Create the company within the user's tenant
+      const { data: companyData, error: companyError } = await supabase
+        .from('companies')
+        .insert({
+          ...newCompanyForm,
+          created_by: user.id,
+          tenant_id: currentTenant.id
+        })
+        .select()
+        .single();
+
+      if (companyError) throw companyError;
+
+      // Grant admin access to the creator
+      const { error: accessError } = await supabase
+        .from('user_company_access')
+        .insert({
+          user_id: user.id,
+          company_id: companyData.id,
+          role: 'admin',
+          granted_by: user.id
+        });
+
+      if (accessError) throw accessError;
+
+      // Update the current user's profile to set the new company as current
+      await supabase
+        .from('profiles')
+        .update({ current_company_id: companyData.id })
+        .eq('user_id', user.id);
+
+      toast({
+        title: 'Success',
+        description: 'Company created successfully! You are now an admin.'
+      });
+
+      // Switch to the new company and go to dashboard
+      await switchCompany(companyData.id);
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      console.error('Error creating company:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create company',
+        variant: 'destructive'
+      });
+    } finally {
+      setCreatingCompany(false);
+      setShowCreateCompanyDialog(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -358,15 +433,106 @@ export default function CompanyRequest() {
           <div className="text-center py-12">
             <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Companies Available</h3>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-6">
               {currentTenant 
-                ? `There are no companies set up yet in "${currentTenant.name}". Please contact your organization administrator.`
+                ? canCreateCompany
+                  ? `No companies have been set up in "${currentTenant.name}" yet. As an organization ${tenantMember?.role}, you can create the first company.`
+                  : `There are no companies set up yet in "${currentTenant.name}". Please contact your organization administrator.`
                 : "There are currently no companies available to request access to."
               }
             </p>
+            {canCreateCompany && currentTenant && (
+              <Button onClick={() => setShowCreateCompanyDialog(true)} size="lg">
+                <Plus className="h-5 w-5 mr-2" />
+                Create Your First Company
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {/* Create Company Dialog */}
+      <Dialog open={showCreateCompanyDialog} onOpenChange={setShowCreateCompanyDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create New Company</DialogTitle>
+            <DialogDescription>
+              Set up a new company within {currentTenant?.name}. You will be added as an admin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="company-name">Company Name *</Label>
+              <Input
+                id="company-name"
+                value={newCompanyForm.name}
+                onChange={(e) => setNewCompanyForm({ ...newCompanyForm, name: e.target.value })}
+                placeholder="Enter company name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="display-name">Display Name</Label>
+              <Input
+                id="display-name"
+                value={newCompanyForm.display_name}
+                onChange={(e) => setNewCompanyForm({ ...newCompanyForm, display_name: e.target.value })}
+                placeholder="Optional display name"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={newCompanyForm.city}
+                  onChange={(e) => setNewCompanyForm({ ...newCompanyForm, city: e.target.value })}
+                  placeholder="City"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="state">State</Label>
+                <Input
+                  id="state"
+                  value={newCompanyForm.state}
+                  onChange={(e) => setNewCompanyForm({ ...newCompanyForm, state: e.target.value })}
+                  placeholder="State"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={newCompanyForm.phone}
+                onChange={(e) => setNewCompanyForm({ ...newCompanyForm, phone: e.target.value })}
+                placeholder="Phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newCompanyForm.email}
+                onChange={(e) => setNewCompanyForm({ ...newCompanyForm, email: e.target.value })}
+                placeholder="Company email"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateCompanyDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreateCompany}
+              disabled={!newCompanyForm.name.trim() || creatingCompany}
+            >
+              {creatingCompany && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Company
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

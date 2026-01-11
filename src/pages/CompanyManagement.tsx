@@ -18,6 +18,7 @@ import PdfTemplateSettings from '@/components/PdfTemplateSettings';
 import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,6 +40,7 @@ interface CompanyUser {
 export default function CompanyManagement() {
   const { currentCompany, userCompanies, refreshCompanies } = useCompany();
   const { user } = useAuth();
+  const { currentTenant, tenantMember } = useTenant();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [users, setUsers] = useState<CompanyUser[]>([]);
@@ -225,12 +227,23 @@ export default function CompanyManagement() {
     if (!user || !newCompanyForm.name.trim()) return;
 
     try {
-      // Create the company
+      // Ensure user has a tenant before creating company
+      if (!currentTenant) {
+        toast({
+          title: "Error",
+          description: "You must belong to an organization to create a company",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Create the company within the user's tenant
       const { data: companyData, error: companyError } = await supabase
         .from('companies')
         .insert({
           ...newCompanyForm,
-          created_by: user.id
+          created_by: user.id,
+          tenant_id: currentTenant.id
         })
         .select()
         .single();
