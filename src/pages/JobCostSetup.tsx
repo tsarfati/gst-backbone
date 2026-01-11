@@ -210,32 +210,42 @@ export default function JobCostSetup() {
     }
 
     try {
+      // Get the original cost code to find all related codes with the same code pattern
+      const { data: originalCode } = await supabase
+        .from('cost_codes')
+        .select('code')
+        .eq('id', editingCode.id)
+        .single();
+
       const updateData: any = {
         code: editingCode.code,
         description: editingCode.description,
         type: editingCode.type,
       };
 
+      // Update all cost codes with the same original code in this company
+      // This propagates the change to both templates (job_id IS NULL) and job-specific codes
       const { error } = await supabase
         .from('cost_codes')
         .update(updateData)
-        .eq('id', editingCode.id);
+        .eq('company_id', currentCompany?.id)
+        .eq('code', originalCode?.code || editingCode.code);
 
       if (error) throw error;
 
       toast({
-        title: "Cost Code Template Updated",
-        description: "Cost code template has been updated successfully",
+        title: "Cost Code Updated",
+        description: "Cost code has been updated across all jobs",
       });
 
       setEditingCode(null);
       setEditTemplateDialogOpen(false);
       loadData();
     } catch (error) {
-      console.error('Error updating cost code template:', error);
+      console.error('Error updating cost code:', error);
       toast({
         title: "Error",
-        description: "Failed to update cost code template",
+        description: "Failed to update cost code",
         variant: "destructive",
       });
     }
