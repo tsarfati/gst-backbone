@@ -84,11 +84,34 @@ export default function LandingPage() {
 
   const benefits = [
     'Streamline payables and receivables',
-    'Track job costs in real-time',
+    'Real-time job cost tracking & budget monitoring',
     'Manage subcontracts and purchase orders',
     'Generate professional invoices',
-    'Monitor budget vs actuals',
-    'Comprehensive audit trails'
+    'Comprehensive audit trails',
+    'Mobile-ready for field teams'
+  ];
+
+  const coreCapabilities = [
+    {
+      title: 'Precision Job Costing',
+      description: 'Track every dollar across projects with detailed cost code breakdowns. Know exactly where your money goes and keep projects profitable.'
+    },
+    {
+      title: 'Smart Receipt Management',
+      description: 'Capture, organize, and code receipts instantly. Turn chaos into clarity with automated receipt processing and categorization.'
+    },
+    {
+      title: 'Streamlined Receipt Coding',
+      description: 'Project managers can route purchase receipts directly to job costing with a few clicks. Coding requests flow seamlessly through approval workflows.'
+    },
+    {
+      title: 'Job Cost Accounting Integration',
+      description: 'Built around construction-specific accounting principles. Every coding request ties directly to your job cost structure for accurate financial reporting.'
+    },
+    {
+      title: 'Vendor Portal & AIA Billing',
+      description: 'Empower vendors to submit AIA-formatted invoices with detailed payment breakdowns. Custom invoice structures that match your company requirements.'
+    }
   ];
 
   return (
@@ -166,7 +189,7 @@ export default function LandingPage() {
       {/* About Section */}
       <section id="about" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
                 Built for Builders, By Builders
@@ -204,6 +227,31 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Core Capabilities */}
+          <div className="mt-16">
+            <h3 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-12">
+              Core Capabilities That Drive Results
+            </h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {coreCapabilities.map((capability, index) => (
+                <div 
+                  key={index}
+                  className="bg-card border border-border rounded-xl p-6 hover:shadow-lg transition-shadow"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-foreground mb-2">{capability.title}</h4>
+                      <p className="text-sm text-muted-foreground">{capability.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
