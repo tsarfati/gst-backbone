@@ -878,6 +878,7 @@ export type Database = {
           phone: string | null
           state: string | null
           tax_id: string | null
+          tenant_id: string | null
           updated_at: string
           website: string | null
           zip_code: string | null
@@ -899,6 +900,7 @@ export type Database = {
           phone?: string | null
           state?: string | null
           tax_id?: string | null
+          tenant_id?: string | null
           updated_at?: string
           website?: string | null
           zip_code?: string | null
@@ -920,11 +922,20 @@ export type Database = {
           phone?: string | null
           state?: string | null
           tax_id?: string | null
+          tenant_id?: string | null
           updated_at?: string
           website?: string | null
           zip_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_access_requests: {
         Row: {
@@ -5765,6 +5776,163 @@ export type Database = {
           },
         ]
       }
+      super_admins: {
+        Row: {
+          created_at: string
+          granted_at: string
+          granted_by: string | null
+          id: string
+          is_active: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tenant_access_requests: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          request_type: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["tenant_request_status"]
+          tenant_id: string | null
+          tenant_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["tenant_request_status"]
+          tenant_id?: string | null
+          tenant_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["tenant_request_status"]
+          tenant_id?: string | null
+          tenant_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_access_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string | null
+          joined_at: string
+          role: Database["public"]["Enums"]["tenant_role"]
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          joined_at?: string
+          role?: Database["public"]["Enums"]["tenant_role"]
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          joined_at?: string
+          role?: Database["public"]["Enums"]["tenant_role"]
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          max_companies: number
+          name: string
+          owner_id: string | null
+          slug: string
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"]
+          trial_ends_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_companies?: number
+          name: string
+          owner_id?: string | null
+          slug: string
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_companies?: number
+          name?: string
+          owner_id?: string | null
+          slug?: string
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          trial_ends_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       time_card_audit_trail: {
         Row: {
           change_type: string
@@ -6746,6 +6914,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      approve_tenant_request: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
       auto_logout_visitors: {
         Args: never
         Returns: {
@@ -6781,6 +6953,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
@@ -6795,6 +6968,15 @@ export type Database = {
       }
       is_company_admin_or_controller: {
         Args: { _company: string; _user: string }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_tenant_admin: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_tenant_member: {
+        Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
       is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
@@ -6870,7 +7052,10 @@ export type Database = {
       punch_status: "punched_in" | "punched_out"
       rfi_ball_status: "manager" | "design_professional"
       rfi_status: "draft" | "submitted" | "in_review" | "responded" | "closed"
+      subscription_tier: "free" | "starter" | "professional" | "enterprise"
       template_editor: "richtext" | "html"
+      tenant_request_status: "pending" | "approved" | "rejected"
+      tenant_role: "owner" | "admin" | "member"
       user_role:
         | "admin"
         | "controller"
@@ -7026,7 +7211,10 @@ export const Constants = {
       punch_status: ["punched_in", "punched_out"],
       rfi_ball_status: ["manager", "design_professional"],
       rfi_status: ["draft", "submitted", "in_review", "responded", "closed"],
+      subscription_tier: ["free", "starter", "professional", "enterprise"],
       template_editor: ["richtext", "html"],
+      tenant_request_status: ["pending", "approved", "rejected"],
+      tenant_role: ["owner", "admin", "member"],
       user_role: [
         "admin",
         "controller",
