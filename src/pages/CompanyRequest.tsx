@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +30,7 @@ interface AccessRequest {
 export default function CompanyRequest() {
   const { user, profile, signOut } = useAuth();
   const { switchCompany } = useCompany();
+  const { currentTenant } = useTenant();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -52,25 +54,26 @@ export default function CompanyRequest() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && currentTenant) {
       fetchCompanies();
       fetchAccessRequests();
     }
-  }, [user]);
+  }, [user, currentTenant?.id]);
 
   const fetchCompanies = async () => {
+    if (!currentTenant) return;
+    
     try {
+      // Only fetch companies within the user's tenant
       const { data, error } = await supabase
         .from('companies')
         .select('*')
         .eq('is_active', true)
+        .eq('tenant_id', currentTenant.id)
         .order('name');
 
       if (error) throw error;
-      console.log('Fetched companies:', data);
-      data?.forEach(company => {
-        console.log(`Company: ${company.name}, Logo URL: ${company.logo_url || 'No logo'}`);
-      });
+      console.log('Fetched companies for tenant:', currentTenant.name, data);
       setCompanies(data || []);
     } catch (error) {
       console.error('Error fetching companies:', error);
@@ -356,7 +359,10 @@ export default function CompanyRequest() {
             <Building2 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Companies Available</h3>
             <p className="text-muted-foreground">
-              There are currently no companies available to request access to.
+              {currentTenant 
+                ? `There are no companies set up yet in "${currentTenant.name}". Please contact your organization administrator.`
+                : "There are currently no companies available to request access to."
+              }
             </p>
           </div>
         )}
