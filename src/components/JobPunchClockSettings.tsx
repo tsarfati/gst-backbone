@@ -10,6 +10,7 @@ import { Building2, Clock, Save, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
 import { JobShiftTimeSettings } from '@/components/JobShiftTimeSettings';
 
@@ -78,6 +79,7 @@ const defaultJobSettings: JobSettings = {
 export default function JobPunchClockSettings() {
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
@@ -85,7 +87,9 @@ export default function JobPunchClockSettings() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  // Use active company role first, fallback to profile.role for backward compatibility
+  const effectiveRole = activeCompanyRole || profile?.role;
+  const isManager = effectiveRole === 'admin' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
 
   useEffect(() => {
     if (currentCompany) {

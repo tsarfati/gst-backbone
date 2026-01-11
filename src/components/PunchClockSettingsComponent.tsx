@@ -107,7 +107,7 @@ const defaultSettings: PunchClockSettings = {
 
 export default function PunchClockSettingsComponent() {
   const { user, profile } = useAuth();
-  const { currentCompany } = useCompany();
+  const { currentCompany, userCompanies } = useCompany();
   const { toast } = useToast();
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,12 @@ export default function PunchClockSettingsComponent() {
   const [recalculating, setRecalculating] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  // Get role for current company from user_company_access
+  const activeCompanyRole = userCompanies.find(
+    (uc) => uc.company_id === currentCompany?.id
+  )?.role;
+  const effectiveRole = activeCompanyRole || profile?.role;
+  const isManager = effectiveRole === 'admin' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
 
   useEffect(() => {
     if (currentCompany) {
