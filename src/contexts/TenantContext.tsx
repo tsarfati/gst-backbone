@@ -75,12 +75,13 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       setLoading(true);
 
       // Check if user is super admin
-      const { data: superAdminData } = await supabase
+      const { data: superAdminData, error: superAdminError } = await supabase
         .from('super_admins')
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
 
+      console.log('Super admin check:', { userId: user.id, superAdminData, superAdminError });
       setIsSuperAdmin(!!superAdminData);
 
       // Get user's tenant membership
