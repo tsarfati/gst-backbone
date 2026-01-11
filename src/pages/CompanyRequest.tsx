@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNavigate } from 'react-router-dom';
 
 export default function CompanyRequest() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const { switchCompany, refreshCompanies, userCompanies } = useCompany();
   const { currentTenant, tenantMember } = useTenant();
   const { toast } = useToast();
@@ -74,17 +74,25 @@ export default function CompanyRequest() {
 
       if (accessError) throw accessError;
 
-      // Update the current user's profile to set the new company as current
-      await supabase
+      // Update the current user's profile to set the new company as current AND set role to admin
+      const { error: profileError } = await supabase
         .from('profiles')
-        .update({ current_company_id: companyData.id })
+        .update({ 
+          current_company_id: companyData.id,
+          role: 'admin'
+        })
         .eq('user_id', user.id);
+
+      if (profileError) throw profileError;
 
       toast({
         title: 'Success',
         description: 'Company created successfully! You are now an admin.'
       });
 
+      // Refresh profile to update role in auth context
+      await refreshProfile();
+      
       // Refresh companies and switch to the new company
       await refreshCompanies();
       await switchCompany(companyData.id);
