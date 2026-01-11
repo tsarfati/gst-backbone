@@ -13,6 +13,7 @@ import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { supabase } from '@/integrations/supabase/client';
@@ -163,6 +164,8 @@ export function AppSidebar() {
   const { signOut, profile } = useAuth();
   const { isSuperAdmin } = useTenant();
   const { currentCompany } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
+  const effectiveRole = activeCompanyRole ?? profile?.role ?? null;
   const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(null);
@@ -289,7 +292,7 @@ export function AppSidebar() {
              if (superAdminOnly && !isSuperAdmin) return false;
 
              const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
-             if (employeeHidden && profile?.role === 'employee') return false;
+             if (employeeHidden && effectiveRole === 'employee') return false;
 
              const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
              return !menuKey || hasAccess(menuKey);
@@ -420,7 +423,7 @@ export function AppSidebar() {
               </div>
               <div className="text-left group-data-[collapsible=icon]:hidden">
                 <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
-                <p className="text-muted-foreground text-xs capitalize">{isSuperAdmin ? 'Super Admin' : (profile?.role || '')}</p>
+                <p className="text-muted-foreground text-xs capitalize">{isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}</p>
               </div>
             </Button>
             <Button
