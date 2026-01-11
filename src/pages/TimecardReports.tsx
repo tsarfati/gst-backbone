@@ -125,40 +125,64 @@ export default function TimecardReports() {
 
   const loadEmployees = async () => {
     if (!currentCompany?.id) return;
-    
+
     try {
-      // Get regular users for this company
-      const { data: companyUsers } = await supabase
-        .from('user_company_access')
-        .select('user_id')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
+      const [{ data: companyUsers }, { data: companyGroups }, { data: pinSettings }] = await Promise.all([
+        // Company access list typically includes regular users; some setups also include PIN employees
+        supabase
+          .from('user_company_access')
+          .select('user_id')
+          .eq('company_id', currentCompany.id)
+          .or('is_active.eq.true,is_active.is.null'),
+        supabase
+          .from('employee_groups')
+          .select('id')
+          .eq('company_id', currentCompany.id),
+        // Most reliable mapping of PIN employees to a company
+        supabase
+          .from('pin_employee_timecard_settings')
+          .select('pin_employee_id')
+          .eq('company_id', currentCompany.id),
+      ]);
 
-      // Load regular users
-      const profilesRes = companyUserIds.length > 0 
-        ? await supabase
-            .from('profiles')
-            .select('user_id, display_name, first_name, last_name')
-            .in('user_id', companyUserIds)
-        : { data: [], error: null };
+      const companyUserIds: string[] = (companyUsers || []).map((u) => u.user_id);
+      const groupIds: string[] = (companyGroups || []).map((g: any) => g.id);
+      const pinSettingIds: string[] = (pinSettings || []).map((s: any) => s.pin_employee_id);
 
-      // Load ALL active PIN employees for this company (not filtered by date range)
-      const pinRes = await supabase
-        .from('pin_employees')
-        .select('id, display_name, first_name, last_name')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .order('display_name');
-
-      console.log('PIN employees loaded:', pinRes.data?.length, 'Regular profiles:', profilesRes.data?.length);
+      const [profilesRes, pinRes] = await Promise.all([
+        companyUserIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('user_id, display_name, first_name, last_name')
+              .in('user_id', companyUserIds)
+          : Promise.resolve({ data: [], error: null } as any),
+        // pin_employees records are legacy in some projects (company_id may be NULL).
+        // We consider a PIN employee "in this company" if:
+        // - they have timecard settings for this company, OR
+        // - they belong to one of this company's employee groups, OR
+        // - they appear in user_company_access for this company, OR
+        // - they have company_id set correctly.
+        supabase
+          .from('pin_employees')
+          .select('id, display_name, first_name, last_name')
+          .or(
+            [
+              `company_id.eq.${currentCompany.id}`,
+              pinSettingIds.length > 0 ? `id.in.(${pinSettingIds.join(',')})` : null,
+              groupIds.length > 0 ? `group_id.in.(${groupIds.join(',')})` : null,
+              companyUserIds.length > 0 ? `id.in.(${companyUserIds.join(',')})` : null,
+            ]
+              .filter(Boolean)
+              .join(',')
+          )
+          .or('is_active.eq.true,is_active.is.null')
+          .order('display_name'),
+      ]);
 
       const list: Employee[] = [];
       const addedIds = new Set<string>();
 
-      // Sort profiles before adding to list
-      const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) => 
+      const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) =>
         (a.display_name || '').localeCompare(b.display_name || '')
       );
 
@@ -175,9 +199,7 @@ export default function TimecardReports() {
         }
       });
 
-      // Add PIN employees - these have their own id, not user_id
       (pinRes.data || []).forEach((p: any) => {
-        // Avoid duplicates using the pin employee's id
         if (!addedIds.has(p.id)) {
           list.push({
             id: p.id,
@@ -190,9 +212,7 @@ export default function TimecardReports() {
         }
       });
 
-      // Sort the final list by display_name
       list.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
-
       setEmployees(list);
     } catch (error) {
       console.error('Error loading employees:', error);
