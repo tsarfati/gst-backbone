@@ -122,7 +122,7 @@ export default function LandingPage() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
               <Building2 className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">Builder<span className="text-primary">LYNK</span></span>
+              <span className="text-xl font-bold text-primary">Builder<span className="text-accent">LYNK</span></span>
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
@@ -139,9 +139,9 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            Connect Every Link in Your
-            <span className="text-primary block mt-2">Construction Business</span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-primary mb-6">
+            Connect Every <span className="text-accent">Link</span> in Your
+            <span className="block mt-2">Construction Business</span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
             Powerful construction management software that helps you track costs, manage teams, 
@@ -177,7 +177,7 @@ export default function LandingPage() {
                 key={index}
                 className="bg-card p-6 rounded-lg border border-border hover-lift"
               >
-                <feature.icon className="h-12 w-12 text-primary mb-4" />
+                <feature.icon className="h-12 w-12 text-accent mb-4" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
               </div>
@@ -291,15 +291,15 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
-                <Mail className="h-6 w-6 text-primary" />
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-4">
+                <Mail className="h-6 w-6 text-accent" />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Email Us</h3>
               <p className="text-muted-foreground">support@builderlynk.com</p>
             </div>
             <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
-                <Phone className="h-6 w-6 text-primary" />
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-4">
+                <Phone className="h-6 w-6 text-accent" />
               </div>
               <h3 className="font-semibold text-foreground mb-2">Call Us</h3>
               <p className="text-muted-foreground">(555) 123-4567</p>
@@ -315,7 +315,7 @@ export default function LandingPage() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Building2 className="h-6 w-6 text-primary" />
-                <span className="font-bold text-foreground">Builder<span className="text-primary">LYNK</span></span>
+                <span className="font-bold text-primary">Builder<span className="text-accent">LYNK</span></span>
               </div>
               <p className="text-muted-foreground text-sm">
                 The complete construction management platform for modern builders.
