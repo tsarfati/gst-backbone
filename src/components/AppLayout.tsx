@@ -7,6 +7,7 @@ import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBa
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
@@ -17,6 +18,14 @@ import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { supabase } from '@/integrations/supabase/client';
 
 const navigationCategories = [
+  {
+    title: "Platform",
+    icon: Shield,
+    items: [
+      { name: "Super Admin", href: "/super-admin", superAdminOnly: true },
+    ],
+    collapsible: true,
+  },
   {
     title: "Dashboard",
     icon: LayoutDashboard,
@@ -152,6 +161,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { signOut, profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { currentCompany } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
@@ -273,12 +283,17 @@ export function AppSidebar() {
           const isDashboard = category.title === "Dashboard";
           const isDirectLink = !category.collapsible;
           
-          // Filter items based on permissions and role
-          const allowedItems = category.items.filter(item => {
-            // Hide dashboard for employees
-            if (item.employeeHidden && profile?.role === 'employee') return false;
-            return !item.menuKey || hasAccess(item.menuKey);
-          });
+           // Filter items based on permissions and role
+           const allowedItems = category.items.filter((item) => {
+             const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
+             if (superAdminOnly && !isSuperAdmin) return false;
+
+             const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
+             if (employeeHidden && profile?.role === 'employee') return false;
+
+             const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
+             return !menuKey || hasAccess(menuKey);
+           });
           
           // Don't show category if no items are allowed
           if (allowedItems.length === 0) return null;
@@ -405,7 +420,7 @@ export function AppSidebar() {
               </div>
               <div className="text-left group-data-[collapsible=icon]:hidden">
                 <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
-                <p className="text-muted-foreground text-xs capitalize">{profile?.role}</p>
+                <p className="text-muted-foreground text-xs capitalize">{isSuperAdmin ? 'Super Admin' : (profile?.role || '')}</p>
               </div>
             </Button>
             <Button
@@ -425,7 +440,16 @@ export function AppSidebar() {
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isSuperAdmin } = useTenant();
   const isPunchClockPage = location.pathname === '/time-tracking';
+
+  // If you're a platform super admin, default to the Super Admin dashboard
+  useEffect(() => {
+    if (isSuperAdmin && (location.pathname === '/' || location.pathname === '/dashboard')) {
+      navigate('/super-admin', { replace: true });
+    }
+  }, [isSuperAdmin, location.pathname, navigate]);
 
   // Ensure dynamic manifest/icons are updated under CompanyProvider
   useDynamicManifest();
