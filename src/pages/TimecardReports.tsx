@@ -368,9 +368,13 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
-      if (filters.jobs.length > 0) {
-        query = query.in('job_id', filters.jobs);
+      // Job filter is required - if no jobs selected, return empty results
+      if (filters.jobs.length === 0) {
+        setRecords([]);
+        setLoading(false);
+        return;
       }
+      query = query.in('job_id', filters.jobs);
 
       // Load punch clock settings - prioritize job-specific settings if filtering by a single job
       let settingsData = null;
@@ -627,10 +631,11 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
-      // Apply job filters if they exist
-      if (filters.jobs.length > 0) {
-        query = query.in('job_id', filters.jobs);
+      // Apply job filters - required for filtering
+      if (filters.jobs.length === 0) {
+        return false; // No jobs selected means no records to check
       }
+      query = query.in('job_id', filters.jobs);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -660,9 +665,12 @@ export default function TimecardReports() {
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
-      if (filters.jobs.length > 0) {
-        query = query.in('job_id', filters.jobs);
+      // Job filter is required - if no jobs selected, return empty results
+      if (filters.jobs.length === 0) {
+        setPunches([]);
+        return;
       }
+      query = query.in('job_id', filters.jobs);
       // Normalize date range to full days in UTC
       const startISO = filters.startDate ? new Date(Date.UTC(
         filters.startDate.getFullYear(),
