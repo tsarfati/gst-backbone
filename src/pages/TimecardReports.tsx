@@ -137,22 +137,25 @@ export default function TimecardReports() {
       const companyUserIds: string[] = (companyUsers || []).map(u => u.user_id);
 
       // Load regular users
-      const profilesRes: any = companyUserIds.length > 0 
-        ? await (supabase as any)
+      const profilesRes = companyUserIds.length > 0 
+        ? await supabase
             .from('profiles')
             .select('user_id, display_name, first_name, last_name')
             .in('user_id', companyUserIds)
-        : { data: [] };
+        : { data: [], error: null };
 
       // Load ALL active PIN employees for this company (not filtered by date range)
-      const pinRes: any = await (supabase as any)
+      const pinRes = await supabase
         .from('pin_employees')
         .select('id, display_name, first_name, last_name')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true)
         .order('display_name');
 
+      console.log('PIN employees loaded:', pinRes.data?.length, 'Regular profiles:', profilesRes.data?.length);
+
       const list: Employee[] = [];
+      const addedIds = new Set<string>();
 
       // Sort profiles before adding to list
       const sortedProfiles = (profilesRes.data || []).sort((a: any, b: any) => 
@@ -160,18 +163,22 @@ export default function TimecardReports() {
       );
 
       sortedProfiles.forEach((p: any) => {
-        list.push({
-          id: p.user_id,
-          user_id: p.user_id,
-          display_name: p.display_name,
-          first_name: p.first_name,
-          last_name: p.last_name,
-        });
+        if (!addedIds.has(p.user_id)) {
+          list.push({
+            id: p.user_id,
+            user_id: p.user_id,
+            display_name: p.display_name,
+            first_name: p.first_name,
+            last_name: p.last_name,
+          });
+          addedIds.add(p.user_id);
+        }
       });
 
+      // Add PIN employees - these have their own id, not user_id
       (pinRes.data || []).forEach((p: any) => {
-        // Avoid duplicates if a user exists as a regular profile too
-        if (!list.find((e) => e.user_id === p.id)) {
+        // Avoid duplicates using the pin employee's id
+        if (!addedIds.has(p.id)) {
           list.push({
             id: p.id,
             user_id: p.id,
@@ -179,8 +186,12 @@ export default function TimecardReports() {
             first_name: p.first_name,
             last_name: p.last_name,
           });
+          addedIds.add(p.id);
         }
       });
+
+      // Sort the final list by display_name
+      list.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
 
       setEmployees(list);
     } catch (error) {
