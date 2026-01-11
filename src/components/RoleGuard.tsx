@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -8,12 +9,13 @@ interface RoleGuardProps {
   redirectTo?: string;
 }
 
-export function RoleGuard({ 
-  children, 
+export function RoleGuard({
+  children,
   allowedRoles = ['admin', 'controller', 'project_manager', 'manager'],
-  redirectTo = '/' 
+  redirectTo = '/'
 }: RoleGuardProps) {
   const { profile, loading, user } = useAuth();
+  const { isSuperAdmin } = useTenant();
 
   // Show loading while authentication is in progress
   if (loading) {
@@ -29,6 +31,11 @@ export function RoleGuard({
     return <Navigate to="/auth" replace />;
   }
 
+  // Super admins can access everything (platform-level access)
+  if (isSuperAdmin) {
+    return <>{children}</>;
+  }
+
   // If profile is not loaded yet, show loading
   if (!profile) {
     return (
@@ -38,14 +45,18 @@ export function RoleGuard({
     );
   }
 
-  // Debug logging for development
-  console.log('RoleGuard - User role:', profile.role);
-  console.log('RoleGuard - Allowed roles:', allowedRoles);
-  console.log('RoleGuard - Has access:', allowedRoles.includes(profile.role));
+  // Debug logging for development only
+  if (import.meta.env.DEV) {
+    console.log('RoleGuard - User role:', profile.role);
+    console.log('RoleGuard - Allowed roles:', allowedRoles);
+    console.log('RoleGuard - Has access:', allowedRoles.includes(profile.role));
+  }
 
   // If user role is not in allowed roles, redirect
   if (!profile.role || !allowedRoles.includes(profile.role)) {
-    console.warn('Access denied - User role:', profile.role, 'Allowed roles:', allowedRoles);
+    if (import.meta.env.DEV) {
+      console.warn('Access denied - User role:', profile.role, 'Allowed roles:', allowedRoles);
+    }
     return <Navigate to={redirectTo} replace />;
   }
 

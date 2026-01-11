@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface DashboardPermissions {
   [key: string]: boolean;
@@ -8,11 +9,36 @@ interface DashboardPermissions {
 
 export function useDashboardPermissions() {
   const { profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const [permissions, setPermissions] = useState<DashboardPermissions>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchDashboardPermissions = async () => {
+      // Super admins can view everything
+      if (isSuperAdmin) {
+        setPermissions({
+          'dashboard.stats': true,
+          'dashboard.notifications': true,
+          'dashboard.messages': true,
+          'dashboard.active_jobs': true,
+          'dashboard.bills_overview': true,
+          'dashboard.payment_status': true,
+          'dashboard.invoice_summary': true,
+          'dashboard.budget_tracking': true,
+          'dashboard.punch_clock': true,
+          'dashboard.timesheet_approval': true,
+          'dashboard.overtime_alerts': true,
+          'dashboard.employee_attendance': true,
+          'dashboard.project_progress': true,
+          'dashboard.task_deadlines': true,
+          'dashboard.resource_allocation': true,
+          'dashboard.credit_card_coding': true,
+        });
+        setLoading(false);
+        return;
+      }
+
       if (!profile?.role) {
         setLoading(false);
         return;
@@ -66,9 +92,10 @@ export function useDashboardPermissions() {
     };
 
     fetchDashboardPermissions();
-  }, [profile?.role]);
+  }, [profile?.role, isSuperAdmin]);
 
   const canViewSection = (section: string): boolean => {
+    if (isSuperAdmin) return true;
     if (profile?.role === 'admin') return true;
     return permissions[`dashboard.${section}`] || false;
   };
@@ -79,3 +106,4 @@ export function useDashboardPermissions() {
     canViewSection,
   };
 }
+
