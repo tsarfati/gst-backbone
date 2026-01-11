@@ -1,15 +1,13 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 import { AuthModal } from '@/components/AuthModal';
 import { TenantRequestModal } from '@/components/TenantRequestModal';
-import { 
-  Building2, 
-  Shield, 
-  Users, 
-  BarChart3, 
-  Clock, 
+import {
+  Building2,
+  Shield,
+  Users,
+  BarChart3,
+  Clock,
   FileText,
   CheckCircle,
   ArrowRight,
@@ -21,15 +19,6 @@ import {
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
-  // If user is already logged in, redirect to dashboard
-  useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-    }
-  }, [user, navigate]);
 
   const features = [
     {

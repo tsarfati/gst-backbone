@@ -2,17 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Download, ArrowLeft, Users } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-
-const SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
-const untypedSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 interface PinEmployee {
   id: string;
@@ -44,7 +40,7 @@ export default function PinEmployeeListReport() {
     setLoading(true);
 
     try {
-      const { data: accessData } = await untypedSupabase
+      const { data: accessData } = await supabase
         .from("user_company_access")
         .select("user_id")
         .eq("company_id", currentCompany.id)
@@ -52,7 +48,7 @@ export default function PinEmployeeListReport() {
 
       const userIds = (accessData || []).map((a: any) => a.user_id);
 
-      const { data: pinData, error: pinError } = await untypedSupabase
+      const { data: pinData, error: pinError } = await supabase
         .from("pin_employees")
         .select("id, first_name, last_name, display_name, pin_code, email, phone, is_active")
         .in("id", userIds)
