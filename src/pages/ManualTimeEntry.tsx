@@ -347,8 +347,6 @@ export default function ManualTimeEntry() {
           notes: formData.notes || null,
           status: status,
           requires_approval: requiresApproval,
-          over_12h: over12h,
-          over_24h: over24h,
           created_via_punch_clock: false
         });
 
