@@ -16,6 +16,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { loadPdfTemplate, hexToRgb, loadImageAsDataUrl, PdfTemplateSettings } from "@/utils/pdfTemplateLoader";
 import * as XLSX from "xlsx";
 import { autoFitColumns } from "@/utils/excelAutoFit";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
@@ -620,21 +621,57 @@ export default function ProjectCostTransactionHistory() {
     );
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF({ orientation: "landscape" });
+    
+    // Load PDF template settings
+    const template = await loadPdfTemplate(currentCompany?.id || "");
+    const primaryColor = hexToRgb(template.primary_color || "#1e40af");
+    const headerBg = hexToRgb(template.table_header_bg || "#dbeafe");
+    
+    let startY = 10;
+    
+    // Add logo if configured
+    if (template.use_company_logo && template.logo_url) {
+      try {
+        const logoDataUrl = await loadImageAsDataUrl(template.logo_url);
+        doc.addImage(logoDataUrl, "PNG", 14, 8, 25, 12);
+        startY = 22;
+      } catch (e) {
+        console.warn("Failed to load logo:", e);
+      }
+    }
     
     // Compact header
     doc.setFontSize(12);
-    doc.setFont(undefined as any, "bold");
-    doc.text("Project Cost Transaction History", 14, 10);
+    doc.setFont(template.font_family || "helvetica", "bold");
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text("Project Cost Transaction History", template.use_company_logo && template.logo_url ? 45 : 14, startY - 5);
     doc.setFontSize(8);
-    doc.setFont(undefined as any, "normal");
-    doc.text(`${getSelectedJobName()} | Total: $${formatNumber(totalAmount)} | ${new Date().toLocaleDateString()}`, 14, 15);
+    doc.setFont(template.font_family || "helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text(`${getSelectedJobName()} | Total: $${formatNumber(totalAmount)} | ${new Date().toLocaleDateString()}`, template.use_company_logo && template.logo_url ? 45 : 14, startY);
     
-    // Build flat table data for compact view
+    startY += 5;
+    
+    // Build grouped table data with cost code headers, category subheaders, and totals
     const tableData: any[][] = [];
-    groupedTransactions.forEach(group => {
-      group.categories.forEach(cat => {
+    
+    groupedTransactions.forEach((group, groupIdx) => {
+      // Cost Code Header Row
+      tableData.push([
+        { content: `${group.costCode} - ${group.costCodeDescription}`, colSpan: 6, styles: { fontStyle: "bold", fillColor: primaryColor, textColor: [255, 255, 255], fontSize: 7, cellPadding: 1.5 } },
+        { content: `$${formatNumber(group.costCodeTotal)}`, styles: { fontStyle: "bold", fillColor: primaryColor, textColor: [255, 255, 255], halign: "right", fontSize: 7, cellPadding: 1.5 } },
+      ]);
+      
+      group.categories.forEach((cat, catIdx) => {
+        // Category Sub-Header Row (indented)
+        tableData.push([
+          { content: `  ${cat.category}`, colSpan: 6, styles: { fontStyle: "bold", fillColor: headerBg, fontSize: 6.5, cellPadding: 1 } },
+          { content: `$${formatNumber(cat.total)}`, styles: { fontStyle: "bold", fillColor: headerBg, halign: "right", fontSize: 6.5, cellPadding: 1 } },
+        ]);
+        
+        // Transaction rows (further indented)
         cat.transactions.forEach(t => {
           let typeLabel = "Posted";
           if (t.type === "bill") typeLabel = "Bill";
@@ -643,36 +680,38 @@ export default function ProjectCostTransactionHistory() {
           else if (t.credit_card_name) typeLabel = t.credit_card_name;
           
           tableData.push([
-            group.costCode,
-            cat.category,
-            new Date(t.date).toLocaleDateString(),
+            `    ${new Date(t.date).toLocaleDateString()}`,
             typeLabel,
-            (t.vendor_name || "-").substring(0, 20),
+            (t.vendor_name || "-").substring(0, 18),
             t.reference_number || "-",
-            t.description.substring(0, 30),
-            `$${formatNumber(t.amount)}`,
+            t.description.substring(0, 35),
+            "",
+            { content: `$${formatNumber(t.amount)}`, styles: { halign: "right" } },
           ]);
         });
       });
+      
+      // Add spacing row between cost codes (except last)
+      if (groupIdx < groupedTransactions.length - 1) {
+        tableData.push([{ content: "", colSpan: 7, styles: { cellPadding: 1, minCellHeight: 2 } }]);
+      }
     });
     
     autoTable(doc, {
-      startY: 18,
-      head: [["Code", "Category", "Date", "Type", "Vendor", "Ref#", "Description", "Amount"]],
+      startY,
+      head: [["Date/Code", "Type", "Vendor", "Ref#", "Description", "", "Amount"]],
       body: tableData,
       theme: "grid",
-      headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7, cellPadding: 1 },
-      bodyStyles: { fontSize: 6, cellPadding: 1 },
-      alternateRowStyles: { fillColor: [239, 246, 255] },
+      headStyles: { fillColor: [80, 80, 80], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.5, cellPadding: 1 },
+      bodyStyles: { fontSize: 6, cellPadding: 0.8 },
       columnStyles: {
-        0: { cellWidth: 18 },
+        0: { cellWidth: 40 },
         1: { cellWidth: 22 },
-        2: { cellWidth: 18 },
-        3: { cellWidth: 22 },
-        4: { cellWidth: 30 },
-        5: { cellWidth: 18 },
-        6: { cellWidth: "auto" },
-        7: { cellWidth: 22, halign: "right" },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: "auto" },
+        5: { cellWidth: 10 },
+        6: { cellWidth: 25, halign: "right" },
       },
       margin: { left: 10, right: 10 },
     });
@@ -680,7 +719,8 @@ export default function ProjectCostTransactionHistory() {
     // Add category summary at the end
     const summaryY = (doc as any).lastAutoTable.finalY + 6;
     doc.setFontSize(9);
-    doc.setFont(undefined as any, "bold");
+    doc.setFont(template.font_family || "helvetica", "bold");
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text("Cost Summary by Category", 14, summaryY);
     
     const summaryData = categorySummary.map(s => [
@@ -704,7 +744,7 @@ export default function ProjectCostTransactionHistory() {
       head: [["Category", "Prev Cost", "Curr Cost", "Cost to Date", "Budget", "Difference", "% Used"]],
       body: summaryData,
       theme: "grid",
-      headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7, cellPadding: 1 },
+      headStyles: { fillColor: [80, 80, 80], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7, cellPadding: 1 },
       bodyStyles: { fontSize: 7, cellPadding: 1 },
       alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
@@ -718,6 +758,18 @@ export default function ProjectCostTransactionHistory() {
       },
       margin: { left: 10, right: 10 },
     });
+    
+    // Add footer if configured
+    if (template.footer_html) {
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        const footerText = template.footer_html.replace(/{page}/g, String(i)).replace(/{pages}/g, String(pageCount)).replace(/<[^>]*>/g, "");
+        doc.text(footerText, 14, doc.internal.pageSize.height - 7);
+      }
+    }
     
     doc.save(`project-cost-transactions-${new Date().toISOString().split("T")[0]}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
