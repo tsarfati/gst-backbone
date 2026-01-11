@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,11 +68,19 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
     loadData();
   }, [jobId]);
 
+  // Track the cost code count to detect new additions
+  const costCodeCountRef = useRef(selectedCostCodes.length);
+  
   useEffect(() => {
-    // Auto-populate budget lines when selected cost codes change
+    // Always reload when selected cost codes change to catch newly added ones
     if (selectedCostCodes.length > 0) {
-      console.log('Selected cost codes changed, populating budget lines:', selectedCostCodes.length);
+      console.log('Selected cost codes changed, populating budget lines:', selectedCostCodes.length, 'previous:', costCodeCountRef.current);
+      costCodeCountRef.current = selectedCostCodes.length;
       populateBudgetLines();
+    } else if (selectedCostCodes.length === 0 && costCodeCountRef.current > 0) {
+      // If we previously had cost codes but now have none, reload anyway
+      costCodeCountRef.current = 0;
+      loadData();
     }
   }, [selectedCostCodes]);
 
