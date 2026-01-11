@@ -240,7 +240,7 @@ function AuthenticatedRoutes() {
                 </ProtectedRoute>
               }>
                 <Route index element={<Dashboard />} />
-                <Route path="dashboard" element={<Navigate to="/" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
                 <Route path="vendor/dashboard" element={
                   <RoleGuard allowedRoles={['vendor']}>
                     <VendorDashboard />
