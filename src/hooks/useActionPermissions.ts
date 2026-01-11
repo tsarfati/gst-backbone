@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { useMenuPermissions } from './useMenuPermissions';
 
 /**
@@ -7,14 +8,15 @@ import { useMenuPermissions } from './useMenuPermissions';
  */
 export function useActionPermissions() {
   const { profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
   // Normalize role and derive flags
   const normalizedRole = (profile?.role || '').toLowerCase().replace(/-/g, '_').trim();
   const isViewOnly = ['view_only', 'viewer', 'read_only', 'readonly', 'viewonly'].includes(normalizedRole);
 
-  // Admin users can do everything
-  const isAdmin = normalizedRole === 'admin';
+  // Super admins behave like admins for app-level permissions
+  const isAdmin = isSuperAdmin || normalizedRole === 'admin';
 
   // Controller and company_admin (and owner) have elevated permissions
   const isController = normalizedRole === 'controller';
@@ -26,19 +28,19 @@ export function useActionPermissions() {
 
     // Core CRUD permissions
     canCreate: (resource: string): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess(`${resource}-add`);
     },
 
     canEdit: (resource: string): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess(`${resource}-edit`);
     },
 
     canDelete: (resource: string): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       // Most delete operations require admin or controller
       return hasElevatedAccess;
@@ -55,13 +57,13 @@ export function useActionPermissions() {
     },
 
     canUploadReceipts: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('receipts-upload');
     },
 
     canCodeReceipts: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('receipts-uncoded') || hasElevatedAccess;
     },
@@ -72,13 +74,13 @@ export function useActionPermissions() {
     },
 
     canCreateJobs: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('jobs-add');
     },
 
     canEditJobs: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('jobs-edit');
     },
@@ -89,7 +91,7 @@ export function useActionPermissions() {
     },
 
     canEditJobBudgets: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('jobs-budget') && !isViewOnly;
     },
@@ -100,13 +102,13 @@ export function useActionPermissions() {
     },
 
     canCreateBills: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('bills-add');
     },
 
     canApproveBills: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       return hasElevatedAccess;
     },
 
@@ -116,13 +118,13 @@ export function useActionPermissions() {
     },
 
     canCreateVendors: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('vendors-add');
     },
 
     canEditVendors: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('vendors-edit');
     },
@@ -133,7 +135,7 @@ export function useActionPermissions() {
     },
 
     canCreateEmployees: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('employees-add');
     },
@@ -144,7 +146,7 @@ export function useActionPermissions() {
     },
 
     canEditTimeTracking: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('time-corrections') || hasElevatedAccess;
     },
@@ -155,32 +157,32 @@ export function useActionPermissions() {
     },
 
     canMakePayments: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('make-payment') && hasElevatedAccess;
     },
 
     canReconcileAccounts: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('reconcile') && (isController || isAdmin);
     },
 
     canManageSettings: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('settings') || hasAccess('company-settings');
     },
 
     canManageUsers: (): boolean => {
-      if (isViewOnly) return false;
+      if (!isSuperAdmin && isViewOnly) return false;
       if (isAdmin) return true;
       return hasAccess('user-settings') && (isAdmin || isCompanyAdmin);
     },
 
     // General utility checks
     isReadOnly: (): boolean => {
-      return isViewOnly;
+      return !isSuperAdmin && isViewOnly;
     },
 
     hasElevatedAccess: (): boolean => {
@@ -192,3 +194,4 @@ export function useActionPermissions() {
     },
   };
 }
+

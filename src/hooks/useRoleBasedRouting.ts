@@ -1,16 +1,27 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { supabase } from '@/integrations/supabase/client';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { hasAccess } = useMenuPermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
+    // Super admins should land on the super admin dashboard from initial pages
+    const initialPaths = ['/', '/auth'];
+    if (isSuperAdmin) {
+      if (initialPaths.includes(location.pathname)) {
+        navigate('/super-admin', { replace: true });
+      }
+      return;
+    }
+
     if (!profile?.role) return;
 
     const fetchDefaultPage = async () => {
@@ -43,8 +54,6 @@ export function useRoleBasedRouting() {
         }
 
         // Only redirect if we're on one of the initial/generic pages
-        const initialPaths = ['/', '/auth'];
-        
         if (initialPaths.includes(location.pathname)) {
           if (data?.default_page && hasAccess(data.default_page.replace('/', ''))) {
             const target = data.default_page === '/dashboard' ? '/' : data.default_page;
@@ -57,9 +66,9 @@ export function useRoleBasedRouting() {
               { path: '/jobs', menu: 'jobs' },
               { path: '/time-sheets', menu: 'timesheets' }
             ];
-            
+
             const accessiblePage = fallbackPages.find(page => hasAccess(page.menu));
-            
+
             if (accessiblePage) {
               navigate(accessiblePage.path, { replace: true });
             } else {
@@ -76,5 +85,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [profile?.role, hasAccess, navigate, location.pathname]);
+  }, [profile?.role, isSuperAdmin, hasAccess, navigate, location.pathname]);
 }
