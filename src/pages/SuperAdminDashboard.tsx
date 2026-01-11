@@ -19,7 +19,8 @@ import {
   XCircle, 
   Search,
   Shield,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from 'lucide-react';
 
 interface TenantAccessRequest {
@@ -49,7 +50,7 @@ interface Tenant {
 }
 
 export default function SuperAdminDashboard() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { isSuperAdmin, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -267,18 +268,29 @@ export default function SuperAdminDashboard() {
     return null;
   }
 
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2">
-              <Shield className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <Shield className="h-6 w-6 text-primary" />
+                <h1 className="text-2xl font-bold">Super Admin Dashboard</h1>
+              </div>
             </div>
+            <Button variant="outline" onClick={handleLogout} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Log Out
+            </Button>
           </div>
         </div>
       </div>
