@@ -144,7 +144,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold text-center">Create Your Organization</DialogTitle>
               <DialogDescription className="text-center">
-                First, create an account or sign in to continue
+                Create an account to get started
               </DialogDescription>
             </DialogHeader>
             
@@ -202,17 +202,6 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                 >
                   Continue with Google
                 </Button>
-                <div className="text-center text-sm text-muted-foreground pt-2">
-                  Already have an account?{' '}
-                  <button 
-                    type="button"
-                    onClick={handleSignIn}
-                    className="text-primary hover:underline"
-                    disabled={loading}
-                  >
-                    Sign in
-                  </button>
-                </div>
               </div>
             </div>
           </>

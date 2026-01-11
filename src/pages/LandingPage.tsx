@@ -15,8 +15,7 @@ import {
   CheckCircle,
   ArrowRight,
   Mail,
-  Phone,
-  MapPin
+  Phone
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -125,7 +124,7 @@ export default function LandingPage() {
             Powerful construction management software that helps you track costs, manage teams, 
             and grow your business. Everything you need in one platform.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <Button 
               size="lg" 
               onClick={() => setShowTenantRequestModal(true)}
@@ -133,14 +132,6 @@ export default function LandingPage() {
             >
               Create Your Organization
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              onClick={() => setShowAuthModal(true)}
-              className="text-lg px-8 py-6"
-            >
-              Sign In to Existing Account
             </Button>
           </div>
         </div>
@@ -250,7 +241,7 @@ export default function LandingPage() {
               Have questions? We're here to help you find the right solution for your business.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <div className="text-center p-6">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
                 <Mail className="h-6 w-6 text-primary" />
@@ -264,13 +255,6 @@ export default function LandingPage() {
               </div>
               <h3 className="font-semibold text-foreground mb-2">Call Us</h3>
               <p className="text-muted-foreground">(555) 123-4567</p>
-            </div>
-            <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
-                <MapPin className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-2">Location</h3>
-              <p className="text-muted-foreground">Austin, Texas</p>
             </div>
           </div>
         </div>
