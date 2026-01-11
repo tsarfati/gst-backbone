@@ -161,8 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    // Navigate to auth page after logout without full reload
-    navigate('/auth', { replace: true });
+    // Navigate to landing page after logout
+    navigate('/', { replace: true });
   };
 
   const refreshProfile = async () => {

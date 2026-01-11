@@ -9,30 +9,46 @@ import { Upload, Trash2, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
+
+// Default empty settings for new companies
+const defaultSettings = {
+  header_image_url: '',
+  background_color: '#f8fafc',
+  background_image_url: '',
+  primary_color: '#3b82f6',
+  logo_url: '',
+  welcome_message: 'Welcome to Punch Clock',
+  bottom_text: ''
+};
 
 export function PunchClockLoginSettings() {
-  const [settings, setSettings] = useState({
-    header_image_url: '',
-    background_color: '#f8fafc',
-    background_image_url: '',
-    primary_color: '#3b82f6',
-    logo_url: '',
-    welcome_message: 'Welcome to Punch Clock',
-    bottom_text: ''
-  });
+  const [settings, setSettings] = useState(defaultSettings);
   const [loading, setLoading] = useState(false);
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
 
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (currentCompany?.id) {
+      loadSettings();
+    } else {
+      // Reset to defaults when no company is selected
+      setSettings(defaultSettings);
+    }
+  }, [currentCompany?.id]);
 
   const loadSettings = async () => {
+    if (!currentCompany?.id) {
+      setSettings(defaultSettings);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('punch_clock_login_settings')
         .select('*')
+        .eq('company_id', currentCompany.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -50,6 +66,9 @@ export function PunchClockLoginSettings() {
           welcome_message: data.welcome_message || 'Welcome to Punch Clock',
           bottom_text: data.bottom_text || ''
         });
+      } else {
+        // No settings exist for this company yet - use defaults (blank)
+        setSettings(defaultSettings);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
