@@ -239,24 +239,14 @@ export default function LandingPage() {
           </AnimatedSection>
           
           <AnimatedSection animation="zoom-in" delay={600} duration={800}>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                size="lg" 
-                onClick={() => setShowTenantRequestModal(true)}
-                className="text-lg px-10 py-7 bg-accent hover:bg-accent/80 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300"
-              >
-                Start Building Today
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                onClick={() => setShowAuthModal(true)}
-                className="text-lg px-10 py-7 border-white/50 text-white hover:bg-accent hover:border-accent hover:text-white font-bold transition-all duration-300"
-              >
-                Sign In
-              </Button>
-            </div>
+            <Button 
+              size="lg" 
+              onClick={() => setShowTenantRequestModal(true)}
+              className="text-lg px-10 py-7 bg-accent hover:bg-accent/80 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300"
+            >
+              Start Building Today
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
           </AnimatedSection>
         </div>
 
