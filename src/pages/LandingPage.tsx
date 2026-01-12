@@ -259,7 +259,8 @@ export default function LandingPage() {
             <Button 
               size="lg" 
               onClick={() => setShowTenantRequestModal(true)}
-              className="text-lg px-10 py-7 bg-accent hover:bg-accent/80 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300 pointer-events-auto"
+              className="text-lg px-10 py-7 text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300 pointer-events-auto"
+              style={{ backgroundColor: '#E88A2D' }}
             >
               Start Building Today
               <ArrowRight className="ml-2 h-5 w-5" />
