@@ -204,8 +204,8 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedSection animation="fade-down" duration={1000}>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-6 leading-tight tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
-              <span className="text-[#E88A2D]">Build Smarter.</span>
-              <span className="block mt-2 text-[#E88A2D]">Build Faster.</span>
+              <span className="text-white">Build </span><span className="text-[#E88A2D]">Smarter.</span>
+              <span className="block mt-2"><span className="text-white">Build </span><span className="text-[#E88A2D]">Faster.</span></span>
             </h1>
           </AnimatedSection>
           
@@ -254,7 +254,7 @@ export default function LandingPage() {
             {stats.map((stat, index) => (
               <AnimatedSection key={index} animation="zoom-in" delay={index * 150}>
                 <div className="text-center group">
-                  <stat.icon className="h-10 w-10 text-[#E88A2D] mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
+                  <stat.icon className="h-10 w-10 text-primary-foreground mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
                   <div className="text-4xl sm:text-5xl font-black text-[#E88A2D] mb-1">{stat.value}</div>
                   <div className="text-primary-foreground/80 font-medium">{stat.label}</div>
                 </div>
