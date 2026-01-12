@@ -445,14 +445,33 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isSuperAdmin } = useTenant();
+  const { profile } = useAuth();
+  const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const isPunchClockPage = location.pathname === '/time-tracking';
 
-  // If you're a platform super admin, default to the Super Admin dashboard
+  // If you're a platform super admin *without* any company access, default to Super Admin dashboard.
+  // Super admins who also belong to a legacy/company context should land in the main app.
   useEffect(() => {
-    if (isSuperAdmin && (location.pathname === '/' || location.pathname === '/dashboard')) {
+    if (!isSuperAdmin) return;
+    if (companyLoading) return;
+
+    const hasCompanyAccess =
+      !!currentCompany ||
+      userCompanies.length > 0 ||
+      !!profile?.current_company_id;
+
+    if (!hasCompanyAccess && (location.pathname === '/' || location.pathname === '/dashboard')) {
       navigate('/super-admin', { replace: true });
     }
-  }, [isSuperAdmin, location.pathname, navigate]);
+  }, [
+    isSuperAdmin,
+    companyLoading,
+    currentCompany?.id,
+    userCompanies.length,
+    profile?.current_company_id,
+    location.pathname,
+    navigate,
+  ]);
 
   // Ensure dynamic manifest/icons are updated under CompanyProvider
   useDynamicManifest();
