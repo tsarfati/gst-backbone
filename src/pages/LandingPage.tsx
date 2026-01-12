@@ -255,7 +255,7 @@ export default function LandingPage() {
               <AnimatedSection key={index} animation="zoom-in" delay={index * 150}>
                 <div className="text-center group">
                   <stat.icon className="h-10 w-10 text-accent mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
-                  <div className="text-4xl sm:text-5xl font-black text-white mb-1">{stat.value}</div>
+                  <div className="text-4xl sm:text-5xl font-black text-accent mb-1">{stat.value}</div>
                   <div className="text-primary-foreground/80 font-medium">{stat.label}</div>
                 </div>
               </AnimatedSection>
