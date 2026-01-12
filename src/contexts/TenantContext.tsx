@@ -166,7 +166,9 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     tenantMember,
     loading,
     isSuperAdmin,
-    hasTenantAccess: !!currentTenant || isSuperAdmin,
+    // hasTenantAccess should be true only if user has actual tenant membership
+    // Super admins without tenant membership should have hasTenantAccess = false
+    hasTenantAccess: !!currentTenant,
     hasPendingRequest,
     pendingRequest,
     refreshTenant
