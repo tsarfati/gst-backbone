@@ -194,11 +194,12 @@ export default function CreditCardDetails() {
         .select("id, transaction_date, amount, description, merchant_name, invoice_id, coding_status, transaction_type")
         .eq("credit_card_id", id);
 
+      // Include transaction_type in the key so refunds/fees don't collide with purchases
       const existingMap = new Map(
-        (existingTransactions || []).map(t => [
-          `${t.transaction_date}-${Math.abs(Number(t.amount))}-${t.description || t.merchant_name}`,
-          t
-        ])
+        (existingTransactions || []).map((t) => [
+          `${t.transaction_date}-${Math.abs(Number(t.amount))}-${t.description || t.merchant_name}-${t.transaction_type || ''}`,
+          t,
+        ]),
       );
 
       let duplicateCount = 0;
@@ -229,9 +230,11 @@ export default function CreditCardDetails() {
           amount = Math.abs(amount);
           const formattedDate = new Date(transactionDate).toISOString().split('T')[0];
           
-          let desiredType = type === 'Payment' ? 'payment' : (type === 'Fee' ? 'fee' : 'charge');
+          const desiredType = type === 'Payment'
+            ? 'payment'
+            : (type === 'Fee' ? 'fee' : (type === 'Adjustment' ? 'adjustment' : 'purchase'));
 
-          const key = `${formattedDate}-${amount}-${description}`;
+          const key = `${formattedDate}-${amount}-${description}-${desiredType}`;
           if (existingMap.has(key)) {
             duplicateCount++;
             continue;
@@ -282,15 +285,16 @@ export default function CreditCardDetails() {
           if (typeCol) {
             const typeLower = String(typeCol).toLowerCase();
             if (typeLower === 'payment') transactionType = 'payment';
-            else if (typeLower === 'credit' || typeLower === 'return' || typeLower === 'refund') transactionType = 'credit';
+            else if (typeLower === 'refund' || typeLower === 'return') transactionType = 'refund';
             else if (typeLower === 'fee') transactionType = 'fee';
-            else transactionType = 'charge';
+            else if (typeLower === 'adjustment') transactionType = 'adjustment';
+            else transactionType = 'purchase';
           } else {
-            // If no type column, use amount sign: negative = credit/return, positive = charge
-            transactionType = isNegative ? 'credit' : 'charge';
+            // If no type column, use amount sign: negative = refund/credit, positive = purchase
+            transactionType = isNegative ? 'refund' : 'purchase';
           }
           
-          const key = `${transactionDate}-${amount}-${description}`;
+          const key = `${transactionDate}-${amount}-${description}-${transactionType}`;
           if (existingMap.has(key)) {
             duplicateCount++;
             continue;
