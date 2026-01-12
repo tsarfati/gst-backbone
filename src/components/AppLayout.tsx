@@ -143,6 +143,7 @@ const navigationCategories = [
     title: "Settings",
     icon: Settings,
     items: [
+      { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
       { name: "General", href: "/settings", menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", menuKey: "settings" },
       
@@ -443,23 +444,11 @@ export function AppSidebar() {
 
 export default function Layout() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { isSuperAdmin, tenantMember, loading: tenantLoading } = useTenant();
-  const { loading: companyLoading } = useCompany();
+  const { isSuperAdmin } = useTenant();
   const isPunchClockPage = location.pathname === '/time-tracking';
 
-  // Tenant-owner super admins should default to Super Admin dashboard when landing on generic entry pages.
-  useEffect(() => {
-    if (tenantLoading || companyLoading) return;
-    if (!isSuperAdmin) return;
-
-    const isTenantOwner = tenantMember?.role === 'owner';
-    if (!isTenantOwner) return;
-
-    if (location.pathname === '/' || location.pathname === '/dashboard') {
-      navigate('/super-admin', { replace: true });
-    }
-  }, [tenantLoading, companyLoading, isSuperAdmin, tenantMember?.role, location.pathname, navigate]);
+  // NOTE: Super admins can access both the Super Admin Dashboard and company dashboards.
+  // No automatic redirect – they navigate manually via Settings > Super Admin Dashboard.
 
   // Ensure dynamic manifest/icons are updated under CompanyProvider
   useDynamicManifest();
