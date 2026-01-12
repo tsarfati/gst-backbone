@@ -12,8 +12,8 @@ import heroVideo2 from '@/assets/hero-construction-2.mp4';
 import heroVideo3 from '@/assets/hero-construction-3.mp4';
 import heroVideo4 from '@/assets/hero-construction-4.mp4';
 import heroVideo5 from '@/assets/hero-construction-5.mp4';
-import logoImage from '@/assets/builderlynk-logo.png';
-import logoTransparent from '@/assets/builderlynk-logo-transparent.png';
+import logoImage from '@/assets/builderlynk-logo-new.png';
+import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import {
   Shield,
   Users,

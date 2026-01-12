@@ -21,6 +21,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,12 +39,32 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
     setPassword('');
     setFirstName('');
     setLastName('');
+    setPhone('');
     setTenantName('');
     setNotes('');
   };
 
+  const validateForm = () => {
+    if (!email.trim()) return 'Email is required';
+    if (!password.trim()) return 'Password is required';
+    if (!phone.trim()) return 'Phone number is required';
+    if (!/^[\+]?[\d\s\-\(\)]{10,}$/.test(phone.trim())) return 'Please enter a valid phone number';
+    return null;
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const validationError = validateForm();
+    if (validationError) {
+      toast({
+        title: 'Validation Error',
+        description: validationError,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setLoading(true);
 
     const { error } = await signUp(email, password, firstName, lastName);
@@ -55,6 +76,18 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
         variant: 'destructive',
       });
     } else {
+      // Update profile with phone number after signup
+      setTimeout(async () => {
+        try {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          if (currentUser) {
+            await supabase.from('profiles').update({ phone }).eq('user_id', currentUser.id);
+          }
+        } catch (err) {
+          console.error('Failed to update phone:', err);
+        }
+      }, 1000);
+      
       toast({
         title: 'Account Created',
         description: 'Please check your email for verification, then continue.',
@@ -175,6 +208,17 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(555) 123-4567"
                     required
                   />
                 </div>

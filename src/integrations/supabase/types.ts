@@ -4689,6 +4689,7 @@ export type Database = {
           id: string
           last_name: string | null
           nickname: string | null
+          phone: string | null
           pin_code: string | null
           profile_completed: boolean | null
           profile_completed_at: string | null
@@ -4713,6 +4714,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           nickname?: string | null
+          phone?: string | null
           pin_code?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
@@ -4737,6 +4739,7 @@ export type Database = {
           id?: string
           last_name?: string | null
           nickname?: string | null
+          phone?: string | null
           pin_code?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
