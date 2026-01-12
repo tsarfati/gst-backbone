@@ -270,7 +270,7 @@ export default function LandingPage() {
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
               <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
-                Everything You Need to <span className="text-accent">Succeed</span>
+                Everything You Need to <span className="text-[#E88A2D]">Succeed</span>
               </h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Comprehensive tools designed specifically for construction companies
@@ -286,8 +286,8 @@ export default function LandingPage() {
                 delay={index * 100}
               >
                 <div className="bg-card p-8 rounded-xl border border-border hover:border-accent/50 hover:shadow-xl hover:shadow-accent/10 transition-all duration-500 group h-full">
-                  <div className="w-14 h-14 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
-                    <feature.icon className="h-7 w-7 text-accent group-hover:text-white transition-colors" />
+                  <div className="w-14 h-14 rounded-xl bg-[#E88A2D]/10 flex items-center justify-center mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
+                    <feature.icon className="h-7 w-7 text-[#E88A2D] group-hover:text-white transition-colors" />
                   </div>
                   <h3 className="text-xl font-bold text-foreground mb-3">{feature.title}</h3>
                   <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
@@ -308,7 +308,7 @@ export default function LandingPage() {
             <AnimatedSection animation="fade-right">
               <div>
                 <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-6 leading-tight">
-                  Built for <span className="text-accent">Builders,</span>
+                  Built for <span className="text-[#E88A2D]">Builders,</span>
                   <span className="block">By Builders</span>
                 </h2>
                 <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
@@ -324,8 +324,8 @@ export default function LandingPage() {
                   {benefits.map((benefit, index) => (
                     <AnimatedSection key={index} animation="fade-left" delay={index * 80}>
                       <li className="flex items-center gap-4 group">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center group-hover:bg-accent transition-colors">
-                          <CheckCircle className="h-5 w-5 text-accent group-hover:text-white transition-colors" />
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#E88A2D]/10 flex items-center justify-center group-hover:bg-[#E88A2D] transition-colors">
+                          <CheckCircle className="h-5 w-5 text-[#E88A2D] group-hover:text-white transition-colors" />
                         </div>
                         <span className="text-foreground font-medium">{benefit}</span>
                       </li>
@@ -340,15 +340,15 @@ export default function LandingPage() {
                 <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl" />
                 <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-10 lg:p-14 shadow-2xl">
                   <div className="text-center">
-                    <div className="text-7xl font-black text-white mb-2">100%</div>
+                    <div className="text-7xl font-black text-[#E88A2D] mb-2">100%</div>
                     <p className="text-2xl text-primary-foreground font-bold mb-8">Cloud-Based Platform</p>
                     <div className="grid grid-cols-2 gap-8">
                       <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
-                        <div className="text-4xl font-black text-white mb-1">24/7</div>
+                        <div className="text-4xl font-black text-[#E88A2D] mb-1">24/7</div>
                         <p className="text-primary-foreground/80 font-medium">Access Anywhere</p>
                       </div>
                       <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
-                        <div className="text-4xl font-black text-white mb-1">99.9%</div>
+                        <div className="text-4xl font-black text-[#E88A2D] mb-1">99.9%</div>
                         <p className="text-primary-foreground/80 font-medium">Uptime SLA</p>
                       </div>
                     </div>
@@ -362,7 +362,7 @@ export default function LandingPage() {
           <AnimatedSection animation="fade-up">
             <div className="mt-20">
               <h3 className="text-2xl sm:text-4xl font-bold text-foreground text-center mb-14">
-                Core Capabilities That <span className="text-accent">Drive Results</span>
+                Core Capabilities That <span className="text-[#E88A2D]">Drive Results</span>
               </h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {coreCapabilities.map((capability, index) => (
@@ -421,7 +421,7 @@ export default function LandingPage() {
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
               <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
-                Get in <span className="text-accent">Touch</span>
+                Get in <span className="text-[#E88A2D]">Touch</span>
               </h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Have questions? We&apos;re here to help you find the right solution for your business.
@@ -431,18 +431,18 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <AnimatedSection animation="fade-right" delay={100}>
-              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-accent/50 hover:shadow-xl transition-all duration-300 group">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
-                  <Mail className="h-8 w-8 text-accent group-hover:text-white transition-colors" />
+              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
+                  <Mail className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="font-bold text-foreground mb-2 text-xl">Email Us</h3>
                 <p className="text-muted-foreground text-lg">support@builderlynk.com</p>
               </div>
             </AnimatedSection>
             <AnimatedSection animation="fade-left" delay={200}>
-              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-accent/50 hover:shadow-xl transition-all duration-300 group">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
-                  <Phone className="h-8 w-8 text-accent group-hover:text-white transition-colors" />
+              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
+                  <Phone className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="font-bold text-foreground mb-2 text-xl">Call Us</h3>
                 <p className="text-muted-foreground text-lg">(555) 123-4567</p>
