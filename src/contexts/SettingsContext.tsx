@@ -114,12 +114,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setIsLoaded(false);
 
       if (!currentCompany?.id || !user?.id) {
-        // No scope → apply defaults once
+        // No scope → reset to defaults and REMOVE custom properties so CSS root variables take over
         setSettings(defaultSettings);
         const root = document.documentElement;
-        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-          const hsl = toHslToken(value);
-          root.style.setProperty(`--${key}`, hsl);
+        // Remove custom color overrides so the base CSS variables from index.css apply
+        ['primary', 'secondary', 'accent', 'success', 'warning', 'destructive', 'buttonHover'].forEach((key) => {
+          root.style.removeProperty(`--${key}`);
         });
         setIsLoaded(true);
         return;
