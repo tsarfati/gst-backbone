@@ -8,6 +8,7 @@ import { Plus, Trash2, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface UserCompanyAccessProps {
   userId: string;
@@ -35,6 +36,7 @@ interface Company {
 export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const { currentTenant } = useTenant();
   const [companyAccesses, setCompanyAccesses] = useState<CompanyAccess[]>([]);
   const [allCompanies, setAllCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,8 +55,10 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
 
   useEffect(() => {
     fetchCompanyAccesses();
-    fetchAllCompanies();
-  }, [userId]);
+    if (currentTenant?.id) {
+      fetchAllCompanies();
+    }
+  }, [userId, currentTenant?.id]);
 
   const fetchCompanyAccesses = async () => {
     try {
@@ -83,11 +87,18 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
   };
 
   const fetchAllCompanies = async () => {
+    if (!currentTenant?.id) {
+      setAllCompanies([]);
+      return;
+    }
+    
     try {
+      // Only fetch companies belonging to the current tenant
       const { data, error } = await supabase
         .from('companies')
         .select('id, name, display_name')
         .eq('is_active', true)
+        .eq('tenant_id', currentTenant.id)
         .order('name');
 
       if (error) throw error;
