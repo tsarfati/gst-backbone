@@ -10,27 +10,30 @@ import { supabase } from '@/integrations/supabase/client';
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
-  const { loading: companyLoading } = useCompany();
+  const { loading: companyLoading, userCompanies, currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Derive effective role from company-specific role first, fallback to profile.role
-  const effectiveRole = activeCompanyRole || profile?.role;
+  // Prefer active-company role, then profile role, then any company role we can infer.
+  const effectiveRole =
+    activeCompanyRole ||
+    profile?.role ||
+    (userCompanies.length > 0 ? userCompanies[0].role : null);
+
+  // Company access signal (used to prevent super-admin default routing when the user also has legacy/company access)
+  const hasCompanyAccess =
+    !!currentCompany || userCompanies.length > 0 || !!profile?.current_company_id;
 
   useEffect(() => {
     // Wait for company context to settle before routing
     if (companyLoading) return;
 
     // Super admins should land on the super admin dashboard from initial pages
-    // BUT only if they don't also have a tenant membership (they're primarily super admins)
+    // BUT only if they don't also have any company access (legacy/company member).
     const initialPaths = ['/', '/auth', '/dashboard'];
-    
-    // Check if user has an active company (meaning they have tenant access too)
-    // If they're a super admin WITH a company, treat them as a regular user
-    const hasCompanyAccess = !!effectiveRole && effectiveRole !== 'employee';
-    
+
     if (isSuperAdmin && !hasCompanyAccess) {
       // Pure super admin without company membership - go to super admin dashboard
       if (initialPaths.includes(location.pathname)) {
@@ -39,7 +42,7 @@ export function useRoleBasedRouting() {
       }
       return;
     }
-    
+
     // If super admin but also has company access, treat as regular user
     // and continue with normal routing below
 
