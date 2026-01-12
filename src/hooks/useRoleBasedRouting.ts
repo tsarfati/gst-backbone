@@ -14,10 +14,17 @@ export function useRoleBasedRouting() {
 
   useEffect(() => {
     // Super admins should land on the super admin dashboard from initial pages
+    // BUT only if they don't also have a tenant membership (they're primarily super admins)
     const initialPaths = ['/', '/auth', '/dashboard'];
     if (isSuperAdmin) {
+      // Check if this user is ONLY a super admin (no tenant membership)
+      // If they have tenant membership, they should go to the regular dashboard
+      // The super admin dashboard is for pure platform-level admins
       if (initialPaths.includes(location.pathname)) {
-        navigate('/super-admin', { replace: true });
+        // Note: The TenantContext already sets hasTenantAccess, so if they have a tenant,
+        // they should go to normal dashboard. Only pure super admins go to super-admin page.
+        // This routing is handled by AccessControl, so we just let it flow through.
+        return;
       }
       return;
     }
