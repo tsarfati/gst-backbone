@@ -6318,6 +6318,7 @@ export type Database = {
           ip_address: string | null
           login_method: string | null
           login_time: string
+          logout_time: string | null
           success: boolean
           user_agent: string | null
           user_id: string
@@ -6328,6 +6329,7 @@ export type Database = {
           ip_address?: string | null
           login_method?: string | null
           login_time?: string
+          logout_time?: string | null
           success?: boolean
           user_agent?: string | null
           user_id: string
@@ -6338,6 +6340,7 @@ export type Database = {
           ip_address?: string | null
           login_method?: string | null
           login_time?: string
+          logout_time?: string | null
           success?: boolean
           user_agent?: string | null
           user_id?: string
