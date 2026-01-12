@@ -17,7 +17,11 @@ import {
   MapPin,
   Clock,
   Building2,
-  Store
+  Store,
+  KeyRound,
+  Loader2,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +29,17 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface UserProfile {
   user_id: string;
@@ -59,6 +74,9 @@ interface LoginAudit {
   login_time: string;
   logout_time?: string;
   ip_address?: string;
+  user_agent?: string;
+  login_method?: string;
+  success?: boolean;
 }
 
 export default function UserDetails() {
@@ -69,10 +87,12 @@ export default function UserDetails() {
   const { isSuperAdmin } = useTenant();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
   const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sendingReset, setSendingReset] = useState(false);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
 
@@ -98,6 +118,7 @@ export default function UserDetails() {
       fetchUserDetails();
       fetchUserJobs();
       fetchLoginAudit();
+      fetchUserEmail();
     }
   }, [userId, currentCompany, isSuperAdmin]);
 
@@ -211,8 +232,80 @@ export default function UserDetails() {
   };
 
   const fetchLoginAudit = async () => {
-    // TODO: Implement after user_login_audit table is created
-    setLoginAudit([]);
+    try {
+      const { data, error } = await supabase
+        .from('user_login_audit')
+        .select('*')
+        .eq('user_id', userId)
+        .order('login_time', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('Error fetching login audit:', error);
+        return;
+      }
+
+      setLoginAudit(data || []);
+    } catch (error) {
+      console.error('Error fetching login audit:', error);
+    }
+  };
+
+  const fetchUserEmail = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await supabase.functions.invoke('get-user-email', {
+        body: { userId },
+      });
+
+      if (response.data?.email) {
+        setUserEmail(response.data.email);
+      }
+    } catch (error) {
+      console.error('Error fetching user email:', error);
+    }
+  };
+
+  const handleSendPasswordReset = async () => {
+    const email = userEmail || user?.email;
+    if (!email) {
+      toast({
+        title: "Error",
+        description: "No email address found for this user",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingReset(true);
+    try {
+      const response = await supabase.functions.invoke('send-password-reset', {
+        body: { 
+          email,
+          redirectTo: `${window.location.origin}/auth`
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to send password reset');
+      }
+
+      toast({
+        title: "Success",
+        description: `Password reset email sent to ${email}`,
+      });
+    } catch (error: any) {
+      console.error('Error sending password reset:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send password reset email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReset(false);
+    }
   };
 
   if (loading) {
@@ -274,10 +367,11 @@ export default function UserDetails() {
               <Separator />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {user.email && (
+                {/* Show email from auth.users or profile */}
+                {(userEmail || user.email) && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Mail className="h-4 w-4" />
-                    <span>{user.email}</span>
+                    <span>{userEmail || user.email}</span>
                   </div>
                 )}
                 {user.phone && (
@@ -303,6 +397,45 @@ export default function UserDetails() {
                   <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
+
+              {/* Password Reset Action */}
+              {(userEmail || user.email) && (
+                <div className="pt-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Send Password Reset
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send Password Reset Email</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will send a password reset email to <strong>{userEmail || user.email}</strong>. 
+                          The user will receive a link to create a new password.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={handleSendPasswordReset}
+                          disabled={sendingReset}
+                        >
+                          {sendingReset ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            'Send Reset Email'
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
 
               {user.notes && (
                 <>
@@ -363,24 +496,33 @@ export default function UserDetails() {
                   key={audit.id}
                   className="flex items-center justify-between p-3 bg-muted rounded-lg"
                 >
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-3">
+                    {audit.success !== false ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
                     <div>
                       <p className="text-sm font-medium">
                         {new Date(audit.login_time).toLocaleString()}
                       </p>
-                      {audit.logout_time && (
-                        <p className="text-xs text-muted-foreground">
-                          Logged out: {new Date(audit.logout_time).toLocaleString()}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {audit.login_method && (
+                          <span className="capitalize">{audit.login_method}</span>
+                        )}
+                        {audit.logout_time && (
+                          <span>• Logged out: {new Date(audit.logout_time).toLocaleString()}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {audit.ip_address && (
-                    <Badge variant="outline" className="text-xs">
-                      {audit.ip_address}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {audit.user_agent && (
+                      <Badge variant="outline" className="text-xs max-w-32 truncate" title={audit.user_agent}>
+                        {audit.user_agent.includes('Mobile') ? 'Mobile' : 'Desktop'}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
