@@ -161,15 +161,25 @@ export default function LandingPage() {
 
   return (
     <div
-      className="min-h-screen bg-background overflow-x-hidden"
-      // Marketing pages should be neutral (no blue hue) even if the app brand palette is cool-toned.
-      // Scope these overrides to this page only.
+      className="min-h-screen overflow-x-hidden"
+      // Marketing pages use hardcoded neutral colors to avoid pollution from company themes
       style={{
+        backgroundColor: '#ffffff',
         ['--background' as any]: '0 0% 100%',
+        ['--foreground' as any]: '222.2 47.4% 11.2%',
         ['--card' as any]: '0 0% 100%',
+        ['--card-foreground' as any]: '222.2 47.4% 11.2%',
         ['--popover' as any]: '0 0% 100%',
-        ['--muted' as any]: '0 0% 97%',
+        ['--popover-foreground' as any]: '222.2 47.4% 11.2%',
+        ['--primary' as any]: '217 45% 28%',
+        ['--primary-foreground' as any]: '0 0% 100%',
         ['--secondary' as any]: '0 0% 97%',
+        ['--secondary-foreground' as any]: '222.2 47.4% 11.2%',
+        ['--muted' as any]: '0 0% 97%',
+        ['--muted-foreground' as any]: '215.4 16.3% 46.9%',
+        ['--accent' as any]: '27 82% 54%',
+        ['--accent-foreground' as any]: '0 0% 100%',
+        ['--border' as any]: '214.3 31.8% 91.4%',
       }}
     >
       {/* Navigation - Fixed with backdrop blur */}
@@ -277,17 +287,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-primary relative overflow-hidden">
+      {/* Stats Section - Hardcoded navy blue background */}
+      <section className="py-16 relative overflow-hidden" style={{ backgroundColor: '#1e3a5f' }}>
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtOS45NDEgMC0xOCA4LjA1OS0xOCAxOHM4LjA1OSAxOCAxOCAxOCAxOC04LjA1OSAxOC0xOC04LjA1OS0xOC0xOC0xOHptMCAzMmMtNy43MzIgMC0xNC02LjI2OC0xNC0xNHM2LjI2OC0xNCAxNC0xNCAxNCA2LjI2OCAxNCAxNC02LjI2OCAxNC0xNCAxNHoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAyIi8+PC9nPjwvc3ZnPg==')] opacity-50" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <AnimatedSection key={index} animation="zoom-in" delay={index * 150}>
                 <div className="text-center group">
-                  <stat.icon className="h-10 w-10 text-primary-foreground mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
+                  <stat.icon className="h-10 w-10 text-white mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
                   <div className="text-4xl sm:text-5xl font-black text-[#E88A2D] mb-1">{stat.value}</div>
-                  <div className="text-primary-foreground/80 font-medium">{stat.label}</div>
+                  <div className="text-white/80 font-medium">{stat.label}</div>
                 </div>
               </AnimatedSection>
             ))}
@@ -330,9 +340,9 @@ export default function LandingPage() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-24 bg-muted/30 relative overflow-hidden">
+      <section id="about" className="py-24 relative overflow-hidden" style={{ backgroundColor: '#f9f9f9' }}>
         {/* Background decoration */}
-        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-accent/5 to-transparent" />
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-[#E88A2D]/5 to-transparent" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
@@ -368,19 +378,19 @@ export default function LandingPage() {
             
             <AnimatedSection animation="zoom-in" delay={300}>
               <div className="relative">
-                <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl" />
-                <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-10 lg:p-14 shadow-2xl">
+                <div className="absolute -inset-4 bg-gradient-to-r from-[#1e3a5f]/20 to-[#E88A2D]/20 rounded-3xl blur-2xl" />
+                <div className="relative rounded-2xl p-10 lg:p-14 shadow-2xl" style={{ background: 'linear-gradient(to bottom right, #1e3a5f, #2d4a6f)' }}>
                   <div className="text-center">
                     <div className="text-7xl font-black text-[#E88A2D] mb-2">100%</div>
-                    <p className="text-2xl text-primary-foreground font-bold mb-8">Cloud-Based Platform</p>
+                    <p className="text-2xl text-white font-bold mb-8">Cloud-Based Platform</p>
                     <div className="grid grid-cols-2 gap-8">
                       <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
                         <div className="text-4xl font-black text-[#E88A2D] mb-1">24/7</div>
-                        <p className="text-primary-foreground/80 font-medium">Access Anywhere</p>
+                        <p className="text-white/80 font-medium">Access Anywhere</p>
                       </div>
                       <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
                         <div className="text-4xl font-black text-[#E88A2D] mb-1">99.9%</div>
-                        <p className="text-primary-foreground/80 font-medium">Uptime SLA</p>
+                        <p className="text-white/80 font-medium">Uptime SLA</p>
                       </div>
                     </div>
                   </div>
@@ -398,10 +408,10 @@ export default function LandingPage() {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {coreCapabilities.map((capability, index) => (
                   <AnimatedSection key={index} animation="fade-up" delay={index * 100}>
-                    <div className="bg-card border border-border rounded-xl p-6 hover:shadow-xl hover:border-accent/30 transition-all duration-500 h-full group">
+                    <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-[#E88A2D]/30 transition-all duration-500 h-full group">
                       <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center group-hover:from-primary group-hover:to-accent transition-all duration-300">
-                          <CheckCircle className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e3a5f]/10 to-[#E88A2D]/10 flex items-center justify-center group-hover:from-[#1e3a5f] group-hover:to-[#E88A2D] transition-all duration-300">
+                          <CheckCircle className="h-6 w-6 text-[#1e3a5f] group-hover:text-white transition-colors" />
                         </div>
                         <div>
                           <h4 className="font-bold text-foreground mb-2 text-lg">{capability.title}</h4>
@@ -417,27 +427,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-br from-primary via-primary to-primary/90 relative overflow-hidden">
+      {/* CTA Section - Hardcoded navy gradient */}
+      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1e3a5f, #1e3a5f, #2d4a6f)' }}>
         {/* Animated background elements */}
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#E88A2D]/20 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-white/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
         </div>
         
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
           <AnimatedSection animation="zoom-in">
-            <h2 className="text-3xl sm:text-5xl font-black text-primary-foreground mb-6">
+            <h2 className="text-3xl sm:text-5xl font-black text-white mb-6">
               Ready to Transform Your Business?
             </h2>
-            <p className="text-xl text-primary-foreground/80 mb-10 max-w-2xl mx-auto">
+            <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
               Join construction companies already using BuilderLYNK to streamline their operations 
               and boost profitability.
             </p>
             <Button 
               size="lg" 
               onClick={() => setShowTenantRequestModal(true)}
-              className="text-xl px-12 py-8 bg-accent hover:bg-accent/90 text-white font-bold shadow-2xl hover:shadow-accent/40 hover:scale-105 transition-all duration-300"
+              className="text-xl px-12 py-8 bg-[#E88A2D] hover:bg-[#d67a20] text-white font-bold shadow-2xl hover:shadow-[#E88A2D]/40 hover:scale-105 transition-all duration-300"
             >
               Get Started Today
               <ArrowRight className="ml-3 h-6 w-6" />
@@ -447,7 +457,7 @@ export default function LandingPage() {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-24 bg-background">
+      <section id="contact" className="py-24" style={{ backgroundColor: '#ffffff' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
@@ -462,42 +472,42 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <AnimatedSection animation="fade-right" delay={100}>
-              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+              <div className="text-center p-8 bg-white rounded-xl border border-gray-200 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
                   <Mail className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-bold text-foreground mb-2 text-xl">Email Us</h3>
-                <p className="text-muted-foreground text-lg">support@builderlynk.com</p>
+                <h3 className="font-bold text-gray-900 mb-2 text-xl">Email Us</h3>
+                <p className="text-gray-600 text-lg">support@builderlynk.com</p>
               </div>
             </AnimatedSection>
             <AnimatedSection animation="fade-left" delay={200}>
-              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+              <div className="text-center p-8 bg-white rounded-xl border border-gray-200 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
                   <Phone className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-bold text-foreground mb-2 text-xl">Call Us</h3>
-                <p className="text-muted-foreground text-lg">(555) 123-4567</p>
+                <h3 className="font-bold text-gray-900 mb-2 text-xl">Call Us</h3>
+                <p className="text-gray-600 text-lg">(555) 123-4567</p>
               </div>
             </AnimatedSection>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-primary text-primary-foreground py-16">
+      {/* Footer - Hardcoded navy */}
+      <footer style={{ backgroundColor: '#1e3a5f' }} className="text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-6">
                 <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto brightness-0 invert" />
               </div>
-              <p className="text-primary-foreground/70 text-sm leading-relaxed">
+              <p className="text-white/70 text-sm leading-relaxed">
                 The complete construction management platform for modern builders.
               </p>
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Product</h4>
-              <ul className="space-y-3 text-sm text-primary-foreground/70">
+              <ul className="space-y-3 text-sm text-white/70">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
@@ -505,7 +515,7 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Company</h4>
-              <ul className="space-y-3 text-sm text-primary-foreground/70">
+              <ul className="space-y-3 text-sm text-white/70">
                 <li><a href="#about" className="hover:text-white transition-colors">About</a></li>
                 <li><a href="#contact" className="hover:text-white transition-colors">Contact</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
@@ -513,13 +523,13 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Legal</h4>
-              <ul className="space-y-3 text-sm text-primary-foreground/70">
+              <ul className="space-y-3 text-sm text-white/70">
                 <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-primary-foreground/20 mt-12 pt-8 text-center text-sm text-primary-foreground/60">
+          <div className="border-t border-white/20 mt-12 pt-8 text-center text-sm text-white/60">
             © {new Date().getFullYear()} BuilderLYNK. All rights reserved.
           </div>
         </div>
