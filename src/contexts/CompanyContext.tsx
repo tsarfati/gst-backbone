@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { useTenant } from './TenantContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface Company {
@@ -49,6 +50,7 @@ interface CompanyProviderProps {
 
 export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) => {
   const { user, profile } = useAuth();
+  const { currentTenant, isSuperAdmin, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [userCompanies, setUserCompanies] = useState<UserCompanyAccess[]>([]);
@@ -59,20 +61,44 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
     try {
       setLoading(true);
+
       const { data, error } = await supabase.rpc('get_user_companies', {
         _user_id: user.id
       });
 
       if (error) throw error;
 
-      setUserCompanies(data || []);
+      let companies = (data || []) as unknown as UserCompanyAccess[];
+
+      // Tenant isolation: if the user belongs to a tenant, only show companies in that tenant.
+      // (Super admins can see across tenants.)
+      if (!isSuperAdmin && currentTenant?.id && companies.length > 0) {
+        const companyIds = companies.map(c => c.company_id);
+
+        const { data: allowedCompanies, error: allowedError } = await supabase
+          .from('companies')
+          .select('id')
+          .in('id', companyIds)
+          .eq('tenant_id', currentTenant.id)
+          .eq('is_active', true);
+
+        if (allowedError) throw allowedError;
+
+        const allowedSet = new Set((allowedCompanies || []).map(c => c.id));
+        companies = companies.filter(c => allowedSet.has(c.company_id));
+      }
+
+      setUserCompanies(companies);
 
       // Set current company based on profile preference or first available
-      if (data && data.length > 0) {
+      if (companies.length > 0) {
         const preferredCompanyId = profile?.current_company_id;
-        const preferredCompany = data.find(c => c.company_id === preferredCompanyId);
-        const companyToSet = preferredCompany || data[0];
-        
+        const preferredCompany = preferredCompanyId
+          ? companies.find(c => c.company_id === preferredCompanyId)
+          : undefined;
+
+        const companyToSet = preferredCompany || companies[0];
+
         // Fetch full company details
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
@@ -90,6 +116,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
             name: companyToSet.company_name
           });
         }
+      } else {
+        setCurrentCompany(null);
       }
     } catch (error) {
       console.error('Error fetching user companies:', error);
@@ -108,6 +136,21 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
     try {
       setLoading(true);
+
+      // Tenant isolation guard: prevent switching into a different tenant.
+      if (!isSuperAdmin && currentTenant?.id) {
+        const { data: companyCheck, error: companyCheckError } = await supabase
+          .from('companies')
+          .select('id, tenant_id')
+          .eq('id', companyId)
+          .maybeSingle();
+
+        if (companyCheckError) throw companyCheckError;
+
+        if (!companyCheck || companyCheck.tenant_id !== currentTenant.id) {
+          throw new Error("You don't have access to that company.");
+        }
+      }
 
       // Update user's current company preference
       const { error: profileError } = await supabase
@@ -135,11 +178,11 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
       // Trigger a soft navigation will be handled by caller
       // (previously reloaded the page here)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error switching company:', error);
       toast({
         title: "Error",
-        description: "Failed to switch companies. Please try again.",
+        description: error?.message || "Failed to switch companies. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -152,6 +195,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   };
 
   useEffect(() => {
+    if (tenantLoading) return;
+
     if (user?.id && profile) {
       fetchUserCompanies();
     } else {
@@ -159,9 +204,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       setUserCompanies([]);
       setLoading(false);
     }
-    // Only depend on user.id to prevent unnecessary refetches
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profile?.current_company_id]);
+  }, [user?.id, profile?.current_company_id, currentTenant?.id, isSuperAdmin, tenantLoading]);
 
   const value = {
     currentCompany,
