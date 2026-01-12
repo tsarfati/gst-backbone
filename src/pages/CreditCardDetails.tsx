@@ -265,19 +265,30 @@ export default function CreditCardDetails() {
           const transactionDate = new Date(dateCol).toISOString().split('T')[0];
           
           let amountStr = String(amountCol);
-          const isNegative = amountStr.includes('(') && amountStr.includes(')');
-          amountStr = amountStr.replace(/[$,()]/g, '').trim();
+          const isNegative = amountStr.includes('(') && amountStr.includes(')') || amountStr.startsWith('-');
+          amountStr = amountStr.replace(/[$,()\\-]/g, '').trim();
           let amount = parseFloat(amountStr);
-          amount = Math.abs(amount);
           if (isNaN(amount)) continue;
+          amount = Math.abs(amount);
           
           const merchantCol = transaction.Vendor || transaction['Vendor '] || transaction.vendor || 
                               transaction.Merchant || transaction.merchant;
           const merchant = merchantCol || descCol;
           const description = descCol || "";
           
+          // Determine transaction type based on Type column or amount sign
           const typeCol = transaction.Type || transaction.type;
-          const transactionType = typeCol === 'Payment' ? 'payment' : 'charge';
+          let transactionType: string;
+          if (typeCol) {
+            const typeLower = String(typeCol).toLowerCase();
+            if (typeLower === 'payment') transactionType = 'payment';
+            else if (typeLower === 'credit' || typeLower === 'return' || typeLower === 'refund') transactionType = 'credit';
+            else if (typeLower === 'fee') transactionType = 'fee';
+            else transactionType = 'charge';
+          } else {
+            // If no type column, use amount sign: negative = credit/return, positive = charge
+            transactionType = isNegative ? 'credit' : 'charge';
+          }
           
           const key = `${transactionDate}-${amount}-${description}`;
           if (existingMap.has(key)) {
