@@ -159,51 +159,39 @@ export default function LandingPage() {
     }
   ];
 
+  // Dark theme colors matching original design
+  const darkBg = '#0f1419';
+  const darkCardBg = '#1a1f2e';
+  const lightCardBg = '#f5f5f0';
+  
   return (
     <div
       className="min-h-screen overflow-x-hidden"
-      // Marketing pages use hardcoded neutral colors to avoid pollution from company themes
-      style={{
-        backgroundColor: '#ffffff',
-        ['--background' as any]: '0 0% 100%',
-        ['--foreground' as any]: '222.2 47.4% 11.2%',
-        ['--card' as any]: '0 0% 100%',
-        ['--card-foreground' as any]: '222.2 47.4% 11.2%',
-        ['--popover' as any]: '0 0% 100%',
-        ['--popover-foreground' as any]: '222.2 47.4% 11.2%',
-        ['--primary' as any]: '217 45% 28%',
-        ['--primary-foreground' as any]: '0 0% 100%',
-        ['--secondary' as any]: '0 0% 97%',
-        ['--secondary-foreground' as any]: '222.2 47.4% 11.2%',
-        ['--muted' as any]: '0 0% 97%',
-        ['--muted-foreground' as any]: '215.4 16.3% 46.9%',
-        ['--accent' as any]: '27 82% 54%',
-        ['--accent-foreground' as any]: '0 0% 100%',
-        ['--border' as any]: '214.3 31.8% 91.4%',
-      }}
+      style={{ backgroundColor: darkBg }}
     >
       {/* Navigation - Fixed with backdrop blur */}
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrollY > 50 
-            ? 'bg-background/90 backdrop-blur-lg shadow-lg border-b border-border' 
+            ? 'backdrop-blur-lg shadow-lg border-b border-white/10' 
             : 'bg-transparent'
         }`}
+        style={{ backgroundColor: scrollY > 50 ? 'rgba(15, 20, 25, 0.9)' : 'transparent' }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <img src={scrollY > 50 ? logoTransparent : logoTransparent} alt="BuilderLYNK" className="h-14 w-auto drop-shadow-lg" />
+              <img src={logoTransparent} alt="BuilderLYNK" className="h-14 w-auto drop-shadow-lg" />
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <a href="#features" className="text-foreground/80 hover:text-foreground transition-colors font-medium">Features</a>
-              <a href="#about" className="text-foreground/80 hover:text-foreground transition-colors font-medium">About</a>
-              <a href="#contact" className="text-foreground/80 hover:text-foreground transition-colors font-medium">Contact</a>
+              <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
+              <a href="#about" className="text-white/80 hover:text-white transition-colors font-medium">About</a>
+              <a href="#contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</a>
             </div>
             <Button 
               onClick={() => setShowAuthModal(true)} 
-              variant={scrollY > 50 ? "default" : "outline"}
-              className={scrollY > 50 ? "" : "border-white/50 text-white hover:bg-white/20"}
+              variant="outline"
+              className="border-white/50 text-gray-900 bg-white hover:bg-white/90"
             >
               Sign In
             </Button>
@@ -305,15 +293,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-background">
+      {/* Features Section - Dark theme */}
+      <section id="features" className="py-24" style={{ backgroundColor: darkBg }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
+              <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
                 Everything You Need to <span className="text-[#E88A2D]">Succeed</span>
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
                 Comprehensive tools designed specifically for construction companies
               </p>
             </div>
@@ -326,12 +314,15 @@ export default function LandingPage() {
                 animation={index % 2 === 0 ? 'fade-right' : 'fade-left'} 
                 delay={index * 100}
               >
-                <div className="bg-card p-8 rounded-xl border border-border hover:border-accent/50 hover:shadow-xl hover:shadow-accent/10 transition-all duration-500 group h-full">
+                <div 
+                  className="p-8 rounded-xl border border-white/10 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group h-full"
+                  style={{ backgroundColor: darkCardBg }}
+                >
                   <div className="w-14 h-14 rounded-xl bg-[#E88A2D]/10 flex items-center justify-center mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
                     <feature.icon className="h-7 w-7 text-[#E88A2D] group-hover:text-white transition-colors" />
                   </div>
-                  <h3 className="text-xl font-bold text-foreground mb-3">{feature.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                  <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
+                  <p className="text-gray-400 leading-relaxed">{feature.description}</p>
                 </div>
               </AnimatedSection>
             ))}
@@ -339,8 +330,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* About Section */}
-      <section id="about" className="py-24 relative overflow-hidden" style={{ backgroundColor: '#f9f9f9' }}>
+      {/* About Section - Dark theme */}
+      <section id="about" className="py-24 relative overflow-hidden" style={{ backgroundColor: darkBg }}>
         {/* Background decoration */}
         <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-[#E88A2D]/5 to-transparent" />
         
@@ -348,16 +339,16 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
             <AnimatedSection animation="fade-right">
               <div>
-                <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-6 leading-tight">
+                <h2 className="text-3xl sm:text-5xl font-bold text-white mb-6 leading-tight">
                   Built for <span className="text-[#E88A2D]">Builders,</span>
                   <span className="block">By Builders</span>
                 </h2>
-                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                <p className="text-lg text-gray-400 mb-6 leading-relaxed">
                   BuilderLYNK was created by construction professionals who understand 
                   the unique challenges of managing construction projects. We&apos;ve built a platform 
                   that links every piece of your construction workflow together.
                 </p>
-                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                <p className="text-lg text-gray-400 mb-8 leading-relaxed">
                   From small contractors to large construction firms, our platform scales with 
                   your business and adapts to your specific needs.
                 </p>
@@ -368,7 +359,7 @@ export default function LandingPage() {
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#E88A2D]/10 flex items-center justify-center group-hover:bg-[#E88A2D] transition-colors">
                           <CheckCircle className="h-5 w-5 text-[#E88A2D] group-hover:text-white transition-colors" />
                         </div>
-                        <span className="text-foreground font-medium">{benefit}</span>
+                        <span className="text-white font-medium">{benefit}</span>
                       </li>
                     </AnimatedSection>
                   ))}
@@ -379,18 +370,19 @@ export default function LandingPage() {
             <AnimatedSection animation="zoom-in" delay={300}>
               <div className="relative">
                 <div className="absolute -inset-4 bg-gradient-to-r from-[#1e3a5f]/20 to-[#E88A2D]/20 rounded-3xl blur-2xl" />
-                <div className="relative rounded-2xl p-10 lg:p-14 shadow-2xl" style={{ background: 'linear-gradient(to bottom right, #1e3a5f, #2d4a6f)' }}>
+                {/* Light cream card for stats - matches reference */}
+                <div className="relative rounded-2xl p-10 lg:p-14 shadow-2xl" style={{ backgroundColor: lightCardBg }}>
                   <div className="text-center">
                     <div className="text-7xl font-black text-[#E88A2D] mb-2">100%</div>
-                    <p className="text-2xl text-white font-bold mb-8">Cloud-Based Platform</p>
+                    <p className="text-2xl text-gray-900 font-bold mb-8">Cloud-Based Platform</p>
                     <div className="grid grid-cols-2 gap-8">
-                      <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
+                      <div className="bg-white rounded-xl p-6 shadow-sm">
                         <div className="text-4xl font-black text-[#E88A2D] mb-1">24/7</div>
-                        <p className="text-white/80 font-medium">Access Anywhere</p>
+                        <p className="text-gray-600 font-medium">Access Anywhere</p>
                       </div>
-                      <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
+                      <div className="bg-white rounded-xl p-6 shadow-sm">
                         <div className="text-4xl font-black text-[#E88A2D] mb-1">99.9%</div>
-                        <p className="text-white/80 font-medium">Uptime SLA</p>
+                        <p className="text-gray-600 font-medium">Uptime SLA</p>
                       </div>
                     </div>
                   </div>
@@ -402,20 +394,23 @@ export default function LandingPage() {
           {/* Core Capabilities */}
           <AnimatedSection animation="fade-up">
             <div className="mt-20">
-              <h3 className="text-2xl sm:text-4xl font-bold text-foreground text-center mb-14">
+              <h3 className="text-2xl sm:text-4xl font-bold text-white text-center mb-14">
                 Core Capabilities That <span className="text-[#E88A2D]">Drive Results</span>
               </h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {coreCapabilities.map((capability, index) => (
                   <AnimatedSection key={index} animation="fade-up" delay={index * 100}>
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-xl hover:border-[#E88A2D]/30 transition-all duration-500 h-full group">
+                    <div 
+                      className="rounded-xl p-6 border border-white/10 hover:shadow-xl hover:border-[#E88A2D]/30 transition-all duration-500 h-full group"
+                      style={{ backgroundColor: darkCardBg }}
+                    >
                       <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e3a5f]/10 to-[#E88A2D]/10 flex items-center justify-center group-hover:from-[#1e3a5f] group-hover:to-[#E88A2D] transition-all duration-300">
-                          <CheckCircle className="h-6 w-6 text-[#1e3a5f] group-hover:text-white transition-colors" />
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-[#E88A2D]/10 to-[#E88A2D]/20 flex items-center justify-center group-hover:from-[#E88A2D] group-hover:to-[#d67a20] transition-all duration-300">
+                          <CheckCircle className="h-6 w-6 text-[#E88A2D] group-hover:text-white transition-colors" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-2 text-lg">{capability.title}</h4>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{capability.description}</p>
+                          <h4 className="font-bold text-white mb-2 text-lg">{capability.title}</h4>
+                          <p className="text-sm text-gray-400 leading-relaxed">{capability.description}</p>
                         </div>
                       </div>
                     </div>
@@ -427,12 +422,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section - Hardcoded navy gradient */}
-      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1e3a5f, #1e3a5f, #2d4a6f)' }}>
+      {/* CTA Section - Dark gradient */}
+      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1a1f2e, #0f1419)' }}>
         {/* Animated background elements */}
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#E88A2D]/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-white/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#E88A2D]/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
         </div>
         
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
@@ -440,7 +435,7 @@ export default function LandingPage() {
             <h2 className="text-3xl sm:text-5xl font-black text-white mb-6">
               Ready to Transform Your Business?
             </h2>
-            <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
               Join construction companies already using BuilderLYNK to streamline their operations 
               and boost profitability.
             </p>
@@ -456,15 +451,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="py-24" style={{ backgroundColor: '#ffffff' }}>
+      {/* Contact Section - Dark theme */}
+      <section id="contact" className="py-24" style={{ backgroundColor: darkBg }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
+              <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
                 Get in <span className="text-[#E88A2D]">Touch</span>
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
                 Have questions? We&apos;re here to help you find the right solution for your business.
               </p>
             </div>
@@ -472,42 +467,48 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
             <AnimatedSection animation="fade-right" delay={100}>
-              <div className="text-center p-8 bg-white rounded-xl border border-gray-200 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+              <div 
+                className="text-center p-8 rounded-xl border border-white/10 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group"
+                style={{ backgroundColor: darkCardBg }}
+              >
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
                   <Mail className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-bold text-gray-900 mb-2 text-xl">Email Us</h3>
-                <p className="text-gray-600 text-lg">support@builderlynk.com</p>
+                <h3 className="font-bold text-white mb-2 text-xl">Email Us</h3>
+                <p className="text-gray-400 text-lg">support@builderlynk.com</p>
               </div>
             </AnimatedSection>
             <AnimatedSection animation="fade-left" delay={200}>
-              <div className="text-center p-8 bg-white rounded-xl border border-gray-200 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group">
+              <div 
+                className="text-center p-8 rounded-xl border border-white/10 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group"
+                style={{ backgroundColor: darkCardBg }}
+              >
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
                   <Phone className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
-                <h3 className="font-bold text-gray-900 mb-2 text-xl">Call Us</h3>
-                <p className="text-gray-600 text-lg">(555) 123-4567</p>
+                <h3 className="font-bold text-white mb-2 text-xl">Call Us</h3>
+                <p className="text-gray-400 text-lg">(555) 123-4567</p>
               </div>
             </AnimatedSection>
           </div>
         </div>
       </section>
 
-      {/* Footer - Hardcoded navy */}
-      <footer style={{ backgroundColor: '#1e3a5f' }} className="text-white py-16">
+      {/* Footer - Dark theme */}
+      <footer style={{ backgroundColor: darkCardBg }} className="text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-6">
-                <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto brightness-0 invert" />
+                <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto" />
               </div>
-              <p className="text-white/70 text-sm leading-relaxed">
+              <p className="text-gray-400 text-sm leading-relaxed">
                 The complete construction management platform for modern builders.
               </p>
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Product</h4>
-              <ul className="space-y-3 text-sm text-white/70">
+              <ul className="space-y-3 text-sm text-gray-400">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
@@ -515,7 +516,7 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Company</h4>
-              <ul className="space-y-3 text-sm text-white/70">
+              <ul className="space-y-3 text-sm text-gray-400">
                 <li><a href="#about" className="hover:text-white transition-colors">About</a></li>
                 <li><a href="#contact" className="hover:text-white transition-colors">Contact</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
@@ -523,13 +524,13 @@ export default function LandingPage() {
             </div>
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">Legal</h4>
-              <ul className="space-y-3 text-sm text-white/70">
+              <ul className="space-y-3 text-sm text-gray-400">
                 <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-white/20 mt-12 pt-8 text-center text-sm text-white/60">
+          <div className="border-t border-white/10 mt-12 pt-8 text-center text-sm text-gray-500">
             © {new Date().getFullYear()} BuilderLYNK. All rights reserved.
           </div>
         </div>
