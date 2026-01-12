@@ -40,20 +40,35 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
-  const [nextVideoIndex, setNextVideoIndex] = useState(1);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const nextVideoRef = useRef<HTMLVideoElement>(null);
+  const [showFirstVideo, setShowFirstVideo] = useState(true);
+  const videoARef = useRef<HTMLVideoElement>(null);
+  const videoBRef = useRef<HTMLVideoElement>(null);
 
-  // Handle video ended - seamlessly transition to next video
+  // Track which video sources are assigned to A and B
+  const [videoASource, setVideoASource] = useState(0);
+  const [videoBSource, setVideoBSource] = useState(1);
+
+  // Handle video ended - crossfade to the other video element
   const handleVideoEnded = () => {
-    setIsTransitioning(true);
-    const newIndex = (currentVideoIndex + 1) % heroVideos.length;
-    setCurrentVideoIndex(newIndex);
-    setNextVideoIndex((newIndex + 1) % heroVideos.length);
-    // Reset transition state after a brief moment
-    setTimeout(() => setIsTransitioning(false), 100);
+    if (showFirstVideo) {
+      // Video A just ended, crossfade to Video B
+      videoBRef.current?.play();
+      setShowFirstVideo(false);
+      // After transition, prepare next video for A
+      setTimeout(() => {
+        const nextIndex = (videoBSource + 1) % heroVideos.length;
+        setVideoASource(nextIndex);
+      }, 1000);
+    } else {
+      // Video B just ended, crossfade to Video A
+      videoARef.current?.play();
+      setShowFirstVideo(true);
+      // After transition, prepare next video for B
+      setTimeout(() => {
+        const nextIndex = (videoASource + 1) % heroVideos.length;
+        setVideoBSource(nextIndex);
+      }, 1000);
+    }
   };
 
   useEffect(() => {
@@ -201,31 +216,39 @@ export default function LandingPage() {
 
       {/* Hero Section - Full viewport with video background */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background - loops through multiple videos with seamless transitions */}
+        {/* Video Background - crossfade between two video elements */}
         <div className="absolute inset-0 z-0">
-          {/* Current video */}
+          {/* Video A */}
           <video
-            ref={videoRef}
-            key={`current-${currentVideoIndex}`}
-            autoPlay
+            ref={videoARef}
+            key={`videoA-${videoASource}`}
+            autoPlay={showFirstVideo}
             muted
             playsInline
-            onEnded={handleVideoEnded}
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ transform: `translateY(${parallaxOffset}px)` }}
+            onEnded={showFirstVideo ? handleVideoEnded : undefined}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ 
+              transform: `translateY(${parallaxOffset}px)`,
+              opacity: showFirstVideo ? 1 : 0
+            }}
           >
-            <source src={heroVideos[currentVideoIndex]} type="video/mp4" />
+            <source src={heroVideos[videoASource]} type="video/mp4" />
           </video>
-          {/* Preload next video (hidden) */}
+          {/* Video B */}
           <video
-            ref={nextVideoRef}
-            key={`next-${nextVideoIndex}`}
+            ref={videoBRef}
+            key={`videoB-${videoBSource}`}
             muted
             playsInline
             preload="auto"
-            className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none"
+            onEnded={!showFirstVideo ? handleVideoEnded : undefined}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ 
+              transform: `translateY(${parallaxOffset}px)`,
+              opacity: showFirstVideo ? 0 : 1
+            }}
           >
-            <source src={heroVideos[nextVideoIndex]} type="video/mp4" />
+            <source src={heroVideos[videoBSource]} type="video/mp4" />
           </video>
           {/* Neutral overlay (no color hue) */}
           <div className="absolute inset-0 bg-black/45" />
