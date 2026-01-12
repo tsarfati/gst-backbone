@@ -4,9 +4,12 @@ import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
 import { TenantRequestModal } from '@/components/TenantRequestModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { AnimatedSection } from '@/components/AnimatedSection';
+import { useParallax } from '@/hooks/useScrollAnimation';
 import { Loader2 } from 'lucide-react';
+import heroVideo from '@/assets/hero-construction.mp4';
+import logoImage from '@/assets/builderlynk-logo.png';
 import {
-  Building2,
   Shield,
   Users,
   BarChart3,
@@ -15,7 +18,11 @@ import {
   CheckCircle,
   ArrowRight,
   Mail,
-  Phone
+  Phone,
+  Building2,
+  Zap,
+  Target,
+  TrendingUp
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -23,6 +30,14 @@ export default function LandingPage() {
   const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const parallaxOffset = useParallax(0.3);
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -91,6 +106,13 @@ export default function LandingPage() {
     'Mobile-ready for field teams'
   ];
 
+  const stats = [
+    { icon: Zap, value: '10x', label: 'Faster Workflows' },
+    { icon: Target, value: '99.9%', label: 'Uptime SLA' },
+    { icon: TrendingUp, value: '30%', label: 'Cost Savings' },
+    { icon: Users, value: '24/7', label: 'Access Anywhere' },
+  ];
+
   const coreCapabilities = [
     {
       title: 'Precision Job Costing',
@@ -115,237 +137,345 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Navigation - Fixed with backdrop blur */}
+      <nav 
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrollY > 50 
+            ? 'bg-background/95 backdrop-blur-lg shadow-lg border-b border-border' 
+            : 'bg-transparent'
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
-              <Building2 className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-primary">Builder<span className="text-accent">LYNK</span></span>
+              <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto" />
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">Features</a>
-              <a href="#about" className="text-muted-foreground hover:text-foreground transition-colors">About</a>
-              <a href="#contact" className="text-muted-foreground hover:text-foreground transition-colors">Contact</a>
+              <a href="#features" className="text-foreground/80 hover:text-foreground transition-colors font-medium">Features</a>
+              <a href="#about" className="text-foreground/80 hover:text-foreground transition-colors font-medium">About</a>
+              <a href="#contact" className="text-foreground/80 hover:text-foreground transition-colors font-medium">Contact</a>
             </div>
-            <Button onClick={() => setShowAuthModal(true)} variant="outline">
+            <Button 
+              onClick={() => setShowAuthModal(true)} 
+              variant={scrollY > 50 ? "default" : "outline"}
+              className={scrollY > 50 ? "" : "border-white/50 text-white hover:bg-white/20"}
+            >
               Sign In
             </Button>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-primary mb-6">
-            Connect Every <span className="text-accent">Link</span> in Your
-            <span className="block mt-2">Construction Business</span>
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
-            Powerful construction management software that helps you track costs, manage teams, 
-            and grow your business. Everything you need in one platform.
-          </p>
-          <div className="flex justify-center">
-            <Button 
-              size="lg" 
-              onClick={() => setShowTenantRequestModal(true)}
-              className="text-lg px-8 py-6"
-            >
-              Create Your Organization
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+      {/* Hero Section - Full viewport with video background */}
+      <section className="relative h-screen flex items-center justify-center overflow-hidden">
+        {/* Video Background */}
+        <div className="absolute inset-0 z-0">
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="w-full h-full object-cover"
+            style={{ transform: `translateY(${parallaxOffset}px)` }}
+          >
+            <source src={heroVideo} type="video/mp4" />
+          </video>
+          {/* Dark overlay with gradient */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
+          {/* Accent color overlay for brand feel */}
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/30 to-transparent" />
+        </div>
+
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AnimatedSection animation="fade-down" duration={1000}>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight tracking-tight">
+              Build <span className="text-accent">Smarter.</span>
+              <span className="block mt-2">Build <span className="text-accent">Faster.</span></span>
+            </h1>
+          </AnimatedSection>
+          
+          <AnimatedSection animation="fade-up" delay={300} duration={1000}>
+            <p className="text-xl sm:text-2xl text-white/90 max-w-3xl mx-auto mb-10 font-light">
+              The construction management platform that connects every link in your business. 
+              From punch clock to payables—all in one place.
+            </p>
+          </AnimatedSection>
+          
+          <AnimatedSection animation="zoom-in" delay={600} duration={800}>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button 
+                size="lg" 
+                onClick={() => setShowTenantRequestModal(true)}
+                className="text-lg px-10 py-7 bg-accent hover:bg-accent/90 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300"
+              >
+                Start Building Today
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => setShowAuthModal(true)}
+                className="text-lg px-10 py-7 border-white/50 text-white hover:bg-white/20 font-bold"
+              >
+                Sign In
+              </Button>
+            </div>
+          </AnimatedSection>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+          <div className="w-8 h-12 rounded-full border-2 border-white/50 flex items-start justify-center p-2">
+            <div className="w-1.5 h-3 bg-white rounded-full animate-pulse" />
+          </div>
+        </div>
+      </section>
+
+      {/* Stats Section */}
+      <section className="py-16 bg-primary relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtOS45NDEgMC0xOCA4LjA1OS0xOCAxOHM4LjA1OSAxOCAxOCAxOCAxOC04LjA1OSAxOC0xOC04LjA1OS0xOC0xOC0xOHptMCAzMmMtNy43MzIgMC0xNC02LjI2OC0xNC0xNHM2LjI2OC0xNCAxNC0xNCAxNCA2LjI2OCAxNCAxNC02LjI2OCAxNC0xNCAxNHoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAyIi8+PC9nPjwvc3ZnPg==')] opacity-50" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {stats.map((stat, index) => (
+              <AnimatedSection key={index} animation="zoom-in" delay={index * 150}>
+                <div className="text-center group">
+                  <stat.icon className="h-10 w-10 text-accent mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
+                  <div className="text-4xl sm:text-5xl font-black text-white mb-1">{stat.value}</div>
+                  <div className="text-primary-foreground/80 font-medium">{stat.label}</div>
+                </div>
+              </AnimatedSection>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-muted/50">
+      <section id="features" className="py-24 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Everything You Need to Succeed
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive tools designed specifically for construction companies
-            </p>
-          </div>
+          <AnimatedSection animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
+                Everything You Need to <span className="text-accent">Succeed</span>
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Comprehensive tools designed specifically for construction companies
+              </p>
+            </div>
+          </AnimatedSection>
+          
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div 
-                key={index}
-                className="bg-card p-6 rounded-lg border border-border hover-lift"
+              <AnimatedSection 
+                key={index} 
+                animation={index % 2 === 0 ? 'fade-right' : 'fade-left'} 
+                delay={index * 100}
               >
-                <feature.icon className="h-12 w-12 text-accent mb-4" />
-                <h3 className="text-xl font-semibold text-foreground mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </div>
+                <div className="bg-card p-8 rounded-xl border border-border hover:border-accent/50 hover:shadow-xl hover:shadow-accent/10 transition-all duration-500 group h-full">
+                  <div className="w-14 h-14 rounded-xl bg-accent/10 flex items-center justify-center mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
+                    <feature.icon className="h-7 w-7 text-accent group-hover:text-white transition-colors" />
+                  </div>
+                  <h3 className="text-xl font-bold text-foreground mb-3">{feature.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                </div>
+              </AnimatedSection>
             ))}
           </div>
         </div>
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-6">
-                Built for Builders, By Builders
-              </h2>
-              <p className="text-lg text-muted-foreground mb-6">
-                BuilderLYNK was created by construction professionals who understand 
-                the unique challenges of managing construction projects. We've built a platform 
-                that links every piece of your construction workflow together.
-              </p>
-              <p className="text-lg text-muted-foreground mb-8">
-                From small contractors to large construction firms, our platform scales with 
-                your business and adapts to your specific needs.
-              </p>
-              <ul className="space-y-3">
-                {benefits.map((benefit, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
-                    <span className="text-foreground">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl p-8 lg:p-12">
-              <div className="text-center">
-                <div className="text-6xl font-bold text-primary mb-2">100%</div>
-                <p className="text-xl text-foreground mb-6">Cloud-Based Platform</p>
-                <div className="grid grid-cols-2 gap-6 mt-8">
-                  <div>
-                    <div className="text-3xl font-bold text-foreground">24/7</div>
-                    <p className="text-muted-foreground">Access Anywhere</p>
-                  </div>
-                  <div>
-                    <div className="text-3xl font-bold text-foreground">99.9%</div>
-                    <p className="text-muted-foreground">Uptime SLA</p>
+      <section id="about" className="py-24 bg-muted/30 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-accent/5 to-transparent" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="grid lg:grid-cols-2 gap-16 items-center mb-20">
+            <AnimatedSection animation="fade-right">
+              <div>
+                <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-6 leading-tight">
+                  Built for <span className="text-accent">Builders,</span>
+                  <span className="block">By Builders</span>
+                </h2>
+                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
+                  BuilderLYNK was created by construction professionals who understand 
+                  the unique challenges of managing construction projects. We&apos;ve built a platform 
+                  that links every piece of your construction workflow together.
+                </p>
+                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                  From small contractors to large construction firms, our platform scales with 
+                  your business and adapts to your specific needs.
+                </p>
+                <ul className="space-y-4">
+                  {benefits.map((benefit, index) => (
+                    <AnimatedSection key={index} animation="fade-left" delay={index * 80}>
+                      <li className="flex items-center gap-4 group">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center group-hover:bg-accent transition-colors">
+                          <CheckCircle className="h-5 w-5 text-accent group-hover:text-white transition-colors" />
+                        </div>
+                        <span className="text-foreground font-medium">{benefit}</span>
+                      </li>
+                    </AnimatedSection>
+                  ))}
+                </ul>
+              </div>
+            </AnimatedSection>
+            
+            <AnimatedSection animation="zoom-in" delay={300}>
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl" />
+                <div className="relative bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-10 lg:p-14 shadow-2xl">
+                  <div className="text-center">
+                    <div className="text-7xl font-black text-white mb-2">100%</div>
+                    <p className="text-2xl text-primary-foreground font-bold mb-8">Cloud-Based Platform</p>
+                    <div className="grid grid-cols-2 gap-8">
+                      <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
+                        <div className="text-4xl font-black text-white mb-1">24/7</div>
+                        <p className="text-primary-foreground/80 font-medium">Access Anywhere</p>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-6 backdrop-blur">
+                        <div className="text-4xl font-black text-white mb-1">99.9%</div>
+                        <p className="text-primary-foreground/80 font-medium">Uptime SLA</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </AnimatedSection>
           </div>
 
           {/* Core Capabilities */}
-          <div className="mt-16">
-            <h3 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-12">
-              Core Capabilities That Drive Results
-            </h3>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {coreCapabilities.map((capability, index) => (
-                <div 
-                  key={index}
-                  className="bg-card border border-border rounded-xl p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <CheckCircle className="h-5 w-5 text-primary" />
+          <AnimatedSection animation="fade-up">
+            <div className="mt-20">
+              <h3 className="text-2xl sm:text-4xl font-bold text-foreground text-center mb-14">
+                Core Capabilities That <span className="text-accent">Drive Results</span>
+              </h3>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {coreCapabilities.map((capability, index) => (
+                  <AnimatedSection key={index} animation="fade-up" delay={index * 100}>
+                    <div className="bg-card border border-border rounded-xl p-6 hover:shadow-xl hover:border-accent/30 transition-all duration-500 h-full group">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center group-hover:from-primary group-hover:to-accent transition-all duration-300">
+                          <CheckCircle className="h-6 w-6 text-primary group-hover:text-white transition-colors" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-foreground mb-2 text-lg">{capability.title}</h4>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{capability.description}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-foreground mb-2">{capability.title}</h4>
-                      <p className="text-sm text-muted-foreground">{capability.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </AnimatedSection>
+                ))}
+              </div>
             </div>
-          </div>
+          </AnimatedSection>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-primary">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-primary-foreground mb-6">
-            Ready to Transform Your Business?
-          </h2>
-          <p className="text-xl text-primary-foreground/80 mb-8">
-            Join construction companies already using BuilderLYNK to streamline their operations.
-          </p>
-          <Button 
-            size="lg" 
-            variant="secondary"
-            onClick={() => setShowTenantRequestModal(true)}
-            className="text-lg px-8 py-6"
-          >
-            Get Started Today
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+      <section className="py-24 bg-gradient-to-br from-primary via-primary to-primary/90 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-white/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '1s' }} />
+        </div>
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+          <AnimatedSection animation="zoom-in">
+            <h2 className="text-3xl sm:text-5xl font-black text-primary-foreground mb-6">
+              Ready to Transform Your Business?
+            </h2>
+            <p className="text-xl text-primary-foreground/80 mb-10 max-w-2xl mx-auto">
+              Join construction companies already using BuilderLYNK to streamline their operations 
+              and boost profitability.
+            </p>
+            <Button 
+              size="lg" 
+              onClick={() => setShowTenantRequestModal(true)}
+              className="text-xl px-12 py-8 bg-accent hover:bg-accent/90 text-white font-bold shadow-2xl hover:shadow-accent/40 hover:scale-105 transition-all duration-300"
+            >
+              Get Started Today
+              <ArrowRight className="ml-3 h-6 w-6" />
+            </Button>
+          </AnimatedSection>
         </div>
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20">
+      <section id="contact" className="py-24 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Get in Touch
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Have questions? We're here to help you find the right solution for your business.
-            </p>
-          </div>
+          <AnimatedSection animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-5xl font-bold text-foreground mb-4">
+                Get in <span className="text-accent">Touch</span>
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Have questions? We&apos;re here to help you find the right solution for your business.
+              </p>
+            </div>
+          </AnimatedSection>
+          
           <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-            <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-4">
-                <Mail className="h-6 w-6 text-accent" />
+            <AnimatedSection animation="fade-right" delay={100}>
+              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-accent/50 hover:shadow-xl transition-all duration-300 group">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
+                  <Mail className="h-8 w-8 text-accent group-hover:text-white transition-colors" />
+                </div>
+                <h3 className="font-bold text-foreground mb-2 text-xl">Email Us</h3>
+                <p className="text-muted-foreground text-lg">support@builderlynk.com</p>
               </div>
-              <h3 className="font-semibold text-foreground mb-2">Email Us</h3>
-              <p className="text-muted-foreground">support@builderlynk.com</p>
-            </div>
-            <div className="text-center p-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-4">
-                <Phone className="h-6 w-6 text-accent" />
+            </AnimatedSection>
+            <AnimatedSection animation="fade-left" delay={200}>
+              <div className="text-center p-8 bg-card rounded-xl border border-border hover:border-accent/50 hover:shadow-xl transition-all duration-300 group">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent/10 mb-6 group-hover:bg-accent group-hover:scale-110 transition-all duration-300">
+                  <Phone className="h-8 w-8 text-accent group-hover:text-white transition-colors" />
+                </div>
+                <h3 className="font-bold text-foreground mb-2 text-xl">Call Us</h3>
+                <p className="text-muted-foreground text-lg">(555) 123-4567</p>
               </div>
-              <h3 className="font-semibold text-foreground mb-2">Call Us</h3>
-              <p className="text-muted-foreground">(555) 123-4567</p>
-            </div>
+            </AnimatedSection>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-muted/50 border-t border-border py-12">
+      <footer className="bg-primary text-primary-foreground py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-4 gap-12">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="h-6 w-6 text-primary" />
-                <span className="font-bold text-primary">Builder<span className="text-accent">LYNK</span></span>
+              <div className="flex items-center gap-2 mb-6">
+                <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto brightness-0 invert" />
               </div>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-primary-foreground/70 text-sm leading-relaxed">
                 The complete construction management platform for modern builders.
               </p>
             </div>
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Integrations</a></li>
+              <h4 className="font-bold text-white mb-4 text-lg">Product</h4>
+              <ul className="space-y-3 text-sm text-primary-foreground/70">
+                <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Integrations</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#about" className="hover:text-foreground transition-colors">About</a></li>
-                <li><a href="#contact" className="hover:text-foreground transition-colors">Contact</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Careers</a></li>
+              <h4 className="font-bold text-white mb-4 text-lg">Company</h4>
+              <ul className="space-y-3 text-sm text-primary-foreground/70">
+                <li><a href="#about" className="hover:text-white transition-colors">About</a></li>
+                <li><a href="#contact" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-foreground mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
+              <h4 className="font-bold text-white mb-4 text-lg">Legal</h4>
+              <ul className="space-y-3 text-sm text-primary-foreground/70">
+                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
+          <div className="border-t border-primary-foreground/20 mt-12 pt-8 text-center text-sm text-primary-foreground/60">
             © {new Date().getFullYear()} BuilderLYNK. All rights reserved.
           </div>
         </div>
