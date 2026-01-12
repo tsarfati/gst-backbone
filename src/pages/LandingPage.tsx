@@ -153,14 +153,14 @@ export default function LandingPage() {
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrollY > 50 
-            ? 'bg-background/95 backdrop-blur-lg shadow-lg border-b border-border' 
+            ? 'bg-background/90 backdrop-blur-lg shadow-lg border-b border-border' 
             : 'bg-transparent'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto" />
+              <img src={logoImage} alt="BuilderLYNK" className="h-14 w-auto drop-shadow-lg" />
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-foreground/80 hover:text-foreground transition-colors font-medium">Features</a>
@@ -203,9 +203,9 @@ export default function LandingPage() {
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedSection animation="fade-down" duration={1000}>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-tight tracking-tight">
-              Build <span className="text-accent">Smarter.</span>
-              <span className="block mt-2">Build <span className="text-accent">Faster.</span></span>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-6 leading-tight tracking-tight">
+              <span className="text-accent">Build Smarter.</span>
+              <span className="block mt-2 text-accent">Build Faster.</span>
             </h1>
           </AnimatedSection>
           
