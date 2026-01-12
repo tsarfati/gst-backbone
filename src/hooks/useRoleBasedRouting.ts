@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
-  const { isSuperAdmin, tenantMember } = useTenant();
+  const { isSuperAdmin, tenantMember, loading: tenantLoading } = useTenant();
   const { loading: companyLoading, userCompanies, currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
@@ -30,8 +30,8 @@ export function useRoleBasedRouting() {
   const isTenantOwner = tenantMember?.role === 'owner';
 
   useEffect(() => {
-    // Wait for company context to settle before routing
-    if (companyLoading) return;
+    // Wait for both tenant and company contexts to settle before routing
+    if (tenantLoading || companyLoading) return;
 
     // Super admins who are tenant OWNERS should go to super admin dashboard
     // Super admins who are NOT owners (e.g., tenant admins) should go to regular dashboard
@@ -112,5 +112,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [effectiveRole, isSuperAdmin, isTenantOwner, companyLoading, hasAccess, navigate, location.pathname]);
+  }, [effectiveRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname]);
 }
