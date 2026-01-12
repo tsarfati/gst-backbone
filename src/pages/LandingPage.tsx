@@ -10,6 +10,8 @@ import { Loader2 } from 'lucide-react';
 import heroVideo1 from '@/assets/hero-construction.mp4';
 import heroVideo2 from '@/assets/hero-construction-2.mp4';
 import heroVideo3 from '@/assets/hero-construction-3.mp4';
+import heroVideo4 from '@/assets/hero-construction-4.mp4';
+import heroVideo5 from '@/assets/hero-construction-5.mp4';
 import logoImage from '@/assets/builderlynk-logo.png';
 import {
   Shield,
@@ -27,7 +29,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-const heroVideos = [heroVideo1, heroVideo2, heroVideo3];
+const heroVideos = [heroVideo1, heroVideo2, heroVideo3, heroVideo4, heroVideo5];
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -37,11 +39,19 @@ export default function LandingPage() {
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [nextVideoIndex, setNextVideoIndex] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const nextVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Handle video ended - cycle to next video
+  // Handle video ended - seamlessly transition to next video
   const handleVideoEnded = () => {
-    setCurrentVideoIndex((prev) => (prev + 1) % heroVideos.length);
+    setIsTransitioning(true);
+    const newIndex = (currentVideoIndex + 1) % heroVideos.length;
+    setCurrentVideoIndex(newIndex);
+    setNextVideoIndex((newIndex + 1) % heroVideos.length);
+    // Reset transition state after a brief moment
+    setTimeout(() => setIsTransitioning(false), 100);
   };
 
   useEffect(() => {
@@ -180,19 +190,31 @@ export default function LandingPage() {
 
       {/* Hero Section - Full viewport with video background */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background - loops through multiple videos */}
+        {/* Video Background - loops through multiple videos with seamless transitions */}
         <div className="absolute inset-0 z-0">
+          {/* Current video */}
           <video
             ref={videoRef}
-            key={currentVideoIndex}
+            key={`current-${currentVideoIndex}`}
             autoPlay
             muted
             playsInline
             onEnded={handleVideoEnded}
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             style={{ transform: `translateY(${parallaxOffset}px)` }}
           >
             <source src={heroVideos[currentVideoIndex]} type="video/mp4" />
+          </video>
+          {/* Preload next video (hidden) */}
+          <video
+            ref={nextVideoRef}
+            key={`next-${nextVideoIndex}`}
+            muted
+            playsInline
+            preload="auto"
+            className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none"
+          >
+            <source src={heroVideos[nextVideoIndex]} type="video/mp4" />
           </video>
           {/* Dark overlay with gradient */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
