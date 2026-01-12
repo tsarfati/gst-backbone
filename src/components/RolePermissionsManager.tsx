@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2 } from "lucide-react";
+import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2, LayoutDashboard, HardHat, Receipt, HandCoins, CreditCard, FolderArchive, Users, MessageSquare, CheckSquare, Building, Cog } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,90 +42,630 @@ interface CustomRolePermission {
   can_access: boolean;
 }
 
+interface ActionItem {
+  key: string;
+  label: string;
+  description: string;
+}
+
 interface MenuItem {
   key: string;
   label: string;
   description: string;
-  category: string;
+  actions?: ActionItem[];
 }
 
-const menuItems = [
-  // Core Application
-  { key: 'dashboard', label: 'Dashboard', description: 'Main dashboard overview', category: 'Core' },
-  
-  // Project Management
-  { key: 'jobs', label: 'Jobs', description: 'View and manage construction jobs', category: 'Projects' },
-  { key: 'jobs-add', label: 'Add Jobs', description: 'Create new construction projects', category: 'Projects' },
-  { key: 'jobs-edit', label: 'Edit Jobs', description: 'Modify existing job details', category: 'Projects' },
-  { key: 'jobs-budget', label: 'Job Budgets', description: 'View and manage project budgeting', category: 'Projects' },
-  { key: 'jobs-reports', label: 'Job Reports', description: 'Generate job performance reports', category: 'Projects' },
-  { key: 'cost-codes', label: 'Cost Codes', description: 'Manage job cost codes', category: 'Projects' },
-  { key: 'delivery-tickets', label: 'Delivery Tickets', description: 'Manage delivery tickets for jobs', category: 'Projects' },
-  
-  // Vendor Management
-  { key: 'vendors', label: 'Vendors', description: 'View vendor directory', category: 'Vendors' },
-  { key: 'vendors-add', label: 'Add Vendors', description: 'Register new vendors', category: 'Vendors' },
-  { key: 'vendors-edit', label: 'Edit Vendors', description: 'Modify vendor information', category: 'Vendors' },
-  
-  // Employee Management
-  { key: 'employees', label: 'Employees', description: 'View employee directory', category: 'HR' },
-  { key: 'employees-add', label: 'Add Employees', description: 'Register new employees', category: 'HR' },
-  
-  // Time Tracking & Punch Clock
-  { key: 'time-tracking', label: 'Punch Clock', description: 'Employee time clock system', category: 'Time Tracking' },
-  { key: 'punch-clock-dashboard', label: 'Punch Clock Dashboard', description: 'Time tracking dashboard overview', category: 'Time Tracking' },
-  { key: 'punch-clock-settings', label: 'Punch Clock Settings', description: 'Configure punch clock rules and settings', category: 'Time Tracking' },
-  { key: 'timecard-reports', label: 'Timecard Reports', description: 'Generate detailed timecard reports', category: 'Time Tracking' },
-  { key: 'employee-timecard-settings', label: 'Employee Time Settings', description: 'Individual employee time tracking settings', category: 'Time Tracking' },
-  { key: 'time-corrections', label: 'Time Corrections', description: 'Review and approve time corrections', category: 'Time Tracking' },
-  { key: 'punch-records', label: 'Punch Records', description: 'View punch in/out records', category: 'Time Tracking' },
-  { key: 'timesheets', label: 'Timesheets', description: 'Review employee timesheets', category: 'Time Tracking' },
-  
-  // Financial Management
-  { key: 'bills', label: 'Bills & Invoices', description: 'View bills and invoices', category: 'Finance' },
-  { key: 'bills-add', label: 'Add Bills', description: 'Create new bills/invoices', category: 'Finance' },
-  { key: 'bill-status', label: 'Bill Status', description: 'Track bill payment status', category: 'Finance' },
-  { key: 'payment-history', label: 'Payment History', description: 'View payment records', category: 'Finance' },
-  { key: 'payment-reports', label: 'Payment Reports', description: 'Generate payment reports', category: 'Finance' },
-  { key: 'payables-dashboard', label: 'Payables Dashboard', description: 'Payables overview and analytics', category: 'Finance' },
-  
-  // Receipt Management
-  { key: 'receipts-upload', label: 'Upload Receipts', description: 'Upload receipt images', category: 'Receipts' },
-  { key: 'receipts-uncoded', label: 'Uncoded Receipts', description: 'Process uncoded receipts', category: 'Receipts' },
-  { key: 'receipts-coded', label: 'Coded Receipts', description: 'View processed receipts', category: 'Receipts' },
-  { key: 'receipt-reports', label: 'Receipt Reports', description: 'Generate receipt reports', category: 'Receipts' },
-  
-  // Banking
-  { key: 'banking-accounts', label: 'Bank Accounts', description: 'View bank accounts', category: 'Banking' },
-  { key: 'banking-credit-cards', label: 'Credit Cards', description: 'View credit cards', category: 'Banking' },
-  { key: 'banking-reports', label: 'Banking Reports', description: 'Generate banking reports', category: 'Banking' },
-  { key: 'journal-entries', label: 'Journal Entries', description: 'View accounting entries', category: 'Banking' },
-  { key: 'deposits', label: 'Deposits', description: 'Record bank deposits', category: 'Banking' },
-  { key: 'print-checks', label: 'Print Checks', description: 'Print payment checks', category: 'Banking' },
-  { key: 'make-payment', label: 'Make Payments', description: 'Process payments', category: 'Banking' },
-  { key: 'reconcile', label: 'Bank Reconciliation', description: 'Reconcile bank statements', category: 'Banking' },
-  
-  // Communication
-  { key: 'messages', label: 'Messages', description: 'Internal messaging system', category: 'Communication' },
-  { key: 'team-chat', label: 'Team Chat', description: 'Team communication', category: 'Communication' },
-  { key: 'announcements', label: 'Announcements', description: 'Company announcements', category: 'Communication' },
-  
-  // Company Management
-  { key: 'company-files', label: 'Company Files', description: 'View company documents', category: 'Company' },
-  { key: 'company-contracts', label: 'Contracts', description: 'View company contracts', category: 'Company' },
-  { key: 'company-permits', label: 'Permits', description: 'View company permits', category: 'Company' },
-  { key: 'company-insurance', label: 'Insurance', description: 'View insurance policies', category: 'Company' },
-  
-  // Administration
-  { key: 'settings', label: 'App Settings', description: 'Application configuration', category: 'Admin' },
-  { key: 'company-settings', label: 'Company Settings', description: 'Company configuration', category: 'Admin' },
-  { key: 'company-management', label: 'Company Management', description: 'Company user management', category: 'Admin' },
-  { key: 'user-settings', label: 'User Management', description: 'User roles and permissions', category: 'Admin' },
-  { key: 'theme-settings', label: 'Theme Settings', description: 'Customize app appearance', category: 'Admin' },
-  { key: 'notification-settings', label: 'Notifications', description: 'Configure notifications', category: 'Admin' },
-  { key: 'security-settings', label: 'Security Settings', description: 'Security configuration', category: 'Admin' },
-  { key: 'email-templates', label: 'Email Templates', description: 'Manage email templates', category: 'Admin' },
-  { key: 'profile-settings', label: 'Profile Settings', description: 'Personal profile settings', category: 'Personal' },
+interface MenuCategory {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  items: MenuItem[];
+}
+
+// Comprehensive menu structure matching the sidebar exactly
+const menuCategories: MenuCategory[] = [
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    description: 'Main application dashboard',
+    items: [
+      { 
+        key: 'dashboard', 
+        label: 'Dashboard', 
+        description: 'Main dashboard overview',
+        actions: [
+          { key: 'dashboard-view', label: 'View Dashboard', description: 'Access main dashboard' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'construction',
+    label: 'Construction',
+    icon: HardHat,
+    description: 'Construction project management',
+    items: [
+      { 
+        key: 'construction-dashboard', 
+        label: 'Dashboard', 
+        description: 'Construction dashboard overview',
+        actions: [
+          { key: 'construction-dashboard-view', label: 'View Dashboard', description: 'Access construction dashboard' },
+        ]
+      },
+      { 
+        key: 'jobs', 
+        label: 'Jobs', 
+        description: 'View and manage construction jobs',
+        actions: [
+          { key: 'jobs-view', label: 'View Jobs', description: 'Access job list' },
+          { key: 'jobs-add', label: 'Add Jobs', description: 'Create new jobs' },
+          { key: 'jobs-edit', label: 'Edit Jobs', description: 'Modify job details' },
+          { key: 'jobs-delete', label: 'Delete Jobs', description: 'Remove jobs' },
+          { key: 'jobs-budget', label: 'Job Budgets', description: 'View and manage budgets' },
+        ]
+      },
+      { 
+        key: 'subcontracts', 
+        label: 'Subcontracts', 
+        description: 'Manage subcontractor agreements',
+        actions: [
+          { key: 'subcontracts-view', label: 'View Subcontracts', description: 'Access subcontract list' },
+          { key: 'subcontracts-add', label: 'Add Subcontracts', description: 'Create new subcontracts' },
+          { key: 'subcontracts-edit', label: 'Edit Subcontracts', description: 'Modify subcontract details' },
+          { key: 'subcontracts-delete', label: 'Delete Subcontracts', description: 'Remove subcontracts' },
+        ]
+      },
+      { 
+        key: 'purchase-orders', 
+        label: 'Purchase Orders', 
+        description: 'Manage purchase orders',
+        actions: [
+          { key: 'purchase-orders-view', label: 'View POs', description: 'Access purchase order list' },
+          { key: 'purchase-orders-add', label: 'Add POs', description: 'Create new purchase orders' },
+          { key: 'purchase-orders-edit', label: 'Edit POs', description: 'Modify purchase orders' },
+          { key: 'purchase-orders-delete', label: 'Delete POs', description: 'Remove purchase orders' },
+        ]
+      },
+      { 
+        key: 'construction-reports', 
+        label: 'Reports', 
+        description: 'Construction reports',
+        actions: [
+          { key: 'construction-reports-view', label: 'View Reports', description: 'Access construction reports' },
+        ]
+      },
+      { 
+        key: 'cost-codes', 
+        label: 'Cost Codes', 
+        description: 'Manage cost codes',
+        actions: [
+          { key: 'cost-codes-view', label: 'View Cost Codes', description: 'Access cost code list' },
+          { key: 'cost-codes-add', label: 'Add Cost Codes', description: 'Create new cost codes' },
+          { key: 'cost-codes-edit', label: 'Edit Cost Codes', description: 'Modify cost codes' },
+          { key: 'cost-codes-delete', label: 'Delete Cost Codes', description: 'Remove cost codes' },
+        ]
+      },
+      { 
+        key: 'delivery-tickets', 
+        label: 'Delivery Tickets', 
+        description: 'Manage delivery tickets',
+        actions: [
+          { key: 'delivery-tickets-view', label: 'View Tickets', description: 'Access delivery tickets' },
+          { key: 'delivery-tickets-add', label: 'Add Tickets', description: 'Create new tickets' },
+          { key: 'delivery-tickets-edit', label: 'Edit Tickets', description: 'Modify tickets' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'receipts',
+    label: 'Receipts',
+    icon: Receipt,
+    description: 'Receipt management',
+    items: [
+      { 
+        key: 'receipts-upload', 
+        label: 'Upload Receipts', 
+        description: 'Upload receipt images',
+        actions: [
+          { key: 'receipts-upload-access', label: 'Upload Receipts', description: 'Upload receipt images' },
+        ]
+      },
+      { 
+        key: 'receipts-uncoded', 
+        label: 'Uncoded Receipts', 
+        description: 'Process uncoded receipts',
+        actions: [
+          { key: 'receipts-uncoded-view', label: 'View Uncoded', description: 'Access uncoded receipts' },
+          { key: 'receipts-code', label: 'Code Receipts', description: 'Assign codes to receipts' },
+        ]
+      },
+      { 
+        key: 'receipts-coded', 
+        label: 'Coded Receipts', 
+        description: 'View processed receipts',
+        actions: [
+          { key: 'receipts-coded-view', label: 'View Coded', description: 'Access coded receipts' },
+          { key: 'receipts-edit', label: 'Edit Receipts', description: 'Modify receipt details' },
+          { key: 'receipts-delete', label: 'Delete Receipts', description: 'Remove receipts' },
+        ]
+      },
+      { 
+        key: 'receipt-reports', 
+        label: 'Receipt Reports', 
+        description: 'Generate receipt reports',
+        actions: [
+          { key: 'receipt-reports-view', label: 'View Reports', description: 'Access receipt reports' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'receivables',
+    label: 'Receivables',
+    icon: HandCoins,
+    description: 'Accounts receivable management',
+    items: [
+      { 
+        key: 'receivables-dashboard', 
+        label: 'Dashboard', 
+        description: 'Receivables dashboard overview',
+        actions: [
+          { key: 'receivables-dashboard-view', label: 'View Dashboard', description: 'Access receivables dashboard' },
+        ]
+      },
+      { 
+        key: 'customers', 
+        label: 'Customers', 
+        description: 'Manage customers',
+        actions: [
+          { key: 'customers-view', label: 'View Customers', description: 'Access customer list' },
+          { key: 'customers-add', label: 'Add Customers', description: 'Create new customers' },
+          { key: 'customers-edit', label: 'Edit Customers', description: 'Modify customer details' },
+          { key: 'customers-delete', label: 'Delete Customers', description: 'Remove customers' },
+        ]
+      },
+      { 
+        key: 'ar-invoices', 
+        label: 'Invoices', 
+        description: 'Manage AR invoices',
+        actions: [
+          { key: 'ar-invoices-view', label: 'View Invoices', description: 'Access invoice list' },
+          { key: 'ar-invoices-add', label: 'Add Invoices', description: 'Create new invoices' },
+          { key: 'ar-invoices-edit', label: 'Edit Invoices', description: 'Modify invoice details' },
+          { key: 'ar-invoices-delete', label: 'Delete Invoices', description: 'Remove invoices' },
+        ]
+      },
+      { 
+        key: 'ar-payments', 
+        label: 'Payments', 
+        description: 'Manage AR payments',
+        actions: [
+          { key: 'ar-payments-view', label: 'View Payments', description: 'Access payment list' },
+          { key: 'ar-payments-add', label: 'Record Payments', description: 'Record new payments' },
+          { key: 'ar-payments-edit', label: 'Edit Payments', description: 'Modify payment details' },
+        ]
+      },
+      { 
+        key: 'receivables-reports', 
+        label: 'Reports', 
+        description: 'Receivables reports',
+        actions: [
+          { key: 'receivables-reports-view', label: 'View Reports', description: 'Access receivables reports' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'payables',
+    label: 'Payables',
+    icon: CreditCard,
+    description: 'Accounts payable management',
+    items: [
+      { 
+        key: 'payables-dashboard', 
+        label: 'Payables Dashboard', 
+        description: 'Payables overview and analytics',
+        actions: [
+          { key: 'payables-dashboard-view', label: 'View Dashboard', description: 'Access payables dashboard' },
+        ]
+      },
+      { 
+        key: 'vendors', 
+        label: 'Vendors', 
+        description: 'Manage vendors',
+        actions: [
+          { key: 'vendors-view', label: 'View Vendors', description: 'Access vendor list' },
+          { key: 'vendors-add', label: 'Add Vendors', description: 'Create new vendors' },
+          { key: 'vendors-edit', label: 'Edit Vendors', description: 'Modify vendor details' },
+          { key: 'vendors-delete', label: 'Delete Vendors', description: 'Remove vendors' },
+        ]
+      },
+      { 
+        key: 'bills', 
+        label: 'Bills', 
+        description: 'Manage bills',
+        actions: [
+          { key: 'bills-view', label: 'View Bills', description: 'Access bill list' },
+          { key: 'bills-add', label: 'Add Bills', description: 'Create new bills' },
+          { key: 'bills-edit', label: 'Edit Bills', description: 'Modify bill details' },
+          { key: 'bills-delete', label: 'Delete Bills', description: 'Remove bills' },
+          { key: 'bills-approve', label: 'Approve Bills', description: 'Approve bills for payment' },
+        ]
+      },
+      { 
+        key: 'banking-credit-cards', 
+        label: 'Credit Cards', 
+        description: 'Credit card management',
+        actions: [
+          { key: 'credit-cards-view', label: 'View Credit Cards', description: 'Access credit card list' },
+          { key: 'credit-cards-add', label: 'Add Credit Cards', description: 'Add new credit cards' },
+          { key: 'credit-cards-edit', label: 'Edit Credit Cards', description: 'Modify credit card details' },
+          { key: 'credit-cards-transactions', label: 'View Transactions', description: 'View credit card transactions' },
+          { key: 'credit-cards-code', label: 'Code Transactions', description: 'Code credit card transactions' },
+        ]
+      },
+      { 
+        key: 'make-payment', 
+        label: 'Make Payment', 
+        description: 'Process payments',
+        actions: [
+          { key: 'make-payment-access', label: 'Make Payments', description: 'Process vendor payments' },
+        ]
+      },
+      { 
+        key: 'payment-history', 
+        label: 'Payment History', 
+        description: 'View payment records',
+        actions: [
+          { key: 'payment-history-view', label: 'View History', description: 'Access payment history' },
+        ]
+      },
+      { 
+        key: 'payment-reports', 
+        label: 'Bill Reports', 
+        description: 'Payment and bill reports',
+        actions: [
+          { key: 'payment-reports-view', label: 'View Reports', description: 'Access bill/payment reports' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'company-files',
+    label: 'Company Files',
+    icon: FolderArchive,
+    description: 'Company document management',
+    items: [
+      { 
+        key: 'company-files', 
+        label: 'All Documents', 
+        description: 'View all company documents',
+        actions: [
+          { key: 'company-files-view', label: 'View Files', description: 'Access company files' },
+          { key: 'company-files-upload', label: 'Upload Files', description: 'Upload new files' },
+          { key: 'company-files-delete', label: 'Delete Files', description: 'Remove files' },
+        ]
+      },
+      { 
+        key: 'company-contracts', 
+        label: 'Contracts', 
+        description: 'View company contracts',
+        actions: [
+          { key: 'company-contracts-view', label: 'View Contracts', description: 'Access contracts' },
+          { key: 'company-contracts-add', label: 'Add Contracts', description: 'Add new contracts' },
+          { key: 'company-contracts-edit', label: 'Edit Contracts', description: 'Modify contracts' },
+        ]
+      },
+      { 
+        key: 'company-permits', 
+        label: 'Permits', 
+        description: 'View company permits',
+        actions: [
+          { key: 'company-permits-view', label: 'View Permits', description: 'Access permits' },
+          { key: 'company-permits-add', label: 'Add Permits', description: 'Add new permits' },
+          { key: 'company-permits-edit', label: 'Edit Permits', description: 'Modify permits' },
+        ]
+      },
+      { 
+        key: 'company-insurance', 
+        label: 'Insurance', 
+        description: 'View insurance policies',
+        actions: [
+          { key: 'company-insurance-view', label: 'View Insurance', description: 'Access insurance policies' },
+          { key: 'company-insurance-add', label: 'Add Insurance', description: 'Add new policies' },
+          { key: 'company-insurance-edit', label: 'Edit Insurance', description: 'Modify policies' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'employees',
+    label: 'Employees',
+    icon: Users,
+    description: 'Employee management',
+    items: [
+      { 
+        key: 'employees', 
+        label: 'All Employees', 
+        description: 'View employee directory',
+        actions: [
+          { key: 'employees-view', label: 'View Employees', description: 'Access employee list' },
+          { key: 'employees-add', label: 'Add Employees', description: 'Create new employees' },
+          { key: 'employees-edit', label: 'Edit Employees', description: 'Modify employee details' },
+          { key: 'employees-delete', label: 'Delete Employees', description: 'Remove employees' },
+        ]
+      },
+      { 
+        key: 'punch-clock-dashboard', 
+        label: 'Time Tracking', 
+        description: 'Employee time clock system',
+        actions: [
+          { key: 'punch-clock-dashboard-view', label: 'View Dashboard', description: 'Access time tracking dashboard' },
+          { key: 'punch-clock-manage', label: 'Manage Punches', description: 'Edit/approve time entries' },
+        ]
+      },
+      { 
+        key: 'timesheets', 
+        label: 'Timesheets', 
+        description: 'Review employee timesheets',
+        actions: [
+          { key: 'timesheets-view', label: 'View Timesheets', description: 'Access timesheets' },
+          { key: 'timesheets-edit', label: 'Edit Timesheets', description: 'Modify timesheet entries' },
+          { key: 'timesheets-approve', label: 'Approve Timesheets', description: 'Approve timesheets' },
+        ]
+      },
+      { 
+        key: 'timecard-reports', 
+        label: 'Timecard Reports', 
+        description: 'Generate timecard reports',
+        actions: [
+          { key: 'timecard-reports-view', label: 'View Reports', description: 'Access timecard reports' },
+        ]
+      },
+      { 
+        key: 'employees-payroll', 
+        label: 'Payroll', 
+        description: 'Employee payroll',
+        actions: [
+          { key: 'employees-payroll-view', label: 'View Payroll', description: 'Access payroll data' },
+          { key: 'employees-payroll-edit', label: 'Edit Payroll', description: 'Modify payroll settings' },
+        ]
+      },
+      { 
+        key: 'employees-performance', 
+        label: 'Performance', 
+        description: 'Employee performance tracking',
+        actions: [
+          { key: 'employees-performance-view', label: 'View Performance', description: 'Access performance data' },
+        ]
+      },
+      { 
+        key: 'employees-reports', 
+        label: 'Reports', 
+        description: 'Employee reports',
+        actions: [
+          { key: 'employees-reports-view', label: 'View Reports', description: 'Access employee reports' },
+        ]
+      },
+      { 
+        key: 'punch-clock-settings', 
+        label: 'Punch Clock Settings', 
+        description: 'Configure punch clock',
+        actions: [
+          { key: 'punch-clock-settings-view', label: 'View Settings', description: 'Access punch clock settings' },
+          { key: 'punch-clock-settings-edit', label: 'Edit Settings', description: 'Modify punch clock settings' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'messaging',
+    label: 'Messaging',
+    icon: MessageSquare,
+    description: 'Internal communication',
+    items: [
+      { 
+        key: 'messages', 
+        label: 'All Messages', 
+        description: 'Internal messaging system',
+        actions: [
+          { key: 'messages-view', label: 'View Messages', description: 'Access messages' },
+          { key: 'messages-send', label: 'Send Messages', description: 'Send new messages' },
+        ]
+      },
+      { 
+        key: 'team-chat', 
+        label: 'Team Chat', 
+        description: 'Team communication',
+        actions: [
+          { key: 'team-chat-access', label: 'Access Team Chat', description: 'Use team chat' },
+        ]
+      },
+      { 
+        key: 'announcements', 
+        label: 'Announcements', 
+        description: 'Company announcements',
+        actions: [
+          { key: 'announcements-view', label: 'View Announcements', description: 'Access announcements' },
+          { key: 'announcements-create', label: 'Create Announcements', description: 'Post new announcements' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'tasks',
+    label: 'Tasks',
+    icon: CheckSquare,
+    description: 'Task management',
+    items: [
+      { 
+        key: 'tasks', 
+        label: 'All Tasks', 
+        description: 'View all tasks',
+        actions: [
+          { key: 'tasks-view', label: 'View Tasks', description: 'Access task list' },
+          { key: 'tasks-add', label: 'Add Tasks', description: 'Create new tasks' },
+          { key: 'tasks-edit', label: 'Edit Tasks', description: 'Modify tasks' },
+          { key: 'tasks-delete', label: 'Delete Tasks', description: 'Remove tasks' },
+        ]
+      },
+      { 
+        key: 'project-tasks', 
+        label: 'Project Tasks', 
+        description: 'Project-specific tasks',
+        actions: [
+          { key: 'project-tasks-view', label: 'View Project Tasks', description: 'Access project tasks' },
+        ]
+      },
+      { 
+        key: 'task-deadlines', 
+        label: 'Deadlines', 
+        description: 'Task deadlines',
+        actions: [
+          { key: 'task-deadlines-view', label: 'View Deadlines', description: 'Access deadline calendar' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'banking',
+    label: 'Banking',
+    icon: Building,
+    description: 'Banking and accounting',
+    items: [
+      { 
+        key: 'banking-accounts', 
+        label: 'Bank Accounts', 
+        description: 'View bank accounts',
+        actions: [
+          { key: 'banking-accounts-view', label: 'View Accounts', description: 'Access bank account list' },
+          { key: 'banking-accounts-add', label: 'Add Accounts', description: 'Add new bank accounts' },
+          { key: 'banking-accounts-edit', label: 'Edit Accounts', description: 'Modify bank accounts' },
+        ]
+      },
+      { 
+        key: 'chart-of-accounts', 
+        label: 'Chart of Accounts', 
+        description: 'Manage chart of accounts',
+        actions: [
+          { key: 'chart-of-accounts-view', label: 'View Accounts', description: 'Access chart of accounts' },
+          { key: 'chart-of-accounts-add', label: 'Add Accounts', description: 'Create new accounts' },
+          { key: 'chart-of-accounts-edit', label: 'Edit Accounts', description: 'Modify accounts' },
+        ]
+      },
+      { 
+        key: 'journal-entries', 
+        label: 'Journal Entries', 
+        description: 'View accounting entries',
+        actions: [
+          { key: 'journal-entries-view', label: 'View Entries', description: 'Access journal entries' },
+          { key: 'journal-entries-add', label: 'Add Entries', description: 'Create new entries' },
+          { key: 'journal-entries-edit', label: 'Edit Entries', description: 'Modify entries' },
+          { key: 'journal-entries-delete', label: 'Delete Entries', description: 'Remove entries' },
+        ]
+      },
+      { 
+        key: 'deposits', 
+        label: 'Deposits', 
+        description: 'Record bank deposits',
+        actions: [
+          { key: 'deposits-view', label: 'View Deposits', description: 'Access deposits' },
+          { key: 'deposits-add', label: 'Add Deposits', description: 'Record new deposits' },
+        ]
+      },
+      { 
+        key: 'print-checks', 
+        label: 'Print Checks', 
+        description: 'Print payment checks',
+        actions: [
+          { key: 'print-checks-access', label: 'Print Checks', description: 'Print payment checks' },
+        ]
+      },
+      { 
+        key: 'reconcile', 
+        label: 'Bank Reconciliation', 
+        description: 'Reconcile bank statements',
+        actions: [
+          { key: 'reconcile-view', label: 'View Reconciliations', description: 'Access reconciliation history' },
+          { key: 'reconcile-perform', label: 'Perform Reconciliation', description: 'Reconcile statements' },
+        ]
+      },
+      { 
+        key: 'banking-reports', 
+        label: 'Banking Reports', 
+        description: 'Banking and financial reports',
+        actions: [
+          { key: 'banking-reports-view', label: 'View Reports', description: 'Access banking reports' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    icon: Cog,
+    description: 'Application settings',
+    items: [
+      { 
+        key: 'settings', 
+        label: 'General Settings', 
+        description: 'Application configuration',
+        actions: [
+          { key: 'settings-view', label: 'View Settings', description: 'Access general settings' },
+          { key: 'settings-edit', label: 'Edit Settings', description: 'Modify general settings' },
+        ]
+      },
+      { 
+        key: 'company-settings', 
+        label: 'Company Settings', 
+        description: 'Company configuration',
+        actions: [
+          { key: 'company-settings-view', label: 'View Settings', description: 'Access company settings' },
+          { key: 'company-settings-edit', label: 'Edit Settings', description: 'Modify company settings' },
+        ]
+      },
+      { 
+        key: 'company-management', 
+        label: 'Company Management', 
+        description: 'Company user management',
+        actions: [
+          { key: 'company-management-access', label: 'Access Management', description: 'Manage company' },
+        ]
+      },
+      { 
+        key: 'user-settings', 
+        label: 'User Management', 
+        description: 'User roles and permissions',
+        actions: [
+          { key: 'user-settings-view', label: 'View Users', description: 'Access user list' },
+          { key: 'user-settings-edit', label: 'Edit Users', description: 'Modify user roles' },
+          { key: 'user-settings-permissions', label: 'Manage Permissions', description: 'Configure role permissions' },
+        ]
+      },
+      { 
+        key: 'notification-settings', 
+        label: 'Notifications & Email', 
+        description: 'Configure notifications',
+        actions: [
+          { key: 'notification-settings-view', label: 'View Settings', description: 'Access notification settings' },
+          { key: 'notification-settings-edit', label: 'Edit Settings', description: 'Modify notifications' },
+        ]
+      },
+      { 
+        key: 'security-settings', 
+        label: 'Data & Security', 
+        description: 'Security configuration',
+        actions: [
+          { key: 'security-settings-view', label: 'View Settings', description: 'Access security settings' },
+          { key: 'security-settings-edit', label: 'Edit Settings', description: 'Modify security settings' },
+        ]
+      },
+    ],
+  },
 ];
 
 const roles = [
@@ -138,6 +678,21 @@ const roles = [
   { key: 'vendor', label: 'Vendor', color: 'bg-amber-100 text-amber-800', description: 'External vendor access' },
 ];
 
+// Get all permission keys for migration/seeding
+export function getAllPermissionKeys(): string[] {
+  const keys: string[] = [];
+  menuCategories.forEach(category => {
+    keys.push(category.key);
+    category.items.forEach(item => {
+      keys.push(item.key);
+      item.actions?.forEach(action => {
+        keys.push(action.key);
+      });
+    });
+  });
+  return keys;
+}
+
 export default function RolePermissionsManager() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
@@ -147,7 +702,9 @@ export default function RolePermissionsManager() {
   const [customPermissions, setCustomPermissions] = useState<CustomRolePermission[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [openRoles, setOpenRoles] = useState<Record<string, boolean>>({}); // All collapsed by default
+  const [openRoles, setOpenRoles] = useState<Record<string, boolean>>({});
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [openMenuItems, setOpenMenuItems] = useState<Record<string, boolean>>({});
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState({
     role_key: '',
@@ -199,7 +756,6 @@ export default function RolePermissionsManager() {
       if (rolesError) throw rolesError;
       setCustomRoles(rolesData || []);
 
-      // Fetch permissions for all custom roles
       if (rolesData && rolesData.length > 0) {
         const { data: permsData, error: permsError } = await supabase
           .from('custom_role_permissions')
@@ -215,7 +771,6 @@ export default function RolePermissionsManager() {
   };
 
   const updatePermission = async (role: string, menuItem: string, canAccess: boolean) => {
-    // Only allow admins to make changes
     if (profile?.role !== 'admin') {
       toast({
         title: "Access Denied",
@@ -225,7 +780,6 @@ export default function RolePermissionsManager() {
       return;
     }
 
-    // Don't allow changing admin permissions (they're always true)
     if (role === 'admin') {
       toast({
         title: "Cannot Modify",
@@ -245,7 +799,6 @@ export default function RolePermissionsManager() {
 
       if (error) throw error;
 
-      // Update local state
       setPermissions(prev => {
         const existing = prev.find(p => p.role === role && p.menu_item === menuItem);
         if (existing) {
@@ -261,25 +814,21 @@ export default function RolePermissionsManager() {
 
       toast({
         title: "Permission Updated",
-        description: `${role} access to ${menuItems.find(m => m.key === menuItem)?.label || menuItem} has been ${canAccess ? 'granted' : 'revoked'}.`,
+        description: `Permission has been ${canAccess ? 'granted' : 'revoked'}.`,
       });
 
     } catch (error) {
       console.error('Error updating permission:', error);
       toast({
         title: "Error",
-        description: (error as any)?.message || "Failed to update permission. Please try again.",
+        description: (error as any)?.message || "Failed to update permission.",
         variant: "destructive",
       });
     }
   };
 
   const getPermission = (role: string, menuItem: string): boolean => {
-    // Admin role automatically has access to everything
-    if (role === 'admin') {
-      return true;
-    }
-    
+    if (role === 'admin') return true;
     const permission = permissions.find(p => p.role === role && p.menu_item === menuItem);
     return permission?.can_access || false;
   };
@@ -303,7 +852,6 @@ export default function RolePermissionsManager() {
 
       if (error) throw error;
 
-      // Update local state
       setCustomPermissions(prev => {
         const existing = prev.find(p => p.custom_role_id === customRoleId && p.menu_item === menuItem);
         if (existing) {
@@ -324,7 +872,7 @@ export default function RolePermissionsManager() {
 
       toast({
         title: "Permission Updated",
-        description: `Permission for ${menuItems.find(m => m.key === menuItem)?.label || menuItem} has been ${canAccess ? 'granted' : 'revoked'}.`,
+        description: `Permission has been ${canAccess ? 'granted' : 'revoked'}.`,
       });
 
     } catch (error) {
@@ -340,7 +888,6 @@ export default function RolePermissionsManager() {
   const createCustomRole = async () => {
     if (!currentCompany || !user) return;
 
-    // Validation
     if (!newRole.role_key || !newRole.role_name) {
       toast({
         title: "Validation Error",
@@ -350,7 +897,6 @@ export default function RolePermissionsManager() {
       return;
     }
 
-    // Sanitize role key (lowercase, no spaces)
     const sanitizedKey = newRole.role_key.toLowerCase().replace(/[^a-z0-9_]/g, '_');
 
     try {
@@ -393,7 +939,7 @@ export default function RolePermissionsManager() {
   };
 
   const deleteCustomRole = async (roleId: string, roleName: string) => {
-    if (!confirm(`Are you sure you want to delete the role "${roleName}"? This will remove all permissions and user assignments for this role.`)) {
+    if (!confirm(`Are you sure you want to delete the role "${roleName}"?`)) {
       return;
     }
 
@@ -422,294 +968,341 @@ export default function RolePermissionsManager() {
     }
   };
 
-  const saveAllPermissions = async () => {
-    toast({
-      title: "Permissions Saved",
-      description: "All role permissions have been updated successfully",
-    });
+  const toggleRole = (roleKey: string) => {
+    setOpenRoles(prev => ({ ...prev, [roleKey]: !prev[roleKey] }));
+  };
+
+  const toggleCategory = (roleKey: string, categoryKey: string) => {
+    const key = `${roleKey}-${categoryKey}`;
+    setOpenCategories(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleMenuItem = (roleKey: string, itemKey: string) => {
+    const key = `${roleKey}-${itemKey}`;
+    setOpenMenuItems(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   if (loading) {
-    return <div className="p-6 text-center">Loading permissions...</div>;
-  }
-
-  // Show access denied if not admin
-  if (profile?.role !== 'admin') {
     return (
-      <div className="p-6 text-center">
-        <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground">Only administrators can manage role permissions.</p>
-      </div>
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading permissions...</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <Tabs defaultValue="permissions" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="permissions">Menu Permissions</TabsTrigger>
-          <TabsTrigger value="default-pages">Default Pages</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="permissions" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Role-Based Menu Permissions
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <p className="text-muted-foreground">Configure menu access for each user role. Click to expand each role.</p>
-                </div>
-                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Custom Role
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create Custom Role</DialogTitle>
-                      <DialogDescription>
-                        Create a new custom role for your company with specific menu permissions
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="role-key">Role Key *</Label>
-                        <Input
-                          id="role-key"
-                          placeholder="e.g., site_supervisor"
-                          value={newRole.role_key}
-                          onChange={(e) => setNewRole(prev => ({ ...prev, role_key: e.target.value }))}
-                          maxLength={50}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Lowercase letters, numbers, and underscores only. This will be auto-formatted.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="role-name">Role Name *</Label>
-                        <Input
-                          id="role-name"
-                          placeholder="e.g., Site Supervisor"
-                          value={newRole.role_name}
-                          onChange={(e) => setNewRole(prev => ({ ...prev, role_name: e.target.value }))}
-                          maxLength={100}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="role-description">Description</Label>
-                        <Textarea
-                          id="role-description"
-                          placeholder="Describe this role's responsibilities..."
-                          value={newRole.description}
-                          onChange={(e) => setNewRole(prev => ({ ...prev, description: e.target.value }))}
-                          maxLength={500}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="role-color">Badge Color</Label>
-                        <select
-                          id="role-color"
-                          value={newRole.color}
-                          onChange={(e) => setNewRole(prev => ({ ...prev, color: e.target.value }))}
-                          className="w-full p-2 border rounded"
-                        >
-                          <option value="bg-indigo-100 text-indigo-800">Indigo</option>
-                          <option value="bg-purple-100 text-purple-800">Purple</option>
-                          <option value="bg-pink-100 text-pink-800">Pink</option>
-                          <option value="bg-orange-100 text-orange-800">Orange</option>
-                          <option value="bg-yellow-100 text-yellow-800">Yellow</option>
-                          <option value="bg-teal-100 text-teal-800">Teal</option>
-                          <option value="bg-cyan-100 text-cyan-800">Cyan</option>
-                        </select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={createCustomRole}>
-                        Create Role
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
+  if (profile?.role !== 'admin') {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-medium mb-2">Access Denied</h3>
+          <p className="text-muted-foreground">Only administrators can manage role permissions.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-      <div className="space-y-4">
-        {/* System Roles */}
-        {roles.map((role) => (
-          <Collapsible 
-            key={role.key}
-            open={openRoles[role.key]}
-            onOpenChange={(open) => setOpenRoles(prev => ({ ...prev, [role.key]: open }))}
-          >
-            <Card className="overflow-hidden">
-              <CollapsibleTrigger asChild>
-                <CardHeader className="pb-3 cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
-                  <CardTitle className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${role.color} border-0`}>{role.label}</Badge>
-                      <span className="text-xs text-muted-foreground">({role.description})</span>
-                      {role.key === 'admin' && (
-                        <Badge variant="outline" className="text-xs">Full Access</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                      {openRoles[role.key] ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {/* Group permissions by category */}
-                    {['Core', 'Projects', 'Vendors', 'HR', 'Time Tracking', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
-                      const categoryItems = menuItems.filter(item => item.category === category);
-                      if (categoryItems.length === 0) return null;
-                      
-                      return (
-                        <div key={category} className="space-y-2">
-                          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {categoryItems.map((menuItem) => (
-                              <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
-                                <Switch
-                                  id={`${role.key}-${menuItem.key}`}
-                                  checked={getPermission(role.key, menuItem.key)}
-                                  onCheckedChange={(checked) => updatePermission(role.key, menuItem.key, checked)}
-                                  disabled={role.key === 'admin'}
-                                  className="scale-75"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <Label 
-                                    htmlFor={`${role.key}-${menuItem.key}`} 
-                                    className="text-xs font-medium cursor-pointer block truncate"
-                                  >
-                                    {menuItem.label}
-                                  </Label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-        ))}
-        
-        {/* Custom Roles */}
-        {customRoles.map((role) => (
-          <Collapsible 
-            key={role.id}
-            open={openRoles[role.id]}
-            onOpenChange={(open) => setOpenRoles(prev => ({ ...prev, [role.id]: open }))}
-          >
-            <Card className="overflow-hidden border-2 border-primary/20">
-              <CollapsibleTrigger asChild>
-                <CardHeader className="pb-3 cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors">
-                  <CardTitle className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Badge className={`${role.color} border-0`}>{role.role_name}</Badge>
-                      <span className="text-xs text-muted-foreground">({role.description || 'Custom role'})</span>
-                      <Badge variant="outline" className="text-xs">Custom</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteCustomRole(role.id, role.role_name);
-                        }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                      {openRoles[role.id] ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {['Core', 'Projects', 'Vendors', 'HR', 'Time Tracking', 'Finance', 'Receipts', 'Banking', 'Communication', 'Company', 'Admin', 'Personal'].map((category) => {
-                      const categoryItems = menuItems.filter(item => item.category === category);
-                      if (categoryItems.length === 0) return null;
-                      
-                      return (
-                        <div key={category} className="space-y-2">
-                          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{category}</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {categoryItems.map((menuItem) => (
-                              <div key={menuItem.key} className="flex items-center space-x-2 p-2 rounded border bg-card hover:bg-primary/10 hover:border-primary transition-colors">
-                                <Switch
-                                  id={`${role.id}-${menuItem.key}`}
-                                  checked={getCustomRolePermission(role.id, menuItem.key)}
-                                  onCheckedChange={(checked) => updateCustomRolePermission(role.id, menuItem.key, checked)}
-                                  className="scale-75"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <Label 
-                                    htmlFor={`${role.id}-${menuItem.key}`} 
-                                    className="text-xs font-medium cursor-pointer block truncate"
-                                  >
-                                    {menuItem.label}
-                                  </Label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-        ))}
+  const renderPermissionSwitch = (
+    roleKey: string, 
+    permissionKey: string, 
+    label: string, 
+    isCustomRole: boolean = false,
+    customRoleId?: string
+  ) => {
+    const isAdmin = roleKey === 'admin';
+    const hasPermission = isCustomRole && customRoleId
+      ? getCustomRolePermission(customRoleId, permissionKey)
+      : getPermission(roleKey, permissionKey);
+
+    return (
+      <div key={permissionKey} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/50 rounded">
+        <Label htmlFor={`${roleKey}-${permissionKey}`} className="text-sm cursor-pointer">
+          {label}
+        </Label>
+        <Switch
+          id={`${roleKey}-${permissionKey}`}
+          checked={hasPermission}
+          onCheckedChange={(checked) => {
+            if (isCustomRole && customRoleId) {
+              updateCustomRolePermission(customRoleId, permissionKey, checked);
+            } else {
+              updatePermission(roleKey, permissionKey, checked);
+            }
+          }}
+          disabled={isAdmin}
+        />
       </div>
+    );
+  };
 
-              <div className="bg-muted/50 p-3 rounded-lg">
-                <h3 className="text-sm font-medium mb-2">Permission Guidelines:</h3>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Changes are automatically saved when toggled</li>
-                  <li>• Click on role headers to expand/collapse settings</li>
-                  <li>• Admin role automatically has full system access</li>
-                  <li>• Users need to refresh their browser to see menu changes</li>
-                </ul>
+  const renderRoleSection = (role: typeof roles[0], isCustomRole: boolean = false, customRoleData?: CustomRole) => {
+    const roleKey = isCustomRole && customRoleData ? customRoleData.id : role.key;
+    const isOpen = openRoles[roleKey] || false;
+    
+    return (
+      <Card key={roleKey} className="mb-4">
+        <Collapsible open={isOpen} onOpenChange={() => toggleRole(roleKey)}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  <Badge className={isCustomRole && customRoleData ? customRoleData.color : role.color}>
+                    {isCustomRole && customRoleData ? customRoleData.role_name : role.label}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    {isCustomRole && customRoleData ? customRoleData.description : role.description}
+                  </span>
+                </div>
+                {isCustomRole && customRoleData && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteCustomRole(customRoleData.id, customRoleData.role_name);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {menuCategories.map((category) => {
+                  const categoryKey = `${roleKey}-${category.key}`;
+                  const isCategoryOpen = openCategories[categoryKey] || false;
+                  const CategoryIcon = category.icon;
+                  
+                  return (
+                    <Collapsible 
+                      key={category.key} 
+                      open={isCategoryOpen} 
+                      onOpenChange={() => toggleCategory(roleKey, category.key)}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer border-l-2 border-primary/20">
+                          {isCategoryOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          <CategoryIcon className="h-4 w-4 text-primary" />
+                          <span className="font-medium">{category.label}</span>
+                          <span className="text-xs text-muted-foreground ml-2">({category.items.length} items)</span>
+                        </div>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <div className="ml-6 mt-1 space-y-1 border-l border-muted pl-4">
+                          {/* Category-level permission */}
+                          {renderPermissionSwitch(
+                            isCustomRole ? '' : role.key,
+                            category.key,
+                            `Access ${category.label}`,
+                            isCustomRole,
+                            customRoleData?.id
+                          )}
+                          
+                          {/* Menu items within category */}
+                          {category.items.map((item) => {
+                            const itemKey = `${roleKey}-${item.key}`;
+                            const isItemOpen = openMenuItems[itemKey] || false;
+                            const hasActions = item.actions && item.actions.length > 0;
+                            
+                            return (
+                              <div key={item.key} className="ml-2">
+                                {hasActions ? (
+                                  <Collapsible
+                                    open={isItemOpen}
+                                    onOpenChange={() => toggleMenuItem(roleKey, item.key)}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <CollapsibleTrigger asChild>
+                                        <div className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded cursor-pointer flex-1">
+                                          {isItemOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                          <span className="text-sm font-medium">{item.label}</span>
+                                        </div>
+                                      </CollapsibleTrigger>
+                                      <Switch
+                                        checked={isCustomRole && customRoleData
+                                          ? getCustomRolePermission(customRoleData.id, item.key)
+                                          : getPermission(role.key, item.key)
+                                        }
+                                        onCheckedChange={(checked) => {
+                                          if (isCustomRole && customRoleData) {
+                                            updateCustomRolePermission(customRoleData.id, item.key, checked);
+                                          } else {
+                                            updatePermission(role.key, item.key, checked);
+                                          }
+                                        }}
+                                        disabled={role.key === 'admin'}
+                                      />
+                                    </div>
+                                    
+                                    <CollapsibleContent>
+                                      <div className="ml-5 mt-1 space-y-0.5 border-l border-muted/50 pl-3">
+                                        {item.actions?.map((action) => (
+                                          <div key={action.key} className="flex items-center justify-between py-1 px-2 hover:bg-muted/30 rounded text-xs">
+                                            <div className="flex flex-col">
+                                              <span>{action.label}</span>
+                                              <span className="text-muted-foreground text-[10px]">{action.description}</span>
+                                            </div>
+                                            <Switch
+                                              checked={isCustomRole && customRoleData
+                                                ? getCustomRolePermission(customRoleData.id, action.key)
+                                                : getPermission(role.key, action.key)
+                                              }
+                                              onCheckedChange={(checked) => {
+                                                if (isCustomRole && customRoleData) {
+                                                  updateCustomRolePermission(customRoleData.id, action.key, checked);
+                                                } else {
+                                                  updatePermission(role.key, action.key, checked);
+                                                }
+                                              }}
+                                              disabled={role.key === 'admin'}
+                                              className="scale-75"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                ) : (
+                                  renderPermissionSwitch(
+                                    isCustomRole ? '' : role.key,
+                                    item.key,
+                                    item.label,
+                                    isCustomRole,
+                                    customRoleData?.id
+                                  )
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
               </div>
             </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="default-pages">
-          <RoleDefaultPageSettings />
-        </TabsContent>
-      </Tabs>
-    </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    );
+  };
+
+  return (
+    <Tabs defaultValue="permissions" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="permissions">Menu Permissions</TabsTrigger>
+        <TabsTrigger value="default-pages">Default Pages</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="permissions">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Role Permissions Manager
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configure what each role can access in the application. Permissions are organized by menu section.
+                </p>
+              </div>
+              
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Custom Role
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Custom Role</DialogTitle>
+                    <DialogDescription>
+                      Create a new custom role for your company with specific permissions.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="role_key">Role Key</Label>
+                      <Input
+                        id="role_key"
+                        placeholder="e.g., field_supervisor"
+                        value={newRole.role_key}
+                        onChange={(e) => setNewRole(prev => ({ ...prev, role_key: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground">Unique identifier (lowercase, no spaces)</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role_name">Role Name</Label>
+                      <Input
+                        id="role_name"
+                        placeholder="e.g., Field Supervisor"
+                        value={newRole.role_name}
+                        onChange={(e) => setNewRole(prev => ({ ...prev, role_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        placeholder="Describe what this role is for..."
+                        value={newRole.description}
+                        onChange={(e) => setNewRole(prev => ({ ...prev, description: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={createCustomRole}>
+                      Create Role
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            <div className="space-y-4">
+              {/* System Roles */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">System Roles</h3>
+                {roles.map(role => renderRoleSection(role))}
+              </div>
+              
+              {/* Custom Roles */}
+              {customRoles.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Custom Roles</h3>
+                  {customRoles.map(customRole => 
+                    renderRoleSection(
+                      { key: customRole.id, label: customRole.role_name, color: customRole.color, description: customRole.description },
+                      true,
+                      customRole
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="default-pages">
+        <RoleDefaultPageSettings />
+      </TabsContent>
+    </Tabs>
   );
 }
