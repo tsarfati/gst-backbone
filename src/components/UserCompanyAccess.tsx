@@ -119,13 +119,18 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
     }
 
     try {
+      // Use upsert to handle re-adding previously removed access
       const { error } = await supabase
         .from('user_company_access')
-        .insert({
+        .upsert({
           user_id: userId,
           company_id: selectedCompanyId,
           role: selectedRole as 'admin' | 'controller' | 'company_admin' | 'project_manager' | 'employee' | 'view_only',
           granted_by: currentUser?.id || userId,
+          is_active: true,
+          granted_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,company_id',
         });
 
       if (error) throw error;
