@@ -223,19 +223,14 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-primary/30 to-transparent" />
         </div>
 
-        {/* Logo Overlay - Centered on video with transparent background */}
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <AnimatedSection animation="fade-down" duration={1000}>
-            <img 
-              src={logoTransparent} 
-              alt="BuilderLYNK" 
-              className="h-[400px] sm:h-[500px] lg:h-[600px] w-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
-            />
-          </AnimatedSection>
-        </div>
-
         {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-[300px] sm:mt-[350px] lg:mt-[400px]">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <AnimatedSection animation="fade-down" duration={1000}>
+            <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-8 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
+              <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
+            </h1>
+          </AnimatedSection>
+          
           <AnimatedSection animation="fade-down" duration={1000}>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-6 leading-tight tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
               <span className="text-white">Build </span><span className="text-[#E88A2D]">Smarter.</span>
