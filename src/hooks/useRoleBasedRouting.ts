@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
-  const { isSuperAdmin } = useTenant();
+  const { isSuperAdmin, tenantMember } = useTenant();
   const { loading: companyLoading, userCompanies, currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
@@ -26,16 +26,19 @@ export function useRoleBasedRouting() {
   const hasCompanyAccess =
     !!currentCompany || userCompanies.length > 0 || !!profile?.current_company_id;
 
+  // Check if user is tenant owner - only tenant owners should go to super admin dashboard by default
+  const isTenantOwner = tenantMember?.role === 'owner';
+
   useEffect(() => {
     // Wait for company context to settle before routing
     if (companyLoading) return;
 
-    // Super admins should land on the super admin dashboard from initial pages
-    // BUT only if they don't also have any company access (legacy/company member).
+    // Super admins who are tenant OWNERS should go to super admin dashboard
+    // Super admins who are NOT owners (e.g., tenant admins) should go to regular dashboard
     const initialPaths = ['/', '/auth', '/dashboard'];
 
-    if (isSuperAdmin && !hasCompanyAccess) {
-      // Pure super admin without company membership - go to super admin dashboard
+    if (isSuperAdmin && isTenantOwner) {
+      // Tenant owner super admin - go to super admin dashboard
       if (initialPaths.includes(location.pathname)) {
         navigate('/super-admin', { replace: true });
         return;
@@ -43,8 +46,8 @@ export function useRoleBasedRouting() {
       return;
     }
 
-    // If super admin but also has company access, treat as regular user
-    // and continue with normal routing below
+    // If super admin but not tenant owner (e.g., tenant admin like mike@greenstarteam.com),
+    // or super admin with company access, treat as regular user and continue with normal routing
 
     if (!effectiveRole) return;
 
@@ -109,5 +112,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [effectiveRole, isSuperAdmin, companyLoading, hasAccess, navigate, location.pathname]);
+  }, [effectiveRole, isSuperAdmin, isTenantOwner, companyLoading, hasAccess, navigate, location.pathname]);
 }
