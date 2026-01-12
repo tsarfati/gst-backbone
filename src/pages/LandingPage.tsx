@@ -276,8 +276,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Stats Section - Hardcoded navy blue background */}
-      <section className="py-16 relative overflow-hidden" style={{ backgroundColor: '#1e3a5f' }}>
+      {/* Stats Section - Dark gradient background */}
+      <section className="py-16 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1a1f2e, #0f1419)' }}>
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMtOS45NDEgMC0xOCA4LjA1OS0xOCAxOHM4LjA1OSAxOCAxOCAxOCAxOC04LjA1OSAxOC0xOC04LjA1OS0xOC0xOC0xOHptMCAzMmMtNy43MzIgMC0xNC02LjI2OC0xNC0xNHM2LjI2OC0xNCAxNC0xNCAxNCA2LjI2OCAxNCAxNC02LjI2OCAxNC0xNCAxNHoiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iLjAyIi8+PC9nPjwvc3ZnPg==')] opacity-50" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -424,7 +424,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section - Dark gradient */}
-      <section className="py-24 relative overflow-hidden" style={{ backgroundColor: '#1e3a5f' }}>
+      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1a1f2e, #0f1419)' }}>
         {/* Animated background elements */}
         <div className="absolute inset-0">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#E88A2D]/10 rounded-full blur-3xl animate-pulse" />
