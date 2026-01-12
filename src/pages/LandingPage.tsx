@@ -14,6 +14,7 @@ import heroVideo4 from '@/assets/hero-construction-4.mp4';
 import heroVideo5 from '@/assets/hero-construction-5.mp4';
 import logoImage from '@/assets/builderlynk-logo-new.png';
 import logoTransparent from '@/assets/builderlynk-logo-new.png';
+import builderlynkIcon from '@/assets/builderlynk-icon.png';
 import {
   Shield,
   Users,
@@ -226,16 +227,18 @@ export default function LandingPage() {
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedSection animation="fade-down" duration={1000}>
-            <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-8 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
+            <img 
+              src={builderlynkIcon} 
+              alt="BuilderLYNK Icon" 
+              className="h-32 sm:h-40 lg:h-48 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
+            />
+            <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-4 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
               <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
             </h1>
-          </AnimatedSection>
-          
-          <AnimatedSection animation="fade-down" duration={1000}>
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-6 leading-tight tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
               <span className="text-white">Build </span><span className="text-[#E88A2D]">Smarter.</span>
-              <span className="block mt-2"><span className="text-white">Build </span><span className="text-[#E88A2D]">Faster.</span></span>
-            </h1>
+              <span className="text-white"> Build </span><span className="text-[#E88A2D]">Faster.</span>
+            </h2>
           </AnimatedSection>
           
           <AnimatedSection animation="fade-up" delay={300} duration={1000}>
