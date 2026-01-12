@@ -2,17 +2,27 @@ import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
+  const { loading: companyLoading } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Derive effective role from company-specific role first, fallback to profile.role
+  const effectiveRole = activeCompanyRole || profile?.role;
+
   useEffect(() => {
+    // Wait for company context to settle before routing
+    if (companyLoading) return;
+
     // Super admins should land on the super admin dashboard from initial pages
     // BUT only if they don't also have a tenant membership (they're primarily super admins)
     const initialPaths = ['/', '/auth', '/dashboard'];
@@ -29,14 +39,14 @@ export function useRoleBasedRouting() {
       return;
     }
 
-    if (!profile?.role) return;
+    if (!effectiveRole) return;
 
     const fetchDefaultPage = async () => {
       try {
         const { data, error } = await supabase
           .from('role_default_pages')
           .select('default_page')
-          .eq('role', profile.role)
+          .eq('role', effectiveRole)
           .maybeSingle();
 
         if (error) {
@@ -45,7 +55,7 @@ export function useRoleBasedRouting() {
         }
 
         // For employees, redirect to punch clock app only
-        if (profile.role === 'employee') {
+        if (effectiveRole === 'employee') {
           if (location.pathname === '/auth' || location.pathname === '/') {
             navigate('/punch-clock-app', { replace: true });
           }
@@ -53,7 +63,7 @@ export function useRoleBasedRouting() {
         }
 
         // For vendors, redirect to vendor dashboard
-        if (profile.role === 'vendor') {
+        if (effectiveRole === 'vendor') {
           if (location.pathname === '/auth' || location.pathname === '/') {
             navigate('/vendor/dashboard', { replace: true });
           }
@@ -92,5 +102,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [profile?.role, isSuperAdmin, hasAccess, navigate, location.pathname]);
+  }, [effectiveRole, isSuperAdmin, companyLoading, hasAccess, navigate, location.pathname]);
 }
