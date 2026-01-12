@@ -226,7 +226,7 @@ export default function LandingPage() {
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <AnimatedSection animation="fade-down" duration={1000}>
-            <img src={logoTransparent} alt="BuilderLYNK" className="h-32 sm:h-40 lg:h-48 w-auto mx-auto mb-8 drop-shadow-2xl" />
+            <img src={logoTransparent} alt="BuilderLYNK" className="h-48 sm:h-56 lg:h-64 w-auto mx-auto mb-8 drop-shadow-2xl" />
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-6 leading-tight tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
               <span className="text-white">Build </span><span className="text-[#E88A2D]">Smarter.</span>
               <span className="block mt-2"><span className="text-white">Build </span><span className="text-[#E88A2D]">Faster.</span></span>
