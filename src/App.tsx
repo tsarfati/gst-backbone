@@ -178,21 +178,23 @@ function PublicRoutes() {
       <PunchClockAuthProvider>
         <TenantProvider>
           <CompanyProvider>
-            <ReceiptProvider>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-                <Route path="/punch-clock" element={<PunchClockLogin />} />
-                <Route path="/punch-clock-app" element={<PunchClockApp />} />
-                <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
-                <Route path="/pm-mobile-login" element={<PMobileLogin />} />
-                <Route path="/pm-mobile-app" element={<PMobileApp />} />
-                <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-                <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
-                <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
-              </Routes>
-            </ReceiptProvider>
+            <SettingsProvider>
+              <ReceiptProvider>
+                <Routes>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/punch-clock-login" element={<PunchClockLogin />} />
+                  <Route path="/punch-clock" element={<PunchClockLogin />} />
+                  <Route path="/punch-clock-app" element={<PunchClockApp />} />
+                  <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
+                  <Route path="/pm-mobile-login" element={<PMobileLogin />} />
+                  <Route path="/pm-mobile-app" element={<PMobileApp />} />
+                  <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+                  <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
+                  <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
+                </Routes>
+              </ReceiptProvider>
+            </SettingsProvider>
           </CompanyProvider>
         </TenantProvider>
       </PunchClockAuthProvider>

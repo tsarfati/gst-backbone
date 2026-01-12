@@ -66,9 +66,35 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
         _user_id: user.id
       });
 
-      if (error) throw error;
-
       let companies = (data || []) as unknown as UserCompanyAccess[];
+
+      if (error) {
+        console.warn('get_user_companies RPC failed, falling back to user_company_access:', error);
+        companies = [];
+      }
+
+      // Fallback: some legacy users may have access rows but the RPC returns nothing due to RLS/definition issues
+      if (companies.length === 0) {
+        const { data: accessData, error: accessError } = await supabase
+          .from('user_company_access')
+          .select('company_id, role, companies ( id, name, display_name, is_active, tenant_id )')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        if (accessError) throw accessError;
+
+        companies = (accessData || [])
+          .map((row: any) => {
+            const company = row.companies;
+            if (company?.is_active === false) return null;
+            return {
+              company_id: row.company_id,
+              company_name: company?.display_name || company?.name || row.company_id,
+              role: row.role,
+            } as UserCompanyAccess;
+          })
+          .filter(Boolean) as unknown as UserCompanyAccess[];
+      }
 
       // Tenant isolation: if the user belongs to a tenant, only show companies in that tenant.
       // (Super admins can see across tenants.)
@@ -197,13 +223,21 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   useEffect(() => {
     if (tenantLoading) return;
 
-    if (user?.id && profile) {
-      fetchUserCompanies();
-    } else {
+    // No user → clear company context
+    if (!user?.id) {
       setCurrentCompany(null);
       setUserCompanies([]);
       setLoading(false);
+      return;
     }
+
+    // User exists but profile hasn't hydrated yet → keep loading so we don't mis-route (e.g. super admin → /super-admin)
+    if (!profile) {
+      setLoading(true);
+      return;
+    }
+
+    fetchUserCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, profile?.current_company_id, currentTenant?.id, isSuperAdmin, tenantLoading]);
 
