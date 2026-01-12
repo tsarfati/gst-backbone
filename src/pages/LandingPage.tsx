@@ -424,7 +424,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section - Dark gradient */}
-      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(to bottom right, #1a1f2e, #0f1419)' }}>
+      <section className="py-24 relative overflow-hidden" style={{ backgroundColor: '#1e3a5f' }}>
         {/* Animated background elements */}
         <div className="absolute inset-0">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#E88A2D]/10 rounded-full blur-3xl animate-pulse" />
