@@ -1,8 +1,7 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
-
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
   theme: 'light' | 'dark' | 'system';
@@ -80,11 +79,19 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const { currentCompany } = useCompany();
+  const { currentCompany, userCompanies } = useCompany();
   const { user, profile } = useAuth();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
   const [companyDefaults, setCompanyDefaults] = useState<Partial<AppSettings> | null>(null);
+
+  // Get the user's role for the CURRENT company from user_company_access
+  const activeCompanyRole = useMemo(() => {
+    const companyId = currentCompany?.id ?? profile?.current_company_id ?? null;
+    if (!companyId) return null;
+    const access = userCompanies.find((uc) => uc.company_id === companyId);
+    return access?.role ?? null;
+  }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
 
   const hexToHsl = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -190,7 +197,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
 
     loadSettings();
-  }, [currentCompany?.id, user?.id, profile?.role]);
+  }, [currentCompany?.id, user?.id, activeCompanyRole]);
 
   // Save settings to database
   useEffect(() => {
@@ -209,8 +216,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           delete settingsForStorage.headerLogo;
         }
 
-        const role = (profile?.role || '').toLowerCase();
-        const isCompanyAdmin = role === 'admin' || role === 'company_admin';
+        const role = (activeCompanyRole || '').toLowerCase();
+        const isCompanyAdmin = role === 'admin' || role === 'company_admin' || role === 'controller';
 
         // Enforce company-wide colors: non-admins cannot persist custom color overrides
         if (!isCompanyAdmin) {
@@ -259,7 +266,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Debounce saving to avoid too many requests - increase to 1 second
     const timeoutId = setTimeout(saveSettings, 1000);
     return () => clearTimeout(timeoutId);
-  }, [settings, currentCompany?.id, user?.id, isLoaded]);
+  }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole]);
 
 
   const updateSettings = (updates: Partial<AppSettings>) => {
