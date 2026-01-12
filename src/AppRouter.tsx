@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
 import { CompanyProvider } from "@/contexts/CompanyContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { PunchClockAuthProvider } from "@/contexts/PunchClockAuthContext";
@@ -31,18 +32,20 @@ export function AppRouter({ queryClient }: AppRouterProps) {
             <PWAInstallPrompt />
             <AuthProvider>
               <PunchClockAuthProvider>
-                <CompanyProvider>
-                  <ReceiptProvider>
-                    <BrowserRouter>
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/punch-clock-login" replace />} />
-                        <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-                        <Route path="/punch-clock-app" element={<PunchClockApp />} />
-                        <Route path="*" element={<Navigate to="/punch-clock-login" replace />} />
-                      </Routes>
-                    </BrowserRouter>
-                  </ReceiptProvider>
-                </CompanyProvider>
+                <TenantProvider>
+                  <CompanyProvider>
+                    <ReceiptProvider>
+                      <BrowserRouter>
+                        <Routes>
+                          <Route path="/" element={<Navigate to="/punch-clock-login" replace />} />
+                          <Route path="/punch-clock-login" element={<PunchClockLogin />} />
+                          <Route path="/punch-clock-app" element={<PunchClockApp />} />
+                          <Route path="*" element={<Navigate to="/punch-clock-login" replace />} />
+                        </Routes>
+                      </BrowserRouter>
+                    </ReceiptProvider>
+                  </CompanyProvider>
+                </TenantProvider>
               </PunchClockAuthProvider>
             </AuthProvider>
           </TooltipProvider>
@@ -61,19 +64,21 @@ export function AppRouter({ queryClient }: AppRouterProps) {
             <PWAInstallPrompt />
             <AuthProvider>
               <PunchClockAuthProvider>
-                <CompanyProvider>
-                  <ReceiptProvider>
-                    <BrowserRouter>
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/pm-mobile-login" replace />} />
-                        <Route path="/pm-mobile-login" element={<PMobileLogin />} />
-                        <Route path="/pm-mobile-app" element={<PMobileApp />} />
-                        <Route path="/mobile-messages" element={<MobileMessages />} />
-                        <Route path="*" element={<Navigate to="/pm-mobile-login" replace />} />
-                      </Routes>
-                    </BrowserRouter>
-                  </ReceiptProvider>
-                </CompanyProvider>
+                <TenantProvider>
+                  <CompanyProvider>
+                    <ReceiptProvider>
+                      <BrowserRouter>
+                        <Routes>
+                          <Route path="/" element={<Navigate to="/pm-mobile-login" replace />} />
+                          <Route path="/pm-mobile-login" element={<PMobileLogin />} />
+                          <Route path="/pm-mobile-app" element={<PMobileApp />} />
+                          <Route path="/mobile-messages" element={<MobileMessages />} />
+                          <Route path="*" element={<Navigate to="/pm-mobile-login" replace />} />
+                        </Routes>
+                      </BrowserRouter>
+                    </ReceiptProvider>
+                  </CompanyProvider>
+                </TenantProvider>
               </PunchClockAuthProvider>
             </AuthProvider>
           </TooltipProvider>
