@@ -6953,6 +6953,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      get_user_tenant_companies: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_company_access: {
@@ -7002,6 +7006,10 @@ export type Database = {
           p_role: Database["public"]["Enums"]["user_role"]
         }
         Returns: undefined
+      }
+      user_in_company_tenant: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
       }
       validate_pin: {
         Args: { p_pin: string }
