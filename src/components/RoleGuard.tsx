@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
@@ -16,6 +17,7 @@ export function RoleGuard({
 }: RoleGuardProps) {
   const { profile, loading, user } = useAuth();
   const { isSuperAdmin } = useTenant();
+  const activeCompanyRole = useActiveCompanyRole();
 
   // Show loading while authentication is in progress
   if (loading) {
@@ -45,17 +47,22 @@ export function RoleGuard({
     );
   }
 
+  // Use company-specific role if available, otherwise fall back to profile role
+  const effectiveRole = activeCompanyRole || profile.role;
+
   // Debug logging for development only
   if (import.meta.env.DEV) {
-    console.log('RoleGuard - User role:', profile.role);
+    console.log('RoleGuard - Active company role:', activeCompanyRole);
+    console.log('RoleGuard - Profile role:', profile.role);
+    console.log('RoleGuard - Effective role:', effectiveRole);
     console.log('RoleGuard - Allowed roles:', allowedRoles);
-    console.log('RoleGuard - Has access:', allowedRoles.includes(profile.role));
+    console.log('RoleGuard - Has access:', allowedRoles.includes(effectiveRole));
   }
 
   // If user role is not in allowed roles, redirect
-  if (!profile.role || !allowedRoles.includes(profile.role)) {
+  if (!effectiveRole || !allowedRoles.includes(effectiveRole)) {
     if (import.meta.env.DEV) {
-      console.warn('Access denied - User role:', profile.role, 'Allowed roles:', allowedRoles);
+      console.warn('Access denied - Effective role:', effectiveRole, 'Allowed roles:', allowedRoles);
     }
     return <Navigate to={redirectTo} replace />;
   }
