@@ -120,7 +120,7 @@ export default function PunchClockSettingsComponent() {
     (uc) => uc.company_id === currentCompany?.id
   )?.role;
   const effectiveRole = activeCompanyRole || profile?.role;
-  const isManager = effectiveRole === 'admin' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
+  const isManager = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
 
   useEffect(() => {
     if (currentCompany) {
