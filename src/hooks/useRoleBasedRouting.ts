@@ -26,18 +26,22 @@ export function useRoleBasedRouting() {
     // Super admins should land on the super admin dashboard from initial pages
     // BUT only if they don't also have a tenant membership (they're primarily super admins)
     const initialPaths = ['/', '/auth', '/dashboard'];
-    if (isSuperAdmin) {
-      // Check if this user is ONLY a super admin (no tenant membership)
-      // If they have tenant membership, they should go to the regular dashboard
-      // The super admin dashboard is for pure platform-level admins
+    
+    // Check if user has an active company (meaning they have tenant access too)
+    // If they're a super admin WITH a company, treat them as a regular user
+    const hasCompanyAccess = !!effectiveRole && effectiveRole !== 'employee';
+    
+    if (isSuperAdmin && !hasCompanyAccess) {
+      // Pure super admin without company membership - go to super admin dashboard
       if (initialPaths.includes(location.pathname)) {
-        // Note: The TenantContext already sets hasTenantAccess, so if they have a tenant,
-        // they should go to normal dashboard. Only pure super admins go to super-admin page.
-        // This routing is handled by AccessControl, so we just let it flow through.
+        navigate('/super-admin', { replace: true });
         return;
       }
       return;
     }
+    
+    // If super admin but also has company access, treat as regular user
+    // and continue with normal routing below
 
     if (!effectiveRole) return;
 

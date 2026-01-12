@@ -52,12 +52,15 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // Super admins bypass tenant check
-    if (isSuperAdmin) {
+    // Super admins who also have tenant access should continue through normal flow
+    // Pure super admins (no tenant access) bypass tenant checks
+    if (isSuperAdmin && !hasTenantAccess) {
       setChecking(false);
       if (!initialized) setInitialized(true);
       return;
     }
+    
+    // Super admin WITH tenant access - continue normal flow below
 
     // Handle tenant request route
     if (location.pathname === '/tenant-request') {
