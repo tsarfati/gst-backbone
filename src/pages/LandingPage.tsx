@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
@@ -7,7 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useParallax } from '@/hooks/useScrollAnimation';
 import { Loader2 } from 'lucide-react';
-import heroVideo from '@/assets/hero-construction.mp4';
+import heroVideo1 from '@/assets/hero-construction.mp4';
+import heroVideo2 from '@/assets/hero-construction-2.mp4';
+import heroVideo3 from '@/assets/hero-construction-3.mp4';
 import logoImage from '@/assets/builderlynk-logo.png';
 import {
   Shield,
@@ -25,6 +27,8 @@ import {
   TrendingUp
 } from 'lucide-react';
 
+const heroVideos = [heroVideo1, heroVideo2, heroVideo3];
+
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
@@ -32,6 +36,13 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Handle video ended - cycle to next video
+  const handleVideoEnded = () => {
+    setCurrentVideoIndex((prev) => (prev + 1) % heroVideos.length);
+  };
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -169,17 +180,19 @@ export default function LandingPage() {
 
       {/* Hero Section - Full viewport with video background */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        {/* Video Background */}
+        {/* Video Background - loops through multiple videos */}
         <div className="absolute inset-0 z-0">
           <video
+            ref={videoRef}
+            key={currentVideoIndex}
             autoPlay
             muted
-            loop
             playsInline
+            onEnded={handleVideoEnded}
             className="w-full h-full object-cover"
             style={{ transform: `translateY(${parallaxOffset}px)` }}
           >
-            <source src={heroVideo} type="video/mp4" />
+            <source src={heroVideos[currentVideoIndex]} type="video/mp4" />
           </video>
           {/* Dark overlay with gradient */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
@@ -208,7 +221,7 @@ export default function LandingPage() {
               <Button 
                 size="lg" 
                 onClick={() => setShowTenantRequestModal(true)}
-                className="text-lg px-10 py-7 bg-accent hover:bg-accent/90 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300"
+                className="text-lg px-10 py-7 bg-accent hover:bg-accent/80 text-white font-bold shadow-2xl hover:shadow-accent/25 hover:scale-105 transition-all duration-300"
               >
                 Start Building Today
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -217,7 +230,7 @@ export default function LandingPage() {
                 size="lg" 
                 variant="outline"
                 onClick={() => setShowAuthModal(true)}
-                className="text-lg px-10 py-7 border-white/50 text-white hover:bg-white/20 font-bold"
+                className="text-lg px-10 py-7 border-white/50 text-white hover:bg-accent hover:border-accent hover:text-white font-bold transition-all duration-300"
               >
                 Sign In
               </Button>

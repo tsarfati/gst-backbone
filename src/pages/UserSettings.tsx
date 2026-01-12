@@ -17,6 +17,7 @@ import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
 import UserRoleManagement from "@/components/UserRoleManagement";
 import RolePermissionsManager from "@/components/RolePermissionsManager";
+import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 
 interface UserProfile {
   id: string;
@@ -62,9 +63,12 @@ export default function UserSettings() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const activeCompanyRole = useActiveCompanyRole();
 
-  const isAdmin = profile?.role === 'admin';
-  const isController = profile?.role === 'controller';
+  // Use company-specific role, fallback to profile role
+  const effectiveRole = activeCompanyRole || profile?.role;
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
+  const isController = effectiveRole === 'controller';
   const canManageUsers = isAdmin || isController;
 
   useEffect(() => {
