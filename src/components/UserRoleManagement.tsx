@@ -73,8 +73,33 @@ export default function UserRoleManagement() {
   }, [searchTerm, roleFilter, users]);
 
   const fetchUsers = async () => {
+    if (!currentCompany) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      
+      // First, get users who have access to this company
+      const { data: companyAccess, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, role')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+
+      if (!companyAccess || companyAccess.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      const userIds = companyAccess.map(a => a.user_id);
+      const roleMap = new Map(companyAccess.map(a => [a.user_id, a.role]));
+
+      // Now fetch only those users' profiles
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -86,22 +111,18 @@ export default function UserRoleManagement() {
           custom_role_id,
           avatar_url
         `)
+        .in('user_id', userIds)
         .order('last_name');
 
       if (error) throw error;
 
-      // Fetch emails from auth.users (only admins can access this)
-      const { data: authData } = await supabase.auth.admin.listUsers();
-      
-      const usersWithEmail = (data || []).map(user => {
-        const authUser = authData?.users?.find((u: any) => u.id === user.user_id);
-        return {
-          ...user,
-          email: authUser?.email
-        };
-      });
+      // Map profiles with their company-specific roles
+      const usersWithCompanyRoles = (data || []).map(user => ({
+        ...user,
+        role: roleMap.get(user.user_id) || user.role
+      }));
 
-      setUsers(usersWithEmail);
+      setUsers(usersWithCompanyRoles);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -169,27 +190,36 @@ export default function UserRoleManagement() {
   };
 
   const updateUserRole = async (userId: string, newRole: string, isCustomRole: boolean = false) => {
+    if (!currentCompany) return;
+    
     try {
-      const updates: any = {};
-      
       if (isCustomRole) {
-        // Assign custom role
-        updates.custom_role_id = newRole;
-        // Set system role to employee when using custom role
-        updates.role = 'employee';
+        // Custom roles are stored in profiles
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            custom_role_id: newRole,
+          })
+          .eq('user_id', userId);
+
+        if (error) throw error;
       } else {
-        // Assign system role
-        updates.role = newRole;
-        // Clear custom role when using system role
-        updates.custom_role_id = null;
+        // System roles are stored in user_company_access for the specific company
+        const validRole = newRole as 'admin' | 'company_admin' | 'controller' | 'employee' | 'project_manager' | 'vendor' | 'view_only';
+        const { error } = await supabase
+          .from('user_company_access')
+          .update({ role: validRole })
+          .eq('user_id', userId)
+          .eq('company_id', currentCompany.id);
+
+        if (error) throw error;
+        
+        // Also clear custom role if switching to system role
+        await supabase
+          .from('profiles')
+          .update({ custom_role_id: null })
+          .eq('user_id', userId);
       }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('user_id', userId);
-
-      if (error) throw error;
 
       toast({
         title: "Success",

@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import RoleDefaultPageSettings from './RoleDefaultPageSettings';
 
 interface RolePermission {
@@ -696,7 +697,12 @@ export function getAllPermissionKeys(): string[] {
 export default function RolePermissionsManager() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
+  
+  // Use company-specific role for admin check
+  const effectiveRole = activeCompanyRole || profile?.role;
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [customPermissions, setCustomPermissions] = useState<CustomRolePermission[]>([]);
@@ -771,7 +777,7 @@ export default function RolePermissionsManager() {
   };
 
   const updatePermission = async (role: string, menuItem: string, canAccess: boolean) => {
-    if (profile?.role !== 'admin') {
+    if (!isAdmin) {
       toast({
         title: "Access Denied",
         description: "Only administrators can modify role permissions.",
@@ -993,7 +999,7 @@ export default function RolePermissionsManager() {
     );
   }
 
-  if (profile?.role !== 'admin') {
+  if (!isAdmin) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
