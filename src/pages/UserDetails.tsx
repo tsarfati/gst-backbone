@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useTenant } from "@/contexts/TenantContext";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 
@@ -65,6 +66,7 @@ export default function UserDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentCompany } = useCompany();
+  const { isSuperAdmin } = useTenant();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
@@ -91,12 +93,13 @@ export default function UserDetails() {
   };
 
   useEffect(() => {
-    if (userId && currentCompany) {
+    // Super admins can view any user without company context
+    if (userId && (currentCompany || isSuperAdmin)) {
       fetchUserDetails();
       fetchUserJobs();
       fetchLoginAudit();
     }
-  }, [userId, currentCompany]);
+  }, [userId, currentCompany, isSuperAdmin]);
 
   const fetchUserDetails = async () => {
     try {

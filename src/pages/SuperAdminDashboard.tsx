@@ -49,6 +49,18 @@ interface Tenant {
   member_count?: number;
 }
 
+interface UserProfile {
+  user_id: string;
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email?: string;
+  phone?: string;
+  role: string;
+  status: string;
+  created_at: string;
+}
+
 export default function SuperAdminDashboard() {
   const { user, signOut } = useAuth();
   const { isSuperAdmin, loading: tenantLoading } = useTenant();
@@ -58,7 +70,9 @@ export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<TenantAccessRequest[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,6 +147,19 @@ export default function SuperAdminDashboard() {
       })) || [];
 
       setTenants(enrichedTenants);
+
+      // Fetch all users (profiles) for super admin view
+      const { data: allProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name, role, status, created_at, phone')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      setUsers(allProfiles?.map(p => ({
+        ...p,
+        display_name: p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown User'
+      })) || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -256,6 +283,13 @@ export default function SuperAdminDashboard() {
     t.slug.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredUsers = users.filter(u => 
+    (u.display_name || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    (u.first_name || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    (u.last_name || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    (u.phone || '').toLowerCase().includes(userSearchQuery.toLowerCase())
+  );
+
   if (tenantLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -352,6 +386,7 @@ export default function SuperAdminDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger value="tenants">Organizations</TabsTrigger>
+            <TabsTrigger value="users">All Users</TabsTrigger>
             <TabsTrigger value="history">Request History</TabsTrigger>
           </TabsList>
 
@@ -485,6 +520,72 @@ export default function SuperAdminDashboard() {
                           </TableCell>
                           <TableCell>
                             {new Date(tenant.created_at).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Users</CardTitle>
+                <CardDescription>
+                  View and manage all users across the platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users by name or phone..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                
+                {filteredUsers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No users found</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Joined</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((userProfile) => (
+                        <TableRow 
+                          key={userProfile.user_id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => navigate(`/settings/users/${userProfile.user_id}`)}
+                        >
+                          <TableCell className="font-medium">{userProfile.display_name}</TableCell>
+                          <TableCell>{userProfile.phone || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {userProfile.role || 'None'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={userProfile.status === 'approved' ? 'default' : 'outline'} className="capitalize">
+                              {userProfile.status || 'Pending'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(userProfile.created_at).toLocaleDateString()}
                           </TableCell>
                         </TableRow>
                       ))}
