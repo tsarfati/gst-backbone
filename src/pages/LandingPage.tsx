@@ -160,7 +160,18 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div
+      className="min-h-screen bg-background overflow-x-hidden"
+      // Marketing pages should be neutral (no blue hue) even if the app brand palette is cool-toned.
+      // Scope these overrides to this page only.
+      style={{
+        ['--background' as any]: '0 0% 100%',
+        ['--card' as any]: '0 0% 100%',
+        ['--popover' as any]: '0 0% 100%',
+        ['--muted' as any]: '0 0% 97%',
+        ['--secondary' as any]: '0 0% 97%',
+      }}
+    >
       {/* Navigation - Fixed with backdrop blur */}
       <nav 
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -218,10 +229,8 @@ export default function LandingPage() {
           >
             <source src={heroVideos[nextVideoIndex]} type="video/mp4" />
           </video>
-          {/* Dark overlay with gradient */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80" />
-          {/* Accent color overlay for brand feel */}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/30 to-transparent" />
+          {/* Neutral overlay (no color hue) */}
+          <div className="absolute inset-0 bg-black/45" />
         </div>
 
         {/* Hero Content */}
