@@ -295,9 +295,16 @@ export default function PunchClockSettingsComponent() {
   };
 
   // Wait for company context to fully load before checking permissions
-  if (loading || companyLoading) {
+  // Also wait for userCompanies to be populated (activeCompanyRole will be non-null when ready)
+  if (loading || companyLoading || (userCompanies.length === 0 && currentCompany)) {
     return <div className="text-center py-8">Loading punch clock settings...</div>;
   }
+
+  // Debug: log role information
+  console.log('PunchClockSettings - activeCompanyRole:', activeCompanyRole);
+  console.log('PunchClockSettings - effectiveRole:', effectiveRole);
+  console.log('PunchClockSettings - isManager:', isManager);
+  console.log('PunchClockSettings - userCompanies:', userCompanies);
 
   if (!isManager) {
     return (
