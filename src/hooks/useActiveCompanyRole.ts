@@ -15,6 +15,9 @@ export function useActiveCompanyRole(): string | null {
     if (!companyId) return null;
 
     const access = userCompanies.find((uc) => uc.company_id === companyId);
-    return access?.role ?? null;
+    const role = (access?.role ?? null) as string | null;
+
+    // Normalize to avoid mismatch due to casing/whitespace from DB.
+    return role ? role.trim().toLowerCase() : null;
   }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
 }
