@@ -539,6 +539,24 @@ serve(async (req) => {
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
 
+        // Validate that cost_code_id belongs to the selected job if provided
+        if (cost_code_id) {
+          const { data: costCodeData, error: ccError } = await supabaseAdmin
+            .from('cost_codes')
+            .select('id, job_id')
+            .eq('id', cost_code_id)
+            .maybeSingle();
+          
+          if (ccError || !costCodeData) {
+            return errorResponse("Invalid cost code", 400);
+          }
+          
+          // Cost code must belong to the selected job
+          if (costCodeData.job_id !== job_id) {
+            return errorResponse("Cost code does not belong to the selected job", 400);
+          }
+        }
+
         // Resolve timing setting (job overrides company). Default to 'punch_out' so cost code is not required at punch in unless explicitly configured.
         const { data: jobTiming } = await supabaseAdmin
           .from('job_punch_clock_settings')
@@ -819,6 +837,21 @@ serve(async (req) => {
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
         // If a cost code is provided at punch out, prefer it regardless of timing
         if (cost_code_id) {
+          // Validate that cost code belongs to the current punch's job
+          const { data: costCodeData, error: ccError } = await supabaseAdmin
+            .from('cost_codes')
+            .select('id, job_id')
+            .eq('id', cost_code_id)
+            .maybeSingle();
+          
+          if (ccError || !costCodeData) {
+            return errorResponse("Invalid cost code", 400);
+          }
+          
+          if (costCodeData.job_id !== currentPunch.job_id) {
+            return errorResponse("Cost code does not belong to the current job", 400);
+          }
+          
           costCodeToUse = cost_code_id;
           console.log(`Using cost code from client:`, costCodeToUse);
         }
