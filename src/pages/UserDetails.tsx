@@ -257,8 +257,16 @@ export default function UserDetails() {
       if (!session) return;
 
       const response = await supabase.functions.invoke('get-user-email', {
-        body: { userId },
+        body: {
+          userId,
+          companyId: currentCompany?.id,
+        },
       });
+
+      if (response.error) {
+        console.error('Error fetching user email:', response.error);
+        return;
+      }
 
       if (response.data?.email) {
         setUserEmail(response.data.email);

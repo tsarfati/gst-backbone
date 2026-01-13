@@ -13,50 +13,44 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const requestId = crypto.randomUUID();
+  console.info("[get-user-email] request", { requestId, method: req.method });
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Create admin client
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Verify the requesting user is authenticated
+
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Get the requesting user's session
-    const { data: { user: requestingUser }, error: authError } = await supabaseAdmin.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-
-    if (authError || !requestingUser) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Check if requesting user is admin or controller
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("user_id", requestingUser.id)
-      .single();
+    // Validate JWT and extract claims (verify_jwt is disabled in config)
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    if (!profile || !["admin", "controller", "company_admin"].includes(profile.role)) {
-      return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
-        status: 403,
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.warn("[get-user-email] invalid token", { requestId, claimsError });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get the target user ID from request
-    const { userId } = await req.json();
+    const requestingUserId = String(claimsData.claims.sub);
+
+    // Parse request body
+    const body = await req.json().catch(() => ({}));
+    const userId = body?.userId as string | undefined;
+    const companyId = body?.companyId as string | undefined;
 
     if (!userId) {
       return new Response(JSON.stringify({ error: "userId is required" }), {
@@ -65,31 +59,85 @@ serve(async (req) => {
       });
     }
 
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Authorization:
+    // - Users can always fetch their own email
+    // - Otherwise, requester must have elevated access in the provided company
+    if (requestingUserId !== userId) {
+      if (!companyId) {
+        return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: requesterAccess, error: requesterAccessError } = await supabaseAdmin
+        .from("user_company_access")
+        .select("role, is_active")
+        .eq("user_id", requestingUserId)
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (requesterAccessError) throw requesterAccessError;
+
+      const requesterRole = (requesterAccess as any)?.role as string | undefined;
+      const allowedRoles = new Set(["admin", "controller", "company_admin"]);
+
+      if (!requesterRole || !allowedRoles.has(requesterRole)) {
+        console.warn("[get-user-email] insufficient permissions", {
+          requestId,
+          requestingUserId,
+          companyId,
+          requesterRole,
+        });
+        return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Ensure the target user is part of the same company (prevents cross-company email lookup)
+      const { data: targetAccess, error: targetAccessError } = await supabaseAdmin
+        .from("user_company_access")
+        .select("user_id")
+        .eq("user_id", userId)
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (targetAccessError) throw targetAccessError;
+
+      if (!targetAccess) {
+        return new Response(JSON.stringify({ email: null }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Fetch user email from auth.users
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
 
     if (userError || !userData?.user) {
+      console.warn("[get-user-email] target user not found", { requestId, userId, userError });
       return new Response(JSON.stringify({ email: null }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(
-      JSON.stringify({ email: userData.user.email }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ email: userData.user.email }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
-    console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    const message = (error as any)?.message ?? String(error);
+    console.error("[get-user-email] error", { requestId, message });
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
