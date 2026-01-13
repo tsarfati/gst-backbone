@@ -62,14 +62,17 @@ export default function CompanyRequest() {
 
       if (companyError) throw companyError;
 
-      // Grant admin access to the creator
+      // Grant admin access to the creator (use upsert to handle if it already exists from a trigger)
       const { error: accessError } = await supabase
         .from('user_company_access')
-        .insert({
+        .upsert({
           user_id: user.id,
           company_id: companyData.id,
           role: 'admin',
           granted_by: user.id
+        }, { 
+          onConflict: 'user_id,company_id',
+          ignoreDuplicates: false 
         });
 
       if (accessError) throw accessError;
