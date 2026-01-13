@@ -160,9 +160,25 @@ function PunchClockApp() {
 
   const loadLoginSettings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('punch_clock_login_settings')
-        .select('*')
+      // Get company_id from profile or PIN session
+      let companyId = (profile as any)?.current_company_id;
+      if (!companyId && isPinAuthenticated) {
+        const pinUser = localStorage.getItem('punch_clock_user');
+        if (pinUser) {
+          const parsed = JSON.parse(pinUser);
+          companyId = parsed.current_company_id;
+        }
+      }
+      
+      console.log('Loading login settings for company:', companyId);
+      
+      let query = supabase.from('punch_clock_login_settings').select('*');
+      
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -174,6 +190,9 @@ function PunchClockApp() {
 
       if (data) {
         setLoginSettings(data);
+      } else {
+        // Reset to defaults if no settings for this company
+        setLoginSettings({});
       }
     } catch (error) {
       console.error('Error loading login settings:', error);

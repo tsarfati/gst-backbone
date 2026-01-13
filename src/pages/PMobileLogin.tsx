@@ -32,11 +32,15 @@ export default function PMobileLogin() {
     loadLoginSettings();
   }, []);
 
-  const loadLoginSettings = async () => {
+  const loadLoginSettings = async (companyId?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('punch_clock_login_settings')
-        .select('*')
+      let query = supabase.from('punch_clock_login_settings').select('*');
+      
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -48,6 +52,9 @@ export default function PMobileLogin() {
 
       if (data) {
         setLoginSettings(data);
+      } else {
+        // Reset to defaults if no settings for this company
+        setLoginSettings({});
       }
     } catch (error) {
       console.error('Error loading login settings:', error);
@@ -94,14 +101,23 @@ export default function PMobileLogin() {
         return;
       }
 
+      // Get company_id from the profile
+      const companyId = (profiles as any)?.current_company_id ?? (profiles as any)?.company_id ?? null;
+      
       // Store PIN session for PM Mobile
       localStorage.setItem('pm_mobile_user', JSON.stringify({
         user_id: profiles.user_id,
         name: `${profiles.first_name} ${profiles.last_name}`,
         role: normalizedRole,
+        current_company_id: companyId,
         pin_authenticated: true,
         pin
       }));
+      
+      // Load login settings for this user's company
+      if (companyId) {
+        await loadLoginSettings(companyId);
+      }
 
       toast({
         title: "Login Successful",
